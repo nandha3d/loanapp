@@ -22,17 +22,19 @@ class ApprovalService {
   }
 
   Future<void> approve(String id, {String? note}) async {
-    await _dio.patch<Map<String, dynamic>>(
+    final res = await _dio.patch<Map<String, dynamic>>(
       Endpoints.approvalApprove(id),
       data: {if (note != null) 'note': note},
     );
+    unwrapEnvelope(res, (_) => null);
   }
 
   Future<void> reject(String id, {String? note}) async {
-    await _dio.patch<Map<String, dynamic>>(
+    final res = await _dio.patch<Map<String, dynamic>>(
       Endpoints.approvalReject(id),
       data: {if (note != null) 'note': note},
     );
+    unwrapEnvelope(res, (_) => null);
   }
 
   /// Files a generic review-gated request — used for corrections a role

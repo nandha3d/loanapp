@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -226,6 +227,33 @@ class _ApprovalCard extends ConsumerWidget {
               ],
             ),
           ),
+          if (insufficientFloat) ...[
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      floatWarning ?? t.x('appr.insufficient_float_warn'),
+                      style: AppTypography.caption.copyWith(
+                        color: const Color(0xFFB45309),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const Divider(height: 1, color: AppColors.border),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -258,7 +286,7 @@ class _ApprovalCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
-                    onPressed: () => _handleAction(context, ref, true),
+                    onPressed: () => _handleAction(context, ref, true, isUnderfunded: insufficientFloat),
                   ),
                 ),
               ],
@@ -269,7 +297,7 @@ class _ApprovalCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleAction(BuildContext context, WidgetRef ref, bool approve) async {
+  Future<void> _handleAction(BuildContext context, WidgetRef ref, bool approve, {bool isUnderfunded = false}) async {
     final t = T.of(ref);
     final noteCtrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -277,13 +305,45 @@ class _ApprovalCard extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
         title: Text(approve ? t.x('appr.approve_request') : t.x('appr.reject_request')),
-        content: TextField(
-          controller: noteCtrl,
-          decoration: InputDecoration(
-            labelText: t.x('appr.note_optional'),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
-          ),
-          maxLines: 2,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: noteCtrl,
+              decoration: InputDecoration(
+                labelText: t.x('appr.note_optional'),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+              ),
+              maxLines: 2,
+            ),
+            if (isUnderfunded && approve) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309), size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        t.x('appr.insufficient_float_warn'),
+                        style: AppTypography.tiny.copyWith(
+                          color: const Color(0xFFB45309),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.x('common.cancel'))),
@@ -310,17 +370,36 @@ class _ApprovalCard extends ConsumerWidget {
         onAction();
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString()),
-              backgroundColor: AppColors.danger,
+          final errorMsg = e is ApiException
+              ? e.message
+              : e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
+              title: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: AppColors.danger),
+                  const SizedBox(width: 8),
+                  Text(t.x('appr.approval_failed')),
+                ],
+              ),
+              content: Text(
+                errorMsg,
+                style: AppTypography.body,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(t.x('common.ok')),
+                ),
+              ],
             ),
           );
         }
       }
     }
   }
-}
 
 class _Tag extends StatelessWidget {
   const _Tag({required this.label, required this.color, required this.bg});
@@ -364,10 +443,12 @@ class _ChangesPreview extends StatelessWidget {
       changes = jsonDecode(payload) as Map<String, dynamic>;
     } catch (_) {}
 
-    if (changes.isEmpty) return const SizedBox.shrink();
+    const ignoredKeys = {'agentFloat', 'insufficientFloat', 'floatDeficit', 'floatWarning'};
+    final filteredEntries = changes.entries.where((e) => !ignoredKeys.contains(e.key)).toList();
+    if (filteredEntries.isEmpty) return const SizedBox.shrink();
 
     String formatKey(String key) {
-      final words = key.replaceAll(RegExp(r'([A-Z])'), ' \$1').split(RegExp(r'[_ ]+'));
+      final words = key.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}').split(RegExp(r'[_ ]+'));
       return words.map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1).toLowerCase()).join(' ');
     }
 
@@ -387,7 +468,7 @@ class _ChangesPreview extends StatelessWidget {
             style: AppTypography.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
-          ...changes.entries.map((e) {
+          ...filteredEntries.map((e) {
             final keyStr = formatKey(e.key);
             final valStr = e.value.toString();
 

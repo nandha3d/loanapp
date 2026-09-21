@@ -68,6 +68,7 @@ export const kn = {
     daily:              'ದೈನಂದಿನ',
     weekly:             'ಸಾಪ್ತಾಹಿಕ',
     monthly:            'ಮಾಸಿಕ',
+    custom:             'ಕಸ್ಟಮ್',
     allFrequencies:     'ಎಲ್ಲಾ',
     frequencyBreakdown: 'ಆವರ್ತನವಾರು ವಿವರ',
     allLoans:           'ಎಲ್ಲಾ ಸಾಲಗಳು',
@@ -225,6 +226,9 @@ export const kn = {
     borrower: 'ಸಾಲಗಾರ',
   },
   loans: {
+    agentFloat: 'ಏಜೆಂಟ್ ನಗದು ಫ್ಲೋಟ್',
+    insufficientFloatWarn: 'ವಿತರಣೆಗಾಗಿ ಏಜೆಂಟ್ ಬಳಿ ಸಾಕಷ್ಟಿಲ್ಲದ ಫ್ಲೋಟ್ ಇದೆ. ಅನುಮೋದನೆಗೆ ಮುನ್ನ ವಾಲೆಟ್ ಮಾಡ್ಯೂಲ್‌ನಲ್ಲಿ ಹಣ ಬಿಡುಗಡೆ ಅಗತ್ಯವಿದೆ.',
+    availableFloat: 'ಲಭ್ಯವಿರುವ ಫ್ಲೋಟ್',
     createTitle: 'ಹೊಸ ಸಾಲ ರಚಿಸಿ',
     applyTemplate: 'ಪ್ಯಾಕೇಜ್ ಟೆಂಪ್ಲೇಟ್ ಅನ್ವಯಿಸಿ...',
     searchCustomer: 'ಗ್ರಾಹಕರನ್ನು ಹುಡುಕಿ / ಆಯ್ಕೆಮಾಡಿ',
@@ -392,6 +396,8 @@ export const kn = {
     creditScore: 'ಕ್ರೆಡಿಟ್ ಸ್ಕೋರ್',
   },
   collection: {
+    exceedsRoomWarn: 'ಮೊತ್ತವು ಒಟ್ಟು ಬಾಕಿ ಮೊತ್ತಕ್ಕಿಂತ ಹೆಚ್ಚಾಗಿದೆ. ಪಾವತಿಯನ್ನು ಮಿತಿಗೊಳಿಸಲಾಗುತ್ತದೆ.',
+    overdueNotice: 'ಬಾಕಿ ಸಾಲದ ಸೂಚನೆ',
     title: 'ವಸೂಲಿ ನಮೂದು',
     todaysList: 'ಇಂದಿನ ವಸೂಲಿ ಪಟ್ಟಿ',
     missedList: 'ತಪ್ಪಿಸಿದ ಕಂತುಗಳು',
@@ -990,6 +996,11 @@ export const kn = {
     loanCode: 'ಸಾಲ ಕೋಡ್',
     submittedBy: 'ಸಲ್ಲಿಸಿದವರು',
     cashHandover: 'ನಗದು ಹ್ಯಾಂಡೋವರ್',
+    insufficientFloat: 'ಸಾಕಷ್ಟಿಲ್ಲದ ಫ್ಲೋಟ್',
+    insufficientFloatWarning: 'ವಿತರಣೆಗಾಗಿ ಏಜೆಂಟ್ ಬಳಿ ಸಾಕಷ್ಟಿಲ್ಲದ ಫ್ಲೋಟ್ ಇದೆ',
+    releaseFloat: 'ಹಣವನ್ನು ಬಿಡುಗಡೆ ಮಾಡಿ',
+    exceedsBranchPool: 'ಮೊತ್ತವು ಶಾಖೆಯ ಪೂಲ್ ಬ್ಯಾಲೆನ್ಸ್‌ಗಿಂತ ಹೆಚ್ಚಾಗಿದೆ. ಬಂಡವಾಳ ಸೇರ್ಪಡೆ ಅಗತ್ಯವಿದೆ.',
+    exceedsCashInHand: 'ಮೊತ್ತವು ಲಭ್ಯವಿರುವ ನಗದಿಗಿಂತ ಹೆಚ್ಚಾಗಿದೆ.',
   },
   reports: {
     title: 'ವರದಿಗಳು',

@@ -649,7 +649,7 @@ export async function reviewPendingLoan(formData: FormData) {
     });
   } catch (err: any) {
     if (err.name === 'InsufficientFloatError') {
-      return { success: false, error: `Agent has insufficient float to disburse ₹${err.required}. Please release funds first.` };
+      return { success: false, error: `Agent has insufficient float to disburse ₹${err.required} (available: ₹${err.available}). Please release funds first in the Wallet module.` };
     }
     return { success: false, error: err.message || 'Approval transaction failed' };
   }

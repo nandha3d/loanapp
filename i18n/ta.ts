@@ -68,6 +68,7 @@ export const ta = {
     daily:              'தினசரி',
     weekly:             'வாராந்திர',
     monthly:            'மாதாந்திர',
+    custom:             'தனிப்பயன்',
     allFrequencies:     'அனைத்தும்',
     frequencyBreakdown: 'கால இடைவெளி வாரியான பிரிவு',
     allLoans:           'அனைத்து கடன்கள்',
@@ -225,6 +226,9 @@ export const ta = {
     borrower: 'கடனாளார்',
   },
   loans: {
+    agentFloat: 'முகவர் பண இருப்பு',
+    insufficientFloatWarn: 'வழங்குவதற்கு முகவரிடம் போதுமான இருப்பு இல்லை. ஒப்புதலுக்கு முன் பணப்பையில் நிதியை விடுவிக்க வேண்டும்.',
+    availableFloat: 'கிடைக்கும் இருப்பு',
     createTitle: 'புதிய கடன் உருவாக்கம்',
     applyTemplate: 'பேக்கேஜ் டெம்ப்ளேட்டைப் பயன்படுத்து...',
     searchCustomer: 'வாடிக்கையாளரைத் தேடு / தேர்ந்தெடு',
@@ -392,6 +396,8 @@ export const ta = {
     creditScore: 'கடன் மதிப்பீடு',
   },
   collection: {
+    exceedsRoomWarn: 'தொகை நிலுவைத் தொகையை விட அதிகமாக உள்ளது. தொகை வரம்பிடப்படும்.',
+    overdueNotice: 'காலாவதியான கடன் அறிவிப்பு',
     title: 'வசூல் பதிவு',
     todaysList: 'இன்றைய வசூல் பட்டியல்',
     missedList: 'தவறிய தவணைகள்',
@@ -990,6 +996,11 @@ export const ta = {
     loanCode: 'கடன் குறியீடு',
     submittedBy: 'சமர்ப்பித்தவர்',
     cashHandover: 'பண கையளிப்பு',
+    insufficientFloat: 'போதுமான இருப்பு இல்லை',
+    insufficientFloatWarning: 'வழங்குவதற்கு முகவரிடம் போதுமான இருப்பு இல்லை',
+    releaseFloat: 'நிதியை விடுவிக்கவும்',
+    exceedsBranchPool: 'தொகை கிளை இருப்புக்கு மேல் உள்ளது. கூடுதல் மூலதனம் தேவைப்படும்.',
+    exceedsCashInHand: 'தொகை கையில் உள்ள பணத்தை விட அதிகமாக உள்ளது.',
   },
   reports: {
     title: 'அறிக்கைகள்',

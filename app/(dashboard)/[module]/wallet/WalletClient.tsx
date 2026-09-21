@@ -260,7 +260,7 @@ export default function WalletClient({
           ) : (
             <div>
               {agents.map((agent) => (
-                <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} />
+                <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} branchCashAvailable={summary.branchCashAvailable} />
               ))}
             </div>
           )}
@@ -350,7 +350,15 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
   );
 }
 
-function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: string }) {
+function AgentRow({
+  agent,
+  currencySymbol,
+  branchCashAvailable,
+}: {
+  agent: Agent;
+  currencySymbol: string;
+  branchCashAvailable?: number;
+}) {
   const [busy, setBusy] = useState(false);
   // Two-step confirmation, deliberately NOT window.confirm(). A suppressed
   // browser dialog (Firefox's "prevent this page from creating additional
@@ -360,6 +368,7 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
   const [armed, setArmed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [topUp, setTopUp] = useState<{ balance: number; shortfall: number; amount: number; note: string } | null>(null);
+  const [inputAmount, setInputAmount] = useState('');
   const hasFloat = agent.balance > 0;
   const tone = hasFloat ? tones.green : tones.slate;
 
@@ -444,6 +453,8 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         min="1"
         step="any"
         placeholder="Amount"
+        value={inputAmount}
+        onChange={(e) => setInputAmount(e.target.value)}
         required
         className="form-control"
       />
@@ -470,6 +481,13 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         <span className="material-icons-outlined" style={{ fontSize: 16 }}>{armed === 'collect' ? 'check' : 'download'}</span>
         {armed === 'collect' ? 'Confirm collect' : 'Collect'}
       </button>
+
+      {branchCashAvailable !== undefined && branchCashAvailable !== null && Number(inputAmount) > branchCashAvailable && !topUp && (
+        <div style={{ gridColumn: '1 / -1', background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#d97706' }}>warning</span>
+          <span>Amount exceeds branch pool balance ({fmt(currencySymbol, branchCashAvailable)}). A capital top-up will be required upon release.</span>
+        </div>
+      )}
 
       {(error || topUp) && (
         <div style={{ gridColumn: '1 / -1' }}>

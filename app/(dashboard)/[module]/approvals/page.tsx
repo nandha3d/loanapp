@@ -62,13 +62,45 @@ export default async function ApprovalsPage() {
       status: 'pending_review',
       ...branchScope,
     };
-    pendingLoans = await prisma.loan.findMany({
+    const rawLoans = await prisma.loan.findMany({
       where: loanWhere,
       include: {
         customer: { select: { name: true, customerCode: true } },
-        createdBy: { select: { name: true } },
+        createdBy: { select: { id: true, name: true, role: true } },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    const agentUserIds = Array.from(new Set(
+      rawLoans
+        .filter((l: any) => l.createdBy?.role === 'agent' && l.createdById)
+        .map((l: any) => l.createdById!)
+    ));
+    const agentAccounts = agentUserIds.length > 0
+      ? await prisma.agentAccount.findMany({
+          where: { tenantId, appType, agentId: { in: agentUserIds } },
+          select: { agentId: true, balance: true },
+        })
+      : [];
+    const floatMap = new Map<string, number>();
+    for (const acc of agentAccounts) {
+      floatMap.set(acc.agentId, Number(acc.balance ?? 0));
+    }
+
+    pendingLoans = rawLoans.map((l: any) => {
+      const isAgent = l.createdBy?.role === 'agent';
+      const agentFloat = isAgent && l.createdById ? (floatMap.get(l.createdById) ?? 0) : null;
+      const requiredAmount = Number(l.disbursed ?? l.principal ?? 0);
+      const insufficientFloat = agentFloat !== null && agentFloat < requiredAmount;
+      const floatDeficit = insufficientFloat ? requiredAmount - agentFloat : 0;
+      return {
+        ...l,
+        principal: Number(l.principal),
+        disbursed: Number(l.disbursed),
+        agentFloatBalance: agentFloat,
+        insufficientFloat,
+        floatDeficit,
+      };
     });
 
     const customerWhere: any = {
@@ -109,6 +141,7 @@ export default async function ApprovalsPage() {
       pendingVehicles={pendingVehicles}
       userRole={userRole}
       dict={dict}
+      appType={appType}
     />
   );
 }

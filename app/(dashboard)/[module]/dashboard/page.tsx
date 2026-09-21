@@ -493,17 +493,24 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
       inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
     },
+    custom: {
+      total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
   };
 
   const todayFreqLoans: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
     daily: { total: new Set(), active: new Set(), inactive: new Set() },
     weekly: { total: new Set(), active: new Set(), inactive: new Set() },
     monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+    custom: { total: new Set(), active: new Set(), inactive: new Set() },
   };
   const todayFreqCustomers: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
     daily: { total: new Set(), active: new Set(), inactive: new Set() },
     weekly: { total: new Set(), active: new Set(), inactive: new Set() },
     monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+    custom: { total: new Set(), active: new Set(), inactive: new Set() },
   };
 
   const allTodayLoans = new Set<string>();
@@ -512,9 +519,24 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   for (const item of todayInstalments) {
     const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
     let freq: FrequencyKey = 'daily';
-    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
-    else if (rawFreq === 'monthly') freq = 'monthly';
-    else freq = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
+      freq = 'weekly';
+    } else if (rawFreq === 'monthly') {
+      freq = 'monthly';
+    } else if (
+      rawFreq === 'custom' ||
+      rawFreq === 'custom_duration' ||
+      rawFreq === 'single_payment' ||
+      rawFreq === 'bullet' ||
+      rawFreq.includes('custom') ||
+      rawFreq.includes('single') ||
+      (item.loan as any)?.termType === 'bullet' ||
+      (rawFreq !== '' && rawFreq !== 'daily')
+    ) {
+      freq = 'custom';
+    } else {
+      freq = 'daily';
+    }
 
     const isActive = (item.loan?.status || '').toLowerCase() === 'active';
     const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
@@ -551,7 +573,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayFrequencyBreakdown[freq][statusKey].remaining += rem;
   }
 
-  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+  for (const key of ['daily', 'weekly', 'monthly', 'custom'] as FrequencyKey[]) {
     const fb = todayFrequencyBreakdown[key];
     fb.total.loanCount = todayFreqLoans[key].total.size;
     fb.total.customerCount = todayFreqCustomers[key].total.size;
@@ -612,9 +634,24 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   for (const item of overdueInstalmentsForTotals as any[]) {
     const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
     let freq: FrequencyKey = 'daily';
-    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
-    else if (rawFreq === 'monthly') freq = 'monthly';
-    else freq = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
+      freq = 'weekly';
+    } else if (rawFreq === 'monthly') {
+      freq = 'monthly';
+    } else if (
+      rawFreq === 'custom' ||
+      rawFreq === 'custom_duration' ||
+      rawFreq === 'single_payment' ||
+      rawFreq === 'bullet' ||
+      rawFreq.includes('custom') ||
+      rawFreq.includes('single') ||
+      (item.loan as any)?.termType === 'bullet' ||
+      (rawFreq !== '' && rawFreq !== 'daily')
+    ) {
+      freq = 'custom';
+    } else {
+      freq = 'daily';
+    }
     loanFrequencyMap.set(item.loanId, freq);
 
     const isActive = (item.loan?.status || '').toLowerCase() === 'active';
@@ -645,6 +682,11 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
       inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
     },
+    custom: {
+      total: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
   };
 
   const overdueLoansByStatus = {
@@ -670,11 +712,13 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     daily: { total: new Set(), active: new Set(), inactive: new Set() },
     weekly: { total: new Set(), active: new Set(), inactive: new Set() },
     monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+    custom: { total: new Set(), active: new Set(), inactive: new Set() },
   };
   const overdueFreqCustomers: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
     daily: { total: new Set(), active: new Set(), inactive: new Set() },
     weekly: { total: new Set(), active: new Set(), inactive: new Set() },
     monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+    custom: { total: new Set(), active: new Set(), inactive: new Set() },
   };
 
   const allOverdueLoans = new Set<string>();
@@ -715,7 +759,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     overdueFrequencyBreakdown[freq][statusKey].remaining += m.overdueOutstanding;
   }
 
-  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+  for (const key of ['daily', 'weekly', 'monthly', 'custom'] as FrequencyKey[]) {
     const fb = overdueFrequencyBreakdown[key];
     fb.total.loanCount = overdueFreqLoans[key].total.size;
     fb.total.customerCount = overdueFreqCustomers[key].total.size;

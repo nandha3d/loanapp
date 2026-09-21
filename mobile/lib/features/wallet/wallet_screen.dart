@@ -98,12 +98,17 @@ class _AgentWallet extends ConsumerWidget {
 
   void _depositCash(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    final wallet = ref.read(walletMeProvider).asData?.value;
+    final balance = wallet?.balance ?? 0.0;
     showDialog<void>(
       context: context,
       builder: (_) => _AmountActionDialog(
         title: t.x('wallet.deposit_title'),
         actionLabel: t.x('wallet.deposit'),
         successMsg: t.x('wallet.deposited'),
+        maxBalance: balance,
+        balanceLabel: t.x('wallet.cash_in_hand'),
+        warningExceeds: t.x('wallet.exceeds_cash'),
         submit: (amount, note) async {
           await ref
               .read(walletServiceProvider)
@@ -241,10 +246,16 @@ class _AmountActionDialog extends ConsumerStatefulWidget {
     required this.actionLabel,
     required this.submit,
     this.successMsg,
+    this.maxBalance,
+    this.balanceLabel,
+    this.warningExceeds,
   });
   final String title;
   final String actionLabel;
   final String? successMsg;
+  final double? maxBalance;
+  final String? balanceLabel;
+  final String? warningExceeds;
   final Future<void> Function(double amount, String note) submit;
 
   @override
@@ -258,7 +269,16 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _amount.addListener(_onAmountChanged);
+  }
+
+  void _onAmountChanged() => setState(() {});
+
+  @override
   void dispose() {
+    _amount.removeListener(_onAmountChanged);
     _amount.dispose();
     _note.dispose();
     super.dispose();
@@ -304,6 +324,7 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
+    final enteredAmt = double.tryParse(_amount.text.trim()) ?? 0;
     return AlertDialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -311,7 +332,20 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
       title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.maxBalance != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '${widget.balanceLabel ?? t.x('wallet.balance')}: ${ref.watch(currencyFmtProvider).format(widget.maxBalance!)}',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
           TextField(
             controller: _amount,
             keyboardType: TextInputType.number,
@@ -322,6 +356,29 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
               border: const OutlineInputBorder(),
             ),
           ),
+          if (widget.maxBalance != null && enteredAmt > widget.maxBalance!) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withAlpha(25),
+                border: Border.all(color: AppColors.warning.withAlpha(80)),
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.warningExceeds ?? t.x('wallet.exceeds_cash'),
+                      style: AppTypography.tiny.copyWith(color: AppColors.warning, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _note,
@@ -495,16 +552,19 @@ class _AgentRow extends ConsumerWidget {
   }
 
   void _openRelease(BuildContext context, WidgetRef ref) {
+    final branches = ref.read(walletBranchesProvider).asData?.value ?? const [];
+    final poolBalance = branches.fold<double>(0.0, (s, b) => s + b.balance);
     showDialog<void>(
       context: context,
-      builder: (_) => _ReleaseDialog(agent: agent),
+      builder: (_) => _ReleaseDialog(agent: agent, poolBalance: poolBalance),
     );
   }
 }
 
 class _ReleaseDialog extends ConsumerStatefulWidget {
-  const _ReleaseDialog({required this.agent});
+  const _ReleaseDialog({required this.agent, this.poolBalance});
   final AgentWallet agent;
+  final double? poolBalance;
 
   @override
   ConsumerState<_ReleaseDialog> createState() => _ReleaseDialogState();
@@ -516,7 +576,16 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _amount.addListener(_onAmountChanged);
+  }
+
+  void _onAmountChanged() => setState(() {});
+
+  @override
   void dispose() {
+    _amount.removeListener(_onAmountChanged);
     _amount.dispose();
     _note.dispose();
     super.dispose();
@@ -563,13 +632,28 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
+    final enteredAmt = double.tryParse(_amount.text.trim()) ?? 0;
     return AlertDialog(
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radius),),
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+      ),
       title: Text('${t.x('wallet.release')} — ${widget.agent.name}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.poolBalance != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '${t.x('wallet.branch_pool_balance')}: ${ref.watch(currencyFmtProvider).format(widget.poolBalance!)}',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
           TextField(
             controller: _amount,
             keyboardType: TextInputType.number,
@@ -580,6 +664,29 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
               border: const OutlineInputBorder(),
             ),
           ),
+          if (widget.poolBalance != null && enteredAmt > widget.poolBalance!) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withAlpha(25),
+                border: Border.all(color: AppColors.warning.withAlpha(80)),
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      t.x('wallet.exceeds_pool'),
+                      style: AppTypography.tiny.copyWith(color: AppColors.warning, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _note,

@@ -68,6 +68,7 @@ export const hi = {
     daily:              'दैनिक',
     weekly:             'साप्ताहिक',
     monthly:            'मासिक',
+    custom:             'कस्टम',
     allFrequencies:     'सभी',
     frequencyBreakdown: 'आवृत्ति के अनुसार विवरण',
     allLoans:           'सभी ऋण',
@@ -225,6 +226,9 @@ export const hi = {
     borrower: 'ऋणकर्ता',
   },
   loans: {
+    agentFloat: 'एजेंट नकद फ्लोट',
+    insufficientFloatWarn: 'वितरण के लिए एजेंट के पास अपर्याप्त फ्लोट है। अनुमोदन से पहले वॉलेट मॉड्यूल में फंड रिलीज की आवश्यकता होगी।',
+    availableFloat: 'उपलब्ध फ्लोट',
     createTitle: 'नया ऋण निर्माण',
     applyTemplate: 'पैकेज टेम्पलेट लागू करें...',
     searchCustomer: 'ग्राहक खोजें / चुनें',
@@ -392,6 +396,8 @@ export const hi = {
     creditScore: 'क्रेडिट स्कोर',
   },
   collection: {
+    exceedsRoomWarn: 'राशि कुल बकाया शेष से अधिक है। भुगतान सीमित किया जाएगा।',
+    overdueNotice: 'अतिदेय ऋण सूचना',
     title: 'संग्रह प्रविष्टि',
     todaysList: 'आज की संग्रह सूची',
     missedList: 'छूटी हुई किस्तें',
@@ -990,6 +996,11 @@ export const hi = {
     loanCode: 'ऋण कोड',
     submittedBy: 'सबमिट किया',
     cashHandover: 'नकद हस्तांतरण',
+    insufficientFloat: 'अपर्याप्त फ्लोट',
+    insufficientFloatWarning: 'वितरण के लिए एजेंट के पास अपर्याप्त फ्लोट है',
+    releaseFloat: 'फंड जारी करें',
+    exceedsBranchPool: 'राशि शाखा पूल शेष से अधिक है। पूंजी इंजेक्शन की आवश्यकता होगी।',
+    exceedsCashInHand: 'राशि उपलब्ध नकदी से अधिक है।',
   },
   reports: {
     title: 'रिपोर्ट',

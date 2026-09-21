@@ -57,7 +57,8 @@ export default function LoanForm({
   goldMaster,
   goldConfig,
   interestOnlyEnabled,
-  bulletTermEnabled
+  bulletTermEnabled,
+  agentFloatBalance,
 }: {
   customers: any[];
   packages: any[];
@@ -75,6 +76,7 @@ export default function LoanForm({
   interestOnlyEnabled?: boolean;
   /** Opt-in per tenant — see lib/features.ts. Hides the single-payment term when off. */
   bulletTermEnabled?: boolean;
+  agentFloatBalance?: number | null;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -1050,6 +1052,30 @@ export default function LoanForm({
               )}
             </div>
 
+            {agentFloatBalance !== null && agentFloatBalance !== undefined && (
+              <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-alt)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '.88rem', color: 'var(--text-secondary)' }}>
+                  💼 {dict.loans.agentFloat || 'Agent Cash Float'}:
+                </span>
+                <span style={{ fontWeight: 700, color: calculatedData.disbursedAmount > agentFloatBalance ? 'var(--danger)' : 'var(--success)' }}>
+                  {currencySymbol}{agentFloatBalance.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {agentFloatBalance !== null && agentFloatBalance !== undefined && calculatedData.disbursedAmount > agentFloatBalance && (
+              <div role="alert" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '12px' }}>
+                <span className="material-icons-outlined" style={{ color: '#d97706', fontSize: '20px' }}>warning</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '.9rem' }}>
+                    {dict.loans.insufficientFloatWarn || 'Agent has insufficient float for disbursement. A float release will be needed in the Wallet module before approval.'}
+                  </div>
+                  <div style={{ fontSize: '.8rem', marginTop: '3px', opacity: 0.9 }}>
+                    {dict.loans.availableFloat || 'Available Float'}: {currencySymbol}{agentFloatBalance.toLocaleString()} · {dict.loans.netDisbursed || 'Net Cash Disbursed'}: {currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isInterestOnlyPlan && (
               <div className="form-row">
                 <div className="form-group">
@@ -1403,6 +1429,15 @@ export default function LoanForm({
               <label className="form-label">{dict.loans.voucherRef}</label>
               <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
+
+            {agentFloatBalance !== null && agentFloatBalance !== undefined && calculatedData.disbursedAmount > agentFloatBalance && (
+              <div role="alert" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '16px' }}>
+                <span className="material-icons-outlined" style={{ color: '#d97706', fontSize: '20px' }}>warning</span>
+                <div style={{ fontSize: '.88rem', fontWeight: 600 }}>
+                  {dict.loans.insufficientFloatWarn || 'Agent has insufficient float for disbursement. A float release will be needed in the Wallet module before approval.'}
+                </div>
+              </div>
+            )}
 
             <div className="form-actions" style={{ marginTop: '20px' }}>
               <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>

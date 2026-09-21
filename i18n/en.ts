@@ -68,6 +68,7 @@ export const en = {
     daily:              'Daily',
     weekly:             'Weekly',
     monthly:            'Monthly',
+    custom:             'Custom',
     allFrequencies:     'All',
     frequencyBreakdown: 'Breakdown by Frequency',
     allLoans:           'All Loans',
@@ -225,6 +226,9 @@ export const en = {
     borrower: 'Borrower',
   },
   loans: {
+    agentFloat: 'Agent Cash Float',
+    insufficientFloatWarn: 'Agent has insufficient float for disbursement. A float release will be needed in the Wallet module before approval.',
+    availableFloat: 'Available Float',
     createTitle: 'Create New Loan',
     applyTemplate: 'Apply Package Template...',
     searchCustomer: 'Search / Select Customer',
@@ -392,6 +396,8 @@ export const en = {
     creditScore: 'Credit Score',
   },
   collection: {
+    exceedsRoomWarn: 'Amount exceeds total outstanding balance. Payment will be capped.',
+    overdueNotice: 'Overdue Loan Notice',
     title: 'Collection Entry',
     todaysList: "Today's Collection List",
     missedList: 'Missed Instalments',
@@ -990,6 +996,11 @@ export const en = {
     loanCode: 'Loan Code',
     submittedBy: 'Submitted By',
     cashHandover: 'Cash Handover',
+    insufficientFloat: 'Insufficient Float',
+    insufficientFloatWarning: 'Agent has insufficient float for disbursement',
+    releaseFloat: 'Release Funds',
+    exceedsBranchPool: 'Amount exceeds branch pool balance. Capital injection will be required.',
+    exceedsCashInHand: 'Amount exceeds available cash in hand.',
   },
   reports: {
     title: 'Reports',

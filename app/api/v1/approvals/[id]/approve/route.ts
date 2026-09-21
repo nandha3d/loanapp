@@ -365,6 +365,23 @@ export async function PATCH(
               byUserId: ctx.userId,
             });
           }
+
+          // Record cash disbursement entry (parity with web reviewPendingLoan)
+          await tx.accountEntry.create({
+            data: {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              branchId: loan.branchId || undefined,
+              entryDate: loan.startDate || new Date(),
+              type: 'loan_disburse',
+              category: 'cash',
+              amount: disburseAmt,
+              description: `Loan ${loan.loanCode} disbursed to customer`,
+              referenceId: loan.id,
+              referenceType: 'loan',
+              createdBy: loan.createdById || ctx.userId,
+            },
+          });
         });
 
         await prisma.auditLog.create({
@@ -398,7 +415,7 @@ export async function PATCH(
         return ok({ status: 'approved' });
       } catch (err: any) {
         if (err.name === 'InsufficientFloatError') {
-          return fail(`Agent has insufficient float to disburse ₹${err.required}. Please release funds first.`, 400);
+          return fail(`Agent has insufficient float to disburse ₹${err.required} (available: ₹${err.available}). Please release funds first in the Wallet module.`, 409);
         }
         throw err;
       }

@@ -20,6 +20,7 @@ import 'package:zolofund/data/models/loan_calc.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
 import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/data/services/wallet_service.dart';
 import 'package:zolofund/data/services/gold_service.dart';
 import 'package:zolofund/features/loans/loans_screen.dart' show loansProvider;
 import 'package:zolofund/data/services/upload_service.dart';
@@ -1338,6 +1339,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   // ─────────────────────── Step 2: Terms ───────────────────────────────
   Widget _stepTerms() {
     final tr = T.of(ref);
+    final fmt = ref.watch(currencyFmtProvider);
+    final walletAsync = ref.watch(walletMeProvider);
+    final floatBalance = walletAsync.asData?.value.balance;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1610,6 +1614,69 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             },
           ),
         ],
+        if (_principalNum > 0) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr.x('rev.net_disbursed'), style: AppTypography.caption),
+                    Text(fmt.format(_netDisbursed()), style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
+                  ],
+                ),
+                if (floatBalance != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(tr.x('loan.agent_float'), style: AppTypography.caption),
+                      Text(fmt.format(floatBalance), style: AppTypography.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: _netDisbursed() > floatBalance ? AppColors.danger : AppColors.success,
+                      )),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (floatBalance != null && _netDisbursed() > floatBalance) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withAlpha(25),
+                border: Border.all(color: AppColors.warning),
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tr.x('loan.insufficient_float_warn'),
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -1853,6 +1920,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   tr.x('rev.net_disbursed'),
                   fmt.format(_netDisbursed()),
                 ),
+                if (ref.watch(walletMeProvider).asData?.value.balance != null)
+                  _kv(
+                    tr.x('loan.agent_float'),
+                    fmt.format(ref.watch(walletMeProvider).asData!.value.balance),
+                  ),
                 _kv(
                   tr.x('rev.total_payable'),
                   fmt.format(_calc!.totalRepayable),
@@ -1877,6 +1949,34 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             ],
           ),
         ),
+        if (ref.watch(walletMeProvider).asData?.value.balance != null &&
+            _netDisbursed() > ref.watch(walletMeProvider).asData!.value.balance) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withAlpha(25),
+              border: Border.all(color: AppColors.warning),
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr.x('loan.insufficient_float_warn'),
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (_error != null) ...[
           const SizedBox(height: 12),
           Container(

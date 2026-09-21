@@ -476,6 +476,32 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                 totalDue: _totalDue,
                 t: t,
               ),
+              if (_value > _totalDue && _totalDue > 0) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withAlpha(25),
+                    border: Border.all(color: AppColors.warning.withAlpha(80)),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          t.x('coll.exceeds_room'),
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.warning,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               _VoiceEntryButton(
                 listening: ref.watch(voiceEntryProvider).listening,
@@ -722,6 +748,9 @@ class _AmountDisplay extends ConsumerWidget {
     if (value <= 0) {
       color = AppColors.textPrimary;
       hint = '${t.x('coll.outstanding_label')} ${fmt.format(totalDue)}';
+    } else if (value > totalDue && totalDue > 0) {
+      color = AppColors.warning;
+      hint = '${t.x('coll.exceeds_room')} (${fmt.format(totalDue)})';
     } else if (value >= totalDue) {
       color = AppColors.success;
       hint = t.x('coll.settles_full');

@@ -12,7 +12,8 @@ export default function ApprovalsClient({
   pendingCustomers = [],
   pendingVehicles = [],
   userRole,
-  dict
+  dict,
+  appType = 'microlending',
 }: {
   requests: any[];
   pendingLoans?: any[];
@@ -20,6 +21,7 @@ export default function ApprovalsClient({
   pendingVehicles?: any[];
   userRole: string;
   dict: any;
+  appType?: string;
 }) {
   const d = dict.approvals;
   const precloseDetails = (request: any) => {
@@ -76,7 +78,17 @@ export default function ApprovalsClient({
   }
 
   async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
-    if (!confirmStep(`loan:${loanId}:${action}`, action === 'reject')) return;
+    const targetLoan = pendingLoans.find((l: any) => l.id === loanId);
+    const isUnderfunded = action === 'approve' && targetLoan?.insufficientFloat;
+    const needsConfirm = action === 'reject' || isUnderfunded;
+    if (!confirmStep(`loan:${loanId}:${action}`, needsConfirm)) {
+      if (isUnderfunded) {
+        setActionError(
+          `⚠️ ${d.insufficientFloatWarning || 'Agent has insufficient float'}: ₹${Number(targetLoan.agentFloatBalance ?? 0).toLocaleString()} available, ₹${Number(targetLoan.disbursed ?? targetLoan.principal ?? 0).toLocaleString()} needed. Click Confirm to attempt anyway, or release funds in the Wallet module.`
+        );
+      }
+      return;
+    }
     setLoanLoading(loanId);
     try {
       const fd = new FormData();
@@ -409,7 +421,33 @@ export default function ApprovalsClient({
                       <td style={{ padding: '16px 20px' }}><strong>{loan.loanCode}</strong></td>
                       <td style={{ padding: '16px 20px' }}>{loan.customer?.name} ({loan.customer?.customerCode})</td>
                       <td style={{ padding: '16px 20px' }}>₹{Number(loan.principal).toLocaleString()}</td>
-                      <td style={{ padding: '16px 20px' }}>{loan.createdBy?.name || '—'}</td>
+                      <td style={{ padding: '16px 20px' }}>
+                        <div>{loan.createdBy?.name || '—'}</div>
+                        {loan.insufficientFloat && (
+                          <div style={{
+                            marginTop: 4,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: '0.75rem',
+                            color: '#b45309',
+                            background: '#fef3c7',
+                            border: '1px solid #fde68a',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            fontWeight: 500,
+                          }}>
+                            <span className="material-icons-outlined" style={{ fontSize: 14 }}>warning</span>
+                            <span>{d.insufficientFloat || 'Low float'}: ₹{Number(loan.agentFloatBalance ?? 0).toLocaleString()} / ₹{Number(loan.disbursed ?? loan.principal ?? 0).toLocaleString()}</span>
+                            <a
+                              href={`/${appType}/wallet`}
+                              style={{ textDecoration: 'underline', color: '#b45309', marginLeft: 4, fontWeight: 600 }}
+                            >
+                              {d.releaseFloat || 'Release funds'}
+                            </a>
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '16px 20px' }}>
                         <span className="badge badge-pending" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
                           {d.pendingReview}
@@ -423,7 +461,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'approve')}
                           >
-                            {loanLoading === loan.id ? '...' : d.approve}
+                            {loanLoading === loan.id ? '...' : (armed === `loan:${loan.id}:approve` ? 'Confirm' : d.approve)}
                           </button>
                           <button
                             className="btn btn-sm"

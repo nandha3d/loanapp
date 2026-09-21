@@ -105,7 +105,41 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
       });
 
+      const agentIds = Array.from(
+        new Set(
+          pendingLoans
+            .filter((l) => l.createdBy?.role === 'agent' && l.createdById)
+            .map((l) => l.createdById as string),
+        ),
+      );
+      const agentAccounts = agentIds.length > 0
+        ? await prisma.agentAccount.findMany({
+            where: { tenantId: ctx.tenantId, appType: ctx.appType, agentId: { in: agentIds } },
+            select: { agentId: true, balance: true },
+          })
+        : [];
+      const agentBalanceMap = new Map(agentAccounts.map((a) => [a.agentId, Number(a.balance)]));
+
       for (const loan of pendingLoans) {
+        const isAgent = loan.createdBy?.role === 'agent';
+        const agentFloat = isAgent && loan.createdById ? (agentBalanceMap.get(loan.createdById) ?? 0) : null;
+        const disbursed = Number(loan.disbursed);
+        const insufficientFloat = isAgent && agentFloat !== null && agentFloat < disbursed;
+
+        const changesPayload: Record<string, unknown> = {
+          loanCode: loan.loanCode,
+          customer: loan.customer?.name || 'Unknown',
+          principal: Number(loan.principal),
+          tenure: loan.tenure,
+          frequency: loan.frequency,
+          disbursed,
+          totalPayable: Number(loan.totalPayable),
+          perInstalment: Number(loan.perInstalment),
+        };
+        if (insufficientFloat) {
+          changesPayload.floatWarning = `Agent float is ₹${agentFloat} (needs ₹${disbursed})`;
+        }
+
         mappedList.push({
           id: loan.id,
           tenantId: loan.tenantId,
@@ -114,16 +148,7 @@ export async function GET(req: NextRequest) {
           entityType: 'loan',
           entityId: loan.id,
           requestedById: loan.createdById || '',
-          requestedChanges: JSON.stringify({
-            loanCode: loan.loanCode,
-            customer: loan.customer?.name || 'Unknown',
-            principal: Number(loan.principal),
-            tenure: loan.tenure,
-            frequency: loan.frequency,
-            disbursed: Number(loan.disbursed),
-            totalPayable: Number(loan.totalPayable),
-            perInstalment: Number(loan.perInstalment),
-          }),
+          requestedChanges: JSON.stringify(changesPayload),
           reason: 'New Loan Application',
           status: 'pending',
           createdAt: loan.createdAt,
@@ -133,6 +158,9 @@ export async function GET(req: NextRequest) {
           reviewNotes: null,
           requestedBy: loan.createdBy || { id: loan.createdById || '', name: 'Agent', role: 'agent' },
           reviewedBy: null,
+          insufficientFloat,
+          agentFloat,
+          floatDeficit: insufficientFloat && agentFloat !== null ? disbursed - agentFloat : 0,
         } as any);
       }
     }

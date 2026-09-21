@@ -68,6 +68,7 @@ export const ml = {
     daily:              'പ്രതിദിനം',
     weekly:             'പ്രതിവാരം',
     monthly:            'പ്രതിമാസം',
+    custom:             'കസ്റ്റം',
     allFrequencies:     'എല്ലാം',
     frequencyBreakdown: 'ആവൃത്തി തിരിച്ചുള്ള വിവരങ്ങൾ',
     allLoans:           'എല്ലാ വായ്പകളും',
@@ -225,6 +226,9 @@ export const ml = {
     borrower: 'വായ്പക്കാരൻ',
   },
   loans: {
+    agentFloat: 'ഏജന്റ് ക്യാഷ് ഫ്ലോട്ട്',
+    insufficientFloatWarn: 'വിതരണത്തിന് ഏജന്റിന് അപര്യാപ്തമായ ഫ്ലോട്ട് ഉണ്ട്. അംഗീകരിക്കുന്നതിന് മുമ്പ് വാലറ്റ് മൊഡ്യൂളിൽ ഫണ്ട് റിലീസ് ചെയ്യേണ്ടതുണ്ട്.',
+    availableFloat: 'ലഭ്യമായ ഫ്ലോട്ട്',
     createTitle: 'പുതിയ വായ്പ സൃഷ്ടിക്കുക',
     applyTemplate: 'പാക്കേജ് ടെംപ്ലേറ്റ് പ്രയോഗിക്കുക...',
     searchCustomer: 'ഉപഭോക്താവിനെ തിരയുക / തിരഞ്ഞെടുക്കുക',
@@ -392,6 +396,8 @@ export const ml = {
     creditScore: 'ക്രെഡിറ്റ് സ്കോർ',
   },
   collection: {
+    exceedsRoomWarn: 'തുക ആകെ ബാക്കി തുകയേക്കാൾ കൂടുതലാണ്. പേയ്‌മെന്റ് പരിമിതപ്പെടുത്തും.',
+    overdueNotice: 'കുടിശ്ശിക വായ്പ അറിയിപ്പ്',
     title: 'പിരിവ് എൻട്രി',
     todaysList: 'ഇന്നത്തെ പിരിവ് പട്ടിക',
     missedList: 'വിട്ടുപോയ തവണകൾ',
@@ -990,6 +996,11 @@ export const ml = {
     loanCode: 'വായ്പ കോഡ്',
     submittedBy: 'സമർപ്പിച്ചയാൾ',
     cashHandover: 'നഗദ് ഹാൻഡോവർ',
+    insufficientFloat: 'അപര്യാപ്തമായ ഫ്ലോട്ട്',
+    insufficientFloatWarning: 'വിതരണത്തിന് ഏജന്റിന് അപര്യാപ്തമായ ഫ്ലോട്ട് ഉണ്ട്',
+    releaseFloat: 'ഫണ്ട് റിലീസ് ചെയ്യുക',
+    exceedsBranchPool: 'തുക ബ്രാഞ്ച് പൂൾ ബാലൻസിനേക്കാൾ കൂടുതലാണ്. മൂലധനം ചേർക്കേണ്ടതുണ്ട്.',
+    exceedsCashInHand: 'തുക ലഭ്യമായ പണത്തേക്കാൾ കൂടുതലാണ്.',
   },
   reports: {
     title: 'റിപ്പോർട്ടുകൾ',

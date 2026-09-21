@@ -309,7 +309,7 @@ export async function GET(req: NextRequest) {
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
     // ── Frequency × Status breakdown (web parity) ──────────────────────────
-    type FrequencyKey = 'daily' | 'weekly' | 'monthly';
+    type FrequencyKey = 'daily' | 'weekly' | 'monthly' | 'custom';
     const zeroSub = () => ({ expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 });
     const zeroOverdueSub = () => ({ totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 });
     const mkSets = () => ({ total: new Set<string>(), active: new Set<string>(), inactive: new Set<string>() });
@@ -323,17 +323,34 @@ export async function GET(req: NextRequest) {
       daily: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
       weekly: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
       monthly: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
+      custom: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
     };
-    const todayFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
-    const todayFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const todayFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets(), custom: mkSets() };
+    const todayFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets(), custom: mkSets() };
     const allTodayLoans = new Set<string>();
     const allTodayCustomers = new Set<string>();
 
     for (const item of todayInstalments) {
       const rawFreq = ((item as any).loan?.frequency || '').toLowerCase().trim();
       let freq: FrequencyKey = 'daily';
-      if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
-      else if (rawFreq === 'monthly') freq = 'monthly';
+      if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
+        freq = 'weekly';
+      } else if (rawFreq === 'monthly') {
+        freq = 'monthly';
+      } else if (
+        rawFreq === 'custom' ||
+        rawFreq === 'custom_duration' ||
+        rawFreq === 'single_payment' ||
+        rawFreq === 'bullet' ||
+        rawFreq.includes('custom') ||
+        rawFreq.includes('single') ||
+        ((item as any).loan?.termType || '').toLowerCase() === 'bullet' ||
+        (rawFreq !== '' && rawFreq !== 'daily')
+      ) {
+        freq = 'custom';
+      } else {
+        freq = 'daily';
+      }
       const isActive = ((item as any).loan?.status || '').toLowerCase() === 'active';
       const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
       const due = Number(item.dueAmount || 0);
@@ -366,7 +383,7 @@ export async function GET(req: NextRequest) {
       todayFrequencyBreakdown[freq][statusKey].remaining += rem;
     }
 
-    for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    for (const key of ['daily', 'weekly', 'monthly', 'custom'] as FrequencyKey[]) {
       const fb = todayFrequencyBreakdown[key];
       fb.total.loanCount = todayFreqLoans[key].total.size;
       fb.total.customerCount = todayFreqCustomers[key].total.size;
@@ -402,8 +419,24 @@ export async function GET(req: NextRequest) {
     for (const item of allInstalmentsForTotals as any[]) {
       const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
       let freq: FrequencyKey = 'daily';
-      if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
-      else if (rawFreq === 'monthly') freq = 'monthly';
+      if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
+        freq = 'weekly';
+      } else if (rawFreq === 'monthly') {
+        freq = 'monthly';
+      } else if (
+        rawFreq === 'custom' ||
+        rawFreq === 'custom_duration' ||
+        rawFreq === 'single_payment' ||
+        rawFreq === 'bullet' ||
+        rawFreq.includes('custom') ||
+        rawFreq.includes('single') ||
+        (item.loan?.termType || '').toLowerCase() === 'bullet' ||
+        (rawFreq !== '' && rawFreq !== 'daily')
+      ) {
+        freq = 'custom';
+      } else {
+        freq = 'daily';
+      }
       loanFrequencyMap.set(item.loanId, freq);
       loanStatusMap.set(item.loanId, (item.loan?.status || '').toLowerCase() === 'active');
       if (item.loan?.customerId) loanCustomerMap.set(item.loanId, item.loan.customerId);
@@ -413,13 +446,14 @@ export async function GET(req: NextRequest) {
       daily: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
       weekly: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
       monthly: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
+      custom: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
     };
     const overdueLoansByStatus = {
       active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
       inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
     };
-    const overdueFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
-    const overdueFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const overdueFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets(), custom: mkSets() };
+    const overdueFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets(), custom: mkSets() };
     const allOverdueLoans = new Set<string>();
     const allOverdueCustomers = new Set<string>();
 
@@ -454,7 +488,7 @@ export async function GET(req: NextRequest) {
       overdueFrequencyBreakdown[freq][statusKey].remaining += m.overdueOutstanding;
     }
 
-    for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    for (const key of ['daily', 'weekly', 'monthly', 'custom'] as FrequencyKey[]) {
       const fb = overdueFrequencyBreakdown[key];
       fb.total.loanCount = overdueFreqLoans[key].total.size;
       fb.total.customerCount = overdueFreqCustomers[key].total.size;

@@ -84,6 +84,17 @@ export default async function NewLoanPage({
     );
   }
 
+  let agentFloatBalance: number | null = null;
+  if (session?.user?.id) {
+    const account = await prisma.agentAccount.findFirst({
+      where: { tenantId, appType, agentId: session.user.id },
+      select: { balance: true },
+    }).catch(() => null);
+    if (account) {
+      agentFloatBalance = Number(account.balance ?? 0);
+    }
+  }
+
   return (
     <LoanForm
       customers={customers}
@@ -100,6 +111,7 @@ export default async function NewLoanPage({
       goldConfig={goldConfig}
       interestOnlyEnabled={interestOnlyEnabled}
       bulletTermEnabled={bulletTermEnabled}
+      agentFloatBalance={agentFloatBalance}
     />
   );
 }

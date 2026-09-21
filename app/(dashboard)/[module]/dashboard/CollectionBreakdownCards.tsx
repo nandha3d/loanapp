@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from '@/components/layout/DashboardLink';
 import { formatCurrency } from '@/lib/utils';
 
-export type FrequencyKey = 'daily' | 'weekly' | 'monthly';
+export type FrequencyKey = 'daily' | 'weekly' | 'monthly' | 'custom';
 export type FilterFrequency = 'all' | FrequencyKey;
 export type LoanStatusFilter = 'all' | 'active' | 'inactive';
 
@@ -93,11 +93,23 @@ export default function CollectionBreakdownCards({
     return data.total;
   };
 
+  const emptyTodayMetrics: TodayFrequencyMetrics = {
+    total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+  };
+
+  const emptyOverdueMetrics: OverdueFrequencyMetrics = {
+    total: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+  };
+
   // Compute selected metrics for Today's Card
   const activeToday =
     todayFreq === 'all'
       ? getTodayMetrics(todayData, todayStatus)
-      : getTodayMetrics(todayData.breakdown[todayFreq], todayStatus);
+      : getTodayMetrics(todayData.breakdown?.[todayFreq] || emptyTodayMetrics, todayStatus);
 
   const todayRemainingPct = Math.max(0, 100 - activeToday.pct);
 
@@ -105,7 +117,7 @@ export default function CollectionBreakdownCards({
   const activeOverdue =
     overdueFreq === 'all'
       ? getOverdueMetrics(overdueData, overdueStatus)
-      : getOverdueMetrics(overdueData.breakdown[overdueFreq], overdueStatus);
+      : getOverdueMetrics(overdueData.breakdown?.[overdueFreq] || emptyOverdueMetrics, overdueStatus);
 
   const overdueRemainingPct = Math.max(0, 100 - activeOverdue.pct);
 
@@ -113,6 +125,7 @@ export default function CollectionBreakdownCards({
     { key: 'daily', label: d.daily || 'Daily', icon: 'today', color: '#2563eb', bg: '#eff6ff' },
     { key: 'weekly', label: d.weekly || 'Weekly', icon: 'date_range', color: '#7c3aed', bg: '#f5f3ff' },
     { key: 'monthly', label: d.monthly || 'Monthly', icon: 'calendar_month', color: '#059669', bg: '#ecfdf5' },
+    { key: 'custom', label: d.custom || 'Custom', icon: 'tune', color: '#ea580c', bg: '#fff7ed' },
   ];
 
   const statusOptions: Array<{ key: LoanStatusFilter; label: string; icon: string }> = [
@@ -567,7 +580,7 @@ export default function CollectionBreakdownCards({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {frequencies.map((freq) => {
-              const freqData = todayData.breakdown[freq.key];
+              const freqData = todayData.breakdown?.[freq.key] || emptyTodayMetrics;
               const b = getTodayMetrics(freqData, todayStatus);
               const isSelected = todayFreq === freq.key;
 
@@ -1097,7 +1110,7 @@ export default function CollectionBreakdownCards({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {frequencies.map((freq) => {
-              const freqData = overdueData.breakdown[freq.key];
+              const freqData = overdueData.breakdown?.[freq.key] || emptyOverdueMetrics;
               const b = getOverdueMetrics(freqData, overdueStatus);
               const isSelected = overdueFreq === freq.key;
 

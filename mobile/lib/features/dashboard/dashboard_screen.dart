@@ -384,12 +384,13 @@ class _CollectionBreakdownSectionState
                     const SizedBox(height: 8),
                     _SegmentedRow(
                       label: 'FREQUENCY',
-                      options: const ['All', 'Daily', 'Weekly', 'Monthly'],
+                      options: const ['All', 'Daily', 'Weekly', 'Monthly', 'Custom'],
                       values: const [
                         'all',
                         'daily',
                         'weekly',
-                        'monthly'
+                        'monthly',
+                        'custom',
                       ],
                       selected: _frequency,
                       onChanged: (v) => setState(() => _frequency = v),
@@ -1027,12 +1028,18 @@ class _BreakdownByFrequency extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const freqs = ['daily', 'weekly', 'monthly'];
-    const freqLabels = {'daily': 'Daily', 'weekly': 'Weekly', 'monthly': 'Monthly'};
+    const freqs = ['daily', 'weekly', 'monthly', 'custom'];
+    const freqLabels = {
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'custom': 'Custom',
+    };
     const freqIcons = {
       'daily': Icons.today_rounded,
       'weekly': Icons.date_range_rounded,
       'monthly': Icons.calendar_month_rounded,
+      'custom': Icons.tune_rounded,
     };
 
     return Container(

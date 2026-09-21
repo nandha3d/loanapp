@@ -68,6 +68,7 @@ export const te = {
     daily:              'రోజువారీ',
     weekly:             'వారపు',
     monthly:            'నెలవారీ',
+    custom:             'అనుకూల',
     allFrequencies:     'అన్నీ',
     frequencyBreakdown: 'కాలపరిమితి వారీగా వివరాలు',
     allLoans:           'అన్ని రుణాలు',
@@ -225,6 +226,9 @@ export const te = {
     borrower: 'రుణగ్రహీత',
   },
   loans: {
+    agentFloat: 'ఏజెంట్ నగదు ఫ్లోట్',
+    insufficientFloatWarn: 'పంపిణీ కోసం ఏజెంట్ వద్ద సరిపోని ఫ్లోట్ ఉంది. ఆమోదానికి ముందు వాలెట్ మాడ్యూల్‌లో నిధులను విడుదల చేయాల్సి ఉంటుంది.',
+    availableFloat: 'అందుబాటులో ఉన్న ఫ్లోట్',
     createTitle: 'కొత్త రుణం సృష్టించండి',
     applyTemplate: 'ప్యాకేజీ టెంప్లేట్ వర్తింపజేయండి...',
     searchCustomer: 'వినియోగదారుని వెతకండి / ఎంచుకోండి',
@@ -392,6 +396,8 @@ export const te = {
     creditScore: 'క్రెడిట్ స్కోర్',
   },
   collection: {
+    exceedsRoomWarn: 'మొత్తం బకాయి బ్యాలెన్స్ కంటే ఎక్కువగా ఉంది. చెల్లింపు పరిమితం చేయబడుతుంది.',
+    overdueNotice: 'గడువు ముగిసిన రుణ నోటీసు',
     title: 'వసూలు ఎంట్రీ',
     todaysList: 'నేటి వసూలు జాబితా',
     missedList: 'తప్పిన వాయిదాలు',
@@ -990,6 +996,11 @@ export const te = {
     loanCode: 'రుణ కోడ్',
     submittedBy: 'సమర్పించిన వారు',
     cashHandover: 'నగదు హస్తాంతరం',
+    insufficientFloat: 'సరిపోని ఫ్లోట్',
+    insufficientFloatWarning: 'పంపిణీ కోసం ఏజెంట్ వద్ద సరిపోని ఫ్లోట్ ఉంది',
+    releaseFloat: 'నిధులను విడుదల చేయండి',
+    exceedsBranchPool: 'మొత్తం బ్రాంచ్ పూల్ బ్యాలెన్స్ కంటే ఎక్కువగా ఉంది. క్యాపిటల్ ఇంజెక్షన్ అవసరం.',
+    exceedsCashInHand: 'మొత్తం అందుబాటులో ఉన్న నగదు కంటే ఎక్కువగా ఉంది.',
   },
   reports: {
     title: 'నివేదికలు',
