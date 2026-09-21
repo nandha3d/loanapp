@@ -75,7 +75,7 @@ export default function AffiliateClient({
     if (typeof window !== 'undefined') {
       return `${window.location.origin}/r/${affiliate.code}`;
     }
-    return `https://loantrack.co/r/${affiliate.code}`;
+    return `https://zolofund.in/r/${affiliate.code}`;
   };
 
   const copyUrl = () => {

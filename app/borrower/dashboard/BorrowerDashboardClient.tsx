@@ -5,6 +5,7 @@ import { submitBorrowerRepayment } from './actions';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import PasswordInput from '@/components/ui/PasswordInput';
+import AppLogo from '@/components/ui/AppLogo';
 
 interface BorrowerDashboardClientProps {
   loans: any[];
@@ -264,9 +265,13 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
 
       {/* Left Sidebar navigation */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand">
-          <span className="material-icons-outlined" style={{ fontSize: '28px', color: 'var(--primary)' }}>bolt</span>
-          <h2>Loan<span>Track</span></h2>
+        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', padding: '16px 20px' }}>
+          <AppLogo
+            variant="horizontal"
+            theme="dark"
+            height={32}
+            style={{ width: 'auto', maxHeight: '34px', objectFit: 'contain' }}
+          />
         </div>
 
         {/* Wise-style account switcher dropdown inside sidebar */}

@@ -27,7 +27,7 @@ export const APP_CONFIGS: Record<AppType, AppConfig> = {
     primaryDark: '#D35400',
     primaryLight: '#FFF3E6',
     accentColor: '#F39C12',
-    logoText: ['Loan', 'Track'],
+    logoText: ['Zolo', 'Fund'],
   },
   autofinance: {
     id: 'autofinance',

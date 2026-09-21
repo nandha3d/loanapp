@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Coins, Twitter, LinkedIn, Mail } from './icons';
+import AppLogo from '@/components/ui/AppLogo';
+import { Twitter, LinkedIn, Mail } from './icons';
 
 const COLS = [
   {
@@ -38,9 +39,8 @@ export default function Footer() {
       <div className="mk-container">
         <div className="mk-footer__top">
           <div className="mk-footer__brand">
-            <div className="mk-brand">
-              <span className="mk-brand__mark"><Coins /></span>
-              Loan<b>Track</b>
+            <div className="mk-brand" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <AppLogo variant="horizontal" theme="dark" height={36} />
             </div>
             <p>
               The modern field-collection and loan-management platform for India&apos;s

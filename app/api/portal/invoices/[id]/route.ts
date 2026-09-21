@@ -30,7 +30,7 @@ function InvoiceDocument({ invoice }: { invoice: any }) {
         View,
         { style: styles.section },
         React.createElement(Text, { style: styles.label }, 'Billed To'),
-        React.createElement(Text, { style: styles.value }, `${invoice.tenant.name} (${invoice.tenant.slug}.loantrack.app)`),
+        React.createElement(Text, { style: styles.value }, `${invoice.tenant.name} (${invoice.tenant.slug}.zolofund.in)`),
       ),
       React.createElement(
         View,

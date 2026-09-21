@@ -139,7 +139,7 @@ export async function createVideoKycSession(params: {
       headers: authHeader(config),
       body: JSON.stringify({
         customer_name: params.customerName,
-        customer_email: params.customerEmail || `${params.referenceId}@loantrack.in`,
+        customer_email: params.customerEmail || `${params.referenceId}@zolofund.in`,
         customer_phone: params.customerPhone,
         reference_id: params.referenceId,
         notify: false,

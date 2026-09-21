@@ -5,8 +5,8 @@ import { Phone, Mail, MapPin, Headset, CheckCircle, Arrow } from '../_components
 
 const CONTACTS = [
   { ic: Phone, v: 'mk-ic--amber', t: 'Call us', d: '+91 98765 43210 · Mon–Sat, 9am–7pm IST' },
-  { ic: Mail, v: 'mk-ic--blue', t: 'Email us', d: 'hello@loantrack.in' },
-  { ic: Headset, v: 'mk-ic--green', t: 'Support', d: 'support@loantrack.in · for existing customers' },
+  { ic: Mail, v: 'mk-ic--blue', t: 'Email us', d: 'hello@zolofund.in' },
+  { ic: Headset, v: 'mk-ic--green', t: 'Support', d: 'support@zolofund.in · for existing customers' },
   { ic: MapPin, v: 'mk-ic--purple', t: 'Office', d: 'India · serving lenders nationwide' },
 ];
 

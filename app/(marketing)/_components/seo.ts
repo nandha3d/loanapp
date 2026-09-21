@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 /**
  * Central SEO configuration for the public marketing site.
- * Set NEXT_PUBLIC_SITE_URL in production (e.g. https://www.loantrack.in) so
+ * Set NEXT_PUBLIC_SITE_URL in production (e.g. https://app.animazon.in) so
  * canonical URLs, sitemap and Open Graph tags all resolve to the live domain.
  */
 export const siteConfig = {
@@ -11,7 +11,7 @@ export const siteConfig = {
   url: (
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    'https://www.loantrack.in'
+    'https://app.animazon.in'
   ).replace(/\/$/, ''),
   tagline: 'Loan Tracking & Field Collection Software',
   description:

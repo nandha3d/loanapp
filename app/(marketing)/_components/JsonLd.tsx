@@ -27,7 +27,7 @@ export function SiteJsonLd() {
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'sales',
-      email: 'hello@loantrack.in',
+      email: 'hello@zolofund.in',
       areaServed: 'IN',
       availableLanguage: ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Malayalam'],
     },

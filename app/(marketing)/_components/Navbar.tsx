@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import AppLogo from '@/components/ui/AppLogo';
 import { Coins, Menu, Close, Arrow } from './icons';
 
 const NAV = [
@@ -21,9 +22,8 @@ export default function Navbar() {
   return (
     <header className="mk-nav">
       <div className="mk-container mk-nav__inner">
-        <Link href="/home" className="mk-brand" onClick={() => setOpen(false)}>
-          <span className="mk-brand__mark"><Coins /></span>
-          Loan<b>Track</b>
+        <Link href="/home" className="mk-brand" onClick={() => setOpen(false)} style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <AppLogo variant="horizontal" theme="light" height={36} />
         </Link>
 
         <nav className={`mk-nav__links${open ? ' is-open' : ''}`}>

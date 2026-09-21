@@ -63,7 +63,7 @@ export default function AffiliateLandingClient({ config }: { config: AffiliateCo
     if (typeof window !== 'undefined') {
       return `${window.location.origin}/r/${affiliateCode}`;
     }
-    return `https://loantrack.co/r/${affiliateCode}`;
+    return `https://zolofund.in/r/${affiliateCode}`;
   };
 
   const copyToClipboard = () => {
