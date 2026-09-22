@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for template env files and automated test fixtures"
+paths = [
+  '''^\.env\.example$''',
+  '''^tests/.*''',
+]
