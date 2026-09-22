@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:zolofund/app.dart';
+import 'package:zolofund/core/notifications/notification_action_service.dart';
 
 // Handles pushes when the app is backgrounded/terminated. Must be top-level.
 @pragma('vm:entry-point')
@@ -50,5 +51,13 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Firebase init failed: $e');
   }
+
+  // Initialize interactive notification bar actions ([Approve] / [Reject])
+  try {
+    await NotificationActionService.instance.initialize();
+  } catch (e) {
+    debugPrint('NotificationActionService init failed: $e');
+  }
+
   runApp(const ProviderScope(child: App()));
 }

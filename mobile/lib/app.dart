@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/router/app_router.dart';
 import 'package:zolofund/core/theme/app_theme.dart';
 import 'package:zolofund/core/theme/theme_controller.dart';
@@ -15,6 +16,8 @@ class App extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final textScale = ref.watch(textScaleProvider);
     final darkMode = ref.watch(darkModeProvider);
+    // Bind NotificationActionService to current ref container
+    ref.watch(notificationActionServiceProvider);
     // Rebuild the ThemeData when the tenant theme changes (see ThemeController).
     ref.watch(themeControllerProvider);
     return MaterialApp.router(

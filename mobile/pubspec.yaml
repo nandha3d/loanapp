@@ -57,6 +57,7 @@ dependencies:
   # Notifications
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
 
   # Charts / media
   fl_chart: ^0.69.2
@@ -108,4 +109,6 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#1E0C24"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
   remove_alpha_ios: true

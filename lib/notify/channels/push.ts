@@ -77,7 +77,18 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
         tokens: batch,
         notification: { title: payload.title, body: payload.body },
         data,
-        android: { priority: 'high', notification: { sound: 'default' } },
+        android: {
+          priority: 'high',
+          notification: {
+            sound: 'default',
+            icon: 'ic_notification',
+            color: '#7D287E',
+            channelId:
+              data?.type === 'approval_request' || data?.type === 'approval'
+                ? 'approvals_channel'
+                : 'general_channel',
+          },
+        },
       });
       // Prune tokens FCM reports as dead so the table stays clean.
       const dead: string[] = [];
