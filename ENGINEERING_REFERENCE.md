@@ -170,6 +170,7 @@ MySQL
   - **SCOPE-17.3 (Accounting & Money)** — Double-entry GL journals (`JournalEntry`), cash books (`AccountEntry`), branch office cash pools (`BranchCashAccount`), and wallet movements (`WalletTransaction`) carry `appType`. Physical float and accounting ledgers NEVER cross or consolidate between verticals.
   - **SCOPE-17.4 (Collections)** — Daily collection sheets, collection runs (`CollectionRun`, `DailyCollection`), route beats, and `CollectionEntry` rows belong strictly to the active module. Doorstep micro-lending beats never include counter payments or dues from other verticals.
   - **SCOPE-17.5 (Agents & Field Staff)** — Field agents (`role: 'agent'`) are permanently pinned to their designated `appType` (rule AUTH-3) and cannot switch modules. Agent wallets (`AgentAccount`), float releases, and route assignments (`RouteAgent`) operate strictly within that module.
+- **SCOPE-18** — `ApprovalRequest` has no `branchId`. Never spread `scopedBranchWhere()` into its `where` clause. The microlending mobile dashboard's approval feed follows the v1 approval queue: agents see only requests they filed; branch-scoped staff see ordinary requests through `requestedBy.branchId` and `loan_preclose` requests through the subject loan's branch via `precloseApprovalVisibility()`.
 
 ---
 

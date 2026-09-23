@@ -4,6 +4,9 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
+import type { Prisma } from '@prisma/client';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -40,6 +43,30 @@ export async function GET(req: NextRequest) {
   };
 
   try {
+    // ApprovalRequest has no branchId. Match the v1 approvals queue: agents
+    // see their own requests; admins see their branch's requests, with loan
+    // preclose requests scoped by the loan's branch rather than the filer.
+    const approvalWhere: Prisma.ApprovalRequestWhereInput = {
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      OR: [
+        { createdAt: { gte: today, lt: tomorrow } },
+        { reviewedAt: { gte: today, lt: tomorrow } },
+      ],
+    };
+    if (isAgent) {
+      approvalWhere.requestedById = ctx.userId;
+    } else if (ctx.branchId) {
+      if (ctx.appType === 'microlending') {
+        approvalWhere.AND = [{ OR: [
+          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
+          await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
+        ] }];
+      } else {
+        approvalWhere.requestedBy = { branchId: ctx.branchId };
+      }
+    }
+
     const [
       activeLoans,
       overdueLoans,
@@ -352,15 +379,7 @@ export async function GET(req: NextRequest) {
       }),
       // Approvals processed today
       prisma.approvalRequest.findMany({
-        where: {
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          ...scopedBranchWhere(ctx),
-          OR: [
-            { createdAt: { gte: today, lt: tomorrow } },
-            { reviewedAt: { gte: today, lt: tomorrow } },
-          ],
-        },
+        where: approvalWhere,
         select: {
           id: true,
           requestType: true,
