@@ -1779,11 +1779,18 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               onPressed: () async {
                 final src = await _showImagePickerSheet();
                 if (src == null) return;
+                if (src == ImageSource.camera) {
+                  final photo = await captureGuidedFacePhoto(context);
+                  if (photo != null) {
+                    setState(() => _gPhoto = photo);
+                  }
+                  return;
+                }
                 final x = await _picker.pickImage(
                   source: src,
-                  maxWidth: 800,
-                  maxHeight: 800,
-                  imageQuality: 80,
+                  maxWidth: 1000,
+                  maxHeight: 1000,
+                  imageQuality: 85,
                 );
                 if (x == null) return;
                 final cropped = await cropSquarePhoto(x.path);
