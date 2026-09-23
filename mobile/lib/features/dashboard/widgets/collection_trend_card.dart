@@ -19,7 +19,8 @@ final _trendProvider = FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
 });
 
 class CollectionTrendCard extends ConsumerWidget {
-  const CollectionTrendCard({super.key});
+  const CollectionTrendCard({super.key, this.responsive = false});
+  final bool responsive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,17 +37,30 @@ class CollectionTrendCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(t.x('an.collection_trend'), style: AppTypography.sectionTitle),
-              const Spacer(),
-              _RangePicker(),
-            ],
-          ),
+          if (responsive && MediaQuery.sizeOf(context).width < 500)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.x('an.collection_trend'),
+                    style: AppTypography.sectionTitle),
+                const SizedBox(height: 8),
+                _RangePicker(),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Text(t.x('an.collection_trend'),
+                    style: AppTypography.sectionTitle),
+                const Spacer(),
+                _RangePicker(),
+              ],
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _Legend(color: const Color(0xFFCBD5E1), label: t.x('an.expected')),
+              _Legend(
+                  color: const Color(0xFFCBD5E1), label: t.x('an.expected')),
               const SizedBox(width: 12),
               _Legend(color: AppColors.primary, label: t.x('an.collected')),
             ],
@@ -55,9 +69,12 @@ class CollectionTrendCard extends ConsumerWidget {
           SizedBox(
             height: 160,
             child: asyncPoints.when(
-              loading: () => const Skeleton(height: 160, borderRadius: AppTokens.radius),
+              loading: () =>
+                  const Skeleton(height: 160, borderRadius: AppTokens.radius),
               error: (e, _) => Center(
-                child: Text(e.toString(), style: AppTypography.caption.copyWith(color: AppColors.danger)),
+                child: Text(e.toString(),
+                    style: AppTypography.caption
+                        .copyWith(color: AppColors.danger)),
               ),
               data: (points) => _Chart(points: points, t: t),
             ),
@@ -124,7 +141,8 @@ class _Chart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return EmptyState(icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'));
+      return EmptyState(
+          icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'));
     }
 
     double maxY = 100;
@@ -157,9 +175,12 @@ class _Chart extends StatelessWidget {
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,

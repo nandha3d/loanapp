@@ -3,30 +3,48 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
 
 class NavItem {
-  const NavItem({required this.icon, required this.label, required this.route});
+  const NavItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+    this.labelKey,
+  });
   final IconData icon;
   final String label;
   final String route;
+  final String? labelKey;
 }
 
 // 4 tabs — 2 each side of the center "+" button. The full menu lives behind
 // the dashboard hamburger (/more); the tab bar carries the daily-work
 // screens: Home, Loans, Collection, Customers.
 const _items = <NavItem>[
-  NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
+  NavItem(
+      icon: Icons.home_outlined,
+      label: 'Home',
+      route: '/dashboard',
+      labelKey: 'nav.home'),
   NavItem(
       icon: Icons.account_balance_wallet_outlined,
       label: 'Loans',
-      route: '/loans'),
+      route: '/loans',
+      labelKey: 'nav.loans'),
   NavItem(
-      icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
+      icon: Icons.payments_outlined,
+      label: 'Collection',
+      route: '/collection',
+      labelKey: 'nav.collection'),
   NavItem(
-      icon: Icons.people_alt_outlined, label: 'Customers', route: '/customers'),
+      icon: Icons.people_alt_outlined,
+      label: 'Customers',
+      route: '/customers',
+      labelKey: 'nav.customers'),
 ];
 
 const _chitItems = <NavItem>[
@@ -48,6 +66,8 @@ class AppBottomNav extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final items = AppType.userIsChit(user) ? _chitItems : _items;
+    final isMicrolending = user?.appType == AppType.microlending;
+    final t = T.of(ref);
 
     return Container(
       clipBehavior: Clip.none,
@@ -72,11 +92,14 @@ class AppBottomNav extends ConsumerWidget {
                   // 2 tabs — center gap for the "+" button — 2 tabs, so the
                   // FAB never overlaps a tappable tab.
                   for (var i = 0; i < items.length; i++) ...[
-                    if (i == items.length ~/ 2)
-                      const SizedBox(width: 64),
+                    if (i == items.length ~/ 2) const SizedBox(width: 64),
                     _NavTab(
                       item: items[i],
                       active: currentRoute.startsWith(items[i].route),
+                      label: isMicrolending && items[i].labelKey != null
+                          ? t.x(items[i].labelKey!)
+                          : items[i].label,
+                      twoLines: isMicrolending,
                     ),
                   ],
                 ],
@@ -96,9 +119,16 @@ class AppBottomNav extends ConsumerWidget {
 }
 
 class _NavTab extends StatelessWidget {
-  const _NavTab({required this.item, required this.active});
+  const _NavTab({
+    required this.item,
+    required this.active,
+    required this.label,
+    required this.twoLines,
+  });
   final NavItem item;
   final bool active;
+  final String label;
+  final bool twoLines;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +142,10 @@ class _NavTab extends StatelessWidget {
             Icon(item.icon, color: color, size: 22),
             const SizedBox(height: 4),
             Text(
-              item.label,
+              label,
+              maxLines: twoLines ? 2 : null,
+              overflow: twoLines ? TextOverflow.ellipsis : null,
+              textAlign: twoLines ? TextAlign.center : null,
               style: AppTypography.caption.copyWith(
                 color: color,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,

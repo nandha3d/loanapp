@@ -45,6 +45,7 @@ export default function BranchSwitcher({ branches, activeBranchId }: Props) {
   if (branches.length === 1) {
     return (
       <div
+        className="branch-switcher-control"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -65,9 +66,9 @@ export default function BranchSwitcher({ branches, activeBranchId }: Props) {
 
   return (
     <select
+      className="form-control branch-switcher-control"
       value={selectedBranchId}
       onChange={handleChange}
-      className="form-control"
       style={{ width: 'auto', minWidth: '160px', padding: '4px 8px', fontSize: '.85rem', marginRight: '10px' }}
       aria-label="Switch active branch"
     >

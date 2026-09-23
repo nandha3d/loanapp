@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -173,6 +174,10 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   Widget build(BuildContext context) {
     final loan = widget.loan;
     final fmt = ref.watch(currencyFmtProvider);
+    final isMicrolending =
+        ref.watch(authControllerProvider).user?.appType == AppType.microlending;
+    final compactSchedule =
+        isMicrolending && MediaQuery.sizeOf(context).width < 600;
     final paid =
         loan.instalments.where((i) => i.dynamicStatus == 'paid').length;
     final progress =
@@ -262,83 +267,84 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   ),
                 ),
               ),
-              // Column headers
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: const BoxDecoration(
-                  color: AppColors.background,
-                  border: Border(
-                    bottom: BorderSide(color: AppColors.border),
+              // A compact card carries the same schedule fields on phones.
+              if (!compactSchedule)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: const BoxDecoration(
+                    color: AppColors.background,
+                    border: Border(
+                      bottom: BorderSide(color: AppColors.border),
+                    ),
+                  ),
+                  child: Consumer(
+                    builder: (ctx, ref, _) {
+                      final t = T.of(ref);
+                      return Row(
+                        children: [
+                          SizedBox(
+                            width: 30,
+                            child: Text(
+                              '#',
+                              style: AppTypography.tiny
+                                  .copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              t.x('loan.col_date'),
+                              style: AppTypography.tiny
+                                  .copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              t.x('loan.col_due'),
+                              style: AppTypography.tiny.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              t.x('loan.col_received'),
+                              style: AppTypography.tiny.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 70,
+                            child: Text(
+                              t.x('loan.col_status'),
+                              style: AppTypography.tiny
+                                  .copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          SizedBox(
+                            width: 48,
+                            child: Text(
+                              t.x('loan.col_action'),
+                              style: AppTypography.tiny
+                                  .copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const Spacer(),
+                        ],
+                      );
+                    },
                   ),
                 ),
-                child: Consumer(
-                  builder: (ctx, ref, _) {
-                    final t = T.of(ref);
-                    return Row(
-                      children: [
-                        SizedBox(
-                          width: 30,
-                          child: Text(
-                            '#',
-                            style: AppTypography.tiny
-                                .copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            t.x('loan.col_date'),
-                            style: AppTypography.tiny
-                                .copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            t.x('loan.col_due'),
-                            style: AppTypography.tiny.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            t.x('loan.col_received'),
-                            style: AppTypography.tiny.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 70,
-                          child: Text(
-                            t.x('loan.col_status'),
-                            style: AppTypography.tiny
-                                .copyWith(fontWeight: FontWeight.w700),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            t.x('loan.col_action'),
-                            style: AppTypography.tiny
-                                .copyWith(fontWeight: FontWeight.w700),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const Spacer(),
-                      ],
-                    );
-                  },
-                ),
-              ),
               ...displayInstalments.map(
                 (inst) => _InstalmentRow(
                   key: _rowKeys.putIfAbsent(
@@ -352,6 +358,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   isRestructured: _showRestructuredRates,
                   // Server-computed (lib/restructure.ts) — no client math.
                   restructuredAmount: inst.restructuredAmount ?? inst.dueAmount,
+                  mobile: compactSchedule,
                 ),
               ),
             ],
@@ -576,36 +583,68 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
 
   Widget _buildListControls(WidgetRef ref) {
     final t = T.of(ref);
+    final isMicrolending =
+        ref.watch(authControllerProvider).user?.appType == AppType.microlending;
+    final modeSelector = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildSegment('actual', t.x('loan.actual')),
+        _buildSegment('distributed', t.x('loan.distributed')),
+      ],
+    );
+    final rateToggle = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Checkbox(
+          value: _showRestructuredRates,
+          onChanged: (v) => setState(() => _showRestructuredRates = v ?? false),
+          activeColor: AppColors.primary,
+          visualDensity: VisualDensity.compact,
+        ),
+        Text(
+          t.x('loan.show_restructured_rate'),
+          style: AppTypography.tiny.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              _buildSegment('actual', t.x('loan.actual')),
-              _buildSegment('distributed', t.x('loan.distributed')),
-            ],
-          ),
-          Row(
-            children: [
-              Checkbox(
-                value: _showRestructuredRates,
-                onChanged: (v) =>
-                    setState(() => _showRestructuredRates = v ?? false),
-                activeColor: AppColors.primary,
-                visualDensity: VisualDensity.compact,
-              ),
-              Text(
-                t.x('loan.show_restructured_rate'),
-                style: AppTypography.tiny.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) =>
+            isMicrolending && constraints.maxWidth < 600
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: modeSelector,
+                      ),
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _showRestructuredRates,
+                              onChanged: (v) => setState(
+                                  () => _showRestructuredRates = v ?? false),
+                              activeColor: AppColors.primary,
+                            ),
+                            Expanded(
+                              child: Text(t.x('loan.show_restructured_rate'),
+                                  style: AppTypography.tiny),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [modeSelector, rateToggle],
+                  ),
       ),
     );
   }
@@ -687,7 +726,8 @@ class _OverdueSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final todayStart = DateTime.now();
     final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
-    final missedCount = (loan.status == 'closed' || (loan.totalPayable - loan.totalCollected) <= 0)
+    final missedCount = (loan.status == 'closed' ||
+            (loan.totalPayable - loan.totalCollected) <= 0)
         ? 0
         : loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
     final outstanding = (loan.totalPayable - loan.totalCollected) > 0
@@ -742,8 +782,7 @@ class _OverdueSummaryCard extends StatelessWidget {
       final finalOverdue = (pastDueRemaining - excessToday) > 0
           ? (pastDueRemaining - excessToday)
           : 0.0;
-      overdueAmount =
-          finalOverdue > outstanding ? outstanding : finalOverdue;
+      overdueAmount = finalOverdue > outstanding ? outstanding : finalOverdue;
     }
 
     return Container(
@@ -758,8 +797,11 @@ class _OverdueSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.report_problem_outlined,
-                  size: 18, color: AppColors.danger,),
+              const Icon(
+                Icons.report_problem_outlined,
+                size: 18,
+                color: AppColors.danger,
+              ),
               const SizedBox(width: 6),
               Text('Overdues', style: AppTypography.sectionTitle),
             ],
@@ -959,7 +1001,7 @@ class _SummaryCardOverview extends ConsumerWidget {
               children: [
                 if (hasPhoto)
                   CircleAvatar(
-                    radius: 34, backgroundImage: authedImage(ref, photo))
+                      radius: 34, backgroundImage: authedImage(ref, photo))
                 else
                   CircleAvatar(
                     radius: 34,
@@ -1196,6 +1238,7 @@ class _InstalmentRow extends ConsumerWidget {
     required this.highlighted,
     this.isRestructured = false,
     this.restructuredAmount = 0,
+    this.mobile = false,
   });
   final Instalment inst;
   final Loan loan;
@@ -1203,6 +1246,7 @@ class _InstalmentRow extends ConsumerWidget {
   final bool highlighted;
   final bool isRestructured;
   final double restructuredAmount;
+  final bool mobile;
 
   BadgeKind _badgeKind(String dynStatus) => switch (dynStatus) {
         'paid' => BadgeKind.active,
@@ -1235,6 +1279,119 @@ class _InstalmentRow extends ConsumerWidget {
     final canPay = loan.status != 'closed' &&
         dynStatus != 'paid' &&
         dynStatus != 'partial';
+
+    if (mobile) {
+      final showAdjustedDue = isRestructured &&
+          restructuredAmount > 0 &&
+          inst.receivedAmount < inst.dueAmount &&
+          (restructuredAmount - inst.dueAmount).abs() >= 0.01;
+      final preciseAmount = NumberFormat.decimalPattern(
+        ref.watch(languageProvider).formatLocale,
+      )..maximumFractionDigits = 2;
+      final adjustedDue =
+          '${ref.watch(currencySymbolProvider)}${preciseAmount.format(restructuredAmount)}';
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColors.primaryLight : AppColors.surface,
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${inst.instalmentNo}  •  ${dateFmt.format(inst.dueDate)}',
+                    style: AppTypography.bodyLarge,
+                  ),
+                ),
+                AppBadge(label: _statusLabel(dynStatus, t), kind: kind),
+              ],
+            ),
+            if (collectedTime != null) ...[
+              const SizedBox(height: 4),
+              Text(collectedTime, style: AppTypography.caption),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.x('loan.col_due'), style: AppTypography.caption),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            showAdjustedDue
+                                ? adjustedDue
+                                : fmt.format(inst.dueAmount),
+                            style: AppTypography.bodyLarge,
+                          ),
+                        ),
+                      ),
+                      if (showAdjustedDue)
+                        Text(
+                          fmt.format(inst.dueAmount),
+                          style: AppTypography.caption.copyWith(
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.x('loan.col_received'),
+                          style: AppTypography.caption),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            isPaid ? fmt.format(inst.receivedAmount) : '—',
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: isPaid
+                                  ? AppColors.success
+                                  : AppColors.textLight,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (canPay)
+                  _PayButton(
+                    inst: inst,
+                    loan: loan,
+                    isRestructured: isRestructured,
+                    restructuredAmount: restructuredAmount,
+                    mobile: true,
+                  )
+                else if (isPaid)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: t.x('loan.actions'),
+                    onPressed: () => _requestCollectionEdit(context, ref, inst),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -1409,7 +1566,8 @@ class _InstalmentRow extends ConsumerWidget {
             const SizedBox(height: 12),
             TextField(
               controller: amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Correct amount',
                 border: OutlineInputBorder(),
@@ -1477,24 +1635,28 @@ class _PayButton extends ConsumerWidget {
     this.isRestructured = false,
     this.restructuredAmount = 0,
     this.onCompleted,
+    this.mobile = false,
   });
   final Instalment inst;
   final Loan loan;
   final bool isRestructured;
   final double restructuredAmount;
   final VoidCallback? onCompleted;
+  final bool mobile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Material(
+    final button = Material(
       color: AppColors.primary,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: () => _openPaySheet(context, ref),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Icon(
+        child: Padding(
+          padding: mobile
+              ? const EdgeInsets.all(15)
+              : const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: const Icon(
             Icons.payments_outlined,
             color: Colors.white,
             size: 18,
@@ -1502,6 +1664,9 @@ class _PayButton extends ConsumerWidget {
         ),
       ),
     );
+    return mobile
+        ? Tooltip(message: T.of(ref).x('btn.collect'), child: button)
+        : button;
   }
 
   void _openPaySheet(BuildContext context, WidgetRef ref) {

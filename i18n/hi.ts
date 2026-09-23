@@ -1,4 +1,12 @@
 export const hi = {
+  mobileCollection: {
+    todayScheduled: 'आज की निर्धारित वसूली',
+    stillOverdue: 'अब भी अतिदेय',
+    moreActions: 'और वसूली विकल्प',
+    routeRun: 'वसूली दौरा',
+    verifySelfPay: 'स्वयं भुगतान सत्यापित करें',
+    help: 'वसूली सहायता',
+  },
   precloseRequest: {
     "title": "ऋण समयपूर्व बंद करने का अनुरोध",
     "feature": "एजेंट के समयपूर्व बंद अनुरोध (सूक्ष्म ऋण)",

@@ -17,6 +17,8 @@ import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboa
 import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
 import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCards';
 import TodaysActivityCard from './TodaysActivityCard';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 
 type DashboardInstalment = {
   id: string;
@@ -37,7 +39,8 @@ type DashboardInstalment = {
   };
 };
 
-function startOfDay(date = new Date()) {
+function startOfDay(date?: Date) {
+  if (!date) return startOfBusinessToday();
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
   return value;
@@ -60,9 +63,8 @@ function getLocalDateString(date: Date) {
 }
 
 async function getDashboardData(tenantId: string, appType: string, branchId?: string | null) {
-  const today = startOfDay();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = startOfBusinessToday();
+  const tomorrow = startOfBusinessTomorrow();
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - 6);
   // Trend window: pull 30 days so the client range filter can slice 7/14/30 days
@@ -102,6 +104,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayNewCustomers,
     todayClosedLoans,
     todayApprovals,
+    paymentsToday,
   ] = await Promise.all([
     prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     prisma.loan.count({
@@ -160,7 +163,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     prisma.instalment.findMany({
       where: {
-        loan: { ...loanWhere, status: { in: ['active', 'overdue', 'closed'] } },
+        loan: { ...loanWhere, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } },
         dueDate: { gte: today, lt: tomorrow },
       },
       include: { loan: { include: { customer: { include: { route: true } } } } },
@@ -395,21 +398,74 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       orderBy: { createdAt: 'desc' },
       take: 10,
     }),
+    prisma.payment.findMany({
+      where: {
+        tenantId,
+        paymentDate: { gte: today, lt: tomorrow },
+        loan: { ...loanWhere, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } },
+      },
+      select: { loanId: true, amount: true },
+    }),
   ]);
 
-  const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
+  // Combine all loan IDs from today's instalments and overdue instalments to compute distributed metrics
+  const allLoanIdsForMetrics = Array.from(new Set([
+    ...todayInstalments.map((i) => i.loanId),
+    ...overdueInstalmentsForTotals.map((i) => i.loanId),
+  ]));
+
+  const allInstalmentsForMetrics = allLoanIdsForMetrics.length > 0
+    ? await prisma.instalment.findMany({
+        where: { loanId: { in: allLoanIdsForMetrics } },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+        select: {
+          id: true,
+          loanId: true,
+          dueDate: true,
+          dueAmount: true,
+          receivedAmount: true,
+          status: true,
+          instalmentNo: true,
+          loan: { select: { customerId: true, frequency: true, status: true } },
+        },
+      })
+    : [];
+
+  const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
+    allInstalmentsForMetrics as any,
+    today,
+    paymentsToday,
+  );
+
+  const distributedMap = new Map(distributedInstalments.map((i) => [i.id, i]));
+
+  const mappedTodayInstalments = todayInstalments.map((i) => {
+    const dist = distributedMap.get(i.id);
+    if (dist) {
+      return {
+        ...i,
+        receivedAmount: dist.receivedAmount,
+        outstandingAmount: dist.outstandingAmount,
+        overdueAmount: dist.overdueAmount,
+        status: dist.status,
+      };
+    }
+    return i;
+  });
+
+  const todayExpected = mappedTodayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
   // Today's Collected = money applied to TODAY's instalments only. Overdue recovery
   // collected today is reported separately on the Overdue card — the two are NEVER
   // merged. This keeps the card internally consistent (collected + remaining =
   // expected) and matches the mobile app, which sums today's instalment receipts.
-  const todayCollected = todayInstalments.reduce(
+  const todayCollected = mappedTodayInstalments.reduce(
     (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
     0,
   );
   // Today's Outstanding = remaining due on today's instalments only. Even if the
   // agent collected more than today's expected (because money also went toward
   // overdue), today's specific instalment can still be unpaid.
-  const todayGap = todayInstalments.reduce((sum, item) => sum + outstanding(item), 0);
+  const todayGap = mappedTodayInstalments.reduce((sum, item) => sum + outstanding(item), 0);
 
   const overdueInstalments = overdueInstalmentsRaw
     .map((item) => {
@@ -419,22 +475,6 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       return { ...item, overdueAmount, daysOverdue };
     })
     .filter((item) => item.overdueAmount > 0);
-
-  // Overdue collection — a DAILY snapshot that resets each day:
-  const paymentsToday = await prisma.payment.findMany({
-    where: {
-      tenantId,
-      paymentDate: { gte: today, lt: tomorrow },
-      loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
-    },
-    select: { loanId: true, amount: true },
-  });
-
-  const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
-    overdueInstalmentsForTotals as any,
-    today,
-    paymentsToday,
-  );
 
   const overdueForTotals = distributedInstalments.filter(
     (item: any) => item.overdueAmount > 0,
@@ -516,7 +556,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   const allTodayLoans = new Set<string>();
   const allTodayCustomers = new Set<string>();
 
-  for (const item of todayInstalments) {
+  for (const item of mappedTodayInstalments) {
     const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
     let freq: FrequencyKey = 'daily';
     if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
@@ -631,7 +671,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   const loanStatusMap = new Map<string, boolean>();
   const loanCustomerMap = new Map<string, string>();
 
-  for (const item of overdueInstalmentsForTotals as any[]) {
+  for (const item of allInstalmentsForMetrics as any[]) {
     const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
     let freq: FrequencyKey = 'daily';
     if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
@@ -875,7 +915,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
 
   // Today's Activity structures
-  const todayPendingDues = todayInstalments
+  const todayPendingDues = mappedTodayInstalments
     .filter((inst) => outstanding(inst) > 0 && inst.loan.status !== 'closed')
     .map((inst) => ({
       id: inst.id,
@@ -1233,7 +1273,7 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
         loan: {
           tenantId,
           appType,
-          status: { in: ['active', 'overdue', 'closed'] },
+          status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
           ...agentFilter,
         },
         dueDate: { gte: today, lt: tomorrow },
@@ -1278,16 +1318,73 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
       take: 5,
       include: { reviewedBy: { select: { name: true } } }
     }),
+    prisma.payment.findMany({
+      where: {
+        tenantId,
+        paymentDate: { gte: today, lt: tomorrow },
+        loan: {
+          tenantId,
+          appType,
+          status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
+          ...agentFilter,
+        },
+      },
+      select: { loanId: true, amount: true },
+    }),
   ]);
 
-  const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
+  const allLoanIdsForAgent = Array.from(new Set([
+    ...todayInstalments.map((i) => i.loanId),
+    ...overdueInstalmentsRaw.map((i) => i.loanId),
+  ]));
+
+  const allInstalmentsForAgent = allLoanIdsForAgent.length > 0
+    ? await prisma.instalment.findMany({
+        where: { loanId: { in: allLoanIdsForAgent } },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+        select: {
+          id: true,
+          loanId: true,
+          dueDate: true,
+          dueAmount: true,
+          receivedAmount: true,
+          status: true,
+          instalmentNo: true,
+          loan: { select: { customerId: true, frequency: true, status: true } },
+        },
+      })
+    : [];
+
+  const { distributedInstalments: agentDistributedInstalments } = getDistributedInstalmentsAndMetrics(
+    allInstalmentsForAgent as any,
+    today,
+    paymentsToday,
+  );
+
+  const agentDistributedMap = new Map(agentDistributedInstalments.map((i) => [i.id, i]));
+
+  const mappedTodayInstalments = todayInstalments.map((i) => {
+    const dist = agentDistributedMap.get(i.id);
+    if (dist) {
+      return {
+        ...i,
+        receivedAmount: dist.receivedAmount,
+        outstandingAmount: dist.outstandingAmount,
+        overdueAmount: dist.overdueAmount,
+        status: dist.status,
+      };
+    }
+    return i;
+  });
+
+  const todayExpected = mappedTodayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
   // Today's Collected = money applied to TODAY's instalments only (not overdue
   // recovery), so collected + remaining = expected and it matches the mobile app.
-  const todayCollected = todayInstalments.reduce(
+  const todayCollected = mappedTodayInstalments.reduce(
     (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
     0,
   );
-  const todayGap = Math.max(0, todayExpected - todayCollected);
+  const todayGap = mappedTodayInstalments.reduce((sum, item) => sum + outstanding(item), 0);
 
   const overdueInstalments = overdueInstalmentsRaw
     .map((item) => {

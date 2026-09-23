@@ -1,4 +1,12 @@
 export const en = {
+  mobileCollection: {
+    todayScheduled: 'Today scheduled',
+    stillOverdue: 'Still overdue',
+    moreActions: 'More collection actions',
+    routeRun: 'Collection run',
+    verifySelfPay: 'Verify self-pay',
+    help: 'Collection help',
+  },
   precloseRequest: {
     "title": "Request loan preclose",
     "feature": "Agent preclose requests (Micro Lending)",

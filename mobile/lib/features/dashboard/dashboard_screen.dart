@@ -58,8 +58,7 @@ class DashboardScreen extends ConsumerWidget {
     }
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
-    final chitSummary =
-        isChit ? ref.watch(chitDashboardSummaryProvider) : null;
+    final chitSummary = isChit ? ref.watch(chitDashboardSummaryProvider) : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -151,7 +150,8 @@ class _DashboardBody extends ConsumerWidget {
         if (isAgent)
           _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
         else
-          _MoneyFlowRow(summary: summary, fmt: fmt, t: t),
+          _MoneyFlowRow(
+              summary: summary, fmt: fmt, t: t, responsive: responsive),
         const SizedBox(height: 14),
         _AlertsRow(summary: summary, t: t),
         const SizedBox(height: 18),
@@ -164,10 +164,10 @@ class _DashboardBody extends ConsumerWidget {
             _PendingUpiList(summary: summary, fmt: fmt),
             const SizedBox(height: 18),
           ],
-          const CollectionTrendCard(),
+          CollectionTrendCard(responsive: responsive),
           const SizedBox(height: 18),
         ],
-        _QuickActions(t: t),
+        _QuickActions(t: t, responsive: responsive),
         const SizedBox(height: 18),
         if (!isAgent) ...[
           _DefaulterAlerts(summary: summary, fmt: fmt, t: t),
@@ -178,8 +178,6 @@ class _DashboardBody extends ConsumerWidget {
         _UpNextPager(fmt: fmt, t: t),
         const SizedBox(height: 18),
         _TodayActivitySection(summary: summary, fmt: fmt, t: t),
-
-
       ],
     );
   }
@@ -268,8 +266,7 @@ class _CollectionBreakdownSectionState
     final td = widget.summary.todayBreakdown;
     final source = _frequency == 'all'
         ? td
-        : (td.breakdown[_frequency] ??
-            const TodayFrequencyMetrics());
+        : (td.breakdown[_frequency] ?? const TodayFrequencyMetrics());
     // source is TodayCollectionBreakdown or TodayFrequencyMetrics — both have
     // .total / .active / .inactive of type StatusSubMetrics.
     if (source is TodayCollectionBreakdown) {
@@ -287,8 +284,7 @@ class _CollectionBreakdownSectionState
     final od = widget.summary.overdueBreakdown;
     final source = _frequency == 'all'
         ? od
-        : (od.breakdown[_frequency] ??
-            const OverdueFrequencyMetrics());
+        : (od.breakdown[_frequency] ?? const OverdueFrequencyMetrics());
     if (source is OverdueCollectionBreakdown) {
       if (_loanStatus == 'active') return source.active;
       if (_loanStatus == 'inactive') return source.inactive;
@@ -311,7 +307,10 @@ class _CollectionBreakdownSectionState
         // ── Tab toggle: Today / Overdue ──────────────────────────────────
         _TabToggle(
           labels: const ["Today's Collection", 'Overdue Collection'],
-          icons: const [Icons.calendar_today_rounded, Icons.warning_amber_rounded],
+          icons: const [
+            Icons.calendar_today_rounded,
+            Icons.warning_amber_rounded
+          ],
           selected: _tab,
           onChanged: (i) => setState(() {
             _tab = i;
@@ -331,10 +330,10 @@ class _CollectionBreakdownSectionState
               colors: _tab == 0
                   ? const [AppColors.heroDarkFrom, AppColors.heroDarkTo]
                   : [
-                      Color.lerp(const Color(0xFFB91C1C), const Color(0xFF15803D),
-                          _overdueRecoveryPct())!,
-                      Color.lerp(const Color(0xFF7F1D1D), const Color(0xFF14532D),
-                          _overdueRecoveryPct())!,
+                      Color.lerp(const Color(0xFFB91C1C),
+                          const Color(0xFF15803D), _overdueRecoveryPct())!,
+                      Color.lerp(const Color(0xFF7F1D1D),
+                          const Color(0xFF14532D), _overdueRecoveryPct())!,
                     ],
             ),
             boxShadow: AppTokens.shadowLg,
@@ -397,7 +396,13 @@ class _CollectionBreakdownSectionState
                     const SizedBox(height: 8),
                     _SegmentedRow(
                       label: 'FREQUENCY',
-                      options: const ['All', 'Daily', 'Weekly', 'Monthly', 'Custom'],
+                      options: const [
+                        'All',
+                        'Daily',
+                        'Weekly',
+                        'Monthly',
+                        'Custom'
+                      ],
                       values: const [
                         'all',
                         'daily',
@@ -417,9 +422,8 @@ class _CollectionBreakdownSectionState
               // ── 3 KPI metric boxes ─────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _tab == 0
-                    ? _buildTodayKPIs(fmt)
-                    : _buildOverdueKPIs(fmt),
+                child:
+                    _tab == 0 ? _buildTodayKPIs(fmt) : _buildOverdueKPIs(fmt),
               ),
               const SizedBox(height: 14),
 
@@ -457,9 +461,8 @@ class _CollectionBreakdownSectionState
 
   Widget _buildTodayKPIs(NumberFormat fmt) {
     final m = _todayMetrics();
-    final pct = m.expected > 0
-        ? (m.collected / m.expected).clamp(0.0, 1.0)
-        : 0.0;
+    final pct =
+        m.expected > 0 ? (m.collected / m.expected).clamp(0.0, 1.0) : 0.0;
     final barColor = _progressColor(pct);
     return Row(
       children: [
@@ -537,9 +540,7 @@ class _CollectionBreakdownSectionState
     double pct;
     if (_tab == 0) {
       final m = _todayMetrics();
-      pct = m.expected > 0
-          ? (m.collected / m.expected).clamp(0.0, 1.0)
-          : 0.0;
+      pct = m.expected > 0 ? (m.collected / m.expected).clamp(0.0, 1.0) : 0.0;
     } else {
       final m = _overdueMetrics();
       pct = m.totalOverdue > 0
@@ -556,8 +557,7 @@ class _CollectionBreakdownSectionState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('₹0',
-                style: AppTypography.extraTiny
-                    .copyWith(color: Colors.white38)),
+                style: AppTypography.extraTiny.copyWith(color: Colors.white38)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
@@ -575,8 +575,7 @@ class _CollectionBreakdownSectionState
             ),
             Text(
               _tab == 0 ? 'Expected' : 'Total due',
-              style: AppTypography.extraTiny
-                  .copyWith(color: Colors.white38),
+              style: AppTypography.extraTiny.copyWith(color: Colors.white38),
             ),
           ],
         ),
@@ -692,7 +691,7 @@ class _StatusPillRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (responsive && MediaQuery.sizeOf(context).width < 400) {
+    if (responsive && MediaQuery.sizeOf(context).width < 500) {
       return Column(
         children: [
           SizedBox(
@@ -776,12 +775,11 @@ class _StatusPill extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? color.withAlpha(30)
-              : Colors.white.withAlpha(8),
+          color: isSelected ? color.withAlpha(30) : Colors.white.withAlpha(8),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? color.withAlpha(120) : Colors.white.withAlpha(20),
+            color:
+                isSelected ? color.withAlpha(120) : Colors.white.withAlpha(20),
             width: 1,
           ),
         ),
@@ -791,7 +789,8 @@ class _StatusPill extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 6, height: 6,
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
                     color: color,
                     shape: BoxShape.circle,
@@ -1236,9 +1235,7 @@ class _FrequencyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pct = isToday
-        ? todayMetrics.pct
-        : overdueMetrics.pct;
+    final pct = isToday ? todayMetrics.pct : overdueMetrics.pct;
     final barColor = _progressColor((pct / 100).clamp(0.0, 1.0));
 
     return GestureDetector(
@@ -1247,9 +1244,8 @@ class _FrequencyRow extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withAlpha(12)
-              : Colors.transparent,
+          color:
+              isSelected ? AppColors.primary.withAlpha(12) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -1257,7 +1253,8 @@ class _FrequencyRow extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 28, height: 28,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: AppColors.primary.withAlpha(20),
                     borderRadius: BorderRadius.circular(8),
@@ -1373,10 +1370,12 @@ class _MoneyFlowRow extends StatelessWidget {
     required this.summary,
     required this.fmt,
     required this.t,
+    required this.responsive,
   });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
@@ -1419,6 +1418,7 @@ class _MoneyFlowRow extends StatelessWidget {
                 label: 'Disbursed',
                 value: fmt.format(summary.totalDisbursed),
                 sub: 'Total value',
+                responsive: responsive,
               ),
             ),
             const SizedBox(width: 12),
@@ -1430,6 +1430,7 @@ class _MoneyFlowRow extends StatelessWidget {
                 label: 'Recovered',
                 value: fmt.format(summary.totalCollectedAllTime),
                 sub: 'All-time total',
+                responsive: responsive,
               ),
             ),
           ],
@@ -1447,10 +1448,12 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.sub,
+    this.responsive = false,
   });
   final IconData icon;
   final Color iconColor, iconBg;
   final String label, value, sub;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
@@ -1489,14 +1492,33 @@ class _StatTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: AppTypography.heroNumber.copyWith(
-              fontSize: 22,
-              color: AppColors.textPrimary,
+          if (responsive)
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: AppTypography.heroNumber.copyWith(
+                    fontSize: 22,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(
+              value,
+              style: AppTypography.heroNumber.copyWith(
+                fontSize: 22,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          Text(sub, style: AppTypography.caption),
+          Text(sub,
+              style: AppTypography.caption,
+              maxLines: responsive ? 2 : null,
+              overflow: responsive ? TextOverflow.ellipsis : null),
         ],
       ),
     );
@@ -1603,11 +1625,41 @@ class _AlertCard extends StatelessWidget {
 }
 
 class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.t});
+  const _QuickActions({required this.t, required this.responsive});
   final T t;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
+    if (responsive && MediaQuery.sizeOf(context).width < 400) {
+      return Column(
+        children: [
+          _ActionBtn(
+            icon: Icons.payments_rounded,
+            label: t.x('coll.title'),
+            color: AppColors.primary,
+            horizontal: true,
+            onTap: () => context.go('/collection'),
+          ),
+          const SizedBox(height: 10),
+          _ActionBtn(
+            icon: Icons.person_add_alt_1_rounded,
+            label: t.x('dash.new_customer'),
+            color: AppColors.info,
+            horizontal: true,
+            onTap: () => context.go('/customers/new'),
+          ),
+          const SizedBox(height: 10),
+          _ActionBtn(
+            icon: Icons.add_card_rounded,
+            label: t.x('dash.new_loan'),
+            color: AppColors.success,
+            horizontal: true,
+            onTap: () => context.go('/loans/new'),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         Expanded(
@@ -1633,7 +1685,7 @@ class _QuickActions extends StatelessWidget {
             icon: Icons.add_card_rounded,
             label: t.x('dash.new_loan'),
             color: AppColors.success,
-            onTap: () => context.go('/loans'),
+            onTap: () => context.go(responsive ? '/loans/new' : '/loans'),
           ),
         ),
       ],
@@ -1647,11 +1699,13 @@ class _ActionBtn extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
+    this.horizontal = false,
   });
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
@@ -1667,28 +1721,44 @@ class _ActionBtn extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppTokens.radius),
             boxShadow: AppTokens.shadow,
           ),
-          child: Column(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withAlpha(36),
-                  borderRadius: BorderRadius.circular(12),
+          child: horizontal
+              ? Row(children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: color.withAlpha(36),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: color, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(label, style: AppTypography.bodyLarge)),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textLight),
+                ])
+              : Column(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(36),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: color, size: 22),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodyLarge.copyWith(
+                        color: AppColors.textPrimary,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  height: 1.2,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -2166,8 +2236,6 @@ class _DueChip extends StatelessWidget {
   }
 }
 
-
-
 enum _TodayTab { all, paid, pending, newLoans, newCustomers, other }
 
 class _UnifiedActivityItem {
@@ -2237,7 +2305,8 @@ class _TodayActivitySection extends ConsumerStatefulWidget {
   final T t;
 
   @override
-  ConsumerState<_TodayActivitySection> createState() => _TodayActivitySectionState();
+  ConsumerState<_TodayActivitySection> createState() =>
+      _TodayActivitySectionState();
 }
 
 class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
@@ -2277,9 +2346,12 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     final fmt = widget.fmt;
     final bundle = widget.summary.todaysActivity;
 
-    final totalPaidAmount = bundle.paidItems.fold<double>(0, (s, a) => s + a.receivedAmount);
-    final totalPendingAmount = bundle.pendingItems.fold<double>(0, (s, a) => s + a.remainingAmount);
-    final totalDisbursedAmount = bundle.newLoanItems.fold<double>(0, (s, a) => s + a.principal);
+    final totalPaidAmount =
+        bundle.paidItems.fold<double>(0, (s, a) => s + a.receivedAmount);
+    final totalPendingAmount =
+        bundle.pendingItems.fold<double>(0, (s, a) => s + a.remainingAmount);
+    final totalDisbursedAmount =
+        bundle.newLoanItems.fold<double>(0, (s, a) => s + a.principal);
 
     final allItems = <_UnifiedActivityItem>[];
     for (final p in bundle.paidItems) {
@@ -2393,7 +2465,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.today_rounded, color: Colors.white, size: 20),
+                child: const Icon(Icons.today_rounded,
+                    color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2406,14 +2479,16 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                     ),
                     Text(
                       DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
-                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.caption
+                          .copyWith(color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
               if (allItems.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withAlpha(24),
                     borderRadius: BorderRadius.circular(12),
@@ -2442,11 +2517,14 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
               style: AppTypography.body,
               decoration: InputDecoration(
                 hintText: t.x('dash.search_activity'),
-                hintStyle: AppTypography.caption.copyWith(color: AppColors.textLight),
-                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textLight),
+                hintStyle:
+                    AppTypography.caption.copyWith(color: AppColors.textLight),
+                prefixIcon: const Icon(Icons.search,
+                    size: 20, color: AppColors.textLight),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18, color: AppColors.textLight),
+                        icon: const Icon(Icons.clear,
+                            size: 18, color: AppColors.textLight),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _searchQuery = '');
@@ -2454,7 +2532,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                       )
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                 isDense: true,
               ),
             ),
@@ -2507,7 +2586,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   value: '${bundle.newCustomerItems.length}',
                   subtitle: 'registered today',
                   isSelected: _activeTab == _TodayTab.newCustomers,
-                  onTap: () => setState(() => _activeTab = _TodayTab.newCustomers),
+                  onTap: () =>
+                      setState(() => _activeTab = _TodayTab.newCustomers),
                 ),
               ],
             ),
@@ -2519,17 +2599,23 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildTabPill(_TodayTab.all, '${t.x('dash.all_activity')} (${allItems.length})'),
+                _buildTabPill(_TodayTab.all,
+                    '${t.x('dash.all_activity')} (${allItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.paid, '${t.x('dash.paid_today')} (${bundle.paidItems.length})'),
+                _buildTabPill(_TodayTab.paid,
+                    '${t.x('dash.paid_today')} (${bundle.paidItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.pending, '${t.x('dash.pending_today')} (${bundle.pendingItems.length})'),
+                _buildTabPill(_TodayTab.pending,
+                    '${t.x('dash.pending_today')} (${bundle.pendingItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.newLoans, '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})'),
+                _buildTabPill(_TodayTab.newLoans,
+                    '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.newCustomers, '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})'),
+                _buildTabPill(_TodayTab.newCustomers,
+                    '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.other, '${t.x('dash.other_activity')} (${bundle.otherItems.length})'),
+                _buildTabPill(_TodayTab.other,
+                    '${t.x('dash.other_activity')} (${bundle.otherItems.length})'),
               ],
             ),
           ),
@@ -2622,7 +2708,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+              style:
+                  AppTypography.extraTiny.copyWith(color: AppColors.textLight),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -2666,7 +2753,9 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     if (item.paid != null) {
       final p = item.paid!;
       return _buildCardWrapper(
-        onTap: p.customerId.isNotEmpty ? () => context.push('/customers/${p.customerId}') : null,
+        onTap: p.customerId.isNotEmpty
+            ? () => context.push('/customers/${p.customerId}')
+            : null,
         badgeLabel: 'PAID · ${p.paymentMode.toUpperCase()}',
         badgeBg: const Color(0xFFD1FAE5),
         badgeColor: const Color(0xFF065F46),
@@ -2674,7 +2763,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
         name: p.customerName,
         code: p.customerCode,
         routeName: p.routeName,
-        metaLine: 'Loan: ${p.loanCode}${p.agentName != null ? ' · By: ${p.agentName}' : ''}',
+        metaLine:
+            'Loan: ${p.loanCode}${p.agentName != null ? ' · By: ${p.agentName}' : ''}',
         amountText: '+${fmt.format(p.receivedAmount)}',
         amountColor: AppColors.success,
         phone: p.customerPhone,
@@ -2683,7 +2773,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
             _buildCallButton(p.customerPhone!, t),
           const SizedBox(width: 8),
           if (p.customerId.isNotEmpty)
-            _buildViewButton(() => context.push('/customers/${p.customerId}'), t),
+            _buildViewButton(
+                () => context.push('/customers/${p.customerId}'), t),
         ],
       );
     }
@@ -2692,12 +2783,17 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
       final p = item.pending!;
       final isMissed = p.status == 'missed';
       final isPartial = p.status == 'partial';
-      final statusLabel = isMissed ? 'MISSED' : (isPartial ? 'PARTIAL' : 'PENDING');
-      final badgeBg = isMissed ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7);
-      final badgeColor = isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
+      final statusLabel =
+          isMissed ? 'MISSED' : (isPartial ? 'PARTIAL' : 'PENDING');
+      final badgeBg =
+          isMissed ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7);
+      final badgeColor =
+          isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
 
       return _buildCardWrapper(
-        onTap: p.customerId.isNotEmpty ? () => context.push('/customers/${p.customerId}') : null,
+        onTap: p.customerId.isNotEmpty
+            ? () => context.push('/customers/${p.customerId}')
+            : null,
         badgeLabel: statusLabel,
         badgeBg: badgeBg,
         badgeColor: badgeColor,
@@ -2705,7 +2801,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
         name: p.customerName,
         code: p.customerCode,
         routeName: p.routeName,
-        metaLine: 'Loan: ${p.loanCode}${p.perInstalment > 0 ? ' · Per inst: ${fmt.format(p.perInstalment)}' : ''}',
+        metaLine:
+            'Loan: ${p.loanCode}${p.perInstalment > 0 ? ' · Per inst: ${fmt.format(p.perInstalment)}' : ''}',
         amountText: fmt.format(p.remainingAmount),
         amountColor: isMissed ? AppColors.danger : AppColors.warning,
         phone: p.customerPhone,
@@ -2719,7 +2816,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
             color: AppColors.primary,
             onTap: () {
               if (p.customerId.isNotEmpty) {
-                context.push('/collection?customerId=${p.customerId}&loanId=${p.loanId}');
+                context.push(
+                    '/collection?customerId=${p.customerId}&loanId=${p.loanId}');
               }
             },
           ),
@@ -2730,7 +2828,9 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     if (item.newLoan != null) {
       final l = item.newLoan!;
       return _buildCardWrapper(
-        onTap: l.customerId.isNotEmpty ? () => context.push('/customers/${l.customerId}') : null,
+        onTap: l.customerId.isNotEmpty
+            ? () => context.push('/customers/${l.customerId}')
+            : null,
         badgeLabel: 'NEW LOAN',
         badgeBg: const Color(0xFFDBEAFE),
         badgeColor: const Color(0xFF1E40AF),
@@ -2738,7 +2838,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
         name: l.customerName,
         code: l.customerCode,
         routeName: l.routeName,
-        metaLine: 'Loan: ${l.loanCode} · ${l.frequency.toUpperCase()}${l.createdByName != null ? ' · By: ${l.createdByName}' : ''}',
+        metaLine:
+            'Loan: ${l.loanCode} · ${l.frequency.toUpperCase()}${l.createdByName != null ? ' · By: ${l.createdByName}' : ''}',
         amountText: fmt.format(l.principal),
         amountColor: AppColors.primary,
         phone: l.customerPhone,
@@ -2747,7 +2848,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
             _buildCallButton(l.customerPhone!, t),
           const SizedBox(width: 8),
           if (l.customerId.isNotEmpty)
-            _buildViewButton(() => context.push('/customers/${l.customerId}'), t),
+            _buildViewButton(
+                () => context.push('/customers/${l.customerId}'), t),
         ],
       );
     }
@@ -2755,7 +2857,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     if (item.newCustomer != null) {
       final c = item.newCustomer!;
       return _buildCardWrapper(
-        onTap: c.id.isNotEmpty ? () => context.push('/customers/${c.id}') : null,
+        onTap:
+            c.id.isNotEmpty ? () => context.push('/customers/${c.id}') : null,
         badgeLabel: 'NEW CUSTOMER',
         badgeBg: const Color(0xFFF3E8FF),
         badgeColor: const Color(0xFF6B21A8),
@@ -2834,7 +2937,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
                         color: badgeBg,
                         borderRadius: BorderRadius.circular(6),
@@ -2872,7 +2976,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                         children: [
                           Text(
                             name,
-                            style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                            style: AppTypography.bodyLarge
+                                .copyWith(fontWeight: FontWeight.w700),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2882,18 +2987,23 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                               if (code.isNotEmpty)
                                 Text(
                                   code,
-                                  style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                                  style: AppTypography.extraTiny
+                                      .copyWith(color: AppColors.textSecondary),
                                 ),
-                              if (code.isNotEmpty && routeName != null && routeName.isNotEmpty)
+                              if (code.isNotEmpty &&
+                                  routeName != null &&
+                                  routeName.isNotEmpty)
                                 Text(
                                   ' · ',
-                                  style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+                                  style: AppTypography.extraTiny
+                                      .copyWith(color: AppColors.textLight),
                                 ),
                               if (routeName != null && routeName.isNotEmpty)
                                 Flexible(
                                   child: Text(
                                     routeName,
-                                    style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                                    style: AppTypography.extraTiny.copyWith(
+                                        color: AppColors.textSecondary),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -2903,7 +3013,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                           const SizedBox(height: 4),
                           Text(
                             metaLine,
-                            style: AppTypography.caption.copyWith(color: AppColors.textLight, fontSize: 11),
+                            style: AppTypography.caption.copyWith(
+                                color: AppColors.textLight, fontSize: 11),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2926,7 +3037,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                 // Bottom row: Quick action buttons
                 if (actions.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 0.8, color: AppColors.border),
+                  const Divider(
+                      height: 1, thickness: 0.8, color: AppColors.border),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -2984,7 +3096,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.arrow_forward_rounded, size: 13, color: AppColors.textSecondary),
+            const Icon(Icons.arrow_forward_rounded,
+                size: 13, color: AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               t.x('dash.view_details'),

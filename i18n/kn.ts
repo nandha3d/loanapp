@@ -1,4 +1,12 @@
 export const kn = {
+  mobileCollection: {
+    todayScheduled: 'ಇಂದಿನ ನಿಗದಿತ ವಸೂಲಿ',
+    stillOverdue: 'ಇನ್ನೂ ಬಾಕಿ',
+    moreActions: 'ಹೆಚ್ಚಿನ ವಸೂಲಿ ಆಯ್ಕೆಗಳು',
+    routeRun: 'ವಸೂಲಿ ಸುತ್ತು',
+    verifySelfPay: 'ಸ್ವಯಂ ಪಾವತಿ ಪರಿಶೀಲಿಸಿ',
+    help: 'ವಸೂಲಿ ಸಹಾಯ',
+  },
   precloseRequest: {
     "title": "ಸಾಲವನ್ನು ಮುಂಚಿತವಾಗಿ ಮುಚ್ಚಲು ವಿನಂತಿಸಿ",
     "feature": "ಏಜೆಂಟ್ ಮುಂಚಿತ ಮುಕ್ತಾಯ ವಿನಂತಿಗಳು (ಕಿರುಸಾಲ)",

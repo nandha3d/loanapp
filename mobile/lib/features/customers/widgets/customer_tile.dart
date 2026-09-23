@@ -23,10 +23,59 @@ class CustomerTile extends ConsumerWidget {
     final t = T.of(ref);
     final user = ref.watch(authControllerProvider).user;
     final isChit = AppType.userIsChit(user);
+    final compactMicrolending = user?.appType == AppType.microlending &&
+        MediaQuery.sizeOf(context).width < 500;
     final cs = customer.creditScore;
     final activeLoans =
         customer.loans.where((l) => l.status == 'active').toList();
     final outstanding = activeLoans.fold<double>(0, (s, l) => s + l.principal);
+    final snippets = <Widget>[
+      _InfoSnippet(
+        icon: Icons.speed_rounded,
+        label: t.x('cust.risk_score'),
+        value: (cs != null && cs.rated) ? '${cs.score}' : '—',
+        valueColor: _scoreColor(cs?.score ?? 0),
+      ),
+      if (!isChit) ...[
+        _InfoSnippet(
+          icon: Icons.account_balance_wallet_outlined,
+          label: t.x('loan.outstanding'),
+          value: '₹${outstanding.toInt()}',
+          valueColor:
+              outstanding > 0 ? AppColors.textPrimary : AppColors.textLight,
+        ),
+        _InfoSnippet(
+          icon: Icons.receipt_long_outlined,
+          label: t.x('cust.loans_tab'),
+          value: '${customer.loans.length}',
+          valueColor: AppColors.textPrimary,
+        ),
+      ],
+    ];
+    final codeText = Text(
+      customer.customerCode,
+      maxLines: compactMicrolending ? 1 : null,
+      overflow: compactMicrolending ? TextOverflow.ellipsis : null,
+      style: AppTypography.caption.copyWith(
+        fontFamily: 'monospace',
+        color: AppColors.textLight,
+      ),
+    );
+    final routeBadge = customer.routeName == null
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              customer.routeName!,
+              maxLines: compactMicrolending ? 1 : null,
+              overflow: compactMicrolending ? TextOverflow.ellipsis : null,
+              style: AppTypography.tiny.copyWith(color: AppColors.primaryDark),
+            ),
+          );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -75,70 +124,48 @@ class CustomerTile extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Text(
-                                customer.customerCode,
-                                style: AppTypography.caption.copyWith(
-                                  fontFamily: 'monospace',
-                                  color: AppColors.textLight,
-                                ),
-                              ),
+                              if (compactMicrolending)
+                                Flexible(child: codeText)
+                              else
+                                codeText,
                               if (customer.routeName != null && !isChit) ...[
                                 const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryLight,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    customer.routeName!,
-                                    style: AppTypography.tiny
-                                        .copyWith(color: AppColors.primaryDark),
-                                  ),
-                                ),
+                                if (compactMicrolending)
+                                  Flexible(child: routeBadge!)
+                                else
+                                  routeBadge!,
                               ],
                             ],
                           ),
                         ],
                       ),
                     ),
-                    AppBadge(
+                    if (!compactMicrolending)
+                      AppBadge(
+                        label: customer.status,
+                        kind: _kindFor(customer.status),
+                      ),
+                  ],
+                ),
+                if (compactMicrolending) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppBadge(
                       label: customer.status,
                       kind: _kindFor(customer.status),
                     ),
-                  ],
-                ),
+                  ),
+                ],
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: isChit
-                      ? MainAxisAlignment.start
-                      : MainAxisAlignment.spaceBetween,
-                  children: [
-                    _InfoSnippet(
-                      icon: Icons.speed_rounded,
-                      label: t.x('cust.risk_score'),
-                      value: (cs != null && cs.rated) ? '${cs.score}' : '—',
-                      valueColor: _scoreColor(cs?.score ?? 0),
-                    ),
-                    if (!isChit) ...[
-                      _InfoSnippet(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: t.x('loan.outstanding'),
-                        value: '₹${outstanding.toInt()}',
-                        valueColor: outstanding > 0
-                            ? AppColors.textPrimary
-                            : AppColors.textLight,
+                compactMicrolending
+                    ? Wrap(spacing: 16, runSpacing: 10, children: snippets)
+                    : Row(
+                        mainAxisAlignment: isChit
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.spaceBetween,
+                        children: snippets,
                       ),
-                      _InfoSnippet(
-                        icon: Icons.receipt_long_outlined,
-                        label: t.x('cust.loans_tab'),
-                        value: '${customer.loans.length}',
-                        valueColor: AppColors.textPrimary,
-                      ),
-                    ],
-                  ],
-                ),
               ],
             ),
           ),

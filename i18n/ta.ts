@@ -1,4 +1,12 @@
 export const ta = {
+  mobileCollection: {
+    todayScheduled: 'இன்றைய வசூல்',
+    stillOverdue: 'இன்னும் தாமதம்',
+    moreActions: 'மேலும் வசூல் செயல்கள்',
+    routeRun: 'வசூல் சுற்று',
+    verifySelfPay: 'சுய கட்டணத்தை சரிபார்',
+    help: 'வசூல் உதவி',
+  },
   precloseRequest: {
     "title": "கடனை முன்கூட்டியே முடிக்கக் கோரவும்",
     "feature": "முகவரின் முன்முடிப்பு கோரிக்கைகள் (நுண்கடன்)",

@@ -180,6 +180,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final user = ref.watch(authControllerProvider).user;
+    final isMicrolending = user?.appType == AppType.microlending;
     final canReviewSelfPay = user?.role == UserRole.admin ||
         user?.role == UserRole.superadmin ||
         user?.role == UserRole.developer;
@@ -196,74 +197,174 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
           onPressed: () => context.go('/dashboard'),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Help',
-            onPressed: () => showHelpSheet(context, HelpTopics.collection),
-            icon: const Icon(Icons.help_outline),
-          ),
-          IconButton(
-            tooltip: 'Route run (batch collect & deposit)',
-            onPressed: () => context.push('/collection/runs'),
-            icon: const Icon(Icons.route_rounded),
-          ),
-          if (canReviewSelfPay)
+          if (isMicrolending) ...[
             IconButton(
-              tooltip: 'Self-pay verification',
-              onPressed: () => _showSelfPayQueue(context),
-              icon: const Icon(Icons.verified_outlined),
+              tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
+              onPressed: () => setState(() => _showMap = !_showMap),
+              icon: Icon(_showMap ? Icons.list_rounded : Icons.map_outlined),
             ),
-          IconButton(
-            tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
-            onPressed: () => setState(() => _showMap = !_showMap),
-            icon: Icon(
-              _showMap ? Icons.list_rounded : Icons.map_outlined,
-              color: _showMap ? AppColors.primary : null,
-            ),
-          ),
-          if (!_showMap)
-            IconButton(
-              tooltip: t.x('coll.sort_nearest'),
-              onPressed: _locating ? null : _toggleNearest,
-              icon: _locating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      Icons.near_me,
-                      color: _nearest ? AppColors.primary : null,
+            PopupMenuButton<String>(
+              tooltip: t.x('coll.more_actions'),
+              onSelected: (action) {
+                switch (action) {
+                  case 'nearest':
+                    _toggleNearest();
+                    break;
+                  case 'run':
+                    context.push('/collection/runs');
+                    break;
+                  case 'verify':
+                    _showSelfPayQueue(context);
+                    break;
+                  case 'help':
+                    showHelpSheet(context, HelpTopics.collection);
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                if (!_showMap)
+                  PopupMenuItem(
+                    value: 'nearest',
+                    enabled: !_locating,
+                    child: _CollectionMenuItem(
+                      icon: _nearest ? Icons.check_rounded : Icons.near_me,
+                      label: t.x('coll.sort_nearest'),
                     ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: sync.online ? AppColors.success : AppColors.danger,
-                    shape: BoxShape.circle,
+                  ),
+                PopupMenuItem(
+                  value: 'run',
+                  child: _CollectionMenuItem(
+                    icon: Icons.route_rounded,
+                    label: t.x('coll.route_run'),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  sync.pending > 0
-                      ? '${sync.pending} ${t.x('sync.queued_suffix')}'
-                      : (sync.online
-                          ? t.x('sync.synced')
-                          : t.x('sync.offline')),
-                  style: AppTypography.caption,
+                if (canReviewSelfPay)
+                  PopupMenuItem(
+                    value: 'verify',
+                    child: _CollectionMenuItem(
+                      icon: Icons.verified_outlined,
+                      label: t.x('coll.verify_self_pay'),
+                    ),
+                  ),
+                PopupMenuItem(
+                  value: 'help',
+                  child: _CollectionMenuItem(
+                    icon: Icons.help_outline,
+                    label: t.x('coll.help'),
+                  ),
                 ),
               ],
             ),
-          ),
+          ] else ...[
+            IconButton(
+              tooltip: 'Help',
+              onPressed: () => showHelpSheet(context, HelpTopics.collection),
+              icon: const Icon(Icons.help_outline),
+            ),
+            IconButton(
+              tooltip: 'Route run (batch collect & deposit)',
+              onPressed: () => context.push('/collection/runs'),
+              icon: const Icon(Icons.route_rounded),
+            ),
+            if (canReviewSelfPay)
+              IconButton(
+                tooltip: 'Self-pay verification',
+                onPressed: () => _showSelfPayQueue(context),
+                icon: const Icon(Icons.verified_outlined),
+              ),
+            IconButton(
+              tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
+              onPressed: () => setState(() => _showMap = !_showMap),
+              icon: Icon(
+                _showMap ? Icons.list_rounded : Icons.map_outlined,
+                color: _showMap ? AppColors.primary : null,
+              ),
+            ),
+            if (!_showMap)
+              IconButton(
+                tooltip: t.x('coll.sort_nearest'),
+                onPressed: _locating ? null : _toggleNearest,
+                icon: _locating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.near_me,
+                        color: _nearest ? AppColors.primary : null,
+                      ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: sync.online ? AppColors.success : AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    sync.pending > 0
+                        ? '${sync.pending} ${t.x('sync.queued_suffix')}'
+                        : (sync.online
+                            ? t.x('sync.synced')
+                            : t.x('sync.offline')),
+                    style: AppTypography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
       body: Column(
         children: [
           const OfflineBanner(),
+          if (isMicrolending)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: sync.online
+                              ? AppColors.success
+                              : AppColors.danger,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        sync.pending > 0
+                            ? '${sync.pending} ${t.x('sync.queued_suffix')}'
+                            : (sync.online
+                                ? t.x('sync.synced')
+                                : t.x('sync.offline')),
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (ref.watch(authControllerProvider).user?.role == UserRole.agent)
             const LocationStatusBanner(),
           Expanded(
@@ -338,6 +439,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                         overdueCount: overdueCount,
                         fmt: fmt,
                         t: t,
+                        responsive: isMicrolending,
                       ),
                       const SizedBox(height: 14),
                       _FilterPills(
@@ -356,6 +458,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                               fmt: fmt,
                               filter: filter,
                               distanceLabel: _distanceLabel(_distTo(g.primary)),
+                              responsive: isMicrolending,
                             ),
                             const SizedBox(height: 10),
                           ],
@@ -371,7 +474,10 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                                 const SizedBox(height: 8),
                                 for (final g in e.value) ...[
                                   _CollectionCard(
-                                      group: g, fmt: fmt, filter: filter),
+                                      group: g,
+                                      fmt: fmt,
+                                      filter: filter,
+                                      responsive: isMicrolending),
                                   const SizedBox(height: 10),
                                 ],
                                 const SizedBox(height: 6),
@@ -1124,6 +1230,22 @@ class _PhotoPin extends ConsumerWidget {
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+class _CollectionMenuItem extends StatelessWidget {
+  const _CollectionMenuItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, size: 20, color: AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Flexible(child: Text(label)),
+        ],
+      );
+}
+
 class _CollectionSummaryHeader extends StatelessWidget {
   const _CollectionSummaryHeader({
     required this.totalDue,
@@ -1133,6 +1255,7 @@ class _CollectionSummaryHeader extends StatelessWidget {
     required this.overdueCount,
     required this.fmt,
     required this.t,
+    this.responsive = false,
   });
   final double totalDue, totalCollected;
   final double overdueOutstanding;
@@ -1140,6 +1263,7 @@ class _CollectionSummaryHeader extends StatelessWidget {
   final int overdueCount;
   final NumberFormat fmt;
   final T t;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
@@ -1160,40 +1284,82 @@ class _CollectionSummaryHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.savings_outlined,
-                color: AppColors.primary,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Today scheduled',
-                style: AppTypography.heroLabel.copyWith(color: Colors.white),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+          if (responsive)
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.savings_outlined,
+                        color: AppColors.primary, size: 18),
+                    const SizedBox(width: 6),
+                    Text(t.x('coll.today_scheduled'),
+                        style: AppTypography.heroLabel
+                            .copyWith(color: Colors.white)),
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withAlpha(48),
-                  borderRadius: BorderRadius.circular(20),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(48),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('$pendingCount ${t.x('coll.pending_suffix')}',
+                      style: AppTypography.tiny.copyWith(color: Colors.white)),
                 ),
-                child: Text(
-                  '$pendingCount ${t.x('coll.pending_suffix')}',
-                  style: AppTypography.tiny.copyWith(color: Colors.white),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Icon(
+                  Icons.savings_outlined,
+                  color: AppColors.primary,
+                  size: 18,
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 6),
+                Text(
+                  'Today scheduled',
+                  style: AppTypography.heroLabel.copyWith(color: Colors.white),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(48),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$pendingCount ${t.x('coll.pending_suffix')}',
+                    style: AppTypography.tiny.copyWith(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 10),
-          Text(
-            fmt.format(totalDue),
-            style: AppTypography.heroNumber.copyWith(color: Colors.white),
-          ),
+          if (responsive)
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(fmt.format(totalDue),
+                    style:
+                        AppTypography.heroNumber.copyWith(color: Colors.white)),
+              ),
+            )
+          else
+            Text(
+              fmt.format(totalDue),
+              style: AppTypography.heroNumber.copyWith(color: Colors.white),
+            ),
           Text(
             '${fmt.format(totalCollected)} ${t.x('coll.collected_label')}',
             style: AppTypography.heroMeta.copyWith(color: Colors.white70),
@@ -1233,40 +1399,62 @@ class _CollectionSummaryHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.white24),
             ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.history_rounded,
-                  color: AppColors.danger,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Still overdue',
-                    style: AppTypography.body.copyWith(color: Colors.white),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      fmt.format(overdueOutstanding),
-                      style: AppTypography.bodyLarge.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
+            child: responsive
+                ? Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Icon(Icons.history_rounded,
+                          color: AppColors.danger, size: 18),
+                      Text(t.x('coll.still_overdue'),
+                          style:
+                              AppTypography.body.copyWith(color: Colors.white)),
+                      Text(fmt.format(overdueOutstanding),
+                          style: AppTypography.bodyLarge.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800)),
+                      Text('$overdueCount ${t.x('coll.pending_suffix')}',
+                          style: AppTypography.tiny
+                              .copyWith(color: Colors.white70)),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(
+                        Icons.history_rounded,
+                        color: AppColors.danger,
+                        size: 18,
                       ),
-                    ),
-                    Text(
-                      '$overdueCount ${t.x('coll.pending_suffix')}',
-                      style: AppTypography.tiny.copyWith(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Still overdue',
+                          style:
+                              AppTypography.body.copyWith(color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            fmt.format(overdueOutstanding),
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            '$overdueCount ${t.x('coll.pending_suffix')}',
+                            style: AppTypography.tiny
+                                .copyWith(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -1499,13 +1687,16 @@ class _CollectionCard extends ConsumerWidget {
     required this.fmt,
     required this.filter,
     this.distanceLabel,
+    this.responsive = false,
   });
   final _CustomerGroup group;
   final NumberFormat fmt;
   final String filter;
   final String? distanceLabel;
+  final bool responsive;
 
-  Future<void> _collect(BuildContext context, WidgetRef ref, CollectionRow row) async {
+  Future<void> _collect(
+      BuildContext context, WidgetRef ref, CollectionRow row) async {
     final user = ref.read(authControllerProvider).user;
     if (user?.role == UserRole.agent && user?.gpsTrackingEnabled == true) {
       final status = await ref.read(gpsServiceProvider).checkGpsStatus();
@@ -1782,13 +1973,29 @@ class _CollectionCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          fmt.format(displayAmount),
-                          style: AppTypography.moneyLg.copyWith(
-                            color: AppColors.textPrimary,
-                            fontSize: 24,
+                        if (responsive)
+                          SizedBox(
+                            width: double.infinity,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                fmt.format(displayAmount),
+                                style: AppTypography.moneyLg.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 24,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            fmt.format(displayAmount),
+                            style: AppTypography.moneyLg.copyWith(
+                              color: AppColors.textPrimary,
+                              fontSize: 24,
+                            ),
                           ),
-                        ),
                         Text(
                           displayLabel,
                           style: AppTypography.caption,
@@ -1796,42 +2003,86 @@ class _CollectionCard extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  _StatusChip(color: chipColor, label: chipLabel),
+                  if (!responsive)
+                    _StatusChip(color: chipColor, label: chipLabel),
                 ],
               ),
+              if (responsive) ...[
+                const SizedBox(height: 8),
+                _StatusChip(color: chipColor, label: chipLabel),
+              ],
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      primary: true,
-                      enabled: today != null,
-                      icon: Icons.today_rounded,
-                      label: t.x('coll.btn_today'),
-                      amount: today != null ? fmt.format(group.todayDue) : null,
-                      onTap: today != null
-                          ? () => _collect(context, ref, today)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ActionButton(
-                      primary: false,
-                      enabled: overdue != null,
-                      icon: Icons.history_rounded,
-                      label: overdue != null
-                          ? t.x('coll.btn_overdue')
-                          : t.x('coll.no_overdue'),
-                      amount:
-                          overdue != null ? fmt.format(group.overdueDue) : null,
-                      onTap: overdue != null
-                          ? () => _showOverdueDetails(context, ref)
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
+              LayoutBuilder(
+                  builder: (context, constraints) => responsive &&
+                          constraints.maxWidth < 320
+                      ? Column(children: [
+                          SizedBox(
+                              width: double.infinity,
+                              child: _ActionButton(
+                                primary: true,
+                                enabled: today != null,
+                                icon: Icons.today_rounded,
+                                label: t.x('coll.btn_today'),
+                                amount: today != null
+                                    ? fmt.format(group.todayDue)
+                                    : null,
+                                onTap: today != null
+                                    ? () => _collect(context, ref, today)
+                                    : null,
+                              )),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                              width: double.infinity,
+                              child: _ActionButton(
+                                primary: false,
+                                enabled: overdue != null,
+                                icon: Icons.history_rounded,
+                                label: overdue != null
+                                    ? t.x('coll.btn_overdue')
+                                    : t.x('coll.no_overdue'),
+                                amount: overdue != null
+                                    ? fmt.format(group.overdueDue)
+                                    : null,
+                                onTap: overdue != null
+                                    ? () => _showOverdueDetails(context, ref)
+                                    : null,
+                              )),
+                        ])
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: _ActionButton(
+                                primary: true,
+                                enabled: today != null,
+                                icon: Icons.today_rounded,
+                                label: t.x('coll.btn_today'),
+                                amount: today != null
+                                    ? fmt.format(group.todayDue)
+                                    : null,
+                                onTap: today != null
+                                    ? () => _collect(context, ref, today)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _ActionButton(
+                                primary: false,
+                                enabled: overdue != null,
+                                icon: Icons.history_rounded,
+                                label: overdue != null
+                                    ? t.x('coll.btn_overdue')
+                                    : t.x('coll.no_overdue'),
+                                amount: overdue != null
+                                    ? fmt.format(group.overdueDue)
+                                    : null,
+                                onTap: overdue != null
+                                    ? () => _showOverdueDetails(context, ref)
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        )),
               if (rrow != null) ...[
                 const SizedBox(height: 8),
                 Row(

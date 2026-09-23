@@ -1,4 +1,12 @@
 export const te = {
+  mobileCollection: {
+    todayScheduled: 'నేటి వసూళ్లు',
+    stillOverdue: 'ఇంకా బకాయి',
+    moreActions: 'మరిన్ని వసూళ్ల చర్యలు',
+    routeRun: 'వసూళ్ల పర్యటన',
+    verifySelfPay: 'స్వీయ చెల్లింపును ధృవీకరించు',
+    help: 'వసూళ్ల సహాయం',
+  },
   precloseRequest: {
     "title": "రుణాన్ని ముందుగా ముగించడానికి అభ్యర్థించండి",
     "feature": "ఏజెంట్ ముందస్తు ముగింపు అభ్యర్థనలు (సూక్ష్మ రుణాలు)",

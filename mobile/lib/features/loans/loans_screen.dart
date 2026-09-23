@@ -19,8 +19,7 @@ import 'package:zolofund/shared/widgets/fab_extended.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
-final loansProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) {
+final loansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) {
   return ref.watch(loanServiceProvider).list();
 });
 
@@ -41,6 +40,8 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
     final async = ref.watch(loansProvider);
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
+    final isMicrolending =
+        ref.watch(authControllerProvider).user?.appType == AppType.microlending;
 
     return Scaffold(
       appBar: AppBar(
@@ -122,6 +123,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                           itemBuilder: (_, i) => _LoanTile(
                             loan: visible[i],
                             fmt: fmt,
+                            responsive: isMicrolending,
                             onTap: () =>
                                 context.push('/loans/${visible[i]['id']}'),
                           ),
@@ -207,14 +209,19 @@ class _ClosedToggle extends StatelessWidget {
 }
 
 class _LoanTile extends ConsumerWidget {
-  const _LoanTile({required this.loan, required this.fmt, required this.onTap});
+  const _LoanTile({
+    required this.loan,
+    required this.fmt,
+    required this.onTap,
+    this.responsive = false,
+  });
   final Map<String, dynamic> loan;
   final NumberFormat fmt;
   final VoidCallback onTap;
+  final bool responsive;
 
-  double _toDouble(dynamic v) => v is num
-      ? v.toDouble()
-      : double.tryParse(v?.toString() ?? '') ?? 0;
+  double _toDouble(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -277,6 +284,8 @@ class _LoanTile extends ConsumerWidget {
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w700,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -300,24 +309,51 @@ class _LoanTile extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            fmt.format(principal),
-                            style: AppTypography.bodyLarge.copyWith(
-                              color: AppColors.primaryDark,
-                              fontWeight: FontWeight.w800,
+                      if (!responsive) ...[
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              fmt.format(principal),
+                              style: AppTypography.bodyLarge.copyWith(
+                                color: AppColors.primaryDark,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          AppBadge(label: status, kind: kind),
-                        ],
-                      ),
+                            const SizedBox(height: 6),
+                            AppBadge(label: status, kind: kind),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
+                if (responsive)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                fmt.format(principal),
+                                style: AppTypography.moneyLg.copyWith(
+                                  color: AppColors.primaryDark,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AppBadge(label: status, kind: kind),
+                      ],
+                    ),
+                  ),
                 // Progress bar hugging the bottom edge of the card.
                 LinearProgressIndicator(
                   value: pct,
@@ -358,10 +394,7 @@ class _Avatar extends StatelessWidget {
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '-';
-    return parts
-        .take(2)
-        .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
-        .join();
+    return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
   @override

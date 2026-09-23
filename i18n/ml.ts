@@ -1,4 +1,12 @@
 export const ml = {
+  mobileCollection: {
+    todayScheduled: 'ഇന്നത്തെ നിശ്ചിത പിരിവ്',
+    stillOverdue: 'ഇനിയും കുടിശ്ശിക',
+    moreActions: 'കൂടുതൽ പിരിവ് പ്രവർത്തനങ്ങൾ',
+    routeRun: 'പിരിവ് റൂട്ട്',
+    verifySelfPay: 'സ്വയം അടവ് പരിശോധിക്കുക',
+    help: 'പിരിവ് സഹായം',
+  },
   precloseRequest: {
     "title": "വായ്പ നേരത്തെ അടച്ചുതീർക്കാൻ അഭ്യർത്ഥിക്കുക",
     "feature": "ഏജന്റിന്റെ മുൻകൂർ തീർപ്പാക്കൽ അഭ്യർത്ഥനകൾ (സൂക്ഷ്മ വായ്പ)",

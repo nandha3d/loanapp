@@ -24,7 +24,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
-body { font-family: var(--font-inter, 'Inter'), sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+body { font-family: var(--font-inter, 'Inter'), sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; overflow-x: hidden; }
 a { color: var(--primary-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
@@ -81,13 +81,14 @@ a:hover { text-decoration: underline; }
 .sidebar-footer .user-name-edit-icon { font-size: 13px; color: rgba(255,255,255,.4); }
 .sidebar-footer .user-info-link:hover .user-name-edit-icon { color: rgba(255,255,255,.85); }
 
-.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-width: 0; min-height: 100vh; }
 .topbar { height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; position: sticky; top: 0; z-index: 40; }
-.topbar-left { display: flex; align-items: center; gap: 16px; }
-.topbar-left h2 { font-size: 1.15rem; font-weight: 700; }
-.topbar-left .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-secondary); }
+.topbar-left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 auto; }
+.topbar-left > div { min-width: 0; }
+.topbar-left h2 { font-size: 1.15rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-left .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-secondary); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .topbar-left .breadcrumb a { color: var(--text-secondary); }
-.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 0 1 auto; }
 .topbar-date { font-size: .8rem; color: var(--text-secondary); }
 .btn-menu { display: none; background: none; border: none; cursor: pointer; color: var(--text); font-size: 24px; padding: 4px; }
 .notification-bell { position: relative; cursor: pointer; color: var(--text-secondary); }
@@ -102,6 +103,7 @@ a:hover { text-decoration: underline; }
 .notification-dropdown .nd-item .nd-time { font-size: .7rem; color: var(--text-light); margin-top: 2px; }
 
 .page-content { padding: 24px 28px; }
+.branch-switcher-control { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== Cards & KPI ===== */
 .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 24px; }
@@ -352,8 +354,15 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .form-actions .btn { width: 100%; justify-content: center; }
   .notification-dropdown { width: calc(100vw - 32px); right: -16px; }
   .collection-entry { flex-direction: column; gap: 8px; align-items: stretch !important; }
-  .topbar { padding: 0 16px; }
-  .page-content { padding: 16px; }
+  .topbar { height: auto; min-height: var(--topbar-h); padding: 10px 12px; gap: 10px; }
+  .topbar-left { gap: 8px; }
+  .topbar-left h2 { font-size: 1rem; }
+  .topbar-right { gap: 6px; }
+  .topbar-date { display: none; }
+  .topbar-right > select.form-control:not(.branch-switcher-control) { width: 80px !important; max-width: 80px; min-width: 0; padding-left: 6px; padding-right: 24px; }
+  .branch-switcher-control { width: 120px !important; max-width: 120px; padding-left: 6px !important; padding-right: 24px !important; margin-right: 0 !important; }
+  .topbar-right > div.branch-switcher-control { max-width: 120px; padding-left: 6px !important; padding-right: 6px !important; margin-right: 0 !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-content { padding: 16px 12px; }
   .login-card { padding: 32px 24px; }
   /* Touch ergonomics */
   .btn { min-height: 44px; }
