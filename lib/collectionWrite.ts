@@ -466,6 +466,50 @@ export async function submitCollectionEntry(
     return { entry, applied: rec.applied, created: rec.created };
   });
 
+  // Notify admins of the collection via push notification (fire-and-forget per NOTIF-1)
+  if (result.applied > 0) {
+    void (async () => {
+      try {
+        const { notifyApprovers } = await import('@/lib/notify/approvers');
+        const [customer, collector] = await Promise.all([
+          prisma.customer.findUnique({
+            where: { id: instalment.loan.customerId },
+            select: { name: true, customerCode: true, profilePhoto: true },
+          }),
+          prisma.user.findUnique({
+            where: { id: actor.userId },
+            select: { name: true },
+          }),
+        ]);
+        const custName = customer?.name || 'Customer';
+        const agentName = collector?.name || 'Agent';
+        const formattedAmt = `₹${Number(result.applied).toLocaleString('en-IN')}`;
+        await notifyApprovers({
+          tenantId: actor.tenantId,
+          branchId: instalment.loan.branchId,
+          requesterBranchId: actor.branchId,
+          requesterRole: actor.role,
+          appType: actor.appType,
+          type: 'collection_received',
+          icon: customer?.profilePhoto || null,
+          title: `Payment Collected: ${formattedAmt}`,
+          message: `Collected ${formattedAmt} from ${custName} by ${agentName}`,
+          link: '/route-tracker',
+          data: {
+            amount: String(result.applied),
+            customerName: custName,
+            agentName,
+            customerId: instalment.loan.customerId,
+            loanId: instalment.loanId,
+            collectionEntryId: result.entry.id,
+          },
+        });
+      } catch (err) {
+        console.error('[submitCollectionEntry] notify collection failed:', err);
+      }
+    })();
+  }
+
   return { ...result, instalment };
 }
 
@@ -546,7 +590,7 @@ export async function recordActualLoanCollection(
   const upiManualVerification =
     (await getSetting(actor.tenantId, 'upi_manual_verification', 'false')) === 'true';
 
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       const instalments = await tx.instalment.findMany({
         where: { loanId: input.loanId },
@@ -661,6 +705,54 @@ export async function recordActualLoanCollection(
     },
     { timeout: 30000, maxWait: 15000 },
   );
+
+  // Notify admins of the actual collection via push notification (fire-and-forget per NOTIF-1)
+  if (result.applied > 0) {
+    const targetCustomerId = loan.customerId;
+    const targetBranchId = loan.branchId;
+    void (async () => {
+      try {
+        const { notifyApprovers } = await import('@/lib/notify/approvers');
+        const [customer, collector] = await Promise.all([
+          prisma.customer.findUnique({
+            where: { id: targetCustomerId },
+            select: { name: true, customerCode: true, profilePhoto: true },
+          }),
+          prisma.user.findUnique({
+            where: { id: actor.userId },
+            select: { name: true },
+          }),
+        ]);
+        const custName = customer?.name || 'Customer';
+        const agentName = collector?.name || 'Agent';
+        const formattedAmt = `₹${Number(result.applied).toLocaleString('en-IN')}`;
+        await notifyApprovers({
+          tenantId: actor.tenantId,
+          branchId: targetBranchId,
+          requesterBranchId: actor.branchId,
+          requesterRole: actor.role,
+          appType: actor.appType,
+          type: 'collection_received',
+          icon: customer?.profilePhoto || null,
+          title: `Payment Collected: ${formattedAmt}`,
+          message: `Collected ${formattedAmt} from ${custName} by ${agentName}`,
+          link: '/route-tracker',
+          data: {
+            amount: String(result.applied),
+            customerName: custName,
+            agentName,
+            customerId: targetCustomerId,
+            loanId: input.loanId,
+            collectionEntryId: result.entryId ?? '',
+          },
+        });
+      } catch (err) {
+        console.error('[recordActualLoanCollection] notify collection failed:', err);
+      }
+    })();
+  }
+
+  return result;
 }
 
 export type CorrectInstalmentPaymentInput = {

@@ -936,6 +936,27 @@ export async function POST(req: NextRequest) {
     console.error('[/api/v1/loans POST]', e);
     if (e instanceof OriginationInputError) return fail(e.message, 400);
     if (e instanceof InsufficientFloatError) {
+      try {
+        const { notifyApprovers } = await import('@/lib/notify/approvers');
+        await notifyApprovers({
+          tenantId: ctx.tenantId,
+          branchId: ctx.branchId,
+          requesterBranchId: ctx.branchId,
+          requesterRole: ctx.role,
+          appType: ctx.appType,
+          type: 'float_insufficient',
+          icon: 'account_balance_wallet',
+          title: '⚠️ Insufficient Float Cash',
+          message: `Cannot disburse loan: Float balance ₹${Number(e.available).toLocaleString('en-IN')} is insufficient for required ₹${Number(e.required).toLocaleString('en-IN')}`,
+          link: '/wallet',
+          data: {
+            available: String(e.available),
+            required: String(e.required),
+          },
+        });
+      } catch (notifErr) {
+        console.error('[loans route] notify insufficient float failed:', notifErr);
+      }
       return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
     }
     if (e instanceof AccountingConfigurationError) return fail(e.message, 409);

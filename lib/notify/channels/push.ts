@@ -84,7 +84,7 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
             icon: 'ic_notification',
             color: '#7D287E',
             channelId:
-              data?.type === 'approval_request' || data?.type === 'approval'
+              data?.type?.includes('approval') || data?.type === 'float_insufficient'
                 ? 'approvals_channel'
                 : 'general_channel',
           },

@@ -1,6 +1,7 @@
-import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:async';
+import 'dart:ui' as ui;
 
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,19 +26,28 @@ class AgentTrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<AgentTrackingScreen> createState() => _AgentTrackingScreenState();
 }
 
-class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
+class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
+    with SingleTickerProviderStateMixin {
   final _mapController = MapController();
   Timer? _refreshTimer;
   AgentLocation? _selected;
   bool _mapFull = false;
+
+  // Live GPS Tracking & Map Controls
+  bool _liveGpsMode = true;
+  bool _isSatellite = false;
+  bool _showTrail = true;
+  AgentCollection? _selectedCollection;
+  AgentCollection? _liveAlertCollection;
+  Timer? _liveAlertTimer;
+  final Set<String> _seenCollectionIds = <String>{};
+  late final AnimationController _pulseController;
 
   // Collections table date filter.
   String _collRange = 'today';
   DateTimeRange? _customRange;
 
   /// Resolves the active filter into a [from, to) day-boundary range.
-  /// Boundaries are normalised to midnight so the provider key stays stable
-  /// across rebuilds (avoids refetch loops).
   ({DateTime from, DateTime to}) _resolveRange() {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
@@ -88,14 +98,39 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
   @override
   void initState() {
     super.initState();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+    _startRefreshTimer();
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    final interval = _liveGpsMode ? const Duration(seconds: 5) : const Duration(seconds: 30);
+    _refreshTimer = Timer.periodic(interval, (_) {
       ref.invalidate(liveAgentLocationsProvider);
+      if (_selected != null) {
+        final range = _resolveRange();
+        final q = (agentId: _selected!.agentId, from: range.from, to: range.to);
+        ref.invalidate(agentCollectionsProvider(q));
+        ref.invalidate(agentHistoryProvider(q));
+      }
     });
+  }
+
+  void _toggleLiveGpsMode() {
+    setState(() {
+      _liveGpsMode = !_liveGpsMode;
+    });
+    _startRefreshTimer();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _liveAlertTimer?.cancel();
+    _pulseController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -108,6 +143,40 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
     final h = (m / 60).floor();
     if (h < 24) return '${h}h ${t.x('admin.ago')}';
     return DateFormat('dd MMM, h:mm a').format(at);
+  }
+
+  String _formatCollectionTime(T t, DateTime? at) {
+    if (at == null) return t.x('admin.just_now');
+    final diff = DateTime.now().difference(at);
+    if (diff.inMinutes < 1) return t.x('admin.just_now');
+    final tf = DateFormat('h:mm a');
+    final df = DateFormat('d MMM');
+    final now = DateTime.now();
+    final isToday = at.day == now.day && at.month == now.month && at.year == now.year;
+    return '${isToday ? t.x('admin.range_today') : df.format(at)} · ${tf.format(at)}';
+  }
+
+  void _fitAll(AgentLocation a, List<AgentCollection> colls, List<AgentPing> trail) {
+    final points = <LatLng>[];
+    if (a.hasLocation) points.add(LatLng(a.lat!, a.lng!));
+    for (final c in colls) {
+      if (c.hasLocation) points.add(LatLng(c.lat!, c.lng!));
+    }
+    for (final p in trail) {
+      points.add(LatLng(p.lat, p.lng));
+    }
+    if (points.isEmpty) return;
+    if (points.length == 1) {
+      _mapController.move(points.first, 15);
+      return;
+    }
+    final bounds = LatLngBounds.fromPoints(points);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(48),
+      ),
+    );
   }
 
   @override
@@ -126,6 +195,8 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
             if (_selected != null) {
               setState(() {
                 _selected = null;
+                _selectedCollection = null;
+                _liveAlertCollection = null;
                 _mapFull = false;
               });
             } else {
@@ -136,7 +207,15 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(liveAgentLocationsProvider),
+            onPressed: () {
+              ref.invalidate(liveAgentLocationsProvider);
+              if (_selected != null) {
+                final range = _resolveRange();
+                final q = (agentId: _selected!.agentId, from: range.from, to: range.to);
+                ref.invalidate(agentCollectionsProvider(q));
+                ref.invalidate(agentHistoryProvider(q));
+              }
+            },
           ),
         ],
       ),
@@ -148,7 +227,6 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
             return Center(child: EmptyState(icon: Icons.person_off_outlined, title: t.x('admin.no_agents_active')));
           }
           if (_selected != null) {
-            // Re-bind to the freshest copy of the selected agent.
             final cur = agents.firstWhere(
               (a) => a.agentId == _selected!.agentId,
               orElse: () => _selected!,
@@ -185,12 +263,20 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
             );
           }
           final a = agents[i - 1];
-          return _AgentCard(agent: a, lastSeen: _lastSeen(t, a.capturedAt), fmt: fmt, t: t, onTap: () {
-            setState(() {
-              _selected = a;
-              _mapFull = false;
-            });
-          },);
+          return _AgentCard(
+            agent: a,
+            lastSeen: _lastSeen(t, a.capturedAt),
+            fmt: fmt,
+            t: t,
+            onTap: () {
+              setState(() {
+                _selected = a;
+                _selectedCollection = null;
+                _liveAlertCollection = null;
+                _mapFull = false;
+              });
+            },
+          );
         },
       ),
     );
@@ -200,7 +286,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
   Widget _detail(T t, AgentLocation a) {
     final fmt = ref.watch(currencyFmtProvider);
     final h = MediaQuery.of(context).size.height;
-    final mapHeight = _mapFull ? h : h * 0.42;
+    final mapHeight = _mapFull ? h : h * 0.44;
     final range = _resolveRange();
     final query = (agentId: a.agentId, from: range.from, to: range.to);
     final trail =
@@ -209,6 +295,34 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
         const <AgentCollection>[];
     final pinnedCollections =
         collections.where((c) => c.hasLocation).toList(growable: false);
+
+    // Real-time live collection detection
+    if (_liveGpsMode && collections.isNotEmpty) {
+      if (_seenCollectionIds.isEmpty) {
+        _seenCollectionIds.addAll(collections.map((c) => c.id));
+      } else {
+        for (final c in collections) {
+          if (!_seenCollectionIds.contains(c.id)) {
+            _seenCollectionIds.add(c.id);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              setState(() {
+                _liveAlertCollection = c;
+                _selectedCollection = c;
+              });
+              if (c.hasLocation) {
+                _mapController.move(LatLng(c.lat!, c.lng!), 16.5);
+              }
+              _liveAlertTimer?.cancel();
+              _liveAlertTimer = Timer(const Duration(seconds: 10), () {
+                if (mounted) setState(() => _liveAlertCollection = null);
+              });
+            });
+            break;
+          }
+        }
+      }
+    }
 
     return Column(
       children: [
@@ -219,28 +333,33 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
               if (a.hasLocation)
                 FlutterMap(
                   mapController: _mapController,
-                  options: MapOptions(initialCenter: LatLng(a.lat!, a.lng!), initialZoom: 15),
+                  options: MapOptions(
+                    initialCenter: LatLng(a.lat!, a.lng!),
+                    initialZoom: 15,
+                    onTap: (_, __) => setState(() => _selectedCollection = null),
+                  ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: _isSatellite
+                          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.zolofund.app',
                     ),
                     // Route the agent actually travelled (ping trail).
-                    if (trail.length >= 2)
+                    if (_showTrail && trail.length >= 2)
                       PolylineLayer(
                         polylines: [
                           Polyline(
                             points: [
                               for (final p in trail) LatLng(p.lat, p.lng),
                             ],
-                            strokeWidth: 3,
-                            color: AppColors.info.withAlpha(180),
+                            strokeWidth: 3.5,
+                            color: AppColors.info.withValues(alpha: 0.8),
                           ),
                         ],
                       ),
-                    // Small dots at each recorded ping (location + time log
-                    // renders the same points as a list below).
-                    if (trail.isNotEmpty)
+                    // Ping dots along the trail
+                    if (_showTrail && trail.isNotEmpty)
                       CircleLayer(
                         circles: [
                           for (final p in trail)
@@ -253,33 +372,67 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                             ),
                         ],
                       ),
-                    MarkerLayer(markers: [
-                      // Customers visited — pinned with their photo, ringed
-                      // green, at the exact collection spot.
-                      for (final c in pinnedCollections)
-                        Marker(
-                          point: LatLng(c.lat!, c.lng!),
-                          width: 40,
-                          height: 40,
-                          child: _customerPin(c),
-                        ),
-                      // Agent's current position — a live dot, not a pin.
-                      Marker(
-                        point: LatLng(a.lat!, a.lng!),
-                        width: 22,
-                        height: 22,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: a.online ? AppColors.success : AppColors.danger,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black38, blurRadius: 6),
-                            ],
-                          ),
+                    // Live radar pulsing beacon around agent's location
+                    if (a.hasLocation && _liveGpsMode)
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (_, __) => CircleLayer(
+                          circles: [
+                            CircleMarker(
+                              point: LatLng(a.lat!, a.lng!),
+                              radius: 14 + (_pulseController.value * 28),
+                              color: (a.online ? AppColors.success : AppColors.primary)
+                                  .withValues(alpha: (1.0 - _pulseController.value) * 0.35),
+                              borderColor: (a.online ? AppColors.success : AppColors.primary)
+                                  .withValues(alpha: (1.0 - _pulseController.value) * 0.7),
+                              borderStrokeWidth: 1.5,
+                            ),
+                          ],
                         ),
                       ),
-                    ],),
+                    MarkerLayer(
+                      markers: [
+                        // Customers visited — pinned with their photo
+                        for (final c in pinnedCollections)
+                          Marker(
+                            point: LatLng(c.lat!, c.lng!),
+                            width: 44,
+                            height: 44,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _selectedCollection = c);
+                                _mapController.move(LatLng(c.lat!, c.lng!), 16.5);
+                              },
+                              child: _customerPin(c, isSelected: _selectedCollection?.id == c.id),
+                            ),
+                          ),
+                        // Agent's live position dot
+                        Marker(
+                          point: LatLng(a.lat!, a.lng!),
+                          width: 24,
+                          height: 24,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: a.online ? AppColors.success : AppColors.danger,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Anchored popup callout directly over the selected collection pin
+                        if (_selectedCollection != null && _selectedCollection!.hasLocation)
+                          Marker(
+                            point: LatLng(_selectedCollection!.lat!, _selectedCollection!.lng!),
+                            width: 280,
+                            height: 110,
+                            alignment: const Alignment(0.0, -1.25),
+                            child: _buildCollectionCalloutBubble(t, _selectedCollection!, fmt),
+                          ),
+                      ],
+                    ),
                   ],
                 )
               else
@@ -288,19 +441,151 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                   alignment: Alignment.center,
                   child: EmptyState(icon: Icons.location_off_outlined, title: t.x('admin.no_location')),
                 ),
-              // Full-view toggle
-              if (a.hasLocation)
-                Positioned(
-                  right: 12,
-                  bottom: 12,
-                  child: FloatingActionButton.small(
-                    heroTag: 'mapfull',
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.primary,
-                    onPressed: () => setState(() => _mapFull = !_mapFull),
-                    child: Icon(_mapFull ? Icons.fullscreen_exit : Icons.fullscreen),
-                  ),
+
+              // Live GPS Radar Status pill overlay
+              Positioned(
+                left: 12,
+                top: 12,
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, _) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.78),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _liveGpsMode
+                              ? AppColors.success.withValues(alpha: 0.4 + (_pulseController.value * 0.6))
+                              : AppColors.border,
+                          width: 1.5,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _liveGpsMode ? AppColors.success : AppColors.textLight,
+                              boxShadow: _liveGpsMode
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.success,
+                                        blurRadius: 4 + (_pulseController.value * 6),
+                                        spreadRadius: 1 + (_pulseController.value * 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _liveGpsMode ? t.x('admin.live_gps_mode') : t.x('admin.offline'),
+                            style: AppTypography.extraTiny.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          if (_liveGpsMode) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '• 5s',
+                              style: AppTypography.extraTiny.copyWith(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
                 ),
+              ),
+
+              // Real-time live collection banner alert
+              if (_liveAlertCollection != null)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: 64,
+                  child: _buildLiveAlertBanner(t, _liveAlertCollection!, fmt),
+                ),
+
+              // Map Control floating toolbar on the right
+              Positioned(
+                right: 12,
+                top: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _mapToolbarButton(
+                      icon: _liveGpsMode ? Icons.sensors : Icons.sensors_off,
+                      tooltip: t.x('admin.live_gps_mode'),
+                      isActive: _liveGpsMode,
+                      activeColor: AppColors.success,
+                      onPressed: _toggleLiveGpsMode,
+                    ),
+                    const SizedBox(height: 6),
+                    _mapToolbarButton(
+                      icon: _isSatellite ? Icons.map_outlined : Icons.satellite_alt_outlined,
+                      tooltip: _isSatellite ? t.x('admin.streets') : t.x('admin.satellite'),
+                      onPressed: () => setState(() => _isSatellite = !_isSatellite),
+                    ),
+                    const SizedBox(height: 6),
+                    _mapToolbarButton(
+                      icon: Icons.route,
+                      tooltip: 'Trail',
+                      isActive: _showTrail,
+                      onPressed: () => setState(() => _showTrail = !_showTrail),
+                    ),
+                    const SizedBox(height: 6),
+                    if (a.hasLocation)
+                      _mapToolbarButton(
+                        icon: Icons.my_location,
+                        tooltip: t.x('admin.center_agent'),
+                        onPressed: () => _mapController.move(LatLng(a.lat!, a.lng!), 16),
+                      ),
+                    if (a.hasLocation) const SizedBox(height: 6),
+                    _mapToolbarButton(
+                      icon: Icons.zoom_out_map,
+                      tooltip: t.x('admin.fit_all'),
+                      onPressed: () => _fitAll(a, pinnedCollections, trail),
+                    ),
+                    const SizedBox(height: 6),
+                    _mapToolbarButton(
+                      icon: Icons.add,
+                      tooltip: 'Zoom In',
+                      onPressed: () {
+                        final z = _mapController.camera.zoom;
+                        _mapController.move(_mapController.camera.center, z + 1);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _mapToolbarButton(
+                      icon: Icons.remove,
+                      tooltip: 'Zoom Out',
+                      onPressed: () {
+                        final z = _mapController.camera.zoom;
+                        _mapController.move(_mapController.camera.center, z - 1);
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _mapToolbarButton(
+                      icon: _mapFull ? Icons.fullscreen_exit : Icons.fullscreen,
+                      tooltip: _mapFull ? 'Exit Fullscreen' : 'Fullscreen',
+                      onPressed: () => setState(() => _mapFull = !_mapFull),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -313,11 +598,13 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                   children: [
                     _statusDot(a.online),
                     const SizedBox(width: 6),
-                    Text(a.online ? t.x('admin.online') : t.x('admin.offline'),
-                        style: AppTypography.body.copyWith(
-                          color: a.online ? AppColors.success : AppColors.textLight,
-                          fontWeight: FontWeight.w700,
-                        ),),
+                    Text(
+                      a.online ? t.x('admin.online') : t.x('admin.offline'),
+                      style: AppTypography.body.copyWith(
+                        color: a.online ? AppColors.success : AppColors.textLight,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const Spacer(),
                     Text(_lastSeen(t, a.capturedAt), style: AppTypography.caption),
                   ],
@@ -342,6 +629,238 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  /// Map Toolbar action icon button
+  Widget _mapToolbarButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool isActive = false,
+    Color? activeColor,
+  }) {
+    final effectiveActiveColor = activeColor ?? AppColors.primary;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isActive ? effectiveActiveColor : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: isActive ? effectiveActiveColor : AppColors.border,
+            width: 1,
+          ),
+        ),
+        elevation: 3,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(
+              icon,
+              size: 20,
+              color: isActive ? Colors.white : AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// On-map Anchored Callout Bubble above a selected collection pin
+  Widget _buildCollectionCalloutBubble(T t, AgentCollection c, NumberFormat fmt) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          elevation: 6,
+          borderRadius: BorderRadius.circular(10),
+          color: AppColors.surface,
+          shadowColor: Colors.black38,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.success, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                _customerPin(c, isSelected: true),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, size: 12, color: AppColors.success),
+                          const SizedBox(width: 3),
+                          Text(
+                            t.x('admin.payment_collected'),
+                            style: AppTypography.extraTiny.copyWith(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const Spacer(),
+                          InkWell(
+                            onTap: () => setState(() => _selectedCollection = null),
+                            child: const Icon(Icons.close, size: 14, color: AppColors.textLight),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Collected ${fmt.format(c.receivedAmount)} from ${c.customerName}',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, size: 10, color: AppColors.textLight),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              _formatCollectionTime(t, c.submittedAt),
+                              style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (c.paymentMode != null && c.paymentMode!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                c.paymentMode!,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        CustomPaint(
+          size: const Size(14, 7),
+          painter: _TrianglePainter(color: AppColors.surface, borderColor: AppColors.success),
+        ),
+      ],
+    );
+  }
+
+  /// Real-time popup banner when money is collected in Live GPS Mode
+  Widget _buildLiveAlertBanner(T t, AgentCollection c, NumberFormat fmt) {
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F2F1E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.success, width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.payments, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        t.x('admin.new_collection_alert'),
+                        style: const TextStyle(
+                          color: Color(0xFF86EFAC),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '· ${_formatCollectionTime(t, c.submittedAt)}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Collected ${fmt.format(c.receivedAmount)} from ${c.customerName}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            if (c.hasLocation)
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                onPressed: () {
+                  setState(() => _selectedCollection = c);
+                  _mapController.move(LatLng(c.lat!, c.lng!), 16.5);
+                },
+                child: Text(
+                  t.x('admin.show_on_map'),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 16, color: Colors.white70),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => setState(() => _liveAlertCollection = null),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -445,14 +964,24 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
 
   /// Customer photo pin at the collection spot — photo ringed in green, with
   /// an icon fallback when the customer has no photo.
-  Widget _customerPin(AgentCollection c) {
+  Widget _customerPin(AgentCollection c, {bool isSelected = false}) {
     final photo = c.customerPhoto;
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.success, width: 2.5),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : AppColors.success,
+          width: isSelected ? 3.5 : 2.5,
+        ),
         color: Colors.white,
-        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 5)],
+        boxShadow: [
+          BoxShadow(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : Colors.black38,
+            blurRadius: isSelected ? 8 : 5,
+          ),
+        ],
       ),
       child: ClipOval(
         child: photo == null || photo.isEmpty
@@ -591,46 +1120,79 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
               return Column(
                 children: [
                   for (final r in rows)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: const BoxDecoration(
-                        border: Border(top: BorderSide(color: AppColors.border)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  r.customerName,
-                                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                    Material(
+                      color: _selectedCollection?.id == r.id
+                          ? AppColors.primary.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _selectedCollection = r);
+                          if (r.hasLocation) {
+                            _mapController.move(LatLng(r.lat!, r.lng!), 16.5);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: const BoxDecoration(
+                            border: Border(top: BorderSide(color: AppColors.border)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        if (r.hasLocation)
+                                          Padding(
+                                            padding: const EdgeInsets.only(right: 4),
+                                            child: Icon(
+                                              Icons.location_on,
+                                              size: 14,
+                                              color: _selectedCollection?.id == r.id
+                                                  ? AppColors.primary
+                                                  : AppColors.success,
+                                            ),
+                                          ),
+                                        Expanded(
+                                          child: Text(
+                                            r.customerName,
+                                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (r.customerCode.isNotEmpty)
+                                      Text(r.customerCode, style: AppTypography.extraTiny),
+                                  ],
                                 ),
-                                if (r.customerCode.isNotEmpty)
-                                  Text(r.customerCode, style: AppTypography.extraTiny),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(fmt.format(r.dueAmount),
-                                textAlign: TextAlign.right, style: AppTypography.body,),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              fmt.format(r.receivedAmount),
-                              textAlign: TextAlign.right,
-                              style: AppTypography.body.copyWith(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w700,
                               ),
-                            ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  fmt.format(r.dueAmount),
+                                  textAlign: TextAlign.right,
+                                  style: AppTypography.body,
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  fmt.format(r.receivedAmount),
+                                  textAlign: TextAlign.right,
+                                  style: AppTypography.body.copyWith(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   Container(
@@ -772,3 +1334,34 @@ class _AgentCard extends StatelessWidget {
     );
   }
 }
+
+class _TrianglePainter extends CustomPainter {
+  _TrianglePainter({required this.color, required this.borderColor});
+  final Color color;
+  final Color borderColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(size.width, 0)
+      ..close();
+
+    canvas.drawPath(path, paint);
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrianglePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.borderColor != borderColor;
+}
+

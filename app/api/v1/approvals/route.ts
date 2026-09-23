@@ -337,7 +337,13 @@ export async function POST(req: NextRequest) {
       icon: notice.icon,
       title: notice.title,
       message: `Agent ${notice.verb} ${label}.`,
-      link: modulePath(ctx.appType, '/approvals'),
+      link: `${modulePath(ctx.appType, '/approvals')}?id=${request.id}`,
+      data: {
+        approvalId: request.id,
+        entityType,
+        entityId,
+        requestType,
+      },
     });
 
     return ok(request);

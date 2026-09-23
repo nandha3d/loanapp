@@ -350,11 +350,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       ),
     );
     if (source == null) return;
+    if (source == ImageSource.camera) {
+      final photo = await captureGuidedFacePhoto(context);
+      if (photo != null) {
+        setState(() => _guarantors[index].photo = photo);
+      }
+      return;
+    }
     final x = await _picker.pickImage(
       source: source!,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 80,
+      maxWidth: 1000,
+      maxHeight: 1000,
+      imageQuality: 85,
     );
     if (x == null) return;
     final cropped = await cropSquarePhoto(x.path);
@@ -363,12 +370,20 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   Future<void> _pickImage(ImageSource source, {required bool isPhoto}) async {
+    if (isPhoto && source == ImageSource.camera) {
+      final photo = await captureGuidedFacePhoto(context);
+      if (photo != null) {
+        setState(() => _photo = photo);
+      }
+      return;
+    }
+
     final x = await _picker.pickImage(
       source: source,
-      // Compress on pick: 800px / quality 80 keeps images well under 1 MB
-      maxWidth: isPhoto ? 800 : 1200,
-      maxHeight: isPhoto ? 800 : 1600,
-      imageQuality: isPhoto ? 80 : 75,
+      // Compress on pick: 1000px keeps image small
+      maxWidth: isPhoto ? 1000 : 1200,
+      maxHeight: isPhoto ? 1000 : 1600,
+      imageQuality: isPhoto ? 85 : 75,
     );
     if (x == null) return;
     if (isPhoto) {

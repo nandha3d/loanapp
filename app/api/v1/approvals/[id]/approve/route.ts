@@ -415,6 +415,29 @@ export async function PATCH(
         return ok({ status: 'approved' });
       } catch (err: any) {
         if (err.name === 'InsufficientFloatError') {
+          try {
+            const { notifyApprovers } = await import('@/lib/notify/approvers');
+            await notifyApprovers({
+              tenantId: ctx.tenantId,
+              branchId: loan.branchId,
+              requesterBranchId: ctx.branchId,
+              requesterRole: ctx.role,
+              appType: ctx.appType,
+              type: 'float_insufficient',
+              icon: 'account_balance_wallet',
+              title: '⚠️ Insufficient Float Cash',
+              message: `Cannot disburse loan ${loan.loanCode}: Float balance ₹${Number(err.available).toLocaleString('en-IN')} is insufficient for required ₹${Number(err.required).toLocaleString('en-IN')}`,
+              link: '/wallet',
+              data: {
+                available: String(err.available),
+                required: String(err.required),
+                loanId: loan.id,
+                loanCode: loan.loanCode,
+              },
+            });
+          } catch (notifErr) {
+            console.error('[approvals approve route] notify insufficient float failed:', notifErr);
+          }
           return fail(`Agent has insufficient float to disburse ₹${err.required} (available: ₹${err.available}). Please release funds first in the Wallet module.`, 409);
         }
         throw err;

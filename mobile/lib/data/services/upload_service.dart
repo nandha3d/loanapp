@@ -18,11 +18,18 @@ class UploadService {
   final Dio _dio;
 
   Future<UploadResult> uploadFile(File file, {String? contentType}) async {
+    MediaType? mediaType;
+    if (contentType != null) {
+      mediaType = MediaType.parse(contentType);
+    } else if (file.path.toLowerCase().endsWith('.webp')) {
+      mediaType = MediaType('image', 'webp');
+    }
+
     final form = FormData.fromMap({
       'file': await MultipartFile.fromFile(
         file.path,
         filename: file.path.split(Platform.pathSeparator).last,
-        contentType: contentType == null ? null : MediaType.parse(contentType),
+        contentType: mediaType,
       ),
     });
     final res = await _dio.post<Map<String, dynamic>>(
