@@ -73,10 +73,10 @@ export async function GET(
 
     const currencySymbol = await getSetting(context.tenantId, 'currency_symbol', '₹');
     payload.meta = {
+      ...(payload.meta || {}),
       from,
       to,
-      currencySymbol,
-      ...(payload.meta || {}),
+      currencySymbol: currencySymbol || payload.meta?.currencySymbol || '₹',
     };
 
     return ok(payload);
