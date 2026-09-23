@@ -177,6 +177,7 @@ class DashboardSummary {
     this.todayByMode = const {},
     this.todayBreakdown = const TodayCollectionBreakdown(),
     this.overdueBreakdown = const OverdueCollectionBreakdown(),
+    this.todaysActivity = const TodaysActivityBundle(),
   });
 
   final int activeLoans;
@@ -213,6 +214,7 @@ class DashboardSummary {
   final Map<String, double> todayByMode;
   final TodayCollectionBreakdown todayBreakdown;
   final OverdueCollectionBreakdown overdueBreakdown;
+  final TodaysActivityBundle todaysActivity;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -296,6 +298,29 @@ class DashboardSummary {
               ),
               active: const OverdueStatusSubMetrics(),
               inactive: const OverdueStatusSubMetrics(),
+            ),
+      todaysActivity: json['todaysActivity'] != null
+          ? TodaysActivityBundle.fromJson(json['todaysActivity'] as Map<String, dynamic>)
+          : TodaysActivityBundle(
+              paidItems: (json['todayActivity'] as List<dynamic>? ?? const [])
+                  .map((dynamic e) {
+                    final m = e as Map<String, dynamic>;
+                    return TodayPaidItem(
+                      id: (m['id'] as String?) ?? '',
+                      receivedAmount: toNum(m['amount']),
+                      dueAmount: toNum(m['amount']),
+                      paymentMode: (m['paymentMode'] as String?) ?? 'cash',
+                      submittedAt: DateTime.tryParse(m['submittedAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+                      verificationStatus: (m['verificationStatus'] as String?) ?? 'verified',
+                      customerId: (m['customerId'] as String?) ?? '',
+                      customerName: (m['customerName'] as String?) ?? '—',
+                      customerCode: (m['customerCode'] as String?) ?? '',
+                      loanId: '',
+                      loanCode: (m['loanCode'] as String?) ?? '',
+                      agentName: (m['agentName'] as String?) ?? '',
+                    );
+                  })
+                  .toList(growable: false),
             ),
     );
   }
@@ -513,6 +538,294 @@ class TodayInstalment {
       customerName: (customer['name'] as String?) ?? '—',
       loanCode: (loan['loanCode'] as String?) ?? '',
       customerPhoto: customer['profilePhoto'] as String?,
+    );
+  }
+}
+
+class TodayPaidItem {
+  const TodayPaidItem({
+    required this.id,
+    required this.receivedAmount,
+    required this.dueAmount,
+    required this.paymentMode,
+    required this.submittedAt,
+    required this.verificationStatus,
+    required this.customerId,
+    required this.customerName,
+    required this.customerCode,
+    this.customerPhone,
+    this.routeName,
+    required this.loanId,
+    required this.loanCode,
+    this.frequency,
+    this.principal = 0,
+    this.agentName,
+  });
+
+  final String id;
+  final double receivedAmount;
+  final double dueAmount;
+  final String paymentMode;
+  final DateTime submittedAt;
+  final String verificationStatus;
+  final String customerId;
+  final String customerName;
+  final String customerCode;
+  final String? customerPhone;
+  final String? routeName;
+  final String loanId;
+  final String loanCode;
+  final String? frequency;
+  final double principal;
+  final String? agentName;
+
+  factory TodayPaidItem.fromJson(Map<String, dynamic> json) {
+    double toNum(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final cust = (json['customer'] as Map<String, dynamic>?) ?? const {};
+    final route = cust['route'] as Map<String, dynamic>?;
+    final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
+    final agent = json['agent'] as Map<String, dynamic>?;
+    return TodayPaidItem(
+      id: (json['id'] as String?) ?? '',
+      receivedAmount: toNum(json['receivedAmount']),
+      dueAmount: toNum(json['dueAmount']),
+      paymentMode: (json['paymentMode'] as String?) ?? 'cash',
+      submittedAt: DateTime.tryParse(json['submittedAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      verificationStatus: (json['verificationStatus'] as String?) ?? 'verified',
+      customerId: (cust['id'] as String?) ?? '',
+      customerName: (cust['name'] as String?) ?? '—',
+      customerCode: (cust['customerCode'] as String?) ?? '',
+      customerPhone: cust['phone'] as String?,
+      routeName: route?['name'] as String?,
+      loanId: (loan['id'] as String?) ?? '',
+      loanCode: (loan['loanCode'] as String?) ?? '',
+      frequency: loan['frequency'] as String?,
+      principal: toNum(loan['principal']),
+      agentName: agent?['name'] as String?,
+    );
+  }
+}
+
+class TodayPendingItem {
+  const TodayPendingItem({
+    required this.id,
+    required this.dueAmount,
+    required this.receivedAmount,
+    required this.remainingAmount,
+    required this.dueDate,
+    required this.status,
+    required this.customerId,
+    required this.customerName,
+    required this.customerCode,
+    this.customerPhone,
+    this.routeName,
+    required this.loanId,
+    required this.loanCode,
+    this.frequency,
+    this.perInstalment = 0,
+  });
+
+  final String id;
+  final double dueAmount;
+  final double receivedAmount;
+  final double remainingAmount;
+  final DateTime dueDate;
+  final String status;
+  final String customerId;
+  final String customerName;
+  final String customerCode;
+  final String? customerPhone;
+  final String? routeName;
+  final String loanId;
+  final String loanCode;
+  final String? frequency;
+  final double perInstalment;
+
+  factory TodayPendingItem.fromJson(Map<String, dynamic> json) {
+    double toNum(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final cust = (json['customer'] as Map<String, dynamic>?) ?? const {};
+    final route = cust['route'] as Map<String, dynamic>?;
+    final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
+    return TodayPendingItem(
+      id: (json['id'] as String?) ?? '',
+      dueAmount: toNum(json['dueAmount']),
+      receivedAmount: toNum(json['receivedAmount']),
+      remainingAmount: toNum(json['remainingAmount']),
+      dueDate: DateTime.tryParse(json['dueDate'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      status: (json['status'] as String?) ?? 'pending',
+      customerId: (cust['id'] as String?) ?? '',
+      customerName: (cust['name'] as String?) ?? '—',
+      customerCode: (cust['customerCode'] as String?) ?? '',
+      customerPhone: cust['phone'] as String?,
+      routeName: route?['name'] as String?,
+      loanId: (loan['id'] as String?) ?? '',
+      loanCode: (loan['loanCode'] as String?) ?? '',
+      frequency: loan['frequency'] as String?,
+      perInstalment: toNum(loan['perInstalment']),
+    );
+  }
+}
+
+class TodayNewLoanItem {
+  const TodayNewLoanItem({
+    required this.id,
+    required this.loanCode,
+    required this.principal,
+    required this.frequency,
+    required this.tenure,
+    required this.createdAt,
+    required this.customerId,
+    required this.customerName,
+    required this.customerCode,
+    this.customerPhone,
+    this.routeName,
+    this.createdByName,
+  });
+
+  final String id;
+  final String loanCode;
+  final double principal;
+  final String frequency;
+  final int tenure;
+  final DateTime createdAt;
+  final String customerId;
+  final String customerName;
+  final String customerCode;
+  final String? customerPhone;
+  final String? routeName;
+  final String? createdByName;
+
+  factory TodayNewLoanItem.fromJson(Map<String, dynamic> json) {
+    double toNum(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final cust = (json['customer'] as Map<String, dynamic>?) ?? const {};
+    final route = cust['route'] as Map<String, dynamic>?;
+    final createdBy = json['createdBy'] as Map<String, dynamic>?;
+    return TodayNewLoanItem(
+      id: (json['id'] as String?) ?? '',
+      loanCode: (json['loanCode'] as String?) ?? '',
+      principal: toNum(json['principal']),
+      frequency: (json['frequency'] as String?) ?? 'daily',
+      tenure: (json['tenure'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      customerId: (cust['id'] as String?) ?? '',
+      customerName: (cust['name'] as String?) ?? '—',
+      customerCode: (cust['customerCode'] as String?) ?? '',
+      customerPhone: cust['phone'] as String?,
+      routeName: route?['name'] as String?,
+      createdByName: createdBy?['name'] as String?,
+    );
+  }
+}
+
+class TodayNewCustomerItem {
+  const TodayNewCustomerItem({
+    required this.id,
+    required this.name,
+    required this.customerCode,
+    this.phone,
+    required this.createdAt,
+    this.routeName,
+  });
+
+  final String id;
+  final String name;
+  final String customerCode;
+  final String? phone;
+  final DateTime createdAt;
+  final String? routeName;
+
+  factory TodayNewCustomerItem.fromJson(Map<String, dynamic> json) {
+    final route = json['route'] as Map<String, dynamic>?;
+    return TodayNewCustomerItem(
+      id: (json['id'] as String?) ?? (json['id_cust'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '—',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      phone: json['phone'] as String?,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      routeName: route?['name'] as String?,
+    );
+  }
+}
+
+class TodayOtherActivityItem {
+  const TodayOtherActivityItem({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    required this.timestamp,
+    this.status,
+    this.customerCode,
+    this.loanCode,
+    this.amount,
+  });
+
+  final String id;
+  final String type;
+  final String title;
+  final String description;
+  final DateTime timestamp;
+  final String? status;
+  final String? customerCode;
+  final String? loanCode;
+  final double? amount;
+
+  factory TodayOtherActivityItem.fromJson(Map<String, dynamic> json) {
+    double? toNum(dynamic v) => v == null ? null : (v is num ? v.toDouble() : double.tryParse(v.toString()));
+    return TodayOtherActivityItem(
+      id: (json['id'] as String?) ?? '',
+      type: (json['type'] as String?) ?? 'other',
+      title: (json['title'] as String?) ?? '',
+      description: (json['description'] as String?) ?? '',
+      timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      status: json['status'] as String?,
+      customerCode: json['customerCode'] as String?,
+      loanCode: json['loanCode'] as String?,
+      amount: toNum(json['amount']),
+    );
+  }
+}
+
+class TodaysActivityBundle {
+  const TodaysActivityBundle({
+    this.paidItems = const [],
+    this.pendingItems = const [],
+    this.newLoanItems = const [],
+    this.newCustomerItems = const [],
+    this.otherItems = const [],
+  });
+
+  final List<TodayPaidItem> paidItems;
+  final List<TodayPendingItem> pendingItems;
+  final List<TodayNewLoanItem> newLoanItems;
+  final List<TodayNewCustomerItem> newCustomerItems;
+  final List<TodayOtherActivityItem> otherItems;
+
+  bool get isEmpty =>
+      paidItems.isEmpty &&
+      pendingItems.isEmpty &&
+      newLoanItems.isEmpty &&
+      newCustomerItems.isEmpty &&
+      otherItems.isEmpty;
+
+  factory TodaysActivityBundle.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const TodaysActivityBundle();
+    return TodaysActivityBundle(
+      paidItems: (json['paidItems'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayPaidItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      pendingItems: (json['pendingItems'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayPendingItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      newLoanItems: (json['newLoanItems'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayNewLoanItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      newCustomerItems: (json['newCustomerItems'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayNewCustomerItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      otherItems: (json['otherItems'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayOtherActivityItem.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
     );
   }
 }

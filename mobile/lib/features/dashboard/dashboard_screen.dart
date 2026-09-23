@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import 'package:zolofund/core/a11y/voice_assist.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -108,6 +108,7 @@ class DashboardScreen extends ConsumerWidget {
                   fmt: fmt,
                   userName: user?.name ?? '',
                   t: t,
+                  responsive: user?.appType == AppType.microlending,
                 ),
               ),
       ),
@@ -122,11 +123,13 @@ class _DashboardBody extends ConsumerWidget {
     required this.fmt,
     required this.userName,
     required this.t,
+    required this.responsive,
   });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final String userName;
   final T t;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -138,7 +141,12 @@ class _DashboardBody extends ConsumerWidget {
       children: [
         _GreetingRow(name: userName, t: t),
         const SizedBox(height: 14),
-        _CollectionBreakdownSection(summary: summary, fmt: fmt, t: t),
+        _CollectionBreakdownSection(
+          summary: summary,
+          fmt: fmt,
+          t: t,
+          responsive: responsive,
+        ),
         const SizedBox(height: 14),
         if (isAgent)
           _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
@@ -170,8 +178,8 @@ class _DashboardBody extends ConsumerWidget {
         _UpNextPager(fmt: fmt, t: t),
         const SizedBox(height: 18),
         _TodayActivitySection(summary: summary, fmt: fmt, t: t),
-        const SizedBox(height: 18),
-        _ActivitySection(summary: summary, t: t),
+
+
       ],
     );
   }
@@ -234,10 +242,12 @@ class _CollectionBreakdownSection extends StatefulWidget {
     required this.summary,
     required this.fmt,
     required this.t,
+    required this.responsive,
   });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
+  final bool responsive;
 
   @override
   State<_CollectionBreakdownSection> createState() =>
@@ -349,6 +359,7 @@ class _CollectionBreakdownSectionState
                         onInactiveTap: () =>
                             setState(() => _loanStatus = 'inactive'),
                         selectedStatus: _loanStatus,
+                        responsive: widget.responsive,
                       )
                     : _StatusPillRow(
                         activeLabel: 'ACTIVE LOANS OVERDUE',
@@ -365,6 +376,7 @@ class _CollectionBreakdownSectionState
                         onInactiveTap: () =>
                             setState(() => _loanStatus = 'inactive'),
                         selectedStatus: _loanStatus,
+                        responsive: widget.responsive,
                       ),
               ),
               const SizedBox(height: 12),
@@ -380,6 +392,7 @@ class _CollectionBreakdownSectionState
                       values: const ['all', 'active', 'inactive'],
                       selected: _loanStatus,
                       onChanged: (v) => setState(() => _loanStatus = v),
+                      responsive: widget.responsive,
                     ),
                     const SizedBox(height: 8),
                     _SegmentedRow(
@@ -394,6 +407,7 @@ class _CollectionBreakdownSectionState
                       ],
                       selected: _frequency,
                       onChanged: (v) => setState(() => _frequency = v),
+                      responsive: widget.responsive,
                     ),
                   ],
                 ),
@@ -668,14 +682,47 @@ class _StatusPillRow extends StatelessWidget {
     required this.onActiveTap,
     required this.onInactiveTap,
     required this.selectedStatus,
+    required this.responsive,
   });
   final String activeLabel, activeAmount, activeCount, activeCollected;
   final String inactiveLabel, inactiveAmount, inactiveCount, inactiveCollected;
   final VoidCallback onActiveTap, onInactiveTap;
   final String selectedStatus;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
+    if (responsive && MediaQuery.sizeOf(context).width < 400) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: _StatusPill(
+              label: activeLabel,
+              amount: activeAmount,
+              count: activeCount,
+              collected: activeCollected,
+              color: const Color(0xFF34D399),
+              isSelected: selectedStatus == 'active',
+              onTap: onActiveTap,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: _StatusPill(
+              label: inactiveLabel,
+              amount: inactiveAmount,
+              count: inactiveCount,
+              collected: inactiveCollected,
+              color: const Color(0xFFFF8674),
+              isSelected: selectedStatus == 'inactive',
+              onTap: onInactiveTap,
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         Expanded(
@@ -800,15 +847,70 @@ class _SegmentedRow extends StatelessWidget {
     required this.values,
     required this.selected,
     required this.onChanged,
+    required this.responsive,
   });
   final String label;
   final List<String> options;
   final List<String> values;
   final String selected;
   final ValueChanged<String> onChanged;
+  final bool responsive;
 
   @override
   Widget build(BuildContext context) {
+    if (responsive) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.extraTiny.copyWith(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 44,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: options.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, i) => Semantics(
+                button: true,
+                selected: selected == values[i],
+                child: Material(
+                  color: selected == values[i]
+                      ? AppColors.primary
+                      : Colors.white.withAlpha(16),
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => onChanged(values[i]),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 76),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Center(
+                          child: Text(
+                            options[i],
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: selected == values[i]
+                                  ? Colors.white
+                                  : Colors.white70,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         SizedBox(
@@ -2064,168 +2166,870 @@ class _DueChip extends StatelessWidget {
   }
 }
 
-class _ActivitySection extends StatelessWidget {
-  const _ActivitySection({required this.summary, required this.t});
-  final DashboardSummary summary;
-  final T t;
 
-  @override
-  Widget build(BuildContext context) {
-    return _Section(
-      title: t.x('dash.recent_activity'),
-      child: summary.recentActivity.isEmpty
-          ? SizedBox(
-              height: 100,
-              child: EmptyState(
-                icon: Icons.history,
-                title: t.x('dash.no_activity'),
-              ),
-            )
-          : Column(
-              children: [
-                for (final a in summary.recentActivity)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        _Avatar(name: a.userName, size: 36),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                a.userName,
-                                style: AppTypography.bodyLarge,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                '${a.action} ${a.resource}',
-                                style: AppTypography.caption,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          _relTime(a.createdAt, t),
-                          style: AppTypography.extraTiny,
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
+
+enum _TodayTab { all, paid, pending, newLoans, newCustomers, other }
+
+class _UnifiedActivityItem {
+  _UnifiedActivityItem.paid(TodayPaidItem item)
+      : kind = 'paid',
+        paid = item,
+        sortTime = item.submittedAt,
+        pending = null,
+        newLoan = null,
+        newCustomer = null,
+        other = null;
+
+  _UnifiedActivityItem.pending(TodayPendingItem item)
+      : kind = 'pending',
+        pending = item,
+        sortTime = item.dueDate,
+        paid = null,
+        newLoan = null,
+        newCustomer = null,
+        other = null;
+
+  _UnifiedActivityItem.newLoan(TodayNewLoanItem item)
+      : kind = 'new_loan',
+        newLoan = item,
+        sortTime = item.createdAt,
+        paid = null,
+        pending = null,
+        newCustomer = null,
+        other = null;
+
+  _UnifiedActivityItem.newCustomer(TodayNewCustomerItem item)
+      : kind = 'new_customer',
+        newCustomer = item,
+        sortTime = item.createdAt,
+        paid = null,
+        pending = null,
+        newLoan = null,
+        other = null;
+
+  _UnifiedActivityItem.other(TodayOtherActivityItem item)
+      : kind = 'other',
+        other = item,
+        sortTime = item.timestamp,
+        paid = null,
+        pending = null,
+        newLoan = null,
+        newCustomer = null;
+
+  final String kind;
+  final DateTime sortTime;
+  final TodayPaidItem? paid;
+  final TodayPendingItem? pending;
+  final TodayNewLoanItem? newLoan;
+  final TodayNewCustomerItem? newCustomer;
+  final TodayOtherActivityItem? other;
 }
 
-String _relTime(DateTime dt, T t) {
-  final d = DateTime.now().difference(dt);
-  if (d.inMinutes < 1) return t.x('common.now');
-  if (d.inHours < 1) return '${d.inMinutes}m';
-  if (d.inDays < 1) return '${d.inHours}h';
-  if (d.inDays < 7) return '${d.inDays}d';
-  return DateFormat('d MMM').format(dt);
-}
-
-/// Today's Activity — every collection recorded today, newest first, with the
-/// time, customer collected from, the agent who collected, and the amount. Lets
-/// the user see "what was done today" without leaving the dashboard.
-class _TodayActivitySection extends ConsumerWidget {
+class _TodayActivitySection extends ConsumerStatefulWidget {
   const _TodayActivitySection({
     required this.summary,
     required this.fmt,
     required this.t,
   });
+
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final items = summary.todayActivity;
-    final total = items.fold<double>(0, (s, a) => s + a.amount);
-    return _Section(
-      title:
-          '${t.x('dash.today_activity')}${items.isEmpty ? '' : '  ·  ${fmt.format(total)}'}',
-      child: items.isEmpty
-          ? SizedBox(
-              height: 100,
+  ConsumerState<_TodayActivitySection> createState() => _TodayActivitySectionState();
+}
+
+class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
+  _TodayTab _activeTab = _TodayTab.all;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() {
+      final q = _searchCtrl.text.trim().toLowerCase();
+      if (q != _searchQuery) {
+        setState(() => _searchQuery = q);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _makeCall(String? phone) async {
+    if (phone == null || phone.trim().isEmpty) return;
+    final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$clean');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final fmt = widget.fmt;
+    final bundle = widget.summary.todaysActivity;
+
+    final totalPaidAmount = bundle.paidItems.fold<double>(0, (s, a) => s + a.receivedAmount);
+    final totalPendingAmount = bundle.pendingItems.fold<double>(0, (s, a) => s + a.remainingAmount);
+    final totalDisbursedAmount = bundle.newLoanItems.fold<double>(0, (s, a) => s + a.principal);
+
+    final allItems = <_UnifiedActivityItem>[];
+    for (final p in bundle.paidItems) {
+      allItems.add(_UnifiedActivityItem.paid(p));
+    }
+    for (final p in bundle.pendingItems) {
+      allItems.add(_UnifiedActivityItem.pending(p));
+    }
+    for (final l in bundle.newLoanItems) {
+      allItems.add(_UnifiedActivityItem.newLoan(l));
+    }
+    for (final c in bundle.newCustomerItems) {
+      allItems.add(_UnifiedActivityItem.newCustomer(c));
+    }
+    for (final o in bundle.otherItems) {
+      allItems.add(_UnifiedActivityItem.other(o));
+    }
+
+    allItems.sort((a, b) => b.sortTime.compareTo(a.sortTime));
+
+    final q = _searchQuery;
+    final filtered = allItems.where((item) {
+      switch (_activeTab) {
+        case _TodayTab.all:
+          break;
+        case _TodayTab.paid:
+          if (item.kind != 'paid') return false;
+        case _TodayTab.pending:
+          if (item.kind != 'pending') return false;
+        case _TodayTab.newLoans:
+          if (item.kind != 'new_loan') return false;
+        case _TodayTab.newCustomers:
+          if (item.kind != 'new_customer') return false;
+        case _TodayTab.other:
+          if (item.kind != 'other') return false;
+      }
+
+      if (q.isEmpty) return true;
+
+      if (item.paid != null) {
+        final p = item.paid!;
+        return p.customerName.toLowerCase().contains(q) ||
+            p.customerCode.toLowerCase().contains(q) ||
+            p.loanCode.toLowerCase().contains(q) ||
+            (p.agentName?.toLowerCase().contains(q) ?? false) ||
+            (p.routeName?.toLowerCase().contains(q) ?? false) ||
+            (p.customerPhone?.contains(q) ?? false);
+      }
+      if (item.pending != null) {
+        final p = item.pending!;
+        return p.customerName.toLowerCase().contains(q) ||
+            p.customerCode.toLowerCase().contains(q) ||
+            p.loanCode.toLowerCase().contains(q) ||
+            (p.customerPhone?.contains(q) ?? false) ||
+            (p.routeName?.toLowerCase().contains(q) ?? false);
+      }
+      if (item.newLoan != null) {
+        final l = item.newLoan!;
+        return l.customerName.toLowerCase().contains(q) ||
+            l.customerCode.toLowerCase().contains(q) ||
+            l.loanCode.toLowerCase().contains(q) ||
+            (l.customerPhone?.contains(q) ?? false) ||
+            (l.createdByName?.toLowerCase().contains(q) ?? false) ||
+            (l.routeName?.toLowerCase().contains(q) ?? false);
+      }
+      if (item.newCustomer != null) {
+        final c = item.newCustomer!;
+        return c.name.toLowerCase().contains(q) ||
+            c.customerCode.toLowerCase().contains(q) ||
+            (c.phone?.contains(q) ?? false) ||
+            (c.routeName?.toLowerCase().contains(q) ?? false);
+      }
+      if (item.other != null) {
+        final o = item.other!;
+        return o.title.toLowerCase().contains(q) ||
+            o.description.toLowerCase().contains(q) ||
+            (o.customerCode?.toLowerCase().contains(q) ?? false) ||
+            (o.loanCode?.toLowerCase().contains(q) ?? false);
+      }
+      return true;
+    }).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF3B82F6).withAlpha(60),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.today_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.x('dash.today_activity'),
+                      style: AppTypography.sectionTitle,
+                    ),
+                    Text(
+                      DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
+                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (allItems.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(24),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${allItems.length}',
+                    style: AppTypography.extraTiny.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Search Bar
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              style: AppTypography.body,
+              decoration: InputDecoration(
+                hintText: t.x('dash.search_activity'),
+                hintStyle: AppTypography.caption.copyWith(color: AppColors.textLight),
+                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textLight),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18, color: AppColors.textLight),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // KPI Summary Strip (Horizontal scrollable)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildKpiCard(
+                  icon: Icons.check_circle_outline,
+                  iconBg: const Color(0xFFD1FAE5),
+                  iconColor: const Color(0xFF059669),
+                  title: t.x('dash.paid_today'),
+                  value: fmt.format(totalPaidAmount),
+                  subtitle: '${bundle.paidItems.length} customers',
+                  isSelected: _activeTab == _TodayTab.paid,
+                  onTap: () => setState(() => _activeTab = _TodayTab.paid),
+                ),
+                const SizedBox(width: 10),
+                _buildKpiCard(
+                  icon: Icons.hourglass_top_rounded,
+                  iconBg: const Color(0xFFFEF3C7),
+                  iconColor: const Color(0xFFD97706),
+                  title: t.x('dash.pending_today'),
+                  value: fmt.format(totalPendingAmount),
+                  subtitle: '${bundle.pendingItems.length} customers',
+                  isSelected: _activeTab == _TodayTab.pending,
+                  onTap: () => setState(() => _activeTab = _TodayTab.pending),
+                ),
+                const SizedBox(width: 10),
+                _buildKpiCard(
+                  icon: Icons.request_quote_outlined,
+                  iconBg: const Color(0xFFDBEAFE),
+                  iconColor: const Color(0xFF2563EB),
+                  title: t.x('dash.new_loans'),
+                  value: fmt.format(totalDisbursedAmount),
+                  subtitle: '${bundle.newLoanItems.length} loans',
+                  isSelected: _activeTab == _TodayTab.newLoans,
+                  onTap: () => setState(() => _activeTab = _TodayTab.newLoans),
+                ),
+                const SizedBox(width: 10),
+                _buildKpiCard(
+                  icon: Icons.person_add_alt_1_outlined,
+                  iconBg: const Color(0xFFF3E8FF),
+                  iconColor: const Color(0xFF9333EA),
+                  title: t.x('dash.new_customers'),
+                  value: '${bundle.newCustomerItems.length}',
+                  subtitle: 'registered today',
+                  isSelected: _activeTab == _TodayTab.newCustomers,
+                  onTap: () => setState(() => _activeTab = _TodayTab.newCustomers),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Filter Tabs Pills
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildTabPill(_TodayTab.all, '${t.x('dash.all_activity')} (${allItems.length})'),
+                const SizedBox(width: 8),
+                _buildTabPill(_TodayTab.paid, '${t.x('dash.paid_today')} (${bundle.paidItems.length})'),
+                const SizedBox(width: 8),
+                _buildTabPill(_TodayTab.pending, '${t.x('dash.pending_today')} (${bundle.pendingItems.length})'),
+                const SizedBox(width: 8),
+                _buildTabPill(_TodayTab.newLoans, '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})'),
+                const SizedBox(width: 8),
+                _buildTabPill(_TodayTab.newCustomers, '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})'),
+                const SizedBox(width: 8),
+                _buildTabPill(_TodayTab.other, '${t.x('dash.other_activity')} (${bundle.otherItems.length})'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Items List or Empty State
+          if (filtered.isEmpty)
+            SizedBox(
+              height: 120,
               child: EmptyState(
                 icon: Icons.event_available_outlined,
-                title: t.x('dash.no_today_activity'),
+                title: _searchQuery.isNotEmpty
+                    ? t.x('dash.no_filtered_activity')
+                    : t.x('dash.no_today_activity'),
               ),
             )
-          : Column(
+          else
+            Column(
               children: [
-                for (final a in items)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: InkWell(
-                      onTap: a.customerId.isEmpty
-                          ? null
-                          : () => context.push('/customers/${a.customerId}'),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
+                for (final item in filtered) ...[
+                  _buildActivityItemCard(item, fmt, t),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKpiCard({
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 145,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? iconBg.withAlpha(50) : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? iconColor : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(icon, size: 16, color: iconColor),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: AppTypography.extraTiny.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: AppTypography.bodyLarge.copyWith(
+                fontWeight: FontWeight.w800,
+                color: isSelected ? iconColor : AppColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabPill(_TodayTab tab, String label) {
+    final isSelected = _activeTab == tab;
+    return InkWell(
+      onTap: () => setState(() => _activeTab = tab),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.background,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItemCard(
+    _UnifiedActivityItem item,
+    NumberFormat fmt,
+    T t,
+  ) {
+    if (item.paid != null) {
+      final p = item.paid!;
+      return _buildCardWrapper(
+        onTap: p.customerId.isNotEmpty ? () => context.push('/customers/${p.customerId}') : null,
+        badgeLabel: 'PAID · ${p.paymentMode.toUpperCase()}',
+        badgeBg: const Color(0xFFD1FAE5),
+        badgeColor: const Color(0xFF065F46),
+        time: DateFormat('h:mm a').format(p.submittedAt),
+        name: p.customerName,
+        code: p.customerCode,
+        routeName: p.routeName,
+        metaLine: 'Loan: ${p.loanCode}${p.agentName != null ? ' · By: ${p.agentName}' : ''}',
+        amountText: '+${fmt.format(p.receivedAmount)}',
+        amountColor: AppColors.success,
+        phone: p.customerPhone,
+        actions: [
+          if (p.customerPhone != null && p.customerPhone!.trim().isNotEmpty)
+            _buildCallButton(p.customerPhone!, t),
+          const SizedBox(width: 8),
+          if (p.customerId.isNotEmpty)
+            _buildViewButton(() => context.push('/customers/${p.customerId}'), t),
+        ],
+      );
+    }
+
+    if (item.pending != null) {
+      final p = item.pending!;
+      final isMissed = p.status == 'missed';
+      final isPartial = p.status == 'partial';
+      final statusLabel = isMissed ? 'MISSED' : (isPartial ? 'PARTIAL' : 'PENDING');
+      final badgeBg = isMissed ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7);
+      final badgeColor = isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
+
+      return _buildCardWrapper(
+        onTap: p.customerId.isNotEmpty ? () => context.push('/customers/${p.customerId}') : null,
+        badgeLabel: statusLabel,
+        badgeBg: badgeBg,
+        badgeColor: badgeColor,
+        time: DateFormat('h:mm a').format(p.dueDate),
+        name: p.customerName,
+        code: p.customerCode,
+        routeName: p.routeName,
+        metaLine: 'Loan: ${p.loanCode}${p.perInstalment > 0 ? ' · Per inst: ${fmt.format(p.perInstalment)}' : ''}',
+        amountText: fmt.format(p.remainingAmount),
+        amountColor: isMissed ? AppColors.danger : AppColors.warning,
+        phone: p.customerPhone,
+        actions: [
+          if (p.customerPhone != null && p.customerPhone!.trim().isNotEmpty)
+            _buildCallButton(p.customerPhone!, t),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: t.x('dash.collect_now'),
+            icon: Icons.payments_outlined,
+            color: AppColors.primary,
+            onTap: () {
+              if (p.customerId.isNotEmpty) {
+                context.push('/collection?customerId=${p.customerId}&loanId=${p.loanId}');
+              }
+            },
+          ),
+        ],
+      );
+    }
+
+    if (item.newLoan != null) {
+      final l = item.newLoan!;
+      return _buildCardWrapper(
+        onTap: l.customerId.isNotEmpty ? () => context.push('/customers/${l.customerId}') : null,
+        badgeLabel: 'NEW LOAN',
+        badgeBg: const Color(0xFFDBEAFE),
+        badgeColor: const Color(0xFF1E40AF),
+        time: DateFormat('h:mm a').format(l.createdAt),
+        name: l.customerName,
+        code: l.customerCode,
+        routeName: l.routeName,
+        metaLine: 'Loan: ${l.loanCode} · ${l.frequency.toUpperCase()}${l.createdByName != null ? ' · By: ${l.createdByName}' : ''}',
+        amountText: fmt.format(l.principal),
+        amountColor: AppColors.primary,
+        phone: l.customerPhone,
+        actions: [
+          if (l.customerPhone != null && l.customerPhone!.trim().isNotEmpty)
+            _buildCallButton(l.customerPhone!, t),
+          const SizedBox(width: 8),
+          if (l.customerId.isNotEmpty)
+            _buildViewButton(() => context.push('/customers/${l.customerId}'), t),
+        ],
+      );
+    }
+
+    if (item.newCustomer != null) {
+      final c = item.newCustomer!;
+      return _buildCardWrapper(
+        onTap: c.id.isNotEmpty ? () => context.push('/customers/${c.id}') : null,
+        badgeLabel: 'NEW CUSTOMER',
+        badgeBg: const Color(0xFFF3E8FF),
+        badgeColor: const Color(0xFF6B21A8),
+        time: DateFormat('h:mm a').format(c.createdAt),
+        name: c.name,
+        code: c.customerCode,
+        routeName: c.routeName,
+        metaLine: c.phone ?? 'Registered today',
+        amountText: '',
+        amountColor: AppColors.textPrimary,
+        phone: c.phone,
+        actions: [
+          if (c.phone != null && c.phone!.trim().isNotEmpty)
+            _buildCallButton(c.phone!, t),
+          const SizedBox(width: 8),
+          if (c.id.isNotEmpty)
+            _buildViewButton(() => context.push('/customers/${c.id}'), t),
+        ],
+      );
+    }
+
+    if (item.other != null) {
+      final o = item.other!;
+      return _buildCardWrapper(
+        onTap: null,
+        badgeLabel: o.type.replaceAll('_', ' ').toUpperCase(),
+        badgeBg: const Color(0xFFF1F5F9),
+        badgeColor: const Color(0xFF475569),
+        time: DateFormat('h:mm a').format(o.timestamp),
+        name: o.title,
+        code: o.customerCode ?? '',
+        routeName: null,
+        metaLine: o.description,
+        amountText: o.amount != null ? fmt.format(o.amount!) : '',
+        amountColor: AppColors.textPrimary,
+        phone: null,
+        actions: const [],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildCardWrapper({
+    required VoidCallback? onTap,
+    required String badgeLabel,
+    required Color badgeBg,
+    required Color badgeColor,
+    required String time,
+    required String name,
+    required String code,
+    required String? routeName,
+    required String metaLine,
+    required String amountText,
+    required Color amountColor,
+    required String? phone,
+    required List<Widget> actions,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: Badge and time
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        badgeLabel,
+                        style: AppTypography.extraTiny.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: badgeColor,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      time,
+                      style: AppTypography.extraTiny.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Middle row: Avatar, Info & Amount
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Avatar(name: name, size: 38),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Time column
-                          SizedBox(
-                            width: 58,
-                            child: Text(
-                              DateFormat('h:mm a').format(a.submittedAt),
-                              style: AppTypography.caption.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _Avatar(
-                            name: a.customerName,
-                            size: 34,
-                            image: a.customerPhoto != null &&
-                                    a.customerPhoto!.isNotEmpty
-                                ? authedImage(ref, a.customerPhoto!)
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  a.customerName,
-                                  style: AppTypography.bodyLarge,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  '${a.loanCode} · ${a.agentName} · ${a.paymentMode.toUpperCase()}'
-                                  '${a.count > 1 ? ' · ${a.count} inst.' : ''}',
-                                  style: AppTypography.caption,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            fmt.format(a.amount),
-                            style: AppTypography.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.success,
-                            ),
+                            name,
+                            style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              if (code.isNotEmpty)
+                                Text(
+                                  code,
+                                  style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                                ),
+                              if (code.isNotEmpty && routeName != null && routeName.isNotEmpty)
+                                Text(
+                                  ' · ',
+                                  style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+                                ),
+                              if (routeName != null && routeName.isNotEmpty)
+                                Flexible(
+                                  child: Text(
+                                    routeName,
+                                    style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            metaLine,
+                            style: AppTypography.caption.copyWith(color: AppColors.textLight, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
+                    if (amountText.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        amountText,
+                        style: AppTypography.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: amountColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                // Bottom row: Quick action buttons
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Divider(height: 1, thickness: 0.8, color: AppColors.border),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: actions,
                   ),
+                ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCallButton(String phone, T t) {
+    return InkWell(
+      onTap: () => _makeCall(phone),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD1FAE5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFA7F3D0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.phone_in_talk, size: 13, color: Color(0xFF065F46)),
+            const SizedBox(width: 4),
+            Text(
+              t.x('dash.call_customer'),
+              style: AppTypography.extraTiny.copyWith(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF065F46),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewButton(VoidCallback onTap, T t) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.arrow_forward_rounded, size: 13, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(
+              t.x('dash.view_details'),
+              style: AppTypography.extraTiny.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withAlpha(24),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withAlpha(48)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.extraTiny.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2318,24 +3122,6 @@ class _Avatar extends StatelessWidget {
             ),
     );
   }
-}
-
-String _speakAmount(double amount) {
-  if (amount <= 0) return 'zero rupees';
-  final rounded = amount.round();
-  if (rounded >= 10000000) {
-    final cr = (amount / 10000000).toStringAsFixed(2);
-    return '$cr crore rupees';
-  }
-  if (rounded >= 100000) {
-    final l = (amount / 100000).toStringAsFixed(2);
-    return '$l lakh rupees';
-  }
-  if (rounded >= 1000) {
-    final k = (amount / 1000).toStringAsFixed(1);
-    return '$k thousand rupees';
-  }
-  return '$rounded rupees';
 }
 
 class _AgentMetricsRow extends StatelessWidget {

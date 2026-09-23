@@ -61,7 +61,22 @@ export async function GET(req: NextRequest) {
       prisma.customer.count({ where: { ...baseCustomer, status: { not: 'blacklisted' } } }),
       prisma.instalment.findMany({
         where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, dueDate: { gte: today, lt: tomorrow } },
-        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } } },
+        include: {
+          loan: {
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  customerCode: true,
+                  profilePhoto: true,
+                  phone: true,
+                  route: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
         orderBy: { dueDate: 'asc' },
       }),
       prisma.penalty.count({ where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, status: 'pending' } }),
@@ -168,13 +183,30 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           receivedAmount: true,
+          dueAmount: true,
           paymentMode: true,
           submittedAt: true,
           verificationStatus: true,
           source: true,
-          customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              customerCode: true,
+              profilePhoto: true,
+              phone: true,
+              route: { select: { id: true, name: true } },
+            },
+          },
           agent: { select: { id: true, name: true } },
-          loan: { select: { loanCode: true } },
+          loan: {
+            select: {
+              id: true,
+              loanCode: true,
+              frequency: true,
+              principal: true,
+            },
+          },
         },
         orderBy: { submittedAt: 'desc' },
       }),
@@ -188,6 +220,10 @@ export async function GET(req: NextRequest) {
       pendingUpiCollections,
       pendingCashCollections,
       collectionsByMode,
+      todayNewLoans,
+      todayNewCustomers,
+      todayClosedLoans,
+      todayApprovals,
     ] = await Promise.all([
       prisma.loan.aggregate({
         where: { ...baseLoan, status: { in: ['active', 'overdue', 'closed', 'settled'] } },
@@ -253,6 +289,90 @@ export async function GET(req: NextRequest) {
           loan: baseLoan,
         },
         _sum: { receivedAmount: true },
+      }),
+      // New loans created today
+      prisma.loan.findMany({
+        where: {
+          ...baseLoan,
+          createdAt: { gte: today, lt: tomorrow },
+        },
+        select: {
+          id: true,
+          loanCode: true,
+          principal: true,
+          frequency: true,
+          tenure: true,
+          createdAt: true,
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              customerCode: true,
+              phone: true,
+              route: { select: { id: true, name: true } },
+            },
+          },
+          createdBy: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      // New customers registered today
+      prisma.customer.findMany({
+        where: {
+          ...baseCustomer,
+          createdAt: { gte: today, lt: tomorrow },
+        },
+        select: {
+          id: true,
+          name: true,
+          customerCode: true,
+          phone: true,
+          createdAt: true,
+          route: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      // Loans closed today
+      prisma.loan.findMany({
+        where: {
+          ...baseLoan,
+          closedAt: { gte: today, lt: tomorrow },
+        },
+        select: {
+          id: true,
+          loanCode: true,
+          closureType: true,
+          closedAt: true,
+          customer: { select: { id: true, name: true, customerCode: true } },
+        },
+        orderBy: { closedAt: 'desc' },
+        take: 15,
+      }),
+      // Approvals processed today
+      prisma.approvalRequest.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          ...scopedBranchWhere(ctx),
+          OR: [
+            { createdAt: { gte: today, lt: tomorrow } },
+            { reviewedAt: { gte: today, lt: tomorrow } },
+          ],
+        },
+        select: {
+          id: true,
+          requestType: true,
+          entityType: true,
+          status: true,
+          createdAt: true,
+          reviewedAt: true,
+          requestedBy: { select: { name: true } },
+          reviewedBy: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
       }),
     ]);
 
@@ -536,6 +656,104 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const todayPendingDues = todayInstalments
+      .filter((inst) => outstanding(inst) > 0 && (inst as any).loan?.status !== 'closed')
+      .map((inst) => ({
+        id: inst.id,
+        type: 'pending' as const,
+        dueAmount: Number(inst.dueAmount),
+        receivedAmount: Number(inst.receivedAmount || 0),
+        remainingAmount: outstanding(inst),
+        dueDate: inst.dueDate,
+        status: (inst.status === 'upcoming' ? 'pending' : inst.status) as 'pending' | 'partial' | 'missed',
+        customer: {
+          id: (inst as any).loan?.customer?.id ?? '',
+          name: (inst as any).loan?.customer?.name ?? 'Customer',
+          customerCode: (inst as any).loan?.customer?.customerCode ?? '—',
+          phone: (inst as any).loan?.customer?.phone ?? null,
+          route: (inst as any).loan?.customer?.route ? { id: (inst as any).loan.customer.route.id, name: (inst as any).loan.customer.route.name } : null,
+        },
+        loan: {
+          id: (inst as any).loan?.id ?? '',
+          loanCode: (inst as any).loan?.loanCode ?? '—',
+          frequency: (inst as any).loan?.frequency ?? null,
+          perInstalment: Number((inst as any).loan?.perInstalment || 0),
+        },
+      }));
+
+    const todayPaidItems = todayActivityRows.map((e: any) => ({
+      id: e.id,
+      type: 'paid' as const,
+      receivedAmount: Number(e.receivedAmount),
+      dueAmount: Number(e.dueAmount || 0),
+      paymentMode: e.paymentMode || 'cash',
+      submittedAt: e.submittedAt,
+      verificationStatus: e.verificationStatus || 'verified',
+      customer: {
+        id: e.customer?.id || '',
+        name: e.customer?.name || 'Customer',
+        customerCode: e.customer?.customerCode || '—',
+        phone: e.customer?.phone || null,
+        route: e.customer?.route ? { id: e.customer.route.id, name: e.customer.route.name } : null,
+      },
+      loan: {
+        id: e.loan?.id || '',
+        loanCode: e.loan?.loanCode || '—',
+        frequency: e.loan?.frequency || 'daily',
+        principal: Number(e.loan?.principal || 0),
+      },
+      agent: e.agent ? { id: e.agent.id, name: e.agent.name } : null,
+    }));
+
+    const todayNewLoanItems = todayNewLoans.map((l: any) => ({
+      id: l.id,
+      type: 'new_loan' as const,
+      loanCode: l.loanCode,
+      principal: Number(l.principal),
+      frequency: l.frequency,
+      tenure: l.tenure,
+      createdAt: l.createdAt,
+      customer: {
+        id: l.customer?.id || '',
+        name: l.customer?.name || 'Customer',
+        customerCode: l.customer?.customerCode || '—',
+        phone: l.customer?.phone || null,
+        route: l.customer?.route ? { id: l.customer.route.id, name: l.customer.route.name } : null,
+      },
+      createdBy: l.createdBy ? { id: l.createdBy.id, name: l.createdBy.name } : null,
+    }));
+
+    const todayNewCustomerItems = todayNewCustomers.map((c: any) => ({
+      id: c.id,
+      type: 'new_customer' as const,
+      id_cust: c.id,
+      name: c.name,
+      customerCode: c.customerCode,
+      phone: c.phone || null,
+      createdAt: c.createdAt,
+      route: c.route ? { id: c.route.id, name: c.route.name } : null,
+    }));
+
+    const todayOtherItems = [
+      ...todayClosedLoans.map((l: any) => ({
+        id: `close-${l.id}`,
+        type: 'closed_loan' as const,
+        title: `Loan Closed: ${l.loanCode}`,
+        description: `Customer: ${l.customer?.name ?? '—'} (${l.customer?.customerCode ?? '—'}) • ${l.closureType || 'Settled'}`,
+        timestamp: l.closedAt,
+        loanCode: l.loanCode,
+        customerCode: l.customer?.customerCode,
+      })),
+      ...todayApprovals.map((a: any) => ({
+        id: `appr-${a.id}`,
+        type: 'approval' as const,
+        title: `Approval: ${a.requestType.replace('_', ' ')} (${a.entityType})`,
+        description: `Status: ${a.status.toUpperCase()} • Requested by: ${a.requestedBy?.name || 'Staff'}${a.reviewedBy ? ` • Reviewed by: ${a.reviewedBy.name}` : ''}`,
+        timestamp: a.reviewedAt || a.createdAt,
+        status: a.status,
+      })),
+    ];
+
     return ok({
       activeLoans,
       overdueLoans,
@@ -631,6 +849,13 @@ export async function GET(req: NextRequest) {
       todayByMode,
       todayBreakdown,
       overdueBreakdown,
+      todaysActivity: {
+        paidItems: todayPaidItems,
+        pendingItems: todayPendingDues,
+        newLoanItems: todayNewLoanItems,
+        newCustomerItems: todayNewCustomerItems,
+        otherItems: todayOtherItems,
+      },
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Dashboard failed', 500);
