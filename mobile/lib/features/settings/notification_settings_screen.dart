@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -246,6 +247,35 @@ class _NotificationSettingsScreenState
                 ),
                 Icon(Icons.chevron_right, color: AppColors.primary),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Test actionable notification trigger
+        OutlinedButton.icon(
+          onPressed: () async {
+            await NotificationActionService.instance.showApprovalNotification(
+              id: 9999,
+              title: 'Sample Loan Approval Request',
+              body: 'Agent Anita filed an origination of ₹25,000 for Priya R. Tap Approve or Reject below.',
+              approvalId: 'test_approval_1',
+            );
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Notification sent with [Approve] and [Reject]! Check your notification bar.'),
+                duration: Duration(seconds: 4),
+              ),
+            );
+          },
+          icon: Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+          label: Text('Test Notification Bar Actions [Approve / Reject]', style: TextStyle(color: AppColors.primary)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: AppColors.primary),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
             ),
           ),
         ),

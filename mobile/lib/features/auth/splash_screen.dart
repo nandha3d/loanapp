@@ -8,7 +8,6 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/router/app_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
-import 'package:zolofund/shared/widgets/app_logo.dart';
 
 /// Shown while the auth stage is bootstrapping, playing the official
 /// ZoloFund animated splash video with seamless transition into the app.
@@ -113,39 +112,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Elegant branded placeholder while video initializes
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF1E0C24),
-                    Color(0xFF281429),
-                    Color(0xFF15171E),
-                  ],
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const AppLogo.horizontal(
-                      isDark: true,
-                      height: 72,
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            // Seamless dark background matching video start
+            const ColoredBox(
+              color: Color(0xFF15171E),
             ),
 
             // 1. Splash Video Player with smooth fade-in

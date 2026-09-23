@@ -94,8 +94,11 @@ final splashReadyProvider = StateProvider<bool>((ref) {
   return false;
 });
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     // Start at the branded splash so the role-based entry redirect always runs
     // on cold start (admins/superadmins → /portal, agents → /dashboard,
     // developer → /admin). Starting directly at /dashboard skipped that
