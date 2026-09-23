@@ -36,6 +36,7 @@ export type UserNotifyInput = {
   message: string;
   icon?: string | null;
   link?: string | null;
+  data?: Record<string, string>;
 };
 
 /**
@@ -121,7 +122,12 @@ export async function notifyUser(input: UserNotifyInput): Promise<number> {
       title: input.title,
       body: input.message,
       link: input.link ?? undefined,
-      data: { type: input.type, ...(input.link ? { link: input.link } : {}) },
+      data: {
+        type: input.type,
+        ...(input.link ? { link: input.link } : {}),
+        ...(input.icon ? { avatarUrl: input.icon } : {}),
+        ...(input.data || {}),
+      },
     });
   } catch (e) {
     console.error('[notifyUser] push dispatch failed', e);

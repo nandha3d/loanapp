@@ -68,6 +68,11 @@ export default async function RouteTrackerPage() {
           agentName: a.agentName,
           path: a.path,
         }))}
+        agentCollections={agents.map((a) => ({
+          agentId: a.agentId,
+          agentName: a.agentName,
+          points: a.collectionPoints,
+        }))}
       />
 
       <div className="stats-grid">

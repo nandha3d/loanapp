@@ -23,6 +23,7 @@ type NotifyApproversInput = {
   message: string;
   icon?: string | null;
   link?: string | null;
+  data?: Record<string, string>;
 };
 
 /**
