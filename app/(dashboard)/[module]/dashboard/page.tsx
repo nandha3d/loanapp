@@ -1217,6 +1217,7 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
     overdueInstalmentsRaw,
     weekInstalments,
     myApprovals,
+    paymentsToday,
   ] = await Promise.all([
     prisma.customer.count({
       where: {
