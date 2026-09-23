@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
+import { getSetting } from '@/lib/tenant';
 import type { AppType } from '@/lib/appConfig';
 
 export async function GET(
@@ -17,13 +18,19 @@ export async function GET(
     }
 
     const { slug } = await params;
-    const definition = getReportDefinitionForAppType(context.appType as AppType, slug);
+    const { searchParams } = new URL(req.url);
+
+    const requestedAppType = searchParams.get('appType') || req.headers.get('x-app-type');
+    const privileged = ['superadmin', 'developer', 'admin'].includes(context.role);
+    const effectiveAppType = (requestedAppType && (privileged || requestedAppType === context.appType))
+      ? requestedAppType
+      : context.appType;
+
+    const definition = getReportDefinitionForAppType(effectiveAppType as AppType, slug);
 
     if (!definition) {
       return fail(`Report builder for slug '${slug}' not found`, 404);
     }
-
-    const { searchParams } = new URL(req.url);
 
     const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const defaultTo = new Date().toISOString().slice(0, 10);
@@ -46,7 +53,7 @@ export async function GET(
 
     const payload = await definition.builder({
       tenantId: context.tenantId,
-      appType: context.appType,
+      appType: effectiveAppType,
       from,
       to,
       branchId,
@@ -63,6 +70,14 @@ export async function GET(
       loanId,
       groupId,
     });
+
+    const currencySymbol = await getSetting(context.tenantId, 'currency_symbol', '₹');
+    payload.meta = {
+      from,
+      to,
+      currencySymbol,
+      ...(payload.meta || {}),
+    };
 
     return ok(payload);
   } catch (error: any) {

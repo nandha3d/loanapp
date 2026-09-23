@@ -20,13 +20,15 @@ export async function GET(
     const context = 'context' in authResult ? authResult.context : (authResult as any);
 
     const { slug } = await params;
-    const definition = getReportDefinitionForAppType(context.appType as AppType, slug);
+    const { searchParams } = new URL(req.url);
+    const requestedAppType = searchParams.get('appType') || req.headers.get('x-app-type');
+    const effectiveAppType = requestedAppType || context.appType;
+    const definition = getReportDefinitionForAppType(effectiveAppType as AppType, slug);
 
     if (!definition) {
       return new NextResponse(`Report builder for slug '${slug}' not found`, { status: 404 });
     }
 
-    const { searchParams } = new URL(req.url);
     const format = searchParams.get('format') || 'csv';
 
     const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -50,7 +52,7 @@ export async function GET(
 
     const payload = await definition.builder({
       tenantId: context.tenantId,
-      appType: context.appType,
+      appType: effectiveAppType,
       from,
       to,
       branchId,

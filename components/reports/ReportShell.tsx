@@ -12,6 +12,7 @@ interface ReportShellProps {
   initialFilters: FilterValues;
   dict: any;
   subscription: any;
+  appType?: string;
 }
 
 export default function ReportShell({
@@ -20,7 +21,8 @@ export default function ReportShell({
   supportedFilters,
   initialFilters,
   dict,
-  subscription
+  subscription,
+  appType
 }: ReportShellProps) {
   const d = dict?.reports ?? {};
   
@@ -38,16 +40,24 @@ export default function ReportShell({
       Object.entries(currentFilters).forEach(([key, val]) => {
         if (val) q.set(key, val);
       });
+      if (appType) q.set('appType', appType);
 
       const res = await fetch(`/api/v1/reports/${slug}?${q.toString()}`);
       if (!res.ok) {
-        throw new Error(`Error: ${res.statusText}`);
+        let errMsg = `Error: ${res.status} ${res.statusText}`.trim();
+        try {
+          const errData = await res.json();
+          if (errData?.error) errMsg = errData.error;
+          else if (errData?.message) errMsg = errData.message;
+        } catch {}
+        throw new Error(errMsg);
       }
       const data = await res.json();
-      if (data.success && data.data) {
-        setPayload(data.data);
+      const reportPayload = data?.data ?? (data?.success ? data.data : data);
+      if (reportPayload && Array.isArray(reportPayload.columns)) {
+        setPayload(reportPayload);
       } else {
-        throw new Error(data.message || 'Failed to load report data');
+        throw new Error(data?.error || data?.message || 'Failed to load report data');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred');
@@ -58,7 +68,7 @@ export default function ReportShell({
 
   useEffect(() => {
     fetchData(filters);
-  }, [filters]);
+  }, [filters, appType]);
 
   const handleApplyFilters = (newFilters: FilterValues) => {
     setFilters(newFilters);
@@ -69,6 +79,7 @@ export default function ReportShell({
     Object.entries(filters).forEach(([key, val]) => {
       if (val) q.set(key, val);
     });
+    if (appType) q.set('appType', appType);
     q.set('format', format);
     return `/api/v1/reports/${slug}/export?${q.toString()}`;
   };
@@ -116,6 +127,7 @@ export default function ReportShell({
         filters={filters}
         onApply={handleApplyFilters}
         dict={dict}
+        appType={appType}
       />
 
       {loading && (
@@ -197,15 +209,18 @@ export default function ReportShell({
                       </td>
                     </tr>
                   ) : (
-                    payload.rows.map((row, rIdx) => (
-                      <tr key={rIdx}>
-                        {payload.columns.map((col, cIdx) => (
-                          <td key={cIdx} style={{ textAlign: col.align || 'left' }}>
-                            {formatCell(row[col.key], col.type, payload.meta.currencySymbol)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))
+                    payload.rows.map((row, rIdx) => {
+                      const currencySymbol = payload?.meta?.currencySymbol || dict?.branding?.currencySymbol || '₹';
+                      return (
+                        <tr key={rIdx}>
+                          {payload.columns.map((col, cIdx) => (
+                            <td key={cIdx} style={{ textAlign: col.align || 'left' }}>
+                              {formatCell(row[col.key], col.type, currencySymbol)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
                 {payload.totals && payload.rows.length > 0 && (
@@ -215,10 +230,11 @@ export default function ReportShell({
                         if (idx === 0) {
                           return <td key={idx}>{d.totals || 'TOTAL'}</td>;
                         }
+                        const currencySymbol = payload?.meta?.currencySymbol || dict?.branding?.currencySymbol || '₹';
                         const totalVal = col.total && payload.totals ? payload.totals[col.key] : null;
                         return (
                           <td key={idx} style={{ textAlign: col.align || 'left' }}>
-                            {totalVal !== null ? formatCell(totalVal, col.type, payload.meta.currencySymbol) : ''}
+                            {totalVal !== null ? formatCell(totalVal, col.type, currencySymbol) : ''}
                           </td>
                         );
                       })}

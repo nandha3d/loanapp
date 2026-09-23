@@ -365,6 +365,7 @@ export default async function AnalyticsPage({
           }}
           dict={dict}
           subscription={subscription}
+          appType={appType}
         />
       </div>
     );

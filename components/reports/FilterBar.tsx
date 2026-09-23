@@ -25,9 +25,10 @@ interface FilterBarProps {
   filters: FilterValues;
   onApply: (vals: FilterValues) => void;
   dict?: any;
+  appType?: string;
 }
 
-export default function FilterBar({ supportedFilters, filters: initialFilters, onApply, dict }: FilterBarProps) {
+export default function FilterBar({ supportedFilters, filters: initialFilters, onApply, dict, appType }: FilterBarProps) {
   const d = dict?.reports ?? {};
   
   const [filters, setFilters] = useState<FilterValues>({
@@ -59,18 +60,20 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
   useEffect(() => {
     async function loadOptions() {
       try {
-        const res = await fetch('/api/v1/reports/options');
+        const url = appType ? `/api/v1/reports/options?appType=${encodeURIComponent(appType)}` : '/api/v1/reports/options';
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.data) {
-            setBranches(data.data.branches || []);
-            setAgents(data.data.agents || []);
-            setLoanTypes(data.data.loanTypes || []);
-            setStatuses(data.data.statuses || []);
-            setFrequencies(data.data.frequencies || []);
-            setPaymentModes(data.data.paymentModes || []);
-            setChitGroups(data.data.chitGroups || []);
-            setCustomers(data.data.customers || []);
+          const optData = data?.data ?? (data?.success ? data.data : null);
+          if (optData) {
+            setBranches(optData.branches || []);
+            setAgents(optData.agents || []);
+            setLoanTypes(optData.loanTypes || []);
+            setStatuses(optData.statuses || []);
+            setFrequencies(optData.frequencies || []);
+            setPaymentModes(optData.paymentModes || []);
+            setChitGroups(optData.chitGroups || []);
+            setCustomers(optData.customers || []);
           }
         }
       } catch (err) {
@@ -78,7 +81,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
       }
     }
     loadOptions();
-  }, []);
+  }, [appType]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
