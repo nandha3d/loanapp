@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { getRouteProgressForBranch } from '@/lib/gps/routeProgress';
 import { getDictionary } from '@/lib/i18n';
 import { getSetting } from '@/lib/tenant';
@@ -20,6 +20,7 @@ export default async function RouteTrackerPage() {
   const user = session?.user as any;
   const tenantId = await getDefaultTenantId();
   const branchId = await getActiveBranchId();
+  const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   const d = dict.routeTracker;
 
@@ -49,7 +50,7 @@ export default async function RouteTrackerPage() {
     );
   }
 
-  const agents = await getRouteProgressForBranch({ tenantId, branchId });
+  const agents = await getRouteProgressForBranch({ tenantId, appType, branchId });
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   return (

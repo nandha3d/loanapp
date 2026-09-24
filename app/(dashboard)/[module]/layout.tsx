@@ -180,7 +180,7 @@ export default async function DashboardLayout({
 
   return (
     <div
-      className={`app-layout${role === 'agent' ? ' has-bottom-nav' : ''}`}
+      className={`app-layout${requestedModule === 'microlending' ? ' app-layout--microlending' : ''}${role === 'agent' ? ' has-bottom-nav' : ''}`}
       style={{
         '--primary': theme?.primary ?? appConfig.primaryColor,
         '--primary-dark': theme?.primaryDark ?? appConfig.primaryDark,

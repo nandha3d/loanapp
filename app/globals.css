@@ -428,3 +428,44 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .btn { padding: 8px 14px; }
   .kpi-value { font-size: 1.25rem; }
 }
+
+/* Micro Lending: keep unlabeled tables readable when mobile cards cannot show headings. */
+@media (max-width: 768px) {
+  .app-layout--microlending .topbar { flex-wrap: wrap; }
+  .app-layout--microlending .topbar-left { flex-basis: 100%; }
+  .app-layout--microlending .topbar-right { width: 100%; justify-content: flex-end; gap: 8px; }
+  .app-layout--microlending .topbar-right .branch-switcher-control { margin-right: auto !important; }
+  .app-layout--microlending .topbar-right > select.form-control:not(.branch-switcher-control) { margin-right: 0 !important; }
+  .app-layout--microlending .pagination { flex-wrap: wrap; gap: 10px; }
+  .app-layout--microlending .pagination .pages { max-width: 100%; overflow-x: auto; }
+
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) table {
+    min-width: 40rem;
+  }
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) thead {
+    position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal;
+  }
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody tr {
+    display: table-row; border: 0; border-radius: 0; margin: 0; padding: 0;
+  }
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody td {
+    display: table-cell; min-height: 0; text-align: inherit; border-bottom: 1px solid var(--border);
+  }
+  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody td::before {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  html:has(.app-layout--microlending) { font-size: 16px; }
+  .app-layout--microlending .topbar-right .branch-switcher-control { max-width: 104px; width: 104px !important; }
+  .app-layout--microlending .topbar-right > select.form-control:not(.branch-switcher-control) { max-width: 72px; width: 72px !important; }
+}
+
+@media (min-width: 400px) and (max-width: 768px) {
+  .app-layout--microlending .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

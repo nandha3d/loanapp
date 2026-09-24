@@ -182,15 +182,15 @@ assert.match(
 const gpsLiveSrc = source('app/api/v1/gps/live/route.ts');
 assert.match(
   gpsLiveSrc,
-  /if\s*\(ctx\.branchId && ctx\.role === 'admin'\)\s*\{\s*agentWhere\.branchId = ctx\.branchId;\s*\}/,
-  'Live GPS must scope agents by branch for branch admins',
+  /gpsAgentWhere\(ctx\)/,
+  'Live GPS must scope agents by module and active branch for every role',
 );
 
 const gpsHistorySrc = source('app/api/v1/gps/history/[id]/route.ts');
 assert.match(
   gpsHistorySrc,
-  /if\s*\(auth\.context\.branchId && auth\.context\.role === 'admin'\)\s*\{\s*const targetAgent = await prisma\.user\.findFirst/,
-  'GPS history must verify target agent belongs to branch for branch admins',
+  /where:\s*\{ id, \.\.\.gpsAgentWhere\(auth\.context\) \}/,
+  'GPS history must verify target agent belongs to the module and active branch',
 );
 
 // lib/collectionRun.ts

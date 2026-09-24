@@ -1,4 +1,15 @@
 import prisma from '@/lib/db';
+import { branchScopeWhere } from '@/lib/branchScope';
+
+export function gpsAgentWhere(input: { tenantId: string; appType: string; branchId?: string | null }) {
+  return {
+    tenantId: input.tenantId,
+    appType: input.appType,
+    role: 'agent',
+    status: 'active',
+    ...branchScopeWhere(input.branchId),
+  };
+}
 
 function startOfDay(date = new Date()) {
   const day = new Date(date);
@@ -13,6 +24,7 @@ function minutesSince(date: Date | null | undefined) {
 
 export async function getRouteProgressForBranch(input: {
   tenantId: string;
+  appType: string;
   branchId?: string | null;
   date?: Date;
 }) {
@@ -21,12 +33,7 @@ export async function getRouteProgressForBranch(input: {
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   const agents = await prisma.user.findMany({
-    where: {
-      tenantId: input.tenantId,
-      role: 'agent',
-      status: 'active',
-      ...(input.branchId ? { branchId: input.branchId } : {}),
-    },
+    where: gpsAgentWhere(input),
     select: { id: true, name: true, branchId: true },
     orderBy: { name: 'asc' },
   });
@@ -45,6 +52,7 @@ export async function getRouteProgressForBranch(input: {
         tenantId: input.tenantId,
         submittedAt: { gte: dayStart, lt: dayEnd },
         agentId: { in: agents.map((agent) => agent.id) },
+        loan: { tenantId: input.tenantId, appType: input.appType, ...branchScopeWhere(input.branchId) },
       },
       select: {
         id: true,

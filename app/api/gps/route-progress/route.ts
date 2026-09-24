@@ -1,19 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+import { requireApiContext, ADMIN_API_ROLES, isApiError } from '@/lib/apiAuth';
 import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
 import { getRouteProgressForBranch } from '@/lib/gps/routeProgress';
 
-export async function GET(req: NextRequest) {
-  const session = await auth();
-  const user = session?.user as any;
-  if (!user?.id) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!['admin', 'superadmin', 'developer'].includes(user.role)) {
-    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-  }
+export async function GET() {
+  const result = await requireApiContext(ADMIN_API_ROLES);
+  if (isApiError(result)) return result.response;
+  const { tenantId, appType, branchId } = result.context;
 
-  const gpsTrackingEnabled = await isGpsTrackingEnabled(user.tenantId);
+  const gpsTrackingEnabled = await isGpsTrackingEnabled(tenantId);
   if (!gpsTrackingEnabled) {
     return NextResponse.json(
       { success: false, error: 'GPS Collection Tracking is not enabled for your subscription.' },
@@ -21,10 +16,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { searchParams } = new URL(req.url);
-  const branchId = searchParams.get('branchId') || user.branchId || null;
   const agents = await getRouteProgressForBranch({
-    tenantId: user.tenantId,
+    tenantId,
+    appType,
     branchId,
   });
 

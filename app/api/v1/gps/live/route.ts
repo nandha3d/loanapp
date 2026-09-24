@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
+import { gpsAgentWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/live
@@ -16,11 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch all agents in the tenant (scoped by branch for branch admin)
-    const agentWhere: any = { tenantId: ctx.tenantId, role: 'agent', status: 'active' };
-    if (ctx.branchId && ctx.role === 'admin') {
-      agentWhere.branchId = ctx.branchId;
-    }
+    const agentWhere = gpsAgentWhere(ctx);
     const agents = await prisma.user.findMany({
       where: agentWhere,
       select: { id: true, name: true, phone: true },

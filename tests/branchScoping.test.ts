@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { branchScopeWhere } from '../lib/branchScope';
 import { scopedBranchWhere } from '../lib/api/v1-auth';
 import { buildLoanDetailWhere } from '../lib/loanPolicy';
+import { gpsAgentWhere } from '../lib/gps/routeProgress';
 
 /**
  * Branch scoping must have NO role exemption.
@@ -62,5 +63,13 @@ const allBranches = buildLoanDetailWhere({
   userId: 'u1',
 } as any);
 assert.ok(!('branchId' in (allBranches as any)), 'All Branches must not pin a branch');
+
+// GPS agent lists are scoped to the selected module and branch for every role.
+assert.deepEqual(gpsAgentWhere({ tenantId: 't1', appType: 'microlending', branchId: BRANCH }), {
+  tenantId: 't1', appType: 'microlending', role: 'agent', status: 'active', branchId: BRANCH,
+});
+assert.deepEqual(gpsAgentWhere({ tenantId: 't1', appType: 'microlending', branchId: null }), {
+  tenantId: 't1', appType: 'microlending', role: 'agent', status: 'active',
+});
 
 console.log('branch scoping tests passed');

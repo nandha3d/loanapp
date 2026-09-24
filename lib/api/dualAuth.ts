@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiContext } from '@/lib/apiAuth';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 
 export type ApiActor = {
@@ -32,16 +32,6 @@ export async function resolveActor(req: NextRequest): Promise<ApiActor | null> {
     };
   }
 
-  const session = await auth();
-  const user = session?.user as
-    | { id?: string | null; tenantId?: string | null; role?: string | null; branchId?: string | null; appType?: string | null }
-    | undefined;
-  if (!user?.id || !user.tenantId || !user.role) return null;
-  return {
-    tenantId: user.tenantId,
-    userId: user.id,
-    role: user.role,
-    branchId: user.branchId ?? null,
-    appType: user.appType ?? 'microlending',
-  };
+  const webAuth = await requireApiContext();
+  return webAuth.response ? null : webAuth.context;
 }

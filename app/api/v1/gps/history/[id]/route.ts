@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { gpsAgentWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/history/:id?from=ISO&to=ISO&cursor=...&limit=...
@@ -19,13 +20,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const to = searchParams.get('to');
   const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 100, maxLimit: 500 });
 
-  if (auth.context.branchId && auth.context.role === 'admin') {
-    const targetAgent = await prisma.user.findFirst({
-      where: { id, tenantId: auth.context.tenantId, branchId: auth.context.branchId, role: 'agent' },
-      select: { id: true },
-    });
-    if (!targetAgent) return fail('Agent not found', 404);
-  }
+  const targetAgent = await prisma.user.findFirst({
+    where: { id, ...gpsAgentWhere(auth.context) },
+    select: { id: true },
+  });
+  if (!targetAgent) return fail('Agent not found', 404);
 
   const where: any = { agentId: id, tenantId: auth.context.tenantId };
   if (from || to) {

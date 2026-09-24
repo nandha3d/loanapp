@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
+import { branchScopeWhere } from '@/lib/branchScope';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export type TimelineEvent = {
   at: string;            // ISO timestamp
@@ -31,7 +33,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
 
   const loan = await prisma.loan.findFirst({
-    where: { id, tenantId: actor.tenantId, deletedAt: null },
+    where: {
+      id, tenantId: actor.tenantId, appType: actor.appType, deletedAt: null,
+      ...(actor.role === 'agent'
+        ? { customer: buildAgentCustomerAccessWhere({ userId: actor.userId }) }
+        : branchScopeWhere(actor.branchId)),
+    },
     select: {
       id: true, loanCode: true, status: true, startDate: true, createdAt: true,
       disbursed: true, closedAt: true, closureType: true, foreclosureAmount: true,
@@ -40,9 +47,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
   if (!loan) return fail('Loan not found', 404);
 
+  const scopedLoan = { tenantId: actor.tenantId, appType: actor.appType };
+
   const [entries, penalties, presentations, npaHistory] = await Promise.all([
     prisma.collectionEntry.findMany({
-      where: { loanId: id },
+      where: { loanId: id, tenantId: actor.tenantId, loan: scopedLoan },
       select: {
         id: true, receivedAmount: true, paymentMode: true, submittedAt: true,
         locationStatus: true, distanceFromCustomerM: true,
@@ -52,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       take: 500,
     }),
     prisma.penalty.findMany({
-      where: { loanId: id },
+      where: { loanId: id, loan: scopedLoan },
       select: {
         id: true, grossPenalty: true, settledAmount: true, waivedAmount: true,
         status: true, createdAt: true, settledAt: true, missedDays: true,
@@ -61,13 +70,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       take: 200,
     }),
     prisma.nachPresentation.findMany({
-      where: { loanId: id },
+      where: { loanId: id, tenantId: actor.tenantId },
       select: { id: true, amount: true, status: true, presentedAt: true, failureReason: true },
       orderBy: { presentedAt: 'asc' },
       take: 200,
     }),
     prisma.npaHistory.findMany({
-      where: { loanId: id },
+      where: { loanId: id, tenantId: actor.tenantId, loan: scopedLoan },
       select: { id: true, fromCategory: true, toCategory: true, daysOverdue: true, triggeredBy: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
       take: 100,
