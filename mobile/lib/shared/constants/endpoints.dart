@@ -7,6 +7,7 @@ class Endpoints {
   // Dashboard
   static const String dashboard = '/dashboard';
   static const String dashboardChits = '/dashboard/chits';
+  static const String dashboardActivities = '/dashboard/activities';
 
   // Upload
   static const String upload = '/upload';

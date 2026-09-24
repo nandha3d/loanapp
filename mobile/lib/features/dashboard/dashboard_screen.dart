@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -17,6 +16,8 @@ import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/features/collection/collection_screen.dart'
     show collectionTodayProvider, refreshCollectionViews;
+import 'package:zolofund/features/admin/tracking/tracking_provider.dart'
+    show liveAgentLocationsProvider;
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/chit_dashboard_body.dart';
 import 'package:zolofund/features/dashboard/widgets/collection_trend_card.dart';
@@ -176,7 +177,7 @@ class _DashboardBody extends ConsumerWidget {
           _RoutePerformanceList(summary: summary, fmt: fmt, t: t),
           const SizedBox(height: 18),
         ],
-        _TodayActivitySection(summary: summary, fmt: fmt, t: t),
+        _RecentActivitiesSection(summary: summary, fmt: fmt, t: t),
       ],
     );
   }
@@ -234,8 +235,9 @@ class _GreetingRow extends StatelessWidget {
 /// with tab toggle, loan-status and frequency filters, 3 KPI boxes, progress
 /// bar, and a breakdown-by-frequency list.  Fully mobile-friendly: compact
 /// touch targets, FittedBox for currency, responsive wrap for small screens.
-class _CollectionBreakdownSection extends StatefulWidget {
+class _CollectionBreakdownSection extends ConsumerStatefulWidget {
   const _CollectionBreakdownSection({
+    super.key,
     required this.summary,
     required this.fmt,
     required this.t,
@@ -247,18 +249,35 @@ class _CollectionBreakdownSection extends StatefulWidget {
   final bool responsive;
 
   @override
-  State<_CollectionBreakdownSection> createState() =>
+  ConsumerState<_CollectionBreakdownSection> createState() =>
       _CollectionBreakdownSectionState();
 }
 
 class _CollectionBreakdownSectionState
-    extends State<_CollectionBreakdownSection> {
-  // 0 = Today's Collection, 1 = Overdue Collection
+    extends ConsumerState<_CollectionBreakdownSection> {
+  // 0 = Today's Collection, 1 = Overdue Collection, 2 = Agent GPS Live
   int _tab = 0;
   // 'all' | 'active' | 'inactive'
   String _loanStatus = 'all';
-  // 'all' | 'daily' | 'weekly' | 'monthly'
+  // 'all' | 'daily' | 'weekly' | 'monthly' | 'custom'
   String _frequency = 'all';
+
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(
+      initialPage: _tab,
+      viewportFraction: 0.90,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   // ── Helpers to resolve the correct metrics for the current filters ──────
   StatusSubMetrics _todayMetrics() {
@@ -266,8 +285,6 @@ class _CollectionBreakdownSectionState
     final source = _frequency == 'all'
         ? td
         : (td.breakdown[_frequency] ?? const TodayFrequencyMetrics());
-    // source is TodayCollectionBreakdown or TodayFrequencyMetrics — both have
-    // .total / .active / .inactive of type StatusSubMetrics.
     if (source is TodayCollectionBreakdown) {
       if (_loanStatus == 'active') return source.active;
       if (_loanStatus == 'inactive') return source.inactive;
@@ -295,159 +312,682 @@ class _CollectionBreakdownSectionState
     return fm.total;
   }
 
+  double _overdueRecoveryPct() {
+    final m = _overdueMetrics();
+    return m.totalOverdue <= 0
+        ? 0.0
+        : (m.collectedToday / m.totalOverdue).clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = widget.fmt;
     final td = widget.summary.todayBreakdown;
     final od = widget.summary.overdueBreakdown;
 
+    final user = ref.watch(authControllerProvider).user;
+    final hasGpsSubscription = user?.gpsTrackingEnabled == true;
+    final pageCount = hasGpsSubscription ? 3 : 2;
+
     return Column(
       children: [
-        // ── Tab toggle: Today / Overdue ──────────────────────────────────
+        // ── Tab toggle: Today / Overdue / (Agent GPS Live) ───────────────
         _TabToggle(
-          labels: const ["Today's Collection", 'Overdue Collection'],
-          icons: const [
-            Icons.calendar_today_rounded,
-            Icons.warning_amber_rounded
+          labels: [
+            "Today's Collection",
+            'Overdue Collection',
+            if (hasGpsSubscription) 'Agent GPS Live',
           ],
-          selected: _tab,
-          onChanged: (i) => setState(() {
-            _tab = i;
-            _loanStatus = 'all';
-            _frequency = 'all';
-          }),
+          icons: [
+            Icons.calendar_today_rounded,
+            Icons.warning_amber_rounded,
+            if (hasGpsSubscription) Icons.near_me_rounded,
+          ],
+          selected: _tab.clamp(0, pageCount - 1),
+          onChanged: (i) {
+            setState(() {
+              _tab = i;
+              _loanStatus = 'all';
+              _frequency = 'all';
+            });
+            _pageController.animateToPage(
+              i,
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeInOutCubic,
+            );
+          },
         ),
         const SizedBox(height: 12),
 
-        // ── Main card ────────────────────────────────────────────────────
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _tab == 0
-                  ? const [AppColors.heroDarkFrom, AppColors.heroDarkTo]
-                  : [
-                      Color.lerp(const Color(0xFFB91C1C),
-                          const Color(0xFF15803D), _overdueRecoveryPct())!,
-                      Color.lerp(const Color(0xFF7F1D1D),
-                          const Color(0xFF14532D), _overdueRecoveryPct())!,
-                    ],
-            ),
-            boxShadow: AppTokens.shadowLg,
-          ),
-          child: Column(
+        // ── Swipable Cards Carousel with right card peeking ─────────────
+        SizedBox(
+          height: 440,
+          child: PageView(
+            controller: _pageController,
+            clipBehavior: Clip.none,
+            onPageChanged: (i) {
+              if (_tab != i) {
+                setState(() => _tab = i);
+              }
+            },
             children: [
-              // ── Active vs Inactive status pills ────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _tab == 0
-                    ? _StatusPillRow(
-                        activeLabel: 'ACTIVE LOANS DUE',
-                        activeAmount: fmt.format(td.active.expected),
-                        activeCount: '${td.active.loanCount} loans',
-                        activeCollected: fmt.format(td.active.collected),
-                        inactiveLabel: 'INACTIVE LOANS DUE',
-                        inactiveAmount: fmt.format(td.inactive.expected),
-                        inactiveCount: '${td.inactive.loanCount} loans',
-                        inactiveCollected: fmt.format(td.inactive.collected),
-                        onActiveTap: () =>
-                            setState(() => _loanStatus = 'active'),
-                        onInactiveTap: () =>
-                            setState(() => _loanStatus = 'inactive'),
-                        selectedStatus: _loanStatus,
-                        responsive: widget.responsive,
-                      )
-                    : _StatusPillRow(
-                        activeLabel: 'ACTIVE LOANS OVERDUE',
-                        activeAmount: fmt.format(od.active.totalOverdue),
-                        activeCount: '${od.active.loanCount} loans',
-                        activeCollected: fmt.format(od.active.collectedToday),
-                        inactiveLabel: 'INACTIVE LOANS OVERDUE',
-                        inactiveAmount: fmt.format(od.inactive.totalOverdue),
-                        inactiveCount: '${od.inactive.loanCount} loans',
-                        inactiveCollected:
-                            fmt.format(od.inactive.collectedToday),
-                        onActiveTap: () =>
-                            setState(() => _loanStatus = 'active'),
-                        onInactiveTap: () =>
-                            setState(() => _loanStatus = 'inactive'),
-                        selectedStatus: _loanStatus,
-                        responsive: widget.responsive,
-                      ),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _buildTodayCard(fmt, td),
               ),
-              const SizedBox(height: 12),
-
-              // ── Segmented selectors ────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    _SegmentedRow(
-                      label: 'LOAN STATUS',
-                      options: const ['All Loans', 'Active', 'Inactive'],
-                      values: const ['all', 'active', 'inactive'],
-                      selected: _loanStatus,
-                      onChanged: (v) => setState(() => _loanStatus = v),
-                      responsive: widget.responsive,
-                    ),
-                    const SizedBox(height: 8),
-                    _SegmentedRow(
-                      label: 'FREQUENCY',
-                      options: const [
-                        'All',
-                        'Daily',
-                        'Weekly',
-                        'Monthly',
-                        'Custom'
-                      ],
-                      values: const [
-                        'all',
-                        'daily',
-                        'weekly',
-                        'monthly',
-                        'custom',
-                      ],
-                      selected: _frequency,
-                      onChanged: (v) => setState(() => _frequency = v),
-                      responsive: widget.responsive,
-                    ),
-                  ],
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _buildOverdueCard(fmt, od),
+              ),
+              if (hasGpsSubscription)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: _buildGpsLiveCard(fmt, widget.t),
                 ),
-              ),
-              const SizedBox(height: 14),
-
-              // ── 3 KPI metric boxes ─────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child:
-                    _tab == 0 ? _buildTodayKPIs(fmt) : _buildOverdueKPIs(fmt),
-              ),
-              const SizedBox(height: 14),
-
-              // ── Progress bar ───────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildProgressBar(),
-              ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
+        const SizedBox(height: 8),
+
+        // ── Carousel dot indicator ──────────────────────────────────────
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(pageCount, (index) {
+            final isSel = _tab == index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: isSel ? 20 : 6,
+              height: 5,
+              decoration: BoxDecoration(
+                color: isSel
+                    ? AppColors.primary
+                    : AppColors.border.withAlpha(140),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
         const SizedBox(height: 14),
 
-        // ── Up Next Section (with GPS near it) ───────────────────────────
+        // ── Up Next Section for Collection (replaces Breakdown by Frequency) ──
         _UpNextPager(fmt: fmt, t: widget.t),
       ],
     );
   }
 
-  double _overdueRecoveryPct() {
-    final m = _overdueMetrics();
-    return m.totalOverdue <= 0
-        ? 0.0
-        : (m.collectedToday / m.totalOverdue).clamp(0.0, 1.0);
+  Widget _buildTodayCard(NumberFormat fmt, TodayCollectionBreakdown td) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
+        ),
+        boxShadow: AppTokens.shadowLg,
+      ),
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _StatusPillRow(
+                activeLabel: 'ACTIVE LOANS DUE',
+                activeAmount: fmt.format(td.active.expected),
+                activeCount: '${td.active.loanCount} loans',
+                activeCollected: fmt.format(td.active.collected),
+                inactiveLabel: 'INACTIVE LOANS DUE',
+                inactiveAmount: fmt.format(td.inactive.expected),
+                inactiveCount: '${td.inactive.loanCount} loans',
+                inactiveCollected: fmt.format(td.inactive.collected),
+                onActiveTap: () => setState(() => _loanStatus = 'active'),
+                onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
+                selectedStatus: _loanStatus,
+                responsive: widget.responsive,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _SegmentedRow(
+                    label: 'LOAN STATUS',
+                    options: const ['All Loans', 'Active', 'Inactive'],
+                    values: const ['all', 'active', 'inactive'],
+                    selected: _loanStatus,
+                    onChanged: (v) => setState(() => _loanStatus = v),
+                    responsive: widget.responsive,
+                  ),
+                  const SizedBox(height: 8),
+                  _SegmentedRow(
+                    label: 'FREQUENCY',
+                    options: const [
+                      'All',
+                      'Daily',
+                      'Weekly',
+                      'Monthly',
+                      'Custom'
+                    ],
+                    values: const [
+                      'all',
+                      'daily',
+                      'weekly',
+                      'monthly',
+                      'custom',
+                    ],
+                    selected: _frequency,
+                    onChanged: (v) => setState(() => _frequency = v),
+                    responsive: widget.responsive,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildTodayKPIs(fmt),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildProgressBar(0),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverdueCard(NumberFormat fmt, OverdueCollectionBreakdown od) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(const Color(0xFFB91C1C), const Color(0xFF15803D),
+                _overdueRecoveryPct())!,
+            Color.lerp(const Color(0xFF7F1D1D), const Color(0xFF14532D),
+                _overdueRecoveryPct())!,
+          ],
+        ),
+        boxShadow: AppTokens.shadowLg,
+      ),
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _StatusPillRow(
+                activeLabel: 'ACTIVE LOANS OVERDUE',
+                activeAmount: fmt.format(od.active.totalOverdue),
+                activeCount: '${od.active.loanCount} loans',
+                activeCollected: fmt.format(od.active.collectedToday),
+                inactiveLabel: 'INACTIVE LOANS OVERDUE',
+                inactiveAmount: fmt.format(od.inactive.totalOverdue),
+                inactiveCount: '${od.inactive.loanCount} loans',
+                inactiveCollected: fmt.format(od.inactive.collectedToday),
+                onActiveTap: () => setState(() => _loanStatus = 'active'),
+                onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
+                selectedStatus: _loanStatus,
+                responsive: widget.responsive,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _SegmentedRow(
+                    label: 'LOAN STATUS',
+                    options: const ['All Loans', 'Active', 'Inactive'],
+                    values: const ['all', 'active', 'inactive'],
+                    selected: _loanStatus,
+                    onChanged: (v) => setState(() => _loanStatus = v),
+                    responsive: widget.responsive,
+                  ),
+                  const SizedBox(height: 8),
+                  _SegmentedRow(
+                    label: 'FREQUENCY',
+                    options: const [
+                      'All',
+                      'Daily',
+                      'Weekly',
+                      'Monthly',
+                      'Custom'
+                    ],
+                    values: const [
+                      'all',
+                      'daily',
+                      'weekly',
+                      'monthly',
+                      'custom',
+                    ],
+                    selected: _frequency,
+                    onChanged: (v) => setState(() => _frequency = v),
+                    responsive: widget.responsive,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildOverdueKPIs(fmt),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildProgressBar(1),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGpsLiveCard(NumberFormat fmt, T t) {
+    final liveAgentsAsync = ref.watch(liveAgentLocationsProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+        ),
+        border: Border.all(
+          color: const Color(0xFF10B981).withAlpha(60),
+          width: 1.2,
+        ),
+        boxShadow: AppTokens.shadowLg,
+      ),
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: liveAgentsAsync.when(
+            loading: () => const SizedBox(
+              height: 380,
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF10B981),
+                  strokeWidth: 2.5,
+                ),
+              ),
+            ),
+            error: (e, _) => SizedBox(
+              height: 380,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.location_off_rounded,
+                      color: Color(0xFFFF8674), size: 36),
+                  const SizedBox(height: 10),
+                  Text(
+                    'GPS Tracking Live',
+                    style: AppTypography.nameLg.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap below to open interactive agent map',
+                    style: AppTypography.caption.copyWith(color: Colors.white60),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => context.push('/tracking'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.map_rounded, size: 18),
+                    label: const Text('Open Agent Tracker'),
+                  ),
+                ],
+              ),
+            ),
+            data: (agents) {
+              final onlineAgents = agents.where((a) => a.online).toList();
+              final totalCollected =
+                  agents.fold<double>(0, (s, a) => s + a.todayCollected);
+              final totalEntries =
+                  agents.fold<int>(0, (s, a) => s + a.todayEntries);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Live Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withAlpha(80),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF34D399),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'LIVE AGENT TRACKING',
+                              style: AppTypography.extraTiny.copyWith(
+                                color: const Color(0xFF34D399),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${onlineAgents.length} Online',
+                          style: AppTypography.extraTiny.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 2 Highlight metric tiles
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withAlpha(20),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withAlpha(60),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.people_alt_outlined,
+                                      size: 15, color: Color(0xFF34D399)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'ACTIVE AGENTS',
+                                    style: AppTypography.extraTiny.copyWith(
+                                      color: const Color(0xFF34D399),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${onlineAgents.length} / ${agents.length}',
+                                style: AppTypography.nameLg.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${onlineAgents.length} on field now',
+                                style: AppTypography.extraTiny.copyWith(
+                                  color: Colors.white60,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withAlpha(20),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF3B82F6).withAlpha(60),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.payments_outlined,
+                                      size: 15, color: Color(0xFF60A5FA)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'FIELD COLLECTED',
+                                    style: AppTypography.extraTiny.copyWith(
+                                      color: const Color(0xFF60A5FA),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                fmt.format(totalCollected),
+                                style: AppTypography.nameLg.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$totalEntries stamped',
+                                style: AppTypography.extraTiny.copyWith(
+                                  color: Colors.white60,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Mini agent list preview
+                  Text(
+                    'RECENT AGENT LOCATIONS',
+                    style: AppTypography.extraTiny.copyWith(
+                      color: Colors.white60,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  if (agents.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'No agents configured for GPS tracking',
+                        style: AppTypography.caption
+                            .copyWith(color: Colors.white54),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        for (final agent in agents.take(3)) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(10),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      child: Text(
+                                        agent.agentName.isNotEmpty
+                                            ? agent.agentName[0].toUpperCase()
+                                            : 'A',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: BoxDecoration(
+                                          color: agent.online
+                                              ? const Color(0xFF34D399)
+                                              : Colors.grey,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        agent.agentName,
+                                        style: AppTypography.caption.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        agent.online
+                                            ? 'Active on field'
+                                            : 'Last active today',
+                                        style: AppTypography.extraTiny.copyWith(
+                                          color: agent.online
+                                              ? const Color(0xFF34D399)
+                                              : Colors.white38,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      fmt.format(agent.todayCollected),
+                                      style: AppTypography.caption.copyWith(
+                                        color: const Color(0xFF34D399),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${agent.todayEntries} entries',
+                                      style: AppTypography.extraTiny.copyWith(
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                  const SizedBox(height: 12),
+
+                  // Open Map CTA
+                  SizedBox(
+                    width: double.infinity,
+                    height: 42,
+                    child: ElevatedButton(
+                      onPressed: () => context.push('/tracking'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.map_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'VIEW LIVE MAP & ROUTES',
+                            style: AppTypography.tiny.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_forward_rounded, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildTodayKPIs(NumberFormat fmt) {
@@ -524,9 +1064,9 @@ class _CollectionBreakdownSectionState
     );
   }
 
-  Widget _buildProgressBar() {
+  Widget _buildProgressBar(int tabIndex) {
     double pct;
-    if (_tab == 0) {
+    if (tabIndex == 0) {
       final m = _todayMetrics();
       pct = m.expected > 0 ? (m.collected / m.expected).clamp(0.0, 1.0) : 0.0;
     } else {
@@ -554,7 +1094,7 @@ class _CollectionBreakdownSectionState
                 border: Border.all(color: barColor.withAlpha(80), width: 1),
               ),
               child: Text(
-                '$pctInt% ${_tab == 0 ? 'collected' : 'recovered'}',
+                '$pctInt% ${tabIndex == 0 ? 'collected' : 'recovered'}',
                 style: AppTypography.extraTiny.copyWith(
                   color: barColor,
                   fontWeight: FontWeight.w700,
@@ -562,7 +1102,7 @@ class _CollectionBreakdownSectionState
               ),
             ),
             Text(
-              _tab == 0 ? 'Expected' : 'Total due',
+              tabIndex == 0 ? 'Expected' : 'Total due',
               style: AppTypography.extraTiny.copyWith(color: Colors.white38),
             ),
           ],
@@ -1979,7 +2519,9 @@ class _DueChip extends StatelessWidget {
   }
 }
 
-enum _TodayTab { all, paid, pending, newLoans, newCustomers, other }
+enum _ActivityCategoryTab { all, paid, pending, newLoans, newCustomers, other }
+
+enum _ActivityDateFilter { today, yesterday, last7Days, last30Days, custom }
 
 class _UnifiedActivityItem {
   _UnifiedActivityItem.paid(TodayPaidItem item)
@@ -2034,10 +2576,27 @@ class _UnifiedActivityItem {
   final TodayNewLoanItem? newLoan;
   final TodayNewCustomerItem? newCustomer;
   final TodayOtherActivityItem? other;
+
+  String get customerId {
+    if (paid != null) return paid!.customerId;
+    if (pending != null) return pending!.customerId;
+    if (newLoan != null) return newLoan!.customerId;
+    if (newCustomer != null) return newCustomer!.id;
+    return '';
+  }
+
+  String get phone {
+    if (paid != null) return paid!.customerPhone ?? '';
+    if (pending != null) return pending!.customerPhone ?? '';
+    if (newLoan != null) return newLoan!.customerPhone ?? '';
+    if (newCustomer != null) return newCustomer!.phone ?? '';
+    return '';
+  }
 }
 
-class _TodayActivitySection extends ConsumerStatefulWidget {
-  const _TodayActivitySection({
+class _RecentActivitiesSection extends ConsumerStatefulWidget {
+  const _RecentActivitiesSection({
+    super.key,
     required this.summary,
     required this.fmt,
     required this.t,
@@ -2048,12 +2607,19 @@ class _TodayActivitySection extends ConsumerStatefulWidget {
   final T t;
 
   @override
-  ConsumerState<_TodayActivitySection> createState() =>
-      _TodayActivitySectionState();
+  ConsumerState<_RecentActivitiesSection> createState() =>
+      _RecentActivitiesSectionState();
 }
 
-class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
-  _TodayTab _activeTab = _TodayTab.all;
+class _RecentActivitiesSectionState
+    extends ConsumerState<_RecentActivitiesSection> {
+  _ActivityCategoryTab _activeTab = _ActivityCategoryTab.all;
+  _ActivityDateFilter _dateFilter = _ActivityDateFilter.today;
+  DateTimeRange? _customDateRange;
+  TodaysActivityBundle? _customBundle;
+  bool _isLoading = false;
+  String? _loadError;
+
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
@@ -2074,12 +2640,111 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     super.dispose();
   }
 
-  Future<void> _makeCall(String? phone) async {
-    if (phone == null || phone.trim().isEmpty) return;
-    final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
-    final uri = Uri.parse('tel:$clean');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+  Future<void> _onDateFilterSelected(_ActivityDateFilter filter) async {
+    if (filter == _ActivityDateFilter.custom) {
+      final now = DateTime.now();
+      final picked = await showDateRangePicker(
+        context: context,
+        firstDate: now.subtract(const Duration(days: 365)),
+        lastDate: now,
+        initialDateRange: _customDateRange ??
+            DateTimeRange(
+              start: now.subtract(const Duration(days: 7)),
+              end: now,
+            ),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.light(
+                primary: AppColors.primary,
+                onPrimary: Colors.white,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+      if (picked == null) return;
+      setState(() {
+        _dateFilter = filter;
+        _customDateRange = picked;
+      });
+      await _fetchActivities(picked.start, picked.end);
+      return;
+    }
+
+    setState(() => _dateFilter = filter);
+
+    if (filter == _ActivityDateFilter.today) {
+      setState(() {
+        _customBundle = null;
+        _isLoading = false;
+        _loadError = null;
+      });
+      return;
+    }
+
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    DateTime start;
+    DateTime end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    if (filter == _ActivityDateFilter.yesterday) {
+      start = todayStart.subtract(const Duration(days: 1));
+      end = DateTime(start.year, start.month, start.day, 23, 59, 59);
+    } else if (filter == _ActivityDateFilter.last7Days) {
+      start = todayStart.subtract(const Duration(days: 7));
+    } else {
+      // last30Days
+      start = todayStart.subtract(const Duration(days: 30));
+    }
+
+    await _fetchActivities(start, end);
+  }
+
+  Future<void> _fetchActivities(DateTime from, DateTime to) async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final repo = ref.read(dashboardRepositoryProvider);
+      final res = await repo.getActivities(from: from, to: to);
+      if (mounted) {
+        setState(() {
+          _customBundle = res;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = e.toString();
+        });
+      }
+    }
+  }
+
+  String _getDateSubtitle() {
+    final now = DateTime.now();
+    switch (_dateFilter) {
+      case _ActivityDateFilter.today:
+        return 'Today · ${DateFormat('EEEE, d MMMM yyyy').format(now)}';
+      case _ActivityDateFilter.yesterday:
+        final y = now.subtract(const Duration(days: 1));
+        return 'Yesterday · ${DateFormat('EEEE, d MMMM yyyy').format(y)}';
+      case _ActivityDateFilter.last7Days:
+        final from = now.subtract(const Duration(days: 7));
+        return 'Last 7 Days · ${DateFormat('d MMM').format(from)} – ${DateFormat('d MMM yyyy').format(now)}';
+      case _ActivityDateFilter.last30Days:
+        final from = now.subtract(const Duration(days: 30));
+        return 'Last 30 Days · ${DateFormat('d MMM').format(from)} – ${DateFormat('d MMM yyyy').format(now)}';
+      case _ActivityDateFilter.custom:
+        if (_customDateRange != null) {
+          return 'Custom · ${DateFormat('d MMM yyyy').format(_customDateRange!.start)} – ${DateFormat('d MMM yyyy').format(_customDateRange!.end)}';
+        }
+        return 'Custom Range';
     }
   }
 
@@ -2087,7 +2752,7 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
   Widget build(BuildContext context) {
     final t = widget.t;
     final fmt = widget.fmt;
-    final bundle = widget.summary.todaysActivity;
+    final bundle = _customBundle ?? widget.summary.todaysActivity;
 
     final totalPaidAmount =
         bundle.paidItems.fold<double>(0, (s, a) => s + a.receivedAmount);
@@ -2118,17 +2783,17 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     final q = _searchQuery;
     final filtered = allItems.where((item) {
       switch (_activeTab) {
-        case _TodayTab.all:
+        case _ActivityCategoryTab.all:
           break;
-        case _TodayTab.paid:
+        case _ActivityCategoryTab.paid:
           if (item.kind != 'paid') return false;
-        case _TodayTab.pending:
+        case _ActivityCategoryTab.pending:
           if (item.kind != 'pending') return false;
-        case _TodayTab.newLoans:
+        case _ActivityCategoryTab.newLoans:
           if (item.kind != 'new_loan') return false;
-        case _TodayTab.newCustomers:
+        case _ActivityCategoryTab.newCustomers:
           if (item.kind != 'new_customer') return false;
-        case _TodayTab.other:
+        case _ActivityCategoryTab.other:
           if (item.kind != 'other') return false;
       }
 
@@ -2208,8 +2873,11 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.today_rounded,
-                    color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.history_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2217,11 +2885,11 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t.x('dash.today_activity'),
+                      t.x('dash.recent_activities'),
                       style: AppTypography.sectionTitle,
                     ),
                     Text(
-                      DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
+                      _getDateSubtitle(),
                       style: AppTypography.caption
                           .copyWith(color: AppColors.textSecondary),
                     ),
@@ -2245,6 +2913,47 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   ),
                 ),
             ],
+          ),
+          const SizedBox(height: 14),
+
+          // Date Filter Bar (Today, Yesterday, Last 7 Days, Last 30 Days, Custom)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildDateChip(
+                  _ActivityDateFilter.today,
+                  t.x('dash.filter_today'),
+                  Icons.today_rounded,
+                ),
+                const SizedBox(width: 8),
+                _buildDateChip(
+                  _ActivityDateFilter.yesterday,
+                  t.x('dash.filter_yesterday'),
+                  Icons.history_rounded,
+                ),
+                const SizedBox(width: 8),
+                _buildDateChip(
+                  _ActivityDateFilter.last7Days,
+                  t.x('dash.filter_last_7_days'),
+                  Icons.date_range_outlined,
+                ),
+                const SizedBox(width: 8),
+                _buildDateChip(
+                  _ActivityDateFilter.last30Days,
+                  t.x('dash.filter_last_30_days'),
+                  Icons.calendar_month_outlined,
+                ),
+                const SizedBox(width: 8),
+                _buildDateChip(
+                  _ActivityDateFilter.custom,
+                  _customDateRange != null
+                      ? '${DateFormat('d MMM').format(_customDateRange!.start)} - ${DateFormat('d MMM').format(_customDateRange!.end)}'
+                      : t.x('dash.filter_custom_range'),
+                  Icons.tune_rounded,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
 
@@ -2294,9 +3003,9 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   iconColor: const Color(0xFF059669),
                   title: t.x('dash.paid_today'),
                   value: fmt.format(totalPaidAmount),
-                  subtitle: '${bundle.paidItems.length} customers',
-                  isSelected: _activeTab == _TodayTab.paid,
-                  onTap: () => setState(() => _activeTab = _TodayTab.paid),
+                  subtitle: '${bundle.paidItems.length} records',
+                  isSelected: _activeTab == _ActivityCategoryTab.paid,
+                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.paid),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2305,9 +3014,9 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   iconColor: const Color(0xFFD97706),
                   title: t.x('dash.pending_today'),
                   value: fmt.format(totalPendingAmount),
-                  subtitle: '${bundle.pendingItems.length} customers',
-                  isSelected: _activeTab == _TodayTab.pending,
-                  onTap: () => setState(() => _activeTab = _TodayTab.pending),
+                  subtitle: '${bundle.pendingItems.length} records',
+                  isSelected: _activeTab == _ActivityCategoryTab.pending,
+                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.pending),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2317,8 +3026,8 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   title: t.x('dash.new_loans'),
                   value: fmt.format(totalDisbursedAmount),
                   subtitle: '${bundle.newLoanItems.length} loans',
-                  isSelected: _activeTab == _TodayTab.newLoans,
-                  onTap: () => setState(() => _activeTab = _TodayTab.newLoans),
+                  isSelected: _activeTab == _ActivityCategoryTab.newLoans,
+                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.newLoans),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2327,64 +3036,137 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
                   iconColor: const Color(0xFF9333EA),
                   title: t.x('dash.new_customers'),
                   value: '${bundle.newCustomerItems.length}',
-                  subtitle: 'registered today',
-                  isSelected: _activeTab == _TodayTab.newCustomers,
+                  subtitle: 'registered',
+                  isSelected: _activeTab == _ActivityCategoryTab.newCustomers,
                   onTap: () =>
-                      setState(() => _activeTab = _TodayTab.newCustomers),
+                      setState(() => _activeTab = _ActivityCategoryTab.newCustomers),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
 
-          // Filter Tabs Pills
+          // Category Filter Tabs Pills
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildTabPill(_TodayTab.all,
+                _buildTabPill(_ActivityCategoryTab.all,
                     '${t.x('dash.all_activity')} (${allItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.paid,
+                _buildTabPill(_ActivityCategoryTab.paid,
                     '${t.x('dash.paid_today')} (${bundle.paidItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.pending,
+                _buildTabPill(_ActivityCategoryTab.pending,
                     '${t.x('dash.pending_today')} (${bundle.pendingItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.newLoans,
+                _buildTabPill(_ActivityCategoryTab.newLoans,
                     '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.newCustomers,
+                _buildTabPill(_ActivityCategoryTab.newCustomers,
                     '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})'),
                 const SizedBox(width: 8),
-                _buildTabPill(_TodayTab.other,
+                _buildTabPill(_ActivityCategoryTab.other,
                     '${t.x('dash.other_activity')} (${bundle.otherItems.length})'),
               ],
             ),
           ),
           const SizedBox(height: 14),
 
-          // Items List or Empty State
-          if (filtered.isEmpty)
+          // Items List, Loading State, Error State, or Empty State
+          if (_isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            )
+          else if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.cloud_off_rounded,
+                        color: AppColors.danger, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Failed to load activities',
+                      style: AppTypography.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: () => _onDateFilterSelected(_dateFilter),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (filtered.isEmpty)
             SizedBox(
               height: 120,
               child: EmptyState(
                 icon: Icons.event_available_outlined,
                 title: _searchQuery.isNotEmpty
                     ? t.x('dash.no_filtered_activity')
-                    : t.x('dash.no_today_activity'),
+                    : t.x('dash.no_activity'),
               ),
             )
           else
             Column(
               children: [
                 for (final item in filtered) ...[
-                  _buildActivityItemCard(item, fmt, t),
-                  const SizedBox(height: 10),
+                  _buildSimpleActivityTile(item, fmt, t),
                 ],
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDateChip(
+    _ActivityDateFilter filter,
+    String label,
+    IconData icon,
+  ) {
+    final isSelected = _dateFilter == filter;
+    return InkWell(
+      onTap: () => _onDateFilterSelected(filter),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.background,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: AppTypography.extraTiny.copyWith(
+                color: isSelected ? Colors.white : AppColors.textPrimary,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2462,7 +3244,7 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     );
   }
 
-  Widget _buildTabPill(_TodayTab tab, String label) {
+  Widget _buildTabPill(_ActivityCategoryTab tab, String label) {
     final isSelected = _activeTab == tab;
     return InkWell(
       onTap: () => setState(() => _activeTab = tab),
@@ -2488,306 +3270,190 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     );
   }
 
-  Widget _buildActivityItemCard(
+  Widget _buildSimpleActivityTile(
     _UnifiedActivityItem item,
     NumberFormat fmt,
     T t,
   ) {
+    final IconData icon;
+    final Color iconBg;
+    final Color iconColor;
+    final String badgeLabel;
+    final Color badgeBg;
+    final Color badgeColor;
+    final String title;
+    final String subtitle;
+    final String amountText;
+    final Color amountColor;
+
     if (item.paid != null) {
       final p = item.paid!;
-      return _buildCardWrapper(
-        onTap: p.customerId.isNotEmpty
-            ? () => context.push('/customers/${p.customerId}')
-            : null,
-        badgeLabel: 'PAID · ${p.paymentMode.toUpperCase()}',
-        badgeBg: const Color(0xFFD1FAE5),
-        badgeColor: const Color(0xFF065F46),
-        time: DateFormat('h:mm a').format(p.submittedAt),
-        name: p.customerName,
-        code: p.customerCode,
-        routeName: p.routeName,
-        metaLine:
-            'Loan: ${p.loanCode}${p.agentName != null ? ' · By: ${p.agentName}' : ''}',
-        amountText: '+${fmt.format(p.receivedAmount)}',
-        amountColor: AppColors.success,
-        phone: p.customerPhone,
-        actions: [
-          if (p.customerPhone != null && p.customerPhone!.trim().isNotEmpty)
-            _buildCallButton(p.customerPhone!, t),
-          const SizedBox(width: 8),
-          if (p.customerId.isNotEmpty)
-            _buildViewButton(
-                () => context.push('/customers/${p.customerId}'), t),
-        ],
-      );
-    }
-
-    if (item.pending != null) {
+      icon = Icons.arrow_downward_rounded;
+      iconBg = const Color(0xFFD1FAE5);
+      iconColor = const Color(0xFF059669);
+      badgeLabel = 'PAID · ${p.paymentMode.toUpperCase()}';
+      badgeBg = const Color(0xFFD1FAE5);
+      badgeColor = const Color(0xFF065F46);
+      title = p.customerName;
+      final timeStr = _formatItemTime(p.submittedAt);
+      subtitle = '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
+      amountText = '+${fmt.format(p.receivedAmount)}';
+      amountColor = const Color(0xFF059669);
+    } else if (item.pending != null) {
       final p = item.pending!;
       final isMissed = p.status == 'missed';
       final isPartial = p.status == 'partial';
-      final statusLabel =
-          isMissed ? 'MISSED' : (isPartial ? 'PARTIAL' : 'PENDING');
-      final badgeBg =
-          isMissed ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7);
-      final badgeColor =
-          isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
-
-      return _buildCardWrapper(
-        onTap: p.customerId.isNotEmpty
-            ? () => context.push('/customers/${p.customerId}')
-            : null,
-        badgeLabel: statusLabel,
-        badgeBg: badgeBg,
-        badgeColor: badgeColor,
-        time: DateFormat('h:mm a').format(p.dueDate),
-        name: p.customerName,
-        code: p.customerCode,
-        routeName: p.routeName,
-        metaLine:
-            'Loan: ${p.loanCode}${p.perInstalment > 0 ? ' · Per inst: ${fmt.format(p.perInstalment)}' : ''}',
-        amountText: fmt.format(p.remainingAmount),
-        amountColor: isMissed ? AppColors.danger : AppColors.warning,
-        phone: p.customerPhone,
-        actions: [
-          if (p.customerPhone != null && p.customerPhone!.trim().isNotEmpty)
-            _buildCallButton(p.customerPhone!, t),
-          const SizedBox(width: 8),
-          _buildActionButton(
-            label: t.x('dash.collect_now'),
-            icon: Icons.payments_outlined,
-            color: AppColors.primary,
-            onTap: () {
-              if (p.customerId.isNotEmpty) {
-                context.push(
-                    '/collection?customerId=${p.customerId}&loanId=${p.loanId}');
-              }
-            },
-          ),
-        ],
-      );
-    }
-
-    if (item.newLoan != null) {
+      icon = Icons.hourglass_top_rounded;
+      iconBg = isMissed ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7);
+      iconColor = isMissed ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+      badgeLabel = isMissed ? 'MISSED' : (isPartial ? 'PARTIAL' : 'DUE');
+      badgeBg = iconBg;
+      badgeColor = isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
+      title = p.customerName;
+      final timeStr = _formatItemTime(p.dueDate);
+      subtitle = '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
+      amountText = fmt.format(p.remainingAmount);
+      amountColor = isMissed ? AppColors.danger : const Color(0xFFD97706);
+    } else if (item.newLoan != null) {
       final l = item.newLoan!;
-      return _buildCardWrapper(
-        onTap: l.customerId.isNotEmpty
-            ? () => context.push('/customers/${l.customerId}')
-            : null,
-        badgeLabel: 'NEW LOAN',
-        badgeBg: const Color(0xFFDBEAFE),
-        badgeColor: const Color(0xFF1E40AF),
-        time: DateFormat('h:mm a').format(l.createdAt),
-        name: l.customerName,
-        code: l.customerCode,
-        routeName: l.routeName,
-        metaLine:
-            'Loan: ${l.loanCode} · ${l.frequency.toUpperCase()}${l.createdByName != null ? ' · By: ${l.createdByName}' : ''}',
-        amountText: fmt.format(l.principal),
-        amountColor: AppColors.primary,
-        phone: l.customerPhone,
-        actions: [
-          if (l.customerPhone != null && l.customerPhone!.trim().isNotEmpty)
-            _buildCallButton(l.customerPhone!, t),
-          const SizedBox(width: 8),
-          if (l.customerId.isNotEmpty)
-            _buildViewButton(
-                () => context.push('/customers/${l.customerId}'), t),
-        ],
-      );
-    }
-
-    if (item.newCustomer != null) {
+      icon = Icons.receipt_long_rounded;
+      iconBg = const Color(0xFFDBEAFE);
+      iconColor = const Color(0xFF2563EB);
+      badgeLabel = 'NEW LOAN';
+      badgeBg = const Color(0xFFDBEAFE);
+      badgeColor = const Color(0xFF1E40AF);
+      title = l.customerName;
+      final timeStr = _formatItemTime(l.createdAt);
+      subtitle = '${l.loanCode} · ${l.frequency.toUpperCase()} · $timeStr';
+      amountText = fmt.format(l.principal);
+      amountColor = AppColors.primary;
+    } else if (item.newCustomer != null) {
       final c = item.newCustomer!;
-      return _buildCardWrapper(
-        onTap:
-            c.id.isNotEmpty ? () => context.push('/customers/${c.id}') : null,
-        badgeLabel: 'NEW CUSTOMER',
-        badgeBg: const Color(0xFFF3E8FF),
-        badgeColor: const Color(0xFF6B21A8),
-        time: DateFormat('h:mm a').format(c.createdAt),
-        name: c.name,
-        code: c.customerCode,
-        routeName: c.routeName,
-        metaLine: c.phone ?? 'Registered today',
-        amountText: '',
-        amountColor: AppColors.textPrimary,
-        phone: c.phone,
-        actions: [
-          if (c.phone != null && c.phone!.trim().isNotEmpty)
-            _buildCallButton(c.phone!, t),
-          const SizedBox(width: 8),
-          if (c.id.isNotEmpty)
-            _buildViewButton(() => context.push('/customers/${c.id}'), t),
-        ],
-      );
-    }
-
-    if (item.other != null) {
+      icon = Icons.person_add_rounded;
+      iconBg = const Color(0xFFF3E8FF);
+      iconColor = const Color(0xFF9333EA);
+      badgeLabel = 'NEW CUSTOMER';
+      badgeBg = const Color(0xFFF3E8FF);
+      badgeColor = const Color(0xFF6B21A8);
+      title = c.name;
+      final timeStr = _formatItemTime(c.createdAt);
+      subtitle = '${c.customerCode.isNotEmpty ? '${c.customerCode} · ' : ''}${c.routeName != null ? '${c.routeName} · ' : ''}$timeStr';
+      amountText = '';
+      amountColor = AppColors.textPrimary;
+    } else {
       final o = item.other!;
-      return _buildCardWrapper(
-        onTap: null,
-        badgeLabel: o.type.replaceAll('_', ' ').toUpperCase(),
-        badgeBg: const Color(0xFFF1F5F9),
-        badgeColor: const Color(0xFF475569),
-        time: DateFormat('h:mm a').format(o.timestamp),
-        name: o.title,
-        code: o.customerCode ?? '',
-        routeName: null,
-        metaLine: o.description,
-        amountText: o.amount != null ? fmt.format(o.amount!) : '',
-        amountColor: AppColors.textPrimary,
-        phone: null,
-        actions: const [],
-      );
+      icon = Icons.notifications_active_outlined;
+      iconBg = const Color(0xFFF1F5F9);
+      iconColor = const Color(0xFF475569);
+      badgeLabel = o.type.replaceAll('_', ' ').toUpperCase();
+      badgeBg = const Color(0xFFF1F5F9);
+      badgeColor = const Color(0xFF475569);
+      title = o.title;
+      final timeStr = _formatItemTime(o.timestamp);
+      subtitle = '${o.description} · $timeStr';
+      amountText = o.amount != null ? fmt.format(o.amount!) : '';
+      amountColor = AppColors.textPrimary;
     }
 
-    return const SizedBox.shrink();
-  }
+    final custId = item.customerId;
 
-  Widget _buildCardWrapper({
-    required VoidCallback? onTap,
-    required String badgeLabel,
-    required Color badgeBg,
-    required Color badgeColor,
-    required String time,
-    required String name,
-    required String code,
-    required String? routeName,
-    required String metaLine,
-    required String amountText,
-    required Color amountColor,
-    required String? phone,
-    required List<Widget> actions,
-  }) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border.withAlpha(90)),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: custId.isNotEmpty
+              ? () => context.push('/customers/$custId')
+              : null,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
               children: [
-                // Top row: Badge and time
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: badgeBg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        badgeLabel,
-                        style: AppTypography.extraTiny.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: badgeColor,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      time,
-                      style: AppTypography.extraTiny.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                // Icon Avatar
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 20, color: iconColor),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(width: 10),
 
-                // Middle row: Avatar, Info & Amount
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _Avatar(name: name, size: 38),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                // Center Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            name,
-                            style: AppTypography.bodyLarge
-                                .copyWith(fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: AppTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              if (code.isNotEmpty)
-                                Text(
-                                  code,
-                                  style: AppTypography.extraTiny
-                                      .copyWith(color: AppColors.textSecondary),
-                                ),
-                              if (code.isNotEmpty &&
-                                  routeName != null &&
-                                  routeName.isNotEmpty)
-                                Text(
-                                  ' · ',
-                                  style: AppTypography.extraTiny
-                                      .copyWith(color: AppColors.textLight),
-                                ),
-                              if (routeName != null && routeName.isNotEmpty)
-                                Flexible(
-                                  child: Text(
-                                    routeName,
-                                    style: AppTypography.extraTiny.copyWith(
-                                        color: AppColors.textSecondary),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            metaLine,
-                            style: AppTypography.caption.copyWith(
-                                color: AppColors.textLight, fontSize: 11),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              badgeLabel,
+                              style: AppTypography.extraTiny.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: badgeColor,
+                                fontSize: 9,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    if (amountText.isNotEmpty) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(height: 3),
                       Text(
-                        amountText,
-                        style: AppTypography.bodyLarge.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: amountColor,
+                        subtitle,
+                        style: AppTypography.extraTiny.copyWith(
+                          color: AppColors.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ],
+                  ),
                 ),
 
-                // Bottom row: Quick action buttons
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  const Divider(
-                      height: 1, thickness: 0.8, color: AppColors.border),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: actions,
+                // Right Amount & Chevron
+                if (amountText.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    amountText,
+                    style: AppTypography.body.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: amountColor,
+                    ),
                   ),
                 ],
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppColors.textLight,
+                ),
               ],
             ),
           ),
@@ -2796,97 +3462,22 @@ class _TodayActivitySectionState extends ConsumerState<_TodayActivitySection> {
     );
   }
 
-  Widget _buildCallButton(String phone, T t) {
-    return InkWell(
-      onTap: () => _makeCall(phone),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFD1FAE5),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFA7F3D0)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.phone_in_talk, size: 13, color: Color(0xFF065F46)),
-            const SizedBox(width: 4),
-            Text(
-              t.x('dash.call_customer'),
-              style: AppTypography.extraTiny.copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF065F46),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildViewButton(VoidCallback onTap, T t) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.arrow_forward_rounded,
-                size: 13, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Text(
-              t.x('dash.view_details'),
-              style: AppTypography.extraTiny.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withAlpha(24),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withAlpha(48)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: AppTypography.extraTiny.copyWith(
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _formatItemTime(DateTime time) {
+    final now = DateTime.now();
+    final isSameDay = time.year == now.year &&
+        time.month == now.month &&
+        time.day == now.day;
+    if (isSameDay) {
+      return DateFormat('h:mm a').format(time);
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = time.year == yesterday.year &&
+        time.month == yesterday.month &&
+        time.day == yesterday.day;
+    if (isYesterday) {
+      return 'Yesterday, ${DateFormat('h:mm a').format(time)}';
+    }
+    return DateFormat('d MMM, h:mm a').format(time);
   }
 }
 

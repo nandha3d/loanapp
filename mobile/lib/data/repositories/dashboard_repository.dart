@@ -11,6 +11,9 @@ class DashboardRepository {
   Future<DashboardSummary> getSummary() => _service.getSummary();
 
   Future<ChitDashboardSummary> getChitSummary() => _service.getChitSummary();
+
+  Future<TodaysActivityBundle> getActivities({DateTime? from, DateTime? to}) =>
+      _service.getActivities(from: from, to: to);
 }
 
 final dashboardRepositoryProvider = Provider<DashboardRepository>(

@@ -26,6 +26,20 @@ class DashboardService {
           ChitDashboardSummary.fromJson(d as Map<String, dynamic>),
     );
   }
+
+  Future<TodaysActivityBundle> getActivities({DateTime? from, DateTime? to}) async {
+    final queryParams = <String, dynamic>{};
+    if (from != null) queryParams['from'] = from.toIso8601String();
+    if (to != null) queryParams['to'] = to.toIso8601String();
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.dashboardActivities,
+      queryParameters: queryParams.isEmpty ? null : queryParams,
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => TodaysActivityBundle.fromJson(d as Map<String, dynamic>),
+    );
+  }
 }
 
 final dashboardServiceProvider = Provider<DashboardService>(
