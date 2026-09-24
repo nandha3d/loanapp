@@ -42,7 +42,9 @@ jobs:
           getent hosts "$VPS_HOST" || true
 
           echo "Checking SSH TCP reachability for $VPS_HOST:$VPS_PORT"
-          nc -vz -w 20 "$VPS_HOST" "$VPS_PORT"
+          nc -4 -vz -w 20 "$VPS_HOST" "$VPS_PORT" || nc -vz -w 20 "$VPS_HOST" "$VPS_PORT" || {
+            echo "::warning::TCP reachability probe timed out; continuing to SSH handshake"
+          }
 
           echo "Adding VPS host key for $VPS_HOST:$VPS_PORT"
           if ssh-keyscan -4 -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>ssh-keyscan.err; then
