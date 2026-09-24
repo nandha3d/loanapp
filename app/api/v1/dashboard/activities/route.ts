@@ -320,6 +320,6 @@ export async function GET(req: NextRequest) {
       otherItems,
     });
   } catch (err: any) {
-    return fail('INTERNAL_ERROR', err?.message || 'Failed to fetch dashboard activities', 500);
+    return fail(err?.message || 'Failed to fetch dashboard activities', 500);
   }
 }
