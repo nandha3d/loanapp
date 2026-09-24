@@ -16,8 +16,6 @@ import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/features/collection/collection_screen.dart'
     show collectionTodayProvider, refreshCollectionViews;
-import 'package:zolofund/features/admin/tracking/tracking_provider.dart'
-    show liveAgentLocationsProvider;
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/chit_dashboard_body.dart';
 import 'package:zolofund/features/dashboard/widgets/collection_trend_card.dart';
@@ -273,7 +271,7 @@ class _CollectionBreakdownSectionState
     super.initState();
     _pageController = PageController(
       initialPage: _tab,
-      viewportFraction: 0.90,
+      viewportFraction: 0.94,
     );
   }
 
@@ -328,26 +326,19 @@ class _CollectionBreakdownSectionState
     final fmt = widget.fmt;
     final td = widget.summary.todayBreakdown;
     final od = widget.summary.overdueBreakdown;
-
-    final user = ref.watch(authControllerProvider).user;
-    final hasGpsSubscription = user?.gpsTrackingEnabled == true;
-    final pageCount = hasGpsSubscription ? 3 : 2;
-
     return Column(
       children: [
-        // ── Tab toggle: Today / Overdue / (Agent GPS Live) ───────────────
+        // ── Tab toggle: Today / Overdue ─────────────────────────────────
         _TabToggle(
-          labels: [
+          labels: const [
             "Today's Collection",
             'Overdue Collection',
-            if (hasGpsSubscription) 'Agent GPS Live',
           ],
-          icons: [
+          icons: const [
             Icons.calendar_today_rounded,
             Icons.warning_amber_rounded,
-            if (hasGpsSubscription) Icons.near_me_rounded,
           ],
-          selected: _tab.clamp(0, pageCount - 1),
+          selected: _tab.clamp(0, 1),
           onChanged: (i) {
             setState(() {
               _tab = i;
@@ -356,16 +347,16 @@ class _CollectionBreakdownSectionState
             });
             _pageController.animateToPage(
               i,
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 280),
               curve: Curves.easeInOutCubic,
             );
           },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // ── Swipable Cards Carousel with right card peeking ─────────────
+        // ── Swipable Cards Carousel (Wider, no internal vertical scroll) ─
         SizedBox(
-          height: 440,
+          height: 285,
           child: PageView(
             controller: _pageController,
             clipBehavior: Clip.none,
@@ -376,27 +367,22 @@ class _CollectionBreakdownSectionState
             },
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: _buildTodayCard(fmt, td),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: _buildOverdueCard(fmt, od),
               ),
-              if (hasGpsSubscription)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: _buildGpsLiveCard(fmt, widget.t),
-                ),
             ],
           ),
         ),
         const SizedBox(height: 8),
 
-        // ── Carousel dot indicator ──────────────────────────────────────
+        // ── Carousel dot indicator (2 cards) ────────────────────────────
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(pageCount, (index) {
+          children: List.generate(2, (index) {
             final isSel = _tab == index;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -414,7 +400,7 @@ class _CollectionBreakdownSectionState
         ),
         const SizedBox(height: 14),
 
-        // ── Up Next Section for Collection (replaces Breakdown by Frequency) ──
+        // ── Up Next Section for Collection ──────────────────────────────
         _UpNextPager(fmt: fmt, t: widget.t),
       ],
     );
@@ -431,77 +417,59 @@ class _CollectionBreakdownSectionState
         ),
         boxShadow: AppTokens.shadowLg,
       ),
-      child: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: _StatusPillRow(
-                activeLabel: 'ACTIVE LOANS DUE',
-                activeAmount: fmt.format(td.active.expected),
-                activeCount: '${td.active.loanCount} loans',
-                activeCollected: fmt.format(td.active.collected),
-                inactiveLabel: 'INACTIVE LOANS DUE',
-                inactiveAmount: fmt.format(td.inactive.expected),
-                inactiveCount: '${td.inactive.loanCount} loans',
-                inactiveCollected: fmt.format(td.inactive.collected),
-                onActiveTap: () => setState(() => _loanStatus = 'active'),
-                onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
-                selectedStatus: _loanStatus,
-                responsive: widget.responsive,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  _SegmentedRow(
-                    label: 'LOAN STATUS',
-                    options: const ['All Loans', 'Active', 'Inactive'],
-                    values: const ['all', 'active', 'inactive'],
-                    selected: _loanStatus,
-                    onChanged: (v) => setState(() => _loanStatus = v),
-                    responsive: widget.responsive,
-                  ),
-                  const SizedBox(height: 8),
-                  _SegmentedRow(
-                    label: 'FREQUENCY',
-                    options: const [
-                      'All',
-                      'Daily',
-                      'Weekly',
-                      'Monthly',
-                      'Custom'
-                    ],
-                    values: const [
-                      'all',
-                      'daily',
-                      'weekly',
-                      'monthly',
-                      'custom',
-                    ],
-                    selected: _frequency,
-                    onChanged: (v) => setState(() => _frequency = v),
-                    responsive: widget.responsive,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildTodayKPIs(fmt),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildProgressBar(0),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatusPillRow(
+            activeLabel: 'ACTIVE LOANS DUE',
+            activeAmount: fmt.format(td.active.expected),
+            activeCount: '${td.active.loanCount} loans',
+            activeCollected: fmt.format(td.active.collected),
+            inactiveLabel: 'INACTIVE LOANS DUE',
+            inactiveAmount: fmt.format(td.inactive.expected),
+            inactiveCount: '${td.inactive.loanCount} loans',
+            inactiveCollected: fmt.format(td.inactive.collected),
+            onActiveTap: () => setState(() => _loanStatus = 'active'),
+            onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
+            selectedStatus: _loanStatus,
+            responsive: widget.responsive,
+          ),
+          const SizedBox(height: 10),
+          _SegmentedRow(
+            label: 'LOAN STATUS',
+            options: const ['All Loans', 'Active', 'Inactive'],
+            values: const ['all', 'active', 'inactive'],
+            selected: _loanStatus,
+            onChanged: (v) => setState(() => _loanStatus = v),
+            responsive: widget.responsive,
+          ),
+          const SizedBox(height: 6),
+          _SegmentedRow(
+            label: 'FREQUENCY',
+            options: const [
+              'All',
+              'Daily',
+              'Weekly',
+              'Monthly',
+              'Custom'
+            ],
+            values: const [
+              'all',
+              'daily',
+              'weekly',
+              'monthly',
+              'custom',
+            ],
+            selected: _frequency,
+            onChanged: (v) => setState(() => _frequency = v),
+            responsive: widget.responsive,
+          ),
+          const SizedBox(height: 10),
+          _buildTodayKPIs(fmt),
+          const SizedBox(height: 10),
+          _buildProgressBar(0),
+        ],
       ),
     );
   }
@@ -522,474 +490,59 @@ class _CollectionBreakdownSectionState
         ),
         boxShadow: AppTokens.shadowLg,
       ),
-      child: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: _StatusPillRow(
-                activeLabel: 'ACTIVE LOANS OVERDUE',
-                activeAmount: fmt.format(od.active.totalOverdue),
-                activeCount: '${od.active.loanCount} loans',
-                activeCollected: fmt.format(od.active.collectedToday),
-                inactiveLabel: 'INACTIVE LOANS OVERDUE',
-                inactiveAmount: fmt.format(od.inactive.totalOverdue),
-                inactiveCount: '${od.inactive.loanCount} loans',
-                inactiveCollected: fmt.format(od.inactive.collectedToday),
-                onActiveTap: () => setState(() => _loanStatus = 'active'),
-                onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
-                selectedStatus: _loanStatus,
-                responsive: widget.responsive,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  _SegmentedRow(
-                    label: 'LOAN STATUS',
-                    options: const ['All Loans', 'Active', 'Inactive'],
-                    values: const ['all', 'active', 'inactive'],
-                    selected: _loanStatus,
-                    onChanged: (v) => setState(() => _loanStatus = v),
-                    responsive: widget.responsive,
-                  ),
-                  const SizedBox(height: 8),
-                  _SegmentedRow(
-                    label: 'FREQUENCY',
-                    options: const [
-                      'All',
-                      'Daily',
-                      'Weekly',
-                      'Monthly',
-                      'Custom'
-                    ],
-                    values: const [
-                      'all',
-                      'daily',
-                      'weekly',
-                      'monthly',
-                      'custom',
-                    ],
-                    selected: _frequency,
-                    onChanged: (v) => setState(() => _frequency = v),
-                    responsive: widget.responsive,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildOverdueKPIs(fmt),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildProgressBar(1),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGpsLiveCard(NumberFormat fmt, T t) {
-    final liveAgentsAsync = ref.watch(liveAgentLocationsProvider);
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-        ),
-        border: Border.all(
-          color: const Color(0xFF10B981).withAlpha(60),
-          width: 1.2,
-        ),
-        boxShadow: AppTokens.shadowLg,
-      ),
-      child: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: liveAgentsAsync.when(
-            loading: () => const SizedBox(
-              height: 380,
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF10B981),
-                  strokeWidth: 2.5,
-                ),
-              ),
-            ),
-            error: (e, _) => SizedBox(
-              height: 380,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.location_off_rounded,
-                      color: Color(0xFFFF8674), size: 36),
-                  const SizedBox(height: 10),
-                  Text(
-                    'GPS Tracking Live',
-                    style: AppTypography.nameLg.copyWith(color: Colors.white),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Tap below to open interactive agent map',
-                    style: AppTypography.caption.copyWith(color: Colors.white60),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => context.push('/tracking'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.map_rounded, size: 18),
-                    label: const Text('Open Agent Tracker'),
-                  ),
-                ],
-              ),
-            ),
-            data: (agents) {
-              final onlineAgents = agents.where((a) => a.online).toList();
-              final totalCollected =
-                  agents.fold<double>(0, (s, a) => s + a.todayCollected);
-              final totalEntries =
-                  agents.fold<int>(0, (s, a) => s + a.todayEntries);
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Live Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withAlpha(30),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withAlpha(80),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF34D399),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'LIVE AGENT TRACKING',
-                              style: AppTypography.extraTiny.copyWith(
-                                color: const Color(0xFF34D399),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${onlineAgents.length} Online',
-                          style: AppTypography.extraTiny.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 2 Highlight metric tiles
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withAlpha(20),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF10B981).withAlpha(60),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.people_alt_outlined,
-                                      size: 15, color: Color(0xFF34D399)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'ACTIVE AGENTS',
-                                    style: AppTypography.extraTiny.copyWith(
-                                      color: const Color(0xFF34D399),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${onlineAgents.length} / ${agents.length}',
-                                style: AppTypography.nameLg.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${onlineAgents.length} on field now',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: Colors.white60,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6).withAlpha(20),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF3B82F6).withAlpha(60),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.payments_outlined,
-                                      size: 15, color: Color(0xFF60A5FA)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'FIELD COLLECTED',
-                                    style: AppTypography.extraTiny.copyWith(
-                                      color: const Color(0xFF60A5FA),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                fmt.format(totalCollected),
-                                style: AppTypography.nameLg.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '$totalEntries stamped',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: Colors.white60,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Mini agent list preview
-                  Text(
-                    'RECENT AGENT LOCATIONS',
-                    style: AppTypography.extraTiny.copyWith(
-                      color: Colors.white60,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  if (agents.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'No agents configured for GPS tracking',
-                        style: AppTypography.caption
-                            .copyWith(color: Colors.white54),
-                      ),
-                    )
-                  else
-                    Column(
-                      children: [
-                        for (final agent in agents.take(3)) ...[
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(10),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Stack(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 14,
-                                      backgroundColor: const Color(0xFF1E293B),
-                                      child: Text(
-                                        agent.agentName.isNotEmpty
-                                            ? agent.agentName[0].toUpperCase()
-                                            : 'A',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: Container(
-                                        width: 7,
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: agent.online
-                                              ? const Color(0xFF34D399)
-                                              : Colors.grey,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        agent.agentName,
-                                        style: AppTypography.caption.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        agent.online
-                                            ? 'Active on field'
-                                            : 'Last active today',
-                                        style: AppTypography.extraTiny.copyWith(
-                                          color: agent.online
-                                              ? const Color(0xFF34D399)
-                                              : Colors.white38,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      fmt.format(agent.todayCollected),
-                                      style: AppTypography.caption.copyWith(
-                                        color: const Color(0xFF34D399),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${agent.todayEntries} entries',
-                                      style: AppTypography.extraTiny.copyWith(
-                                        color: Colors.white38,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-
-                  const SizedBox(height: 12),
-
-                  // Open Map CTA
-                  SizedBox(
-                    width: double.infinity,
-                    height: 42,
-                    child: ElevatedButton(
-                      onPressed: () => context.push('/tracking'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.map_rounded, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'VIEW LIVE MAP & ROUTES',
-                            style: AppTypography.tiny.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_rounded, size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatusPillRow(
+            activeLabel: 'ACTIVE LOANS OVERDUE',
+            activeAmount: fmt.format(od.active.totalOverdue),
+            activeCount: '${od.active.loanCount} loans',
+            activeCollected: fmt.format(od.active.collectedToday),
+            inactiveLabel: 'INACTIVE LOANS OVERDUE',
+            inactiveAmount: fmt.format(od.inactive.totalOverdue),
+            inactiveCount: '${od.inactive.loanCount} loans',
+            inactiveCollected: fmt.format(od.inactive.collectedToday),
+            onActiveTap: () => setState(() => _loanStatus = 'active'),
+            onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
+            selectedStatus: _loanStatus,
+            responsive: widget.responsive,
           ),
-        ),
+          const SizedBox(height: 10),
+          _SegmentedRow(
+            label: 'LOAN STATUS',
+            options: const ['All Loans', 'Active', 'Inactive'],
+            values: const ['all', 'active', 'inactive'],
+            selected: _loanStatus,
+            onChanged: (v) => setState(() => _loanStatus = v),
+            responsive: widget.responsive,
+          ),
+          const SizedBox(height: 6),
+          _SegmentedRow(
+            label: 'FREQUENCY',
+            options: const [
+              'All',
+              'Daily',
+              'Weekly',
+              'Monthly',
+              'Custom'
+            ],
+            values: const [
+              'all',
+              'daily',
+              'weekly',
+              'monthly',
+              'custom',
+            ],
+            selected: _frequency,
+            onChanged: (v) => setState(() => _frequency = v),
+            responsive: widget.responsive,
+          ),
+          const SizedBox(height: 10),
+          _buildOverdueKPIs(fmt),
+          const SizedBox(height: 10),
+          _buildProgressBar(1),
+        ],
       ),
     );
   }
@@ -1084,14 +637,14 @@ class _CollectionBreakdownSectionState
     return Column(
       children: [
         _CollectionBar(pct: pct, color: barColor),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('₹0',
-                style: AppTypography.extraTiny.copyWith(color: Colors.white38)),
+                style: AppTypography.extraTiny.copyWith(color: Colors.white38, fontSize: 8.5)),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
               decoration: BoxDecoration(
                 color: barColor.withAlpha(36),
                 borderRadius: BorderRadius.circular(12),
@@ -1102,12 +655,13 @@ class _CollectionBreakdownSectionState
                 style: AppTypography.extraTiny.copyWith(
                   color: barColor,
                   fontWeight: FontWeight.w700,
+                  fontSize: 8.5,
                 ),
               ),
             ),
             Text(
               tabIndex == 0 ? 'Expected' : 'Total due',
-              style: AppTypography.extraTiny.copyWith(color: Colors.white38),
+              style: AppTypography.extraTiny.copyWith(color: Colors.white38, fontSize: 8.5),
             ),
           ],
         ),
@@ -1143,7 +697,7 @@ class _TabToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
+      height: 40,
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
@@ -1161,7 +715,7 @@ class _TabToggle extends StatelessWidget {
                   decoration: BoxDecoration(
                     color:
                         selected == i ? AppColors.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                   ),
                   alignment: Alignment.center,
                   child: Row(
@@ -1174,7 +728,7 @@ class _TabToggle extends StatelessWidget {
                             ? Colors.white
                             : AppColors.textSecondary,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Flexible(
                         child: Text(
                           labels[i],
@@ -1184,7 +738,7 @@ class _TabToggle extends StatelessWidget {
                             color: selected == i
                                 ? Colors.white
                                 : AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -1199,7 +753,7 @@ class _TabToggle extends StatelessWidget {
   }
 }
 
-// ── Active vs Inactive status pills ──────────────────────────────────────────
+// ── Active vs Inactive status pills (Single Row, Side-by-Side) ───────────────
 class _StatusPillRow extends StatelessWidget {
   const _StatusPillRow({
     required this.activeLabel,
@@ -1223,37 +777,7 @@ class _StatusPillRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (responsive && MediaQuery.sizeOf(context).width < 500) {
-      return Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: _StatusPill(
-              label: activeLabel,
-              amount: activeAmount,
-              count: activeCount,
-              collected: activeCollected,
-              color: const Color(0xFF34D399),
-              isSelected: selectedStatus == 'active',
-              onTap: onActiveTap,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: _StatusPill(
-              label: inactiveLabel,
-              amount: inactiveAmount,
-              count: inactiveCount,
-              collected: inactiveCollected,
-              color: const Color(0xFFFF8674),
-              isSelected: selectedStatus == 'inactive',
-              onTap: onInactiveTap,
-            ),
-          ),
-        ],
-      );
-    }
+    // Always render in a single horizontal row for compact, wide design
     return Row(
       children: [
         Expanded(
@@ -1305,18 +829,19 @@ class _StatusPill extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? color.withAlpha(30) : Colors.white.withAlpha(8),
+          color: isSelected ? color.withAlpha(28) : Colors.white.withAlpha(10),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color:
-                isSelected ? color.withAlpha(120) : Colors.white.withAlpha(20),
+                isSelected ? color.withAlpha(140) : Colors.white.withAlpha(18),
             width: 1,
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -1336,14 +861,15 @@ class _StatusPill extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.extraTiny.copyWith(
                       color: Colors.white70,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
+                      fontSize: 8.5,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -1352,16 +878,19 @@ class _StatusPill extends StatelessWidget {
                 style: AppTypography.bodyLarge.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 15,
+                  fontSize: 16,
                 ),
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              '$count • Recv: $collected',
+              '$count \u2022 Recv: $collected',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.extraTiny.copyWith(color: Colors.white38),
+              style: AppTypography.extraTiny.copyWith(
+                color: Colors.white54,
+                fontSize: 9.5,
+              ),
             ),
           ],
         ),
@@ -1370,7 +899,7 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-// ── Segmented filter row ─────────────────────────────────────────────────────
+// ── Segmented filter row (Compact inline design) ──────────────────────────────
 class _SegmentedRow extends StatelessWidget {
   const _SegmentedRow({
     required this.label,
@@ -1389,77 +918,26 @@ class _SegmentedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (responsive) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppTypography.extraTiny.copyWith(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: options.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (context, i) => Semantics(
-                button: true,
-                selected: selected == values[i],
-                child: Material(
-                  color: selected == values[i]
-                      ? AppColors.primary
-                      : Colors.white.withAlpha(16),
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => onChanged(values[i]),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 76),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Center(
-                          child: Text(
-                            options[i],
-                            style: AppTypography.bodyLarge.copyWith(
-                              color: selected == values[i]
-                                  ? Colors.white
-                                  : Colors.white70,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
     return Row(
       children: [
         SizedBox(
-          width: 66,
+          width: 74,
           child: Text(
             label,
             style: AppTypography.extraTiny.copyWith(
-              color: Colors.white38,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
+              color: Colors.white54,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              fontSize: 8.5,
             ),
           ),
         ),
         Expanded(
           child: Container(
-            height: 30,
+            height: 28,
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(8),
+              color: Colors.white.withAlpha(12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -1469,8 +947,7 @@ class _SegmentedRow extends StatelessWidget {
                     child: GestureDetector(
                       onTap: () => onChanged(values[i]),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.all(2),
+                        duration: const Duration(milliseconds: 180),
                         decoration: BoxDecoration(
                           color: selected == values[i]
                               ? AppColors.primary
@@ -1482,11 +959,13 @@ class _SegmentedRow extends StatelessWidget {
                           options[i],
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.extraTiny.copyWith(
+                          style: TextStyle(
                             color: selected == values[i]
                                 ? Colors.white
-                                : Colors.white54,
-                            fontWeight: FontWeight.w600,
+                                : Colors.white70,
+                            fontWeight: selected == values[i]
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             fontSize: 10,
                           ),
                         ),
