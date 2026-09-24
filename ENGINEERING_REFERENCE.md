@@ -360,7 +360,8 @@ Order of operations, all inside one Serializable transaction:
 
 ### 10.3 Repayment allocation — `lib/repayments.ts`
 
-- **MONEY-10** — Loan-level fill order is **today's due first, then overdue oldest-first, then future soonest-first** (`orderInstalmentsForCollectionFill`). Paying today's amount keeps today clean even when a backlog exists. This is a deliberate business decision, not an accident of sorting — do not "fix" it to strict-oldest-first.
+- **MONEY-10** — Loan-level fill order is **today's due first, then overdue oldest-first, then future soonest-first** (`orderInstalmentsForCollectionFill`). Paying today's amount keeps today clean even when a backlog exists. This applies exclusively to collections received on the current business date (`cToday`). Prior historical collections (`cYesterday`) strictly settle past dues chronologically.
+- **MONEY-22** — **No Historical Spillover to Today's Due**: In-memory payment distribution algorithms (`getDistributedInstalmentsAndMetrics`) MUST NOT allocate historical collections (`cYesterday`) to today's instalment before satisfying past arrears chronologically. Today's due date can receive priority fill ahead of arrears ONLY from collections actually received on today's business date (`cToday`). When `cToday == 0`, today's instalment remains unpaid (`receivedAmount: 0`, `status: 'due today'` / `'upcoming'`) regardless of the loan's lifetime cumulative collections.
 - **MONEY-11** — Instalment status is derived, never hand-set: `paid` / `partial` / `missed` / `upcoming` / `waived`. Loan status is derived by `resolveLoanStatus()`.
 - **MONEY-12** — Schedules MUST NOT be modified once `hasFinancialActivity(loanId)` is true.
 - **MONEY-13** — Collection writes are idempotent through `buildCollectionIdempotencyKey()` — `(tenantId, agentId, instalmentId, amount, mode, date)`. A retried mobile submission must not double-post. Never bypass it.
@@ -825,6 +826,7 @@ Each of these has shipped a bug in this repository.
 - **X-25** — Allowing agents to directly edit or modify collection payments without admin/superadmin approval (`edit_collection`), or calling `submitCollectionEntry` inside a transaction or for a payment correction (ROLE-7, MONEY-21).
 - **X-26** — Unbounded bar charts or graph heights that scale solely off expected amount without tracking collections, or lacking overflow protection on bar containers (UI-1).
 - **X-27** — Inflating subscription plan pricing cards with per-module multipliers or tenant add-ons instead of showing the authoritative developer subscription plan catalog price (PLAN-1).
+- **X-28** — Sorting today's instalment to index 0 and allocating cumulative lifetime loan collections (`cTotal`) against it in payment distribution helpers, which causes unpaid today instalments to appear 'paid' on Collection Entry and the Dashboard when zero payment was collected today (MONEY-22).
 
 ---
 

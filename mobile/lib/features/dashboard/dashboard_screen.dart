@@ -28,6 +28,7 @@ import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/features/dashboard/widgets/collect_cash_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
+import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
@@ -175,8 +176,6 @@ class _DashboardBody extends ConsumerWidget {
           _RoutePerformanceList(summary: summary, fmt: fmt, t: t),
           const SizedBox(height: 18),
         ],
-        _UpNextPager(fmt: fmt, t: t),
-        const SizedBox(height: 18),
         _TodayActivitySection(summary: summary, fmt: fmt, t: t),
       ],
     );
@@ -438,16 +437,8 @@ class _CollectionBreakdownSectionState
         ),
         const SizedBox(height: 14),
 
-        // ── Breakdown by Frequency list ──────────────────────────────────
-        _BreakdownByFrequency(
-          isToday: _tab == 0,
-          todayBreakdown: td,
-          overdueBreakdown: od,
-          loanStatus: _loanStatus,
-          fmt: fmt,
-          onFrequencyTap: (f) => setState(() => _frequency = f),
-          selectedFrequency: _frequency,
-        ),
+        // ── Up Next Section (with GPS near it) ───────────────────────────
+        _UpNextPager(fmt: fmt, t: widget.t),
       ],
     );
   }
@@ -461,9 +452,6 @@ class _CollectionBreakdownSectionState
 
   Widget _buildTodayKPIs(NumberFormat fmt) {
     final m = _todayMetrics();
-    final pct =
-        m.expected > 0 ? (m.collected / m.expected).clamp(0.0, 1.0) : 0.0;
-    final barColor = _progressColor(pct);
     return Row(
       children: [
         Expanded(
@@ -1108,263 +1096,6 @@ class _CollectionBar extends StatelessWidget {
   }
 }
 
-// ── Breakdown by Frequency list ──────────────────────────────────────────────
-class _BreakdownByFrequency extends StatelessWidget {
-  const _BreakdownByFrequency({
-    required this.isToday,
-    required this.todayBreakdown,
-    required this.overdueBreakdown,
-    required this.loanStatus,
-    required this.fmt,
-    required this.onFrequencyTap,
-    required this.selectedFrequency,
-  });
-  final bool isToday;
-  final TodayCollectionBreakdown todayBreakdown;
-  final OverdueCollectionBreakdown overdueBreakdown;
-  final String loanStatus;
-  final NumberFormat fmt;
-  final ValueChanged<String> onFrequencyTap;
-  final String selectedFrequency;
-
-  @override
-  Widget build(BuildContext context) {
-    const freqs = ['daily', 'weekly', 'monthly', 'custom'];
-    const freqLabels = {
-      'daily': 'Daily',
-      'weekly': 'Weekly',
-      'monthly': 'Monthly',
-      'custom': 'Custom',
-    };
-    const freqIcons = {
-      'daily': Icons.today_rounded,
-      'weekly': Icons.date_range_rounded,
-      'monthly': Icons.calendar_month_rounded,
-      'custom': Icons.tune_rounded,
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'BREAKDOWN BY FREQUENCY',
-                style: AppTypography.extraTiny.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => onFrequencyTap('all'),
-                child: Text(
-                  selectedFrequency == 'all' ? 'ALL' : 'Show All',
-                  style: AppTypography.extraTiny.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (final f in freqs) ...[
-            _FrequencyRow(
-              icon: freqIcons[f]!,
-              label: freqLabels[f]!,
-              isToday: isToday,
-              todayMetrics: _getTodayFreq(f),
-              overdueMetrics: _getOverdueFreq(f),
-              fmt: fmt,
-              isSelected: selectedFrequency == f,
-              onTap: () => onFrequencyTap(f),
-            ),
-            if (f != freqs.last)
-              Divider(height: 1, color: AppColors.border.withAlpha(80)),
-          ],
-        ],
-      ),
-    );
-  }
-
-  StatusSubMetrics _getTodayFreq(String freq) {
-    final fm = todayBreakdown.breakdown[freq];
-    if (fm == null) return const StatusSubMetrics();
-    if (loanStatus == 'active') return fm.active;
-    if (loanStatus == 'inactive') return fm.inactive;
-    return fm.total;
-  }
-
-  OverdueStatusSubMetrics _getOverdueFreq(String freq) {
-    final fm = overdueBreakdown.breakdown[freq];
-    if (fm == null) return const OverdueStatusSubMetrics();
-    if (loanStatus == 'active') return fm.active;
-    if (loanStatus == 'inactive') return fm.inactive;
-    return fm.total;
-  }
-}
-
-class _FrequencyRow extends StatelessWidget {
-  const _FrequencyRow({
-    required this.icon,
-    required this.label,
-    required this.isToday,
-    required this.todayMetrics,
-    required this.overdueMetrics,
-    required this.fmt,
-    required this.isSelected,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final bool isToday;
-  final StatusSubMetrics todayMetrics;
-  final OverdueStatusSubMetrics overdueMetrics;
-  final NumberFormat fmt;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = isToday ? todayMetrics.pct : overdueMetrics.pct;
-    final barColor = _progressColor((pct / 100).clamp(0.0, 1.0));
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        decoration: BoxDecoration(
-          color:
-              isSelected ? AppColors.primary.withAlpha(12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha(20),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, size: 14, color: AppColors.primary),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: AppTypography.bodySmall.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        isToday
-                            ? 'Active: ${fmt.format(todayMetrics.collected)} • ${todayMetrics.loanCount} loans'
-                            : 'Active: ${fmt.format(overdueMetrics.collectedToday)} • ${overdueMetrics.loanCount} loans',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.extraTiny.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Compact KPI values
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (isToday) ...[
-                      _FreqValue('Exp', fmt.format(todayMetrics.expected)),
-                      _FreqValue('Coll', fmt.format(todayMetrics.collected),
-                          tone: const Color(0xFF34D399)),
-                      _FreqValue('Rem', fmt.format(todayMetrics.remaining),
-                          tone: const Color(0xFFFF8674)),
-                    ] else ...[
-                      _FreqValue(
-                          'Overdue', fmt.format(overdueMetrics.totalOverdue)),
-                      _FreqValue(
-                          'Coll', fmt.format(overdueMetrics.collectedToday),
-                          tone: const Color(0xFF34D399)),
-                      _FreqValue('Rem', fmt.format(overdueMetrics.remaining),
-                          tone: const Color(0xFFFF8674)),
-                    ],
-                  ],
-                ),
-                const SizedBox(width: 8),
-                // Percentage badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: barColor.withAlpha(30),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${pct.round()}%',
-                    style: AppTypography.extraTiny.copyWith(
-                      color: barColor,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FreqValue extends StatelessWidget {
-  const _FreqValue(this.label, this.value, {this.tone});
-  final String label, value;
-  final Color? tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$label ',
-          style: AppTypography.extraTiny.copyWith(
-            color: AppColors.textSecondary,
-            fontSize: 8,
-          ),
-        ),
-        Text(
-          value,
-          style: AppTypography.extraTiny.copyWith(
-            color: tone ?? AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 10,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _MoneyFlowRow extends StatelessWidget {
   const _MoneyFlowRow({
     required this.summary,
@@ -1788,6 +1519,8 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
   Widget build(BuildContext context) {
     final t = widget.t;
     final async = ref.watch(collectionTodayProvider);
+    final user = ref.watch(authControllerProvider).user;
+    final isGpsSubscribed = user?.gpsTrackingEnabled == true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1803,6 +1536,11 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                   letterSpacing: 1,
                   fontWeight: FontWeight.w700,
                 ),
+              ),
+              const SizedBox(width: 8),
+              GpsHeaderBadge(
+                isSubscribed: isGpsSubscribed,
+                onTapSubscribe: () => showGpsAddonSubscribeSheet(context, ref),
               ),
               const Spacer(),
               GestureDetector(
@@ -1953,6 +1691,11 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               ],
             );
           },
+        ),
+        const SizedBox(height: 14),
+        DashboardGpsWidget(
+          isSubscribed: isGpsSubscribed,
+          onTapSubscribe: () => showGpsAddonSubscribeSheet(context, ref),
         ),
       ],
     );
@@ -3748,6 +3491,34 @@ class _ErrorState extends ConsumerWidget {
             message,
             textAlign: TextAlign.center,
             style: AppTypography.body.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  ref.invalidate(dashboardSummaryProvider);
+                },
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reload'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              if (message.contains('401') || message.toLowerCase().contains('unauthorized'))
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(authControllerProvider.notifier).logout();
+                  },
+                  icon: const Icon(Icons.login, size: 18),
+                  label: const Text('Sign In Again'),
+                ),
+            ],
           ),
         ),
       ],

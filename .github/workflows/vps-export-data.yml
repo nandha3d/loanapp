@@ -1,170 +1,57 @@
-name: VPS Export Samurai Production Data
+name: Export encrypted production database snapshot
 
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: vps-readonly-snapshot
+  cancel-in-progress: false
+
 jobs:
   export:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: SSH into VPS and extract Samurai data
+      - uses: actions/checkout@v4
+
+      - name: Stream read-only database snapshot from VPS
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
-          cd /home/loantrack/app
-          cat > export_samurai.cjs << 'EOF'
-          const { PrismaClient } = require('@prisma/client');
-          const fs = require('fs');
-          const p = new PrismaClient();
+          : "${VPS_SSH_KEY:?Missing VPS_SSH_KEY}"
+          : "${VPS_HOST:?Missing VPS_HOST}"
+          : "${VPS_USER:?Missing VPS_USER}"
+          port="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > "$key_file"
+          chmod 600 "$key_file"
 
-          async function main() {
-            console.log('=== Locating Samurai Tenant ===');
-            const tenant = await p.tenant.findFirst({
-              where: {
-                OR: [
-                  { slug: 'samurai-ml-af-cf' },
-                  { customDomain: 'loan.samuraibuiness.in' },
-                  { name: { contains: 'Samurai' } },
-                ],
-              },
-            });
+          ssh -4 -i "$key_file" -p "$port" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=40 \
+            "$VPS_USER@$VPS_HOST" 'cd /home/loantrack/app && node -' \
+            < scripts/export-db-readonly.cjs \
+            | gzip -1 \
+            | node scripts/snapshot-crypto.mjs encrypt \
+                deploy/production-snapshot-public.key \
+                "$RUNNER_TEMP/production-snapshot.sql.gz.enc"
 
-            if (!tenant) {
-              const allTenants = await p.tenant.findMany({ select: { id: true, name: true, slug: true, customDomain: true } });
-              console.error('All tenants on VPS:', JSON.stringify(allTenants, null, 2));
-              throw new Error('Tenant not found!');
-            }
-
-            console.log(`Exporting for tenant: ${tenant.name} (${tenant.id}), slug: ${tenant.slug}`);
-            const tenantId = tenant.id;
-
-            const [
-              branches,
-              users,
-              superadminBranches,
-              userBranchModules,
-              routes,
-              routeAgents,
-              customers,
-              loans,
-              instalments,
-              payments,
-              penalties,
-              collectionEntries,
-              dailyCollections,
-              approvalRequests,
-              accountEntries,
-              appSettings,
-            ] = await Promise.all([
-              p.branch.findMany({ where: { tenantId } }),
-              p.user.findMany({ where: { tenantId } }),
-              p.superadminBranch.findMany({ where: { branch: { tenantId } } }),
-              p.userBranchModule.findMany({ where: { user: { tenantId } } }),
-              p.route.findMany({ where: { tenantId } }),
-              p.routeAgent.findMany({ where: { route: { tenantId } } }),
-              p.customer.findMany({ where: { tenantId } }),
-              p.loan.findMany({ where: { tenantId } }),
-              p.instalment.findMany({ where: { loan: { tenantId } } }),
-              p.payment.findMany({ where: { loan: { tenantId } } }),
-              p.penalty.findMany({ where: { loan: { tenantId } } }),
-              p.collectionEntry.findMany({ where: { tenantId } }),
-              p.dailyCollection.findMany({ where: { tenantId } }),
-              p.approvalRequest.findMany({ where: { tenantId } }),
-              p.accountEntry.findMany({ where: { tenantId } }),
-              p.appSetting.findMany({ where: { tenantId } }),
-            ]);
-
-            const loanStatusBreakdown = {};
-            for (const l of loans) {
-              loanStatusBreakdown[l.status] = (loanStatusBreakdown[l.status] || 0) + 1;
-            }
-
-            const userRoleBreakdown = {};
-            for (const u of users) {
-              userRoleBreakdown[u.role] = (userRoleBreakdown[u.role] || 0) + 1;
-            }
-
-            console.log('=== EXPORT SUMMARY ===');
-            console.log(`Tenant: ${tenant.name} (${tenant.id})`);
-            console.log(`Branches: ${branches.length}`);
-            console.log(`Users: ${users.length}`, JSON.stringify(userRoleBreakdown));
-            console.log(`Routes: ${routes.length}`);
-            console.log(`Customers: ${customers.length}`);
-            console.log(`Loans: ${loans.length}`, JSON.stringify(loanStatusBreakdown));
-            console.log(`Instalments: ${instalments.length}`);
-            console.log(`Payments: ${payments.length}`);
-            console.log(`Penalties: ${penalties.length}`);
-            console.log(`Collection Entries: ${collectionEntries.length}`);
-            console.log(`Daily Collections: ${dailyCollections.length}`);
-            console.log(`Approval Requests: ${approvalRequests.length}`);
-            console.log(`Account Entries: ${accountEntries.length}`);
-            console.log(`App Settings: ${appSettings.length}`);
-
-            const payload = {
-              exportedAt: new Date().toISOString(),
-              tenant,
-              branches,
-              users,
-              superadminBranches,
-              userBranchModules,
-              routes,
-              routeAgents,
-              customers,
-              loans,
-              instalments,
-              payments,
-              penalties,
-              collectionEntries,
-              dailyCollections,
-              approvalRequests,
-              accountEntries,
-              appSettings,
-            };
-
-            fs.writeFileSync('samurai_production_export.json', JSON.stringify(payload, null, 2), 'utf8');
-            console.log('Successfully wrote samurai_production_export.json');
-          }
-
-          main()
-            .catch((e) => {
-              console.error('Export failed:', e);
-              process.exit(1);
-            })
-            .finally(() => p.$disconnect());
-EOF
-          node export_samurai.cjs
-          rm -f export_samurai.cjs
-REMOTE
-
-      - name: Download export file from VPS
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-        run: |
-          scp -i ~/.ssh/id_ed25519 -P "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST:/home/loantrack/app/samurai_production_export.json" ./samurai_production_export.json
-          
-          # Clean up from VPS
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" "rm -f /home/loantrack/app/samurai_production_export.json"
-
-      - name: Upload export artifact
+      - name: Upload encrypted snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: samurai-production-export
-          path: samurai_production_export.json
+          name: production-database-encrypted
+          path: ${{ runner.temp }}/production-snapshot.sql.gz.enc
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

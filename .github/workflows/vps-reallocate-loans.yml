@@ -1,4 +1,4 @@
-name: VPS reallocate loan repayments
+name: VPS reallocate loan repayments (retired)
 
 on:
   workflow_dispatch: {}
@@ -9,6 +9,8 @@ concurrency:
 
 jobs:
   export:
+    # This name previously ran a production loan mutation. Do not run it for snapshots.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: SSH into VPS and export Samurai production data
@@ -146,10 +148,10 @@ jobs:
               process.exit(1);
             })
             .finally(() => p.$disconnect());
-EOF
+          EOF
           node export_samurai.cjs
           rm -f export_samurai.cjs
-REMOTE
+          REMOTE
 
       - name: Download export file from VPS
         env:

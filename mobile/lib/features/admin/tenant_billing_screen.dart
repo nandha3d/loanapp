@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/admin_service.dart';
+import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class TenantBillingScreen extends ConsumerStatefulWidget {
@@ -165,6 +167,9 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         ? DateTime.parse(currentPeriodEndStr).toLocal().toString().split(' ')[0]
         : 'N/A';
 
+    final user = ref.watch(authControllerProvider).user;
+    final isGpsSubscribed = user?.gpsTrackingEnabled == true;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -214,6 +219,129 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                 Text(
                   'Limits: Max Active Loans: ${sub['maxActiveLoans']} · Max Agents: ${sub['maxAgents']} · Max Branches: ${sub['maxBranches']}',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Add-ons & Premium Modules
+        Text('Add-ons & Premium Modules', style: AppTypography.sectionTitle),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isGpsSubscribed
+                  ? AppColors.success.withAlpha(80)
+                  : AppColors.border,
+            ),
+            boxShadow: AppTokens.shadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isGpsSubscribed
+                          ? AppColors.successBg
+                          : AppColors.warningBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.gps_fixed_rounded,
+                      color: isGpsSubscribed
+                          ? AppColors.success
+                          : AppColors.warning,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'GPS Live Tracking',
+                              style: AppTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            if (!isGpsSubscribed)
+                              const Icon(
+                                Icons.lock_rounded,
+                                size: 14,
+                                color: AppColors.warning,
+                              ),
+                          ],
+                        ),
+                        Text(
+                          isGpsSubscribed
+                              ? 'Active · Real-time agent location & routes'
+                              : '₹299/mo · Live agent field map & route audit',
+                          style: AppTypography.extraTiny.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isGpsSubscribed
+                          ? AppColors.successBg
+                          : AppColors.warningBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isGpsSubscribed
+                            ? AppColors.success
+                            : AppColors.warning,
+                      ),
+                    ),
+                    child: Text(
+                      isGpsSubscribed ? 'ACTIVE' : 'LOCKED',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: isGpsSubscribed
+                            ? AppColors.success
+                            : AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (!isGpsSubscribed) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => showGpsAddonSubscribeSheet(context, ref),
+                    icon: const Icon(Icons.flash_on_rounded, size: 16),
+                    label: const Text('Subscribe to GPS Add-on (₹299/mo)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
                 ),
               ],
             ],

@@ -538,12 +538,16 @@ bool _moduleBlocked(String location, User user) {
 
   // /portal/billing
   if (location == '/portal/billing') {
-    return user.role != UserRole.superadmin;
+    return user.role != UserRole.superadmin &&
+        user.role != UserRole.admin &&
+        user.role != UserRole.developer;
   }
 
   // /microlending/subscription
   if (location == '/microlending/subscription') {
-    return user.role != UserRole.superadmin;
+    return user.role != UserRole.superadmin &&
+        user.role != UserRole.admin &&
+        user.role != UserRole.developer;
   }
 
   // /microlending/affiliate

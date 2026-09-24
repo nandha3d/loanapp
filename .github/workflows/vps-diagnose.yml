@@ -1,14 +1,15 @@
-name: VPS diagnose photos
+name: VPS diagnose photos (retired)
 
-# Export Samurai production data from VPS and package as artifact
 on:
   workflow_dispatch: {}
 
 jobs:
   diagnose:
+    # Replaced by the read-only encrypted database export workflow.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
-      - name: SSH into VPS and export Samurai production data
+      - name: SSH into VPS and extract Samurai data
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -143,10 +144,10 @@ jobs:
               process.exit(1);
             })
             .finally(() => p.$disconnect());
-EOF
+          EOF
           node export_samurai.cjs
           rm -f export_samurai.cjs
-REMOTE
+          REMOTE
 
       - name: Download export file from VPS
         env:
@@ -155,11 +156,13 @@ REMOTE
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           scp -i ~/.ssh/id_ed25519 -P "$VPS_PORT" \
             -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             "$VPS_USER@$VPS_HOST:/home/loantrack/app/samurai_production_export.json" ./samurai_production_export.json
           
-          # Clean up from VPS
           ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
             -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             "$VPS_USER@$VPS_HOST" "rm -f /home/loantrack/app/samurai_production_export.json"

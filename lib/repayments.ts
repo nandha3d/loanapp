@@ -417,6 +417,18 @@ export function describeAllocationForPayment(
     : 'Payment recorded.';
 }
 
+function getBusinessDateStr(dateInput: Date | string): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+    return d.toISOString().slice(0, 10);
+  }
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  const yyyy = ist.getUTCFullYear();
+  const mm = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(ist.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function getDistributedInstalmentsAndMetrics<
   T extends {
     id: string;
@@ -453,10 +465,8 @@ export function getDistributedInstalmentsAndMetrics<
     loanInsts.get(inst.loanId)!.push(inst);
   }
 
-  // Today's date boundary in IST
-  const todayStart = startOfDay(today);
-  const todayStartTime = todayStart.getTime();
-  const todayISO = todayStart.toISOString().slice(0, 10);
+  // Today's business date boundary in YYYY-MM-DD
+  const todayISO = getBusinessDateStr(today);
 
   const paymentsTodayMap = new Map<string, number>();
   for (const p of paymentsToday) {
@@ -471,26 +481,18 @@ export function getDistributedInstalmentsAndMetrics<
   const updatedInstalmentsMap = new Map<string, { receivedAmount: number; status: string }>();
 
   for (const [loanId, insts] of loanInsts.entries()) {
-    // Sort: Today's due first, then overdue oldest first, then future.
-    insts.sort((a, b) => {
-      const bucket = (item: T): number => {
-        const itemDate = startOfDay(new Date(item.dueDate)).toISOString().slice(0, 10);
-        if (itemDate === todayISO) return 0;
-        if (itemDate < todayISO) return 1;
-        return 2;
-      };
-      const delta = bucket(a) - bucket(b);
-      if (delta !== 0) return delta;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime() || a.instalmentNo - b.instalmentNo;
-    });
-
-    const cToday = paymentsTodayMap.get(loanId) ?? 0;
     const cTotal = insts.reduce((sum, i) => sum + asNumber(i.receivedAmount ?? 0), 0);
+    const cToday = Math.min(cTotal, paymentsTodayMap.get(loanId) ?? 0);
     const cYesterday = Math.max(0, cTotal - cToday);
 
-    // Allocate C_yesterday using chronological sorting
+    // 1. Allocate C_yesterday using strict chronological sorting.
+    // Historical collections belong to their historical periods and MUST NOT
+    // jump forward to cover today's due date when no collection occurred today (MONEY-22).
     const chronologicalInsts = [...insts].sort((a, b) => {
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime() || a.instalmentNo - b.instalmentNo;
+      const aDate = getBusinessDateStr(a.dueDate);
+      const bDate = getBusinessDateStr(b.dueDate);
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return a.instalmentNo - b.instalmentNo;
     });
 
     let remainingYesterday = cYesterday;
@@ -502,14 +504,38 @@ export function getDistributedInstalmentsAndMetrics<
       beforeAmounts.set(inst.id, rec);
     }
 
-    // Allocate C_total
-    let remainingToday = cTotal;
-    const afterAmounts = new Map<string, number>();
-    for (const inst of insts) {
-      const due = asNumber(inst.dueAmount);
-      const rec = Math.min(due, remainingToday);
-      remainingToday = Math.max(0, remainingToday - rec);
-      afterAmounts.set(inst.id, rec);
+    // 2. Allocate C_today starting from beforeAmounts.
+    // Fill order per MONEY-10: Today's due first, then overdue backlog oldest-first, then future advance.
+    const afterAmounts = new Map<string, number>(beforeAmounts);
+    let remainingToday = cToday;
+
+    if (remainingToday > 0) {
+      const fillOrderInsts = [...insts].sort((a, b) => {
+        const bucket = (item: T): number => {
+          const itemDate = getBusinessDateStr(item.dueDate);
+          if (itemDate === todayISO) return 0; // Today's due first
+          if (itemDate < todayISO) return 1;   // Overdue backlog second
+          return 2;                            // Future advance third
+        };
+        const delta = bucket(a) - bucket(b);
+        if (delta !== 0) return delta;
+        const aDate = getBusinessDateStr(a.dueDate);
+        const bDate = getBusinessDateStr(b.dueDate);
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        return a.instalmentNo - b.instalmentNo;
+      });
+
+      for (const inst of fillOrderInsts) {
+        if (remainingToday <= 0) break;
+        const due = asNumber(inst.dueAmount);
+        const current = afterAmounts.get(inst.id) ?? 0;
+        const room = Math.max(0, due - current);
+        if (room > 0) {
+          const add = Math.min(room, remainingToday);
+          afterAmounts.set(inst.id, current + add);
+          remainingToday = Math.max(0, remainingToday - add);
+        }
+      }
     }
 
     let overdueOutstanding = 0;
@@ -520,8 +546,8 @@ export function getDistributedInstalmentsAndMetrics<
       const before = beforeAmounts.get(inst.id) ?? 0;
       const after = afterAmounts.get(inst.id) ?? 0;
 
-      const dueDate = startOfDay(new Date(inst.dueDate));
-      const isPastDue = dueDate.getTime() < todayStartTime;
+      const itemDateStr = getBusinessDateStr(inst.dueDate);
+      const isPastDue = itemDateStr < todayISO;
 
       if (isPastDue) {
         overdueOutstanding += Math.max(0, due - after);
@@ -558,11 +584,11 @@ export function getDistributedInstalmentsAndMetrics<
       };
     }
     const update = updatedInstalmentsMap.get(inst.id);
+    const itemDateStr = getBusinessDateStr(inst.dueDate);
+    const isPastDue = itemDateStr < todayISO;
     if (update) {
       const due = asNumber(inst.dueAmount);
       const outstandingAmount = Math.max(0, due - update.receivedAmount);
-      const dueDate = startOfDay(new Date(inst.dueDate));
-      const isPastDue = dueDate.getTime() < todayStartTime;
       return {
         ...inst,
         receivedAmount: update.receivedAmount,
@@ -574,8 +600,6 @@ export function getDistributedInstalmentsAndMetrics<
     const due = asNumber(inst.dueAmount);
     const rec = asNumber(inst.receivedAmount ?? 0);
     const outstandingAmount = Math.max(0, due - rec);
-    const dueDate = startOfDay(new Date(inst.dueDate));
-    const isPastDue = dueDate.getTime() < todayStartTime;
     return {
       ...inst,
       outstandingAmount,
