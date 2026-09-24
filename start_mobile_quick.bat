@@ -3,7 +3,8 @@ title ZoloFund Mobile (Quick Launch)
 
 if exist "%~dp0mobile\build\windows\x64\runner\Debug\mobile.exe" (
     echo Starting pre-compiled ZoloFund Mobile App...
-    start "" "%~dp0mobile\build\windows\x64\runner\Debug\mobile.exe"
+    echo (Note: If you edit Flutter code, run 'start_mobile_windows.bat' to recompile with hot reload)
+    start "" /d "%~dp0mobile\build\windows\x64\runner\Debug" "%~dp0mobile\build\windows\x64\runner\Debug\mobile.exe"
     exit /b
 )
 

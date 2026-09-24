@@ -129,8 +129,8 @@ function serializeUser(user: any) {
     status: user.status,
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant?.slug ?? null,
-    enabledModules: enabledModulesForRole(user.role, user.appType),
     gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
+    enabledModules: enabledModulesForRole(user.role, user.appType),
   };
 }
 

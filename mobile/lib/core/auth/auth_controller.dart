@@ -88,6 +88,7 @@ class AuthController extends StateNotifier<AuthState> {
       } else {
         state = AuthState(stage: AuthStage.authenticated, user: user);
         _fcm.startTokenSync();
+        unawaited(refreshUser());
       }
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
@@ -100,6 +101,7 @@ class AuthController extends StateNotifier<AuthState> {
       final user = await _repo.verify2fa(code);
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
+      unawaited(refreshUser());
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
     }
@@ -199,16 +201,20 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(user: user.copyWith(appType: appType));
   }
 
+  /// Refreshes user profile and tenant subscription from server (/auth/me).
   Future<void> refreshProfile() async {
     try {
       final user = await _repo.currentUser();
-      if (user != null) {
+      if (user != null && mounted) {
         state = state.copyWith(user: user);
       }
     } on Object catch (e) {
       debugPrint('Failed to refresh user profile: $e');
     }
   }
+
+  /// Alias for refreshProfile.
+  Future<void> refreshUser() => refreshProfile();
 
   Future<bool> unlockWithBiometrics() async {
     try {

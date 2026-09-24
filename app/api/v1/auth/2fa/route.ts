@@ -32,7 +32,17 @@ export async function POST(req: NextRequest) {
         OR: [{ username }, { phone: username }],
         status: 'active',
       },
-      include: { tenant: { select: { slug: true, status: true } } },
+      include: {
+        tenant: {
+          select: {
+            slug: true,
+            status: true,
+            subscription: {
+              select: { gpsTrackingEnabled: true },
+            },
+          },
+        },
+      },
     });
     if (!user || !user.totpSecret || user.tenant.status !== 'active') {
       return fail('Invalid code', 401);
@@ -61,6 +71,7 @@ export async function POST(req: NextRequest) {
         status: user.status,
         totpEnabled: true,
         tenantSlug: user.tenant.slug,
+        gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
         enabledModules: enabledModulesForRole(user.role),
       },
     });
