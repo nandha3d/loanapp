@@ -7,6 +7,7 @@ import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/fcm_service.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 
 final _notifSettingsProvider =
@@ -41,6 +42,71 @@ class _NotificationSettingsScreenState
 
   bool _seeded = false;
   bool _saving = false;
+  bool _resyncingToken = false;
+  bool _testingServerPush = false;
+
+  Future<void> _resyncToken() async {
+    setState(() => _resyncingToken = true);
+    try {
+      final fcm = ref.read(fcmServiceProvider);
+      await fcm.startTokenSync();
+      final status = await fcm.checkServerPushStatus();
+      if (!mounted) return;
+      final configured = status?['pushConfigured'] == true;
+      final deviceCount = status?['deviceCount'] ?? 0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Device token synced! Registered devices: $deviceCount. Server push configured: ${configured ? "Yes" : "No"}',
+          ),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _resyncingToken = false);
+    }
+  }
+
+  Future<void> _testServerPush() async {
+    setState(() => _testingServerPush = true);
+    try {
+      final fcm = ref.read(fcmServiceProvider);
+      final res = await fcm.sendTestPush();
+      if (!mounted) return;
+      final sent = res['sent'] == true;
+      final msg = res['message']?.toString() ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            msg.isNotEmpty
+                ? msg
+                : (sent ? 'Push sent!' : 'Push failed'),
+          ),
+          backgroundColor: sent ? AppColors.success : AppColors.warning,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test push error: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _testingServerPush = false);
+    }
+  }
 
   void _seed(Map<String, String> m) {
     if (_seeded) return;
@@ -252,31 +318,114 @@ class _NotificationSettingsScreenState
         ),
         const SizedBox(height: 16),
 
-        // Test actionable notification trigger
-        OutlinedButton.icon(
-          onPressed: () async {
-            await NotificationActionService.instance.showApprovalNotification(
-              id: 9999,
-              title: 'Sample Loan Approval Request',
-              body: 'Agent Anita filed an origination of ₹25,000 for Priya R. Tap Approve or Reject below.',
-              approvalId: 'test_approval_1',
-            );
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notification sent with [Approve] and [Reject]! Check your notification bar.'),
-                duration: Duration(seconds: 4),
+        // Push Notification & Diagnostics Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppTokens.radius),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.cell_tower, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Push Notifications (FCM)',
+                    style: AppTypography.sectionTitle.copyWith(fontSize: 14),
+                  ),
+                ],
               ),
-            );
-          },
-          icon: Icon(Icons.notifications_active_outlined, color: AppColors.primary),
-          label: Text('Test Notification Bar Actions [Approve / Reject]', style: TextStyle(color: AppColors.primary)),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: AppColors.primary),
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-            ),
+              const SizedBox(height: 6),
+              Text(
+                'Verify real-time push notification connectivity with Google Firebase Cloud Messaging.',
+                style: AppTypography.caption,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _resyncingToken ? null : _resyncToken,
+                      icon: _resyncingToken
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync_rounded, size: 16),
+                      label: const Text('Re-sync Token'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _testingServerPush ? null : _testServerPush,
+                      icon: _testingServerPush
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.send_rounded, size: 16),
+                      label: const Text('Test Server Push'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await NotificationActionService.instance
+                        .showApprovalNotification(
+                      id: 9999,
+                      title: 'Sample Loan Approval Request',
+                      body:
+                          'Agent Anita filed an origination of ₹25,000 for Priya R. Tap Approve or Reject below.',
+                      approvalId: 'test_approval_1',
+                    );
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Local alert triggered! Check your notification drawer for [Approve] and [Reject] buttons.',
+                        ),
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                  label: const Text('Test Local Bar Actions [Approve / Reject]'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),

@@ -103,8 +103,106 @@ class NotificationActionService {
     // 3. Listen to incoming FCM push notifications in the foreground
     FirebaseMessaging.onMessage.listen(_handleForegroundFcm);
 
+    // 4. Handle notification clicks when the app is in the background or killed
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('[NotificationActionService] Notification opened from background');
+      _handleDefaultClick(message.data);
+    });
+
+    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        debugPrint('[NotificationActionService] App launched from notification');
+        _handleDefaultClick(message.data);
+      }
+    });
+
     _initialized = true;
     debugPrint('[NotificationActionService] Initialized successfully');
+  }
+
+  /// Explicitly requests notification runtime permissions (e.g. Android 13+ POST_NOTIFICATIONS)
+  /// Can be called safely from UI lifecycle when Activity is active.
+  Future<bool> requestPermission() async {
+    try {
+      final androidPlugin = _localNotif.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        final granted = await androidPlugin.requestNotificationsPermission();
+        debugPrint('[NotificationActionService] Android notification permission: $granted');
+        return granted ?? false;
+      }
+      final iosPlugin = _localNotif.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      if (iosPlugin != null) {
+        final granted = await iosPlugin.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        return granted ?? false;
+      }
+    } catch (e) {
+      debugPrint('[NotificationActionService] Permission request failed: $e');
+    }
+    return false;
+  }
+
+  /// Handles incoming push notifications received in background/terminated isolates
+  Future<void> showBackgroundNotification(RemoteMessage message) async {
+    final data = message.data;
+    final notification = message.notification;
+
+    final title = (notification?.title ?? data['title'] ?? 'ZoloFund Alert').toString();
+    final body = (notification?.body ?? data['body'] ?? data['message'] ?? '').toString();
+    if (title.isEmpty && body.isEmpty) return;
+
+    final type = data['type']?.toString() ?? '';
+    final isApproval = type.contains('approval') ||
+        data['actionable'] == 'true' ||
+        data.containsKey('approvalId');
+    final channelId = isApproval ? channelApprovals : channelGeneral;
+
+    final androidPlugin = _localNotif.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          channelApprovals,
+          'Approvals & Action Alerts',
+          description: 'Actionable approval requests and urgent alerts',
+          importance: Importance.max,
+          enableVibration: true,
+          playSound: true,
+        ),
+      );
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          channelGeneral,
+          'General Notifications',
+          description: 'General system, collection, and account alerts',
+          importance: Importance.defaultImportance,
+          enableVibration: true,
+          playSound: true,
+        ),
+      );
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      isApproval ? 'Approvals & Action Alerts' : 'General Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: 'ic_notification',
+      color: const Color(0xFF7D287E),
+    );
+
+    await _localNotif.show(
+      message.hashCode,
+      title,
+      body,
+      NotificationDetails(android: androidDetails),
+      payload: jsonEncode(data),
+    );
   }
 
   Future<String?> _cacheAvatarImage(String? url, String id) async {
@@ -310,14 +408,14 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
-      color: Color(0xFFD97706), // Amber warning
+      color: const Color(0xFFD97706), // Amber warning
       category: AndroidNotificationCategory.reminder,
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
         summaryText: 'ZoloFund • Float Alert',
       ),
-      actions: <AndroidNotificationAction>[
+      actions: const <AndroidNotificationAction>[
         AndroidNotificationAction(
           actionTopUpFloat,
           'Top-up Float',

@@ -10,7 +10,14 @@ import 'package:zolofund/core/notifications/notification_action_service.dart';
 
 // Handles pushes when the app is backgrounded/terminated. Must be top-level.
 @pragma('vm:entry-point')
-Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {}
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+    await NotificationActionService.instance.showBackgroundNotification(message);
+  } catch (e) {
+    debugPrint('[FCM] Background handler error: $e');
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -3,26 +3,47 @@ import prisma from '../../db';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
+import fs from 'fs';
+import path from 'path';
+
 // Server-side FCM push dispatcher. Sends to app users' registered devices
 // (DeviceToken). Credentials come from a Firebase service account in env:
 //   FIREBASE_SERVICE_ACCOUNT_BASE64  (base64 of the service-account JSON)  — preferred
 //   FIREBASE_SERVICE_ACCOUNT         (raw JSON)                            — alt
+//   FIREBASE_SERVICE_ACCOUNT_PATH    (path to service account JSON file)
+//   GOOGLE_APPLICATION_CREDENTIALS   (standard Google env variable)
+//   firebase-service-account.json    (root file fallback)
 // If neither is set, push is a no-op (other channels keep working).
 
 function loadServiceAccount(): any | null {
   const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
   try {
     if (b64) return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
     if (raw) return JSON.parse(raw);
+    if (filePath && fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+    const defaultFile = path.join(process.cwd(), 'firebase-service-account.json');
+    if (fs.existsSync(defaultFile)) {
+      return JSON.parse(fs.readFileSync(defaultFile, 'utf8'));
+    }
   } catch (e) {
-    console.error('[push] invalid FIREBASE_SERVICE_ACCOUNT env', e);
+    console.error('[push] invalid FIREBASE_SERVICE_ACCOUNT env or file', e);
   }
   return null;
 }
 
 export function isPushConfigured(): boolean {
-  return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT);
+  return Boolean(
+    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    fs.existsSync(path.join(process.cwd(), 'firebase-service-account.json'))
+  );
 }
 
 let triedInit = false;
@@ -32,7 +53,7 @@ function ensureApp(): boolean {
   triedInit = true;
   const sa = loadServiceAccount();
   if (!sa) {
-    console.warn('[push] no Firebase service account — push disabled');
+    console.warn('[push] no Firebase service account found — push notifications are disabled');
     return false;
   }
   try {
@@ -89,7 +110,16 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
                 : 'general_channel',
           },
         },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+            },
+          },
+        },
       });
+      console.log(`[push] FCM send result: ${res.successCount} succeeded, ${res.failureCount} failed out of ${batch.length} tokens`);
       // Prune tokens FCM reports as dead so the table stays clean.
       const dead: string[] = [];
       res.responses.forEach((r, idx) => {

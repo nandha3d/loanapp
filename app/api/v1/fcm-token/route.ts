@@ -19,14 +19,38 @@ export async function POST(req: NextRequest) {
     const platform = String(body.platform || 'android');
     if (!token) return fail('token required', 400);
 
-    await prisma.deviceToken.upsert({
+    const record = await prisma.deviceToken.upsert({
       where: { token },
       update: { userId: ctx.userId, tenantId: ctx.tenantId, platform, lastSeenAt: new Date() },
       create: { token, userId: ctx.userId, tenantId: ctx.tenantId, platform },
     });
 
-    return ok({ registered: true });
+    return ok({ registered: true, platform: record.platform, id: record.id });
   } catch (e: any) {
     return fail(e?.message ?? 'Token register failed', 500);
   }
 }
+
+export async function GET(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  try {
+    const { isPushConfigured } = await import('@/lib/notify/channels/push');
+    const tokens = await prisma.deviceToken.findMany({
+      where: { userId: ctx.userId },
+      select: { platform: true, lastSeenAt: true },
+      orderBy: { lastSeenAt: 'desc' },
+    });
+
+    return ok({
+      pushConfigured: isPushConfigured(),
+      deviceCount: tokens.length,
+      devices: tokens,
+    });
+  } catch (e: any) {
+    return fail(e?.message ?? 'Failed to check push status', 500);
+  }
+}
+
