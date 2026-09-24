@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -100,7 +101,15 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Payment Gateway'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Payment Gateway'),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
+      ),
       body: _loading
           ? const Padding(
               padding: EdgeInsets.all(16), child: Skeleton(height: 320),)

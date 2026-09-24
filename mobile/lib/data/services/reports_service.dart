@@ -50,7 +50,8 @@ class ReportsService {
       },
     );
     return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
+      final list = (d is Map<String, dynamic> ? d['agents'] : d) as List<dynamic>? ?? const [];
+      return list
           .map((dynamic e) => AgentPerf.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
     });

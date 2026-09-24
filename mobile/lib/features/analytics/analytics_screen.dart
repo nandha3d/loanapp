@@ -2,6 +2,7 @@ import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
@@ -93,6 +94,11 @@ class AnalyticsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(t.x('title.analytics')),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
         actions: [
           async.when(
             data: (data) => IconButton(

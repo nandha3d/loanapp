@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -60,7 +61,15 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     return Scaffold(
-      appBar: AppBar(title: Text(t.x('gold.pledge_report')), centerTitle: true),
+      appBar: AppBar(
+        title: Text(t.x('gold.pledge_report')),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

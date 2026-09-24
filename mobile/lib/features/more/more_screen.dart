@@ -225,6 +225,11 @@ class MoreScreen extends ConsumerWidget {
           subtitle: t.x('nav.more'),
         ),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -451,7 +456,7 @@ class _ModuleTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTokens.radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: onTap ?? () => context.go(item.route),
+          onTap: onTap ?? () => context.push(item.route),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(boxShadow: AppTokens.shadow),

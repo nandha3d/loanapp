@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -153,6 +154,11 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
       appBar: AppBar(
         title: Text(widget.title),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/settings'),
+        ),
       ),
       body: SafeArea(
         child: _loading

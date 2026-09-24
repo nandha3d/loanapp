@@ -81,7 +81,11 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() => _activeView = 'dashboard'),
               )
-            : null,
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/dashboard'),
+              ),
         actions: [
           if (_activeView == 'dashboard')
             IconButton(

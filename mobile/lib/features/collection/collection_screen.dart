@@ -194,7 +194,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
         actions: [
           if (isMicrolending) ...[

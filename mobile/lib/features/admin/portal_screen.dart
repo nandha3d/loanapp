@@ -307,6 +307,13 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 0),
       child: Row(
         children: [
+          if (context.canPop()) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => context.pop(),
+            ),
+            const SizedBox(width: 4),
+          ],
           // Official ZoloFund logo with module badge
           Row(
             mainAxisSize: MainAxisSize.min,

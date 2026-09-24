@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -34,6 +35,11 @@ class ApprovalsScreen extends ConsumerWidget {
         appBar: AppBar(
           title: Text(t.x('title.approvals')),
           centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/dashboard'),
+          ),
           bottom: TabBar(
             indicatorColor: AppColors.primary,
             indicatorWeight: 3,

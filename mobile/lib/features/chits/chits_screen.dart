@@ -41,6 +41,11 @@ class ChitsScreen extends ConsumerWidget {
           subtitle: t.x('title.chits'),
         ),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined),

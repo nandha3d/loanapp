@@ -70,7 +70,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
       ),
       body: Column(

@@ -34,7 +34,15 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(t.x('set.title')), centerTitle: true),
+      appBar: AppBar(
+        title: Text(t.x('set.title')),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

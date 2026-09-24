@@ -1,6 +1,7 @@
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -49,7 +50,15 @@ class PenaltiesScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(t.x('penalty.title')), centerTitle: true),
+      appBar: AppBar(
+        title: Text(t.x('penalty.title')),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
+        ),
+      ),
       body: async.when(
         loading: () => _buildLoading(),
         error: (e, _) => _ErrorState(message: e.toString()),
