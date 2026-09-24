@@ -42,7 +42,15 @@ export async function POST(req: NextRequest) {
           status: 'active',
           tenantId,
         },
-        include: { tenant: { select: { slug: true, status: true } } },
+        include: {
+          tenant: {
+            select: {
+              slug: true,
+              status: true,
+              subscription: { select: { gpsTrackingEnabled: true } },
+            },
+          },
+        },
       });
     } else {
       // If tenant was not specified, verify whether accounts exist across distinct tenants
@@ -52,7 +60,15 @@ export async function POST(req: NextRequest) {
           status: 'active',
           tenant: { status: 'active' },
         },
-        include: { tenant: { select: { slug: true, status: true } } },
+        include: {
+          tenant: {
+            select: {
+              slug: true,
+              status: true,
+              subscription: { select: { gpsTrackingEnabled: true } },
+            },
+          },
+        },
         take: 5,
       });
 
@@ -114,6 +130,7 @@ function serializeUser(user: any) {
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant?.slug ?? null,
     enabledModules: enabledModulesForRole(user.role, user.appType),
+    gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
   };
 }
 

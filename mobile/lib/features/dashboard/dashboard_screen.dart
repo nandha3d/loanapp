@@ -50,6 +50,7 @@ class DashboardScreen extends ConsumerWidget {
     if (!_onboardingRequested && user != null) {
       _onboardingRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        ref.read(authControllerProvider.notifier).refreshProfile();
         if (!context.mounted) return;
         await maybeShowOnboarding(context, role: user.role.name);
         if (!context.mounted) return;
@@ -87,9 +88,12 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () async => isChit
-            ? ref.refresh(chitDashboardSummaryProvider.future)
-            : ref.refresh(dashboardSummaryProvider.future),
+        onRefresh: () async {
+          await ref.read(authControllerProvider.notifier).refreshProfile();
+          return isChit
+              ? ref.refresh(chitDashboardSummaryProvider.future)
+              : ref.refresh(dashboardSummaryProvider.future);
+        },
         child: isChit
             ? chitSummary!.when(
                 loading: () => const _LoadingSkeleton(),

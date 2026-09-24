@@ -123,6 +123,41 @@ class User {
 
   bool hasModule(String module) => enabledModules.contains(module);
 
+  User copyWith({
+    String? id,
+    String? name,
+    String? phone,
+    String? email,
+    String? username,
+    UserRole? role,
+    String? branchId,
+    String? appType,
+    String? status,
+    bool? totpEnabled,
+    List<String>? enabledModules,
+    String? tenantSlug,
+    bool? biometricLockRequired,
+    bool? gpsTrackingEnabled,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      username: username ?? this.username,
+      role: role ?? this.role,
+      branchId: branchId ?? this.branchId,
+      appType: appType ?? this.appType,
+      status: status ?? this.status,
+      totpEnabled: totpEnabled ?? this.totpEnabled,
+      enabledModules: enabledModules ?? this.enabledModules,
+      tenantSlug: tenantSlug ?? this.tenantSlug,
+      biometricLockRequired:
+          biometricLockRequired ?? this.biometricLockRequired,
+      gpsTrackingEnabled: gpsTrackingEnabled ?? this.gpsTrackingEnabled,
+    );
+  }
+
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] as String,

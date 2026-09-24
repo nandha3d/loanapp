@@ -196,23 +196,18 @@ class AuthController extends StateNotifier<AuthState> {
     final user = state.user;
     if (user == null || user.appType == appType) return;
     await _repo.setActiveAppType(appType);
-    state = state.copyWith(
-      user: User(
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        username: user.username,
-        role: user.role,
-        appType: appType,
-        status: user.status,
-        totpEnabled: user.totpEnabled,
-        enabledModules: user.enabledModules,
-        email: user.email,
-        branchId: user.branchId,
-        tenantSlug: user.tenantSlug,
-        biometricLockRequired: user.biometricLockRequired,
-      ),
-    );
+    state = state.copyWith(user: user.copyWith(appType: appType));
+  }
+
+  Future<void> refreshProfile() async {
+    try {
+      final user = await _repo.currentUser();
+      if (user != null) {
+        state = state.copyWith(user: user);
+      }
+    } on Object catch (e) {
+      debugPrint('Failed to refresh user profile: $e');
+    }
   }
 
   Future<bool> unlockWithBiometrics() async {
