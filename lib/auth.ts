@@ -98,10 +98,14 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         password: { label: 'Password', type: 'password' },
         rememberMe: { label: 'Remember Me', type: 'text' },
         totpCode: { label: 'TOTP Code', type: 'text' },
+        whatsappOtp: { label: 'WhatsApp OTP', type: 'text' },
+        challengeToken: { label: 'Challenge Token', type: 'text' },
       },
       async authorize(credentials, request) {
         try {
-          if (!credentials?.username || !credentials?.password) return null;
+          const isWhatsappAuth = Boolean(credentials?.whatsappOtp && credentials?.challengeToken);
+          if (!credentials?.username) return null;
+          if (!isWhatsappAuth && !credentials?.password) return null;
           const username = String(credentials.username).trim().toLowerCase();
 
           // ── Distributed rate limiting (MySQL-backed) ─────────────────────────
@@ -174,15 +178,36 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             return null; 
           }
 
-          if (!user.passwordHash) {
-            console.warn(`[AUTH_WARN] Password login not set for user: ${username}`);
-            return null;
-          }
+          if (isWhatsappAuth) {
+            const { isSamuraiExcludedDomain, verifyWhatsAppAuthOtp } = await import('./whatsappAuth');
+            const isExcluded = await isSamuraiExcludedDomain({ host, tenantId: user.tenantId });
+            if (isExcluded) {
+              console.warn(`[AUTH_WARN] WhatsApp auth blocked on excluded domain: ${host}`);
+              return null;
+            }
 
-          const isValid = await compare(credentials.password as string, user.passwordHash);
-          if (!isValid) {
-            console.warn(`[AUTH_WARN] Invalid password for user: ${username}`);
-            return null;
+            const verification = await verifyWhatsAppAuthOtp({
+              phone: username,
+              otp: String(credentials.whatsappOtp),
+              challengeToken: String(credentials.challengeToken),
+              host,
+            });
+
+            if (!verification.success) {
+              console.warn(`[AUTH_WARN] Invalid WhatsApp OTP for user: ${username}`);
+              return null;
+            }
+          } else {
+            if (!user.passwordHash) {
+              console.warn(`[AUTH_WARN] Password login not set for user: ${username}`);
+              return null;
+            }
+
+            const isValid = await compare(credentials.password as string, user.passwordHash);
+            if (!isValid) {
+              console.warn(`[AUTH_WARN] Invalid password for user: ${username}`);
+              return null;
+            }
           }
 
           // ── Account status gate (after auth) ─────────────────────────────────

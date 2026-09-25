@@ -6,6 +6,7 @@ import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 import { BORROWER_OTP_TTL_SECONDS, generateBorrowerOtp, hashBorrowerOtp } from '@/lib/borrowerOtp';
 import { issueBorrowerChallenge, issueBorrowerMobileToken } from '@/lib/api/borrower-mobile';
 import { markAttendanceOnLogin } from '@/lib/chits/attendanceAuto';
+import { isSamuraiExcludedDomain, sendWhatsAppAuthOtp } from '@/lib/whatsappAuth';
 
 function getBorrowerOtpSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || process.env.MOBILE_JWT_SECRET;
@@ -94,6 +95,19 @@ export async function POST(req: NextRequest) {
       },
       BORROWER_OTP_TTL_SECONDS,
     );
+
+    // Deliver via WhatsApp if NOT on excluded Samurai standalone client
+    const isExcluded = await isSamuraiExcludedDomain({ host: req.headers.get('host'), tenantSlug, tenantId: customer.tenantId });
+    if (!isExcluded) {
+      sendWhatsAppAuthOtp({
+        phone: customer.phone,
+        tenantId: customer.tenantId,
+        host: req.headers.get('host'),
+        tenantSlug,
+        purpose: 'borrower_login',
+        customerId: customer.id,
+      }).catch((err) => console.error('[v1/borrower/auth/login] WhatsApp dispatch error:', err));
+    }
 
     return ok({
       otpRequired: true,
