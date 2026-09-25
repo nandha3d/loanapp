@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => null)) as {
       phone?: string;
-      purpose?: 'login' | 'borrower_login' | '2fa' | 'reset_password';
+      purpose?: 'login' | 'borrower_login' | '2fa' | 'reset_password' | 'registration';
       tenantSlug?: string;
     } | null;
 

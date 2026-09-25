@@ -287,9 +287,10 @@ export async function POST(request: Request) {
 
     // Use platform SMTP for email registration activation so delivery does not
     // depend on Supabase OTP/magic-link mail. If WhatsApp verified, account is already active.
-    let emailResult = { success: false, error: undefined as string | undefined };
+    let emailSent = false;
+    let emailError: string | undefined;
     if (!isWhatsAppVerified) {
-      const sent = await sendVerificationEmail({
+      const emailResult = await sendVerificationEmail({
         tenantId: result.tenantId,
         email: result.ownerEmail,
         name: result.ownerName,
@@ -298,10 +299,11 @@ export async function POST(request: Request) {
         console.error('[VERIFY_EMAIL_SEND]', e);
         return { success: false, error: e?.message } as { success: boolean; error?: string };
       });
-      emailResult = sent;
+      emailSent = emailResult.success === true;
+      emailError = emailResult.error;
 
-      if (!emailResult.success) {
-        console.error('[VERIFY_EMAIL_SEND] not delivered:', emailResult.error);
+      if (!emailSent) {
+        console.error('[VERIFY_EMAIL_SEND] not delivered:', emailError);
       }
     }
 
@@ -338,10 +340,10 @@ export async function POST(request: Request) {
         success: true,
         requiresVerification: !isWhatsAppVerified,
         activatedImmediately: isWhatsAppVerified,
-        emailSent: isWhatsAppVerified ? false : (emailResult.success === true),
+        emailSent,
         message: isWhatsAppVerified
           ? 'Account created and verified successfully via WhatsApp! You can now log in.'
-          : (emailResult.success
+          : (emailSent
             ? 'Account created. Check your email to verify and activate your account.'
             : 'Account created, but we could not send the verification email. Please use "Resend verification email" on the login page.'),
         tenantId: result.tenantId,
