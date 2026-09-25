@@ -438,24 +438,30 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .app-layout--microlending .topbar-right > select.form-control:not(.branch-switcher-control) { margin-right: 0 !important; }
   .app-layout--microlending .pagination { flex-wrap: wrap; gap: 10px; }
   .app-layout--microlending .pagination .pages { max-width: 100%; overflow-x: auto; }
+  .app-layout--microlending :is(.grid-2, .grid-3, .grid-60-40) { grid-template-columns: minmax(0, 1fr); }
+  .app-layout--microlending .loan-header .loan-info { min-width: 0; }
+  .app-layout--microlending .loan-header .loan-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-layout--microlending .summary-bar { flex-wrap: wrap; }
+  .app-layout--microlending .summary-item { flex: 1 1 100%; min-width: 0; }
+  .app-layout--microlending .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) table {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) table {
     min-width: 40rem;
   }
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) thead {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) thead {
     position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal;
   }
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody tr {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) tbody tr {
     display: table-row; border: 0; border-radius: 0; margin: 0; padding: 0;
   }
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody td {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) tbody td {
     display: table-cell; min-height: 0; text-align: inherit; border-bottom: 1px solid var(--border);
   }
-  .app-layout--microlending :is(.table-wrapper, .table-responsive):has(tbody td:not([data-label])) tbody td::before {
+  .app-layout--microlending :is(.table-wrapper, .table-responsive, .card):has(> table tbody td:not([data-label]):not([colspan])) tbody td::before {
     display: none;
   }
 }
@@ -464,6 +470,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   html:has(.app-layout--microlending) { font-size: 16px; }
   .app-layout--microlending .topbar-right .branch-switcher-control { max-width: 104px; width: 104px !important; }
   .app-layout--microlending .topbar-right > select.form-control:not(.branch-switcher-control) { max-width: 72px; width: 72px !important; }
+  .app-layout--microlending .loan-header .loan-meta,
+  .app-layout--microlending .stats-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (min-width: 400px) and (max-width: 768px) {

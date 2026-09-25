@@ -138,7 +138,7 @@ export default function CollectionBreakdownCards({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 500px), 1fr))',
         gap: '20px',
         marginBottom: '18px',
       }}

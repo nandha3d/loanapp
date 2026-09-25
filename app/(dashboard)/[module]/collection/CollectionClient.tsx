@@ -2180,14 +2180,13 @@ export default function CollectionClient({
                   </span>
                   {gpsChecking ? 'Checking...' : (dict.collection?.gpsCheckAgain || 'Check Location Again')}
                 </button>
-                <button
-                  type="button"
+                <Link
+                  href={agentRole === 'agent' ? '/agent-dashboard' : '/dashboard'}
                   className="btn btn-ghost"
-                  onClick={() => router.push('/dashboard')}
                   style={{ width: '100%', justifyContent: 'center', color: 'var(--text-secondary)' }}
                 >
                   {dict.collection?.gpsBackToDashboard || 'Return to Dashboard'}
-                </button>
+                </Link>
               </div>
             </div>
           </div>

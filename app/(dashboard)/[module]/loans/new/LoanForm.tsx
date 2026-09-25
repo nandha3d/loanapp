@@ -951,7 +951,7 @@ export default function LoanForm({
                 />
               </div>
 
-              <div style={{ flex: '1.2', minWidth: '300px' }}>
+              <div style={{ flex: '1.2', minWidth: 'min(300px, 100%)' }}>
                 <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.repaymentPlanModel}</label>
                 <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
                   <button

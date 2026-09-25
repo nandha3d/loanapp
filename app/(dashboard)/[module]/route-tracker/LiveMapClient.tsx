@@ -129,12 +129,16 @@ export default function LiveMapClient({
         if (agent.lat == null || agent.lng == null) continue;
         seen.add(agent.agentId);
         const color = agent.online ? '#22c55e' : '#9ca3af';
+        const safeName = document.createElement('span');
+        safeName.textContent = agent.agentName;
+        const safeCurrency = document.createElement('span');
+        safeCurrency.textContent = currencySymbol;
         const popupHtml =
           `<div style="font-family: inherit; font-size: 13px; line-height: 1.4;">` +
-          `<strong style="font-size: 14px;">${agent.agentName}</strong><br/>` +
+          `<strong style="font-size: 14px;">${safeName.innerHTML}</strong><br/>` +
           `<span style="color: ${agent.online ? '#16a34a' : '#6b7280'}; font-weight: 600;">` +
           `${agent.online ? '🟢 Live GPS Active' : '⚪ Offline'} · ${timeAgo(agent.capturedAt)}</span><br/>` +
-          `<strong>Today:</strong> ${currencySymbol}${Number(agent.todayCollected).toLocaleString('en-IN')} ` +
+          `<strong>Today:</strong> ${safeCurrency.innerHTML}${Number(agent.todayCollected).toLocaleString('en-IN')} ` +
           `(${agent.todayEntries} entries)` +
           `</div>`;
 

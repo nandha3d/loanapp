@@ -604,7 +604,7 @@ export default function CustomerProfileClient({
 
               {/* Standard manual details as fallback */}
               <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '250px' }}>
+                <div style={{ flex: 1, minWidth: 'min(250px, 100%)' }}>
                   <h4 style={{ marginBottom: '12px' }}>{d.aadharCard}</h4>
                   <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '40px', textAlign: 'center', border: '1px solid var(--border)' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>credit_card</span>
@@ -614,7 +614,7 @@ export default function CustomerProfileClient({
                     <p style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.documentUploaded}</p>
                   </div>
                 </div>
-                <div style={{ flex: 1, minWidth: '250px' }}>
+                <div style={{ flex: 1, minWidth: 'min(250px, 100%)' }}>
                   <h4 style={{ marginBottom: '12px' }}>{d.verificationStatus}</h4>
                   <div className="card" style={{ background: 'var(--bg)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
@@ -633,7 +633,7 @@ export default function CustomerProfileClient({
           ) : (
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               {/* Left Side: Aadhar & Basic Status */}
-              <div style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ flex: 1, minWidth: 'min(300px, 100%)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
                   <h4 style={{ marginBottom: '12px' }}>{d.aadharCard}</h4>
                   <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '30px', textAlign: 'center', border: '1px solid var(--border)' }}>
@@ -677,7 +677,7 @@ export default function CustomerProfileClient({
               </div>
 
               {/* Right Side: Interactive KYC Panel */}
-              <div style={{ flex: 1.2, minWidth: '350px' }}>
+              <div style={{ flex: 1.2, minWidth: 'min(350px, 100%)' }}>
                 <h4 style={{ marginBottom: '12px' }}>Automated KYC Verification</h4>
                 
                 {tenantKycMethod === 'aadhaar_otp' && (
