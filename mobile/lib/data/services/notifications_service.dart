@@ -9,10 +9,12 @@ class NotificationsService {
   NotificationsService(this._dio);
   final Dio _dio;
 
+  static const int defaultPageSize = 50;
+
   Future<List<NotificationItem>> fetchNotifications({
     bool unreadOnly = false,
     int page = 1,
-    int pageSize = 100,
+    int pageSize = defaultPageSize,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.notifications,

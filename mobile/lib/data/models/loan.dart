@@ -82,6 +82,46 @@ class LoanRestructure {
   }
 }
 
+class PenaltySummary {
+  const PenaltySummary({
+    required this.gross,
+    required this.settled,
+    required this.waived,
+    required this.netDue,
+    this.recorded = 0,
+    this.potential = 0,
+  });
+
+  final double gross;
+  final double settled;
+  final double waived;
+  final double netDue;
+  final double recorded;
+  final double potential;
+
+  factory PenaltySummary.fromJson(Map<String, dynamic> json) {
+    double num$(dynamic v) =>
+        (v is num) ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+    return PenaltySummary(
+      gross: num$(json['gross']),
+      settled: num$(json['settled']),
+      waived: num$(json['waived']),
+      netDue: num$(json['netDue']),
+      recorded: num$(json['recorded']),
+      potential: num$(json['potential']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'gross': gross,
+    'settled': settled,
+    'waived': waived,
+    'netDue': netDue,
+    'recorded': recorded,
+    'potential': potential,
+  };
+}
+
 class LoanPayment {
   const LoanPayment({
     required this.id,
@@ -153,6 +193,7 @@ class Loan {
     this.closedAt,
     this.deduction,
     this.deductionType,
+    this.penaltySummary,
   });
 
   final String id;
@@ -192,6 +233,7 @@ class Loan {
   final DateTime? closedAt;
   final double? deduction;
   final String? deductionType;
+  final PenaltySummary? penaltySummary;
 
   factory Loan.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -267,6 +309,9 @@ class Loan {
           : null,
       customer: json['customer'] is Map<String, dynamic>
           ? Customer.fromJson(json['customer'] as Map<String, dynamic>)
+          : null,
+      penaltySummary: json['penaltySummary'] is Map<String, dynamic>
+          ? PenaltySummary.fromJson(json['penaltySummary'] as Map<String, dynamic>)
           : null,
     );
   }

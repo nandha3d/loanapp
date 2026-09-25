@@ -26,8 +26,8 @@ if (start === -1) {
 }
 const body = src.slice(start);
 
-// Match each top-level entry: 'key': { ...inner... }
-const entryRe = /'([^']+)'\s*:\s*\{([^}]*)\}/g;
+// Match each top-level entry: 'key': { ...inner... } (allowing nested {placeholder} braces in values)
+const entryRe = /'([^']+)'\s*:\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g;
 const missing = new Map(); // key -> [langs]
 let total = 0;
 

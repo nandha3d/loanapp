@@ -370,13 +370,15 @@ export default function LoanDetailClient({
     ? []
     : displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
-  const recordedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
-  const potentialPenalty = missedCount * Number(loan.penaltyRate);
-  const totalPenalty = Math.max(recordedPenalty, potentialPenalty);
 
-  const settledPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.settledAmount), 0);
-  const waivedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.waivedAmount), 0);
-  const netPenalty = totalPenalty - settledPenalty - waivedPenalty;
+  const serverSummary = (loan as any).penaltySummary;
+  const recordedPenalty = serverSummary?.recorded ?? loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
+  const potentialPenalty = serverSummary?.potential ?? (missedCount * Number(loan.penaltyRate));
+  const totalPenalty = serverSummary?.gross ?? Math.max(recordedPenalty, potentialPenalty);
+
+  const settledPenalty = serverSummary?.settled ?? loan.penalties.reduce((sum: number, p: any) => sum + Number(p.settledAmount), 0);
+  const waivedPenalty = serverSummary?.waived ?? loan.penalties.reduce((sum: number, p: any) => sum + Number(p.waivedAmount), 0);
+  const netPenalty = serverSummary?.netDue ?? (totalPenalty - settledPenalty - waivedPenalty);
 
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [penaltyModal, setPenaltyModal] = useState<any>(null);

@@ -1,6 +1,10 @@
 name: PR Quality Gate
 
 on:
+  push:
+    branches:
+      - merged-all-branches
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -40,6 +44,7 @@ jobs:
       - run: npm run db:push
       - run: npm run db:seed
       - run: npm run test:ci
+      - run: npm run test:mobile-parity-api
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
         continue-on-error: true

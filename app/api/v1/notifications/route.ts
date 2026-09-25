@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, Number(searchParams.get('page') || 1));
-  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || 100)));
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || 50)));
   const unreadOnly = searchParams.get('unreadOnly') === 'true';
 
   const where = buildSystemNotificationWhere({

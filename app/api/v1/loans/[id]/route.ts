@@ -150,7 +150,33 @@ export async function GET(
     paidCount: preMappedInstalments.filter((i) => i.status === 'paid').length,
   };
 
-  return ok({ ...loan, instalments, restructure, extendedSchedule, metrics });
+  // Server-supplied penalty summary — canonical source of truth shared across
+  // web, mobile and reports to eliminate client-side calculation drift.
+  const missedInstsCount = payableInsts.filter((i) => new Date(i.dueDate) < today && i.status === 'missed').length;
+  const recordedPenalty = (loan.penalties || []).reduce((sum, p) => sum + Number(p.grossPenalty || 0), 0);
+  const potentialPenalty = (loan.status === 'closed' || totalOutstanding <= 0) ? 0 : missedInstsCount * Number(loan.penaltyRate || 0);
+  const grossPenalty = Math.max(recordedPenalty, potentialPenalty);
+  const settledPenalty = (loan.penalties || []).reduce((sum, p) => sum + Number(p.settledAmount || 0), 0);
+  const waivedPenalty = (loan.penalties || []).reduce((sum, p) => sum + Number(p.waivedAmount || 0), 0);
+  const netDuePenalty = Math.max(0, grossPenalty - settledPenalty - waivedPenalty);
+
+  const penaltySummary = {
+    gross: grossPenalty,
+    settled: settledPenalty,
+    waived: waivedPenalty,
+    netDue: netDuePenalty,
+    recorded: recordedPenalty,
+    potential: potentialPenalty,
+  };
+
+  return ok({
+    ...loan,
+    instalments,
+    restructure,
+    extendedSchedule,
+    metrics,
+    penaltySummary,
+  });
 }
 
 /**

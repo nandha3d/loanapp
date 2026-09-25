@@ -9,6 +9,9 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/services/customer_service.dart';
+import 'package:zolofund/data/services/accounting_service.dart';
 import 'package:zolofund/data/services/reports_service.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -557,6 +560,26 @@ class _CatalogTab extends ConsumerStatefulWidget {
 class _CatalogTabState extends ConsumerState<_CatalogTab> {
   Map<String, dynamic>? _selected;
   Future<Map<String, dynamic>>? _report;
+  Customer? _customer;
+  Map<String, dynamic>? _account;
+
+  bool _needsCustomer(Map<String, dynamic> item) => const {
+        'customer-loan-history',
+        'customer-collection-history',
+        'customer-visit-history',
+      }.contains(item['slug']);
+
+  bool _needsAccount(Map<String, dynamic> item) => item['slug'] == 'ledger-report';
+
+  Future<Map<String, dynamic>> _fetch(Map<String, dynamic> item, DateTime from, DateTime to) =>
+      ref.read(reportsServiceProvider).fetchReport(
+            item['slug'] as String,
+            from,
+            to,
+            ref.read(languageProvider).name,
+            _customer?.id,
+            _account?['id'] as String?,
+          );
 
   void _open(Map<String, dynamic> item) {
     if (item['locked'] == true) {
@@ -571,11 +594,60 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
     final range = ref.read(_dateRangeProvider);
     setState(() {
       _selected = item;
-      _report = ref.read(reportsServiceProvider).fetchReport(
-          item['slug'] as String,
-          range.from,
-          range.to,
-          ref.read(languageProvider).name);
+      _customer = null;
+      _account = null;
+      _report = _needsCustomer(item) || _needsAccount(item)
+          ? null
+          : _fetch(item, range.from, range.to);
+    });
+  }
+
+  Future<void> _pickCustomer() async {
+    final selected = await showSearch<Customer?>(
+      context: context,
+      delegate: _CustomerSearch(
+        ref.read(customerServiceProvider),
+        T.of(ref).x('rep.customer'),
+      ),
+    );
+    if (!mounted || selected == null || _selected == null) return;
+    final range = ref.read(_dateRangeProvider);
+    setState(() {
+      _customer = selected;
+      _report = _fetch(_selected!, range.from, range.to);
+    });
+  }
+
+  Future<void> _pickAccount() async {
+    final accounts = ref.read(accountingServiceProvider).listCoA();
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: accounts,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return Center(child: Text(snapshot.error.toString()));
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            return ListView.builder(
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                final account = snapshot.data![index];
+                return ListTile(
+                  title: Text(account['name']?.toString() ?? ''),
+                  subtitle: Text(account['code']?.toString() ?? ''),
+                  onTap: () => Navigator.pop(sheetContext, account),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+    if (!mounted || selected == null || _selected == null) return;
+    final range = ref.read(_dateRangeProvider);
+    setState(() {
+      _account = selected;
+      _report = _fetch(_selected!, range.from, range.to);
     });
   }
 
@@ -583,10 +655,11 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
     ref.read(_dateRangeProvider.notifier).state =
         _DateRange(from: from, to: to);
     final item = _selected;
-    if (item != null) {
+    if (item != null &&
+        (!_needsCustomer(item) || _customer != null) &&
+        (!_needsAccount(item) || _account != null)) {
       setState(() {
-        _report = ref.read(reportsServiceProvider).fetchReport(
-            item['slug'] as String, from, to, ref.read(languageProvider).name);
+        _report = _fetch(item, from, to);
       });
     }
   }
@@ -608,6 +681,26 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
           Text(selected['name']?.toString() ?? '',
               style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
+          if (_needsCustomer(selected)) ...[
+            OutlinedButton.icon(
+              onPressed: _pickCustomer,
+              icon: const Icon(Icons.person_search_outlined),
+              label: Text(_customer == null
+                  ? t.x('rep.customer')
+                  : '${_customer!.name} (${_customer!.customerCode})'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_needsAccount(selected)) ...[
+            OutlinedButton.icon(
+              onPressed: _pickAccount,
+              icon: const Icon(Icons.account_tree_outlined),
+              label: Text(_account == null
+                  ? t.x('accounting.chart_of_accounts')
+                  : '${_account!['code']} ${_account!['name']}'),
+            ),
+            const SizedBox(height: 12),
+          ],
           _DateRangeCard(
             from: range.from,
             to: range.to,
@@ -615,7 +708,17 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             onApply: _reload,
           ),
           const SizedBox(height: 12),
-          FutureBuilder<Map<String, dynamic>>(
+          if (_report == null)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                t.x(_needsAccount(selected)
+                    ? 'accounting.chart_of_accounts'
+                    : 'rep.customer'),
+                textAlign: TextAlign.center,
+              ),
+            )
+          else FutureBuilder<Map<String, dynamic>>(
             future: _report,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -667,6 +770,59 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
           );
         },
       ),
+    );
+  }
+}
+
+class _CustomerSearch extends SearchDelegate<Customer?> {
+  _CustomerSearch(this.service, String label) : super(searchFieldLabel: label);
+
+  final CustomerService service;
+  String? _lastQuery;
+  Future<List<Customer>>? _results;
+
+  @override
+  List<Widget> buildActions(BuildContext context) => [
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () => query = '',
+        ),
+      ];
+
+  @override
+  Widget buildLeading(BuildContext context) => IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => close(context, null),
+      );
+
+  @override
+  Widget buildResults(BuildContext context) => buildSuggestions(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    final search = query.trim();
+    if (search.length < 2) return const SizedBox.shrink();
+    if (_lastQuery != search) {
+      _lastQuery = search;
+      _results = service.list(query: search);
+    }
+    return FutureBuilder<List<Customer>>(
+      future: _results,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text(snapshot.error.toString()));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        return ListView.builder(
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final customer = snapshot.data![index];
+            return ListTile(
+              title: Text(customer.name),
+              subtitle: Text(customer.customerCode),
+              onTap: () => close(context, customer),
+            );
+          },
+        );
+      },
     );
   }
 }

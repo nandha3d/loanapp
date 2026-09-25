@@ -15,9 +15,13 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
+const int _pageSize = 50;
+
 final _notificationsProvider =
     FutureProvider.autoDispose<List<NotificationItem>>((ref) {
-  return ref.watch(notificationsServiceProvider).fetchNotifications();
+  return ref
+      .watch(notificationsServiceProvider)
+      .fetchNotifications(page: 1, pageSize: _pageSize);
 });
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -42,8 +46,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final nextPage = _page + 1;
       final results = await ref
           .read(notificationsServiceProvider)
-          .fetchNotifications(page: nextPage, pageSize: 50);
-      if (results.length < 50) {
+          .fetchNotifications(page: nextPage, pageSize: _pageSize);
+      if (results.length < _pageSize) {
         _hasMore = false;
       }
       _extraItems.addAll(results);
@@ -436,7 +440,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
         ),
         data: (baseItems) {
-          final items = [...baseItems, ..._extraItems];
+          final seen = <String>{};
+          final items = [
+            ...baseItems,
+            ..._extraItems,
+          ].where((item) => seen.add(item.id)).toList();
+          final hasMore = _hasMore && (baseItems.length >= _pageSize);
           if (items.isEmpty) {
             return EmptyState(
               icon: Icons.notifications_none_outlined,
@@ -497,7 +506,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ),
                   ),
                 ],
-                if (_hasMore && items.length >= 20)
+                if (hasMore)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Center(

@@ -2,7 +2,7 @@ import prisma from '../../db';
 import { ReportBuilderParams, ReportPayload } from '../types';
 
 export async function buildCustomerLoanHistory(params: ReportBuilderParams): Promise<ReportPayload> {
-  const { tenantId, appType, customerId, status, from, to } = params;
+  const { tenantId, appType, branchId, customerId, status, from, to } = params;
 
   if (!customerId) {
     return {
@@ -44,6 +44,7 @@ export async function buildCustomerLoanHistory(params: ReportBuilderParams): Pro
     tenantId,
     appType,
     customerId,
+    ...(branchId ? { branchId } : {}),
     ...(status ? { status } : {}),
     ...(dateFrom && dateTo ? { startDate: { gte: dateFrom, lte: dateTo } } : {}),
   };

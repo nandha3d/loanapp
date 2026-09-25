@@ -848,18 +848,32 @@ class _PenaltySummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final missedCount =
-        loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
-    final recordedPenalty =
-        loan.penalties.fold<double>(0, (s, p) => s + p.grossPenalty);
-    final potentialPenalty = missedCount * loan.penaltyRate;
-    final totalPenalty =
-        recordedPenalty > potentialPenalty ? recordedPenalty : potentialPenalty;
-    final settledPenalty =
-        loan.penalties.fold<double>(0, (s, p) => s + p.settledAmount);
-    final waivedPenalty =
-        loan.penalties.fold<double>(0, (s, p) => s + p.waivedAmount);
-    final netPenalty = totalPenalty - settledPenalty - waivedPenalty;
+    // Prefer server-supplied summary (single source of truth) to eliminate calculation drift
+    final summary = loan.penaltySummary;
+    final double totalPenalty;
+    final double settledPenalty;
+    final double waivedPenalty;
+    final double netPenalty;
+
+    if (summary != null) {
+      totalPenalty = summary.gross;
+      settledPenalty = summary.settled;
+      waivedPenalty = summary.waived;
+      netPenalty = summary.netDue;
+    } else {
+      final missedCount =
+          loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
+      final recordedPenalty =
+          loan.penalties.fold<double>(0, (s, p) => s + p.grossPenalty);
+      final potentialPenalty = missedCount * loan.penaltyRate;
+      totalPenalty =
+          recordedPenalty > potentialPenalty ? recordedPenalty : potentialPenalty;
+      settledPenalty =
+          loan.penalties.fold<double>(0, (s, p) => s + p.settledAmount);
+      waivedPenalty =
+          loan.penalties.fold<double>(0, (s, p) => s + p.waivedAmount);
+      netPenalty = totalPenalty - settledPenalty - waivedPenalty;
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),

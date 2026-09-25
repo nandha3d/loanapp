@@ -45,7 +45,7 @@ export async function buildBankBook(params: ReportBuilderParams): Promise<Report
   const priorLines = await prisma.journalLine.findMany({
     where: {
       accountId: { in: ledgerAccountIds },
-      entry: { tenantId, entryDate: { lt: dateFrom } },
+      entry: { tenantId, ...branchFilter, entryDate: { lt: dateFrom } },
     },
     select: { accountId: true, debit: true, credit: true },
   });
@@ -58,7 +58,7 @@ export async function buildBankBook(params: ReportBuilderParams): Promise<Report
   const lines = await prisma.journalLine.findMany({
     where: {
       accountId: { in: ledgerAccountIds },
-      entry: { tenantId, entryDate: { gte: dateFrom, lte: dateTo } },
+      entry: { tenantId, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
     },
     include: {
       entry: { select: { entryDate: true, postingDate: true, narration: true } },

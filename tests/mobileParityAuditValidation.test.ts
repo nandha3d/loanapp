@@ -205,4 +205,153 @@ assert.match(
   'requireMobileContext must reject revoked tokens with 401',
 );
 
-console.log('All mobile parity audit validation tests passed successfully! [7/7]');
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. P1: Notification Pagination & Overlap Prevention Contract
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('  Testing 8. Notification pagination contract...');
+
+const notifRouteSrc = read('app/api/v1/notifications/route.ts');
+assert.match(
+  notifRouteSrc,
+  /Number\(searchParams\.get\(['"]pageSize['"]\)\s*\|\|\s*50\)/,
+  'app/api/v1/notifications/route.ts default pageSize fallback must be 50',
+);
+
+const notifServiceSrc = read('mobile/lib/data/services/notifications_service.dart');
+assert.match(
+  notifServiceSrc,
+  /static\s+const\s+int\s+defaultPageSize\s*=\s*50;/,
+  'mobile NotificationsService must define defaultPageSize = 50',
+);
+assert.match(
+  notifServiceSrc,
+  /int\s+pageSize\s*=\s*defaultPageSize/,
+  'mobile NotificationsService.fetchNotifications must default to defaultPageSize',
+);
+
+const notifScreenSrc = read('mobile/lib/features/notifications/notifications_screen.dart');
+assert.match(
+  notifScreenSrc,
+  /const\s+int\s+_pageSize\s*=\s*50;/,
+  'mobile notifications_screen.dart must define const int _pageSize = 50',
+);
+assert.match(
+  notifScreenSrc,
+  /seen\.add\(item\.id\)/,
+  'mobile notifications_screen.dart must deduplicate items defensively using seen.add(item.id)',
+);
+
+// Mathematical verification of offset pagination for 125 items:
+const totalNotifs = 125;
+const pageSize = 50;
+const allNotifs = Array.from({ length: totalNotifs }, (_, i) => ({ id: `notif_${i + 1}` }));
+
+// Consistent page size (50):
+const page1 = allNotifs.slice((1 - 1) * pageSize, 1 * pageSize); // 0..50 (50 items: notif_1..50)
+const page2 = allNotifs.slice((2 - 1) * pageSize, 2 * pageSize); // 50..100 (50 items: notif_51..100)
+const page3 = allNotifs.slice((3 - 1) * pageSize, 3 * pageSize); // 100..150 (25 items: notif_101..125)
+
+assert.equal(page1.length, 50, 'Page 1 must have 50 items');
+assert.equal(page2.length, 50, 'Page 2 must have 50 items');
+assert.equal(page3.length, 25, 'Page 3 must have 25 items');
+
+const seenTest = new Set<string>();
+const combinedTest = [...page1, ...page2, ...page3].filter(item => seenTest.add(item.id));
+assert.equal(combinedTest.length, 125, 'Total combined items must be exactly 125');
+assert.equal(seenTest.size, 125, 'Zero duplicates with uniform pageSize = 50');
+
+// Bug scenario proof: if initial used pageSize = 100, page 1 returned records 1-100.
+// Then load more with page 2, pageSize 50 resulted in skip = (2 - 1) * 50 = 50, returning records 51-100.
+const buggyPage1 = allNotifs.slice(0, 100);
+const buggyPage2 = allNotifs.slice((2 - 1) * 50, 2 * 50); // items 50..100 (notif_51..100)
+const overlapCount = buggyPage2.filter(b => buggyPage1.some(a => a.id === b.id)).length;
+assert.equal(overlapCount, 50, 'Mismatch between 100 and 50 page sizes produced 50 overlapping items without uniform pageSize');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. P1: Report Catalog & Role-Gated Query Contract
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('  Testing 9. Report catalog and role-gated contract...');
+
+const reportsOptionsRouteSrc = read('app/api/v1/reports/options/route.ts');
+assert.match(
+  reportsOptionsRouteSrc,
+  /resolveActor\(req\)/,
+  'app/api/v1/reports/options/route.ts must resolve actor via dualAuth',
+);
+assert.match(
+  reportsOptionsRouteSrc,
+  /\['admin',\s*'superadmin',\s*'developer'\]\.includes\(context\.role\)/,
+  'reports options route must enforce role restriction for financial report options',
+);
+assert.match(
+  reportsOptionsRouteSrc,
+  /getReportsForAppType/,
+  'reports options route must supply catalog via getReportsForAppType',
+);
+
+const reportSlugRouteSrc = read('app/api/v1/reports/[slug]/route.ts');
+assert.match(
+  reportSlugRouteSrc,
+  /resolveActor\(req\)/,
+  'app/api/v1/reports/[slug]/route.ts must resolve actor via dualAuth',
+);
+assert.match(
+  reportSlugRouteSrc,
+  /context\.branchId\s*&&\s*requestedBranchId\s*&&\s*requestedBranchId\s*!==\s*context\.branchId/,
+  'reports [slug] route must enforce branch scoping guard',
+);
+assert.match(
+  reportSlugRouteSrc,
+  /isPremiumAccountingEnabled/,
+  'reports [slug] route must guard premium_accounting addons',
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Hardening: Server-Supplied Penalty Summary Contract
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('  Testing 10. Server-supplied penalty summary contract...');
+
+const loanDetailRouteSrc = read('app/api/v1/loans/[id]/route.ts');
+assert.match(
+  loanDetailRouteSrc,
+  /penaltySummary\s*=\s*\{\s*gross:/s,
+  'app/api/v1/loans/[id]/route.ts must calculate penaltySummary with gross',
+);
+assert.match(
+  loanDetailRouteSrc,
+  /penaltySummary:\s*penaltySummary|penaltySummary\s*,\s*\}\);/s,
+  'app/api/v1/loans/[id]/route.ts must include penaltySummary in response payload',
+);
+
+const loanModelSrc = read('mobile/lib/data/models/loan.dart');
+assert.match(
+  loanModelSrc,
+  /class\s+PenaltySummary/,
+  'mobile Loan model must define PenaltySummary class',
+);
+assert.match(
+  loanModelSrc,
+  /final\s+PenaltySummary\?\s+penaltySummary;/,
+  'mobile Loan model must define final PenaltySummary? penaltySummary;',
+);
+assert.match(
+  loanModelSrc,
+  /penaltySummary:\s*json\['penaltySummary'\]\s*is\s*Map<String,\s*dynamic>/,
+  'mobile Loan.fromJson must parse penaltySummary',
+);
+
+const loanDetailScreenSrc = read('mobile/lib/features/loans/loan_detail_screen.dart');
+assert.match(
+  loanDetailScreenSrc,
+  /final\s+summary\s*=\s*loan\.penaltySummary;/,
+  'mobile _PenaltySummaryCard must prefer loan.penaltySummary',
+);
+
+const webLoanDetailSrc = read('app/(dashboard)/[module]/loans/[id]/LoanDetailClient.tsx');
+assert.match(
+  webLoanDetailSrc,
+  /penaltySummary/,
+  'web LoanDetailClient must support server-supplied penaltySummary',
+);
+
+console.log('All mobile parity audit validation tests passed successfully! [10/10]');

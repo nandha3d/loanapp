@@ -23,13 +23,16 @@ class ReportsService {
 
   Future<Map<String, dynamic>> fetchReport(
       String slug, DateTime from, DateTime to,
-      [String? language]) async {
+      [String? language, String? customerId, String? accountId]) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.report(slug),
       queryParameters: {
         'from': _fmtDate(from),
         'to': _fmtDate(to),
         if (language != null && language.isNotEmpty) 'lang': language,
+        if (customerId != null) 'customerId': customerId,
+        // The shared web report uses loanId for its chart-of-accounts selector.
+        if (accountId != null) 'loanId': accountId,
       },
     );
     return unwrapEnvelope(
