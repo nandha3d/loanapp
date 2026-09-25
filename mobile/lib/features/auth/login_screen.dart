@@ -1,5 +1,6 @@
 // ignore_for_file: require_trailing_commas
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _password = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
+
+  // WhatsApp OTP login state
+  bool _useWhatsApp = false;
+  final _phone = TextEditingController();
+  final _otp = TextEditingController();
+  bool _otpSent = false;
+  String? _challengeToken;
+  int _cooldown = 0;
+  Timer? _cooldownTimer;
+  String? _localError;
+
   late final AnimationController _fade = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
@@ -39,8 +51,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void dispose() {
     _username.dispose();
     _password.dispose();
+    _phone.dispose();
+    _otp.dispose();
+    _cooldownTimer?.cancel();
     _fade.dispose();
     super.dispose();
+  }
+
+  void _startCooldown() {
+    setState(() => _cooldown = 60);
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldown <= 1) {
+        timer.cancel();
+        setState(() => _cooldown = 0);
+      } else {
+        setState(() => _cooldown--);
+      }
+    });
+  }
+
+  Future<void> _sendWhatsAppOtp() async {
+    final phone = _phone.text.trim();
+    if (phone.length < 10) {
+      setState(() => _localError = 'Enter a valid 10-digit mobile number');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _localError = null;
+    });
+    try {
+      final token = await ref
+          .read(authControllerProvider.notifier)
+          .sendWhatsAppOtp(phone);
+      if (mounted) {
+        setState(() {
+          _challengeToken = token;
+          _otpSent = true;
+        });
+        _startCooldown();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _localError = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _submitWhatsAppOtp() async {
+    final otp = _otp.text.trim();
+    if (otp.length != 6) {
+      setState(() => _localError = 'Enter the 6-digit WhatsApp OTP');
+      return;
+    }
+    if (_challengeToken == null) {
+      setState(() => _localError = 'Session expired. Please request a new OTP.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _localError = null;
+    });
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .loginWithWhatsAppOtp(
+            phone: _phone.text.trim(),
+            otp: otp,
+            challengeToken: _challengeToken!,
+          );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _localError = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -240,7 +333,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               obscure: _obscure,
                               onToggleObscure: () =>
                                   setState(() => _obscure = !_obscure),
-                              error: auth.error,
+                              useWhatsApp: _useWhatsApp,
+                              onToggleMode: (val) => setState(() {
+                                _useWhatsApp = val;
+                                _localError = null;
+                              }),
+                              phone: _phone,
+                              otp: _otp,
+                              otpSent: _otpSent,
+                              cooldown: _cooldown,
+                              onSendOtp: _sendWhatsAppOtp,
+                              onSubmitOtp: _submitWhatsAppOtp,
+                              onResetOtp: () => setState(() {
+                                _otpSent = false;
+                                _otp.clear();
+                                _challengeToken = null;
+                                _localError = null;
+                              }),
+                              error: _localError ?? auth.error,
                               loading: loading,
                               onSubmit: _submit,
                               onGoogleSignIn: _handleGoogleSignIn,
@@ -266,6 +376,15 @@ class _LoginCard extends ConsumerWidget {
     required this.password,
     required this.obscure,
     required this.onToggleObscure,
+    required this.useWhatsApp,
+    required this.onToggleMode,
+    required this.phone,
+    required this.otp,
+    required this.otpSent,
+    required this.cooldown,
+    required this.onSendOtp,
+    required this.onSubmitOtp,
+    required this.onResetOtp,
     required this.error,
     required this.loading,
     required this.onSubmit,
@@ -276,6 +395,15 @@ class _LoginCard extends ConsumerWidget {
   final TextEditingController password;
   final bool obscure;
   final VoidCallback onToggleObscure;
+  final bool useWhatsApp;
+  final ValueChanged<bool> onToggleMode;
+  final TextEditingController phone;
+  final TextEditingController otp;
+  final bool otpSent;
+  final int cooldown;
+  final VoidCallback onSendOtp;
+  final VoidCallback onSubmitOtp;
+  final VoidCallback onResetOtp;
   final String? error;
   final bool loading;
   final Future<void> Function() onSubmit;
@@ -284,6 +412,11 @@ class _LoginCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    final isSamurai = () {
+      final url = (ref.watch(apiBaseUrlProvider) ?? kDefaultBaseUrl).toLowerCase();
+      return url.contains('samuraibuiness.in') || url.contains('samurai');
+    }();
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
       decoration: BoxDecoration(
@@ -295,61 +428,203 @@ class _LoginCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
+          const Center(
             child: AppLogo.horizontal(
               height: 52,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
+          if (!isSamurai) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => onToggleMode(false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: !useWhatsApp ? AppColors.surface : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: !useWhatsApp ? AppTokens.shadow : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Password',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: !useWhatsApp ? AppColors.textPrimary : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => onToggleMode(true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: useWhatsApp ? const Color(0xFF25D366) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: useWhatsApp ? AppTokens.shadow : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat,
+                              size: 14,
+                              color: useWhatsApp ? Colors.white : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'WhatsApp OTP',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: useWhatsApp ? Colors.white : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (error != null) ...[
             _ErrorBanner(message: error!),
             const SizedBox(height: 16),
           ],
-          AppTextField(
-            label: t.x('login.username'),
-            controller: username,
-            prefixIcon: Icons.person_outline,
-            autofillHints: const [AutofillHints.username],
-          ),
-          const SizedBox(height: 16),
-          AppTextField(
-            label: t.x('login.password'),
-            controller: password,
-            obscureText: obscure,
-            prefixIcon: Icons.lock_outline,
-            autofillHints: const [AutofillHints.password],
-            suffixIcon: IconButton(
-              icon: Icon(
-                obscure
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                size: 18,
-                color: AppColors.textSecondary,
-              ),
-              onPressed: onToggleObscure,
+          if (!useWhatsApp || isSamurai) ...[
+            AppTextField(
+              label: t.x('login.username'),
+              controller: username,
+              prefixIcon: Icons.person_outline,
+              autofillHints: const [AutofillHints.username],
             ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 48,
-            child: AppButton(
-              label: t.x('login.sign_in'),
-              expand: true,
-              loading: loading,
-              onPressed: onSubmit,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
-              onPressed: () => context.push('/forgot-password'),
-              child: Text(
-                t.x('login.forgot'),
-                style:
-                    AppTypography.body.copyWith(color: AppColors.primaryDark),
+            const SizedBox(height: 16),
+            AppTextField(
+              label: t.x('login.password'),
+              controller: password,
+              obscureText: obscure,
+              prefixIcon: Icons.lock_outline,
+              autofillHints: const [AutofillHints.password],
+              suffixIcon: IconButton(
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                onPressed: onToggleObscure,
               ),
             ),
-          ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 48,
+              child: AppButton(
+                label: t.x('login.sign_in'),
+                expand: true,
+                loading: loading,
+                onPressed: onSubmit,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: () => context.push('/forgot-password'),
+                child: Text(
+                  t.x('login.forgot'),
+                  style:
+                      AppTypography.body.copyWith(color: AppColors.primaryDark),
+                ),
+              ),
+            ),
+          ] else ...[
+            AppTextField(
+              label: 'Mobile Number',
+              controller: phone,
+              prefixIcon: Icons.phone_android,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              keyboardType: TextInputType.phone,
+              enabled: !otpSent,
+            ),
+            const SizedBox(height: 16),
+            if (!otpSent) ...[
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.chat, color: Colors.white, size: 20),
+                  label: Text(
+                    loading ? 'Sending OTP…' : 'Send WhatsApp OTP',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: loading ? null : onSendOtp,
+                ),
+              ),
+            ] else ...[
+              AppTextField(
+                label: '6-digit WhatsApp OTP',
+                controller: otp,
+                prefixIcon: Icons.lock_clock_outlined,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: loading ? null : onSubmitOtp,
+                  child: Text(
+                    loading ? 'Verifying…' : 'Verify & Sign In',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: loading ? null : onResetOtp,
+                    child: const Text('Change number', style: TextStyle(fontSize: 12)),
+                  ),
+                  TextButton(
+                    onPressed: (cooldown > 0 || loading) ? null : onSendOtp,
+                    child: Text(
+                      cooldown > 0 ? 'Resend in ${cooldown}s' : 'Resend WhatsApp OTP',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cooldown > 0 ? AppColors.textSecondary : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
           const SizedBox(height: 12),
           if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) ...[
             const Row(

@@ -31,6 +31,8 @@ class Endpoints {
   static const String account = '/account';
   static const String accountPasswordOtp = '/account/password/otp';
   static const String accountPasswordChange = '/account/password/change';
+  static const String whatsappSendOtp = '/auth/whatsapp/send-otp';
+  static const String whatsappVerifyOtp = '/auth/whatsapp/verify-otp';
 
   // Customers
   static const String customers = '/customers';
@@ -120,7 +122,10 @@ class Endpoints {
   static String chitAuctionSecurityDocuments(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/security/documents';
   static String chitAuctionSecurityDocument(
-          String id, String auctionId, String documentId) =>
+    String id,
+    String auctionId,
+    String documentId,
+  ) =>
       '/chits/$id/auctions/$auctionId/security/documents/$documentId';
   static String chitAuctionPayout(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/payout';

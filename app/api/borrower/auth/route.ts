@@ -156,6 +156,7 @@ export async function POST(request: Request) {
           host,
           purpose: 'borrower_login',
           customerId: customer.id,
+          otpCode: code,
         }).catch((err) => console.error('[borrower/auth] WhatsApp dispatch error:', err));
       }
 

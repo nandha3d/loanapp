@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/services/borrower_service.dart';
 import 'package:zolofund/shared/widgets/app_logo.dart';
 
@@ -105,6 +107,11 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSamurai = () {
+      final url = (ref.watch(apiBaseUrlProvider) ?? kDefaultBaseUrl).toLowerCase();
+      return url.contains('samuraibuiness.in') || url.contains('samurai');
+    }();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -115,7 +122,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Logo / Branding
-                Center(
+                const Center(
                   child: AppLogo.horizontal(
                     height: 56,
                   ),
@@ -129,10 +136,10 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _useOtp
+                  (_useOtp && !isSamurai)
                       ? (_otpSent
-                          ? 'Enter the OTP sent to ${_phoneCtrl.text}'
-                          : 'First-time setup — verify your phone with an OTP')
+                          ? 'Enter the 6-digit WhatsApp OTP sent to ${_phoneCtrl.text}'
+                          : 'First-time setup or fast login — verify with WhatsApp OTP')
                       : 'Login with your registered phone number and password',
                   style: AppTypography.body
                       .copyWith(color: AppColors.textSecondary),
@@ -155,7 +162,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                       ),
                     ),
                   ),
-                if (!_useOtp) ...[
+                if (!_useOtp || isSamurai) ...[
                   TextField(
                     controller: _phoneCtrl,
                     decoration: InputDecoration(
@@ -206,16 +213,18 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                       child: Text(_loading ? 'Logging in…' : 'Login'),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _loading
-                        ? null
-                        : () => setState(() {
-                              _useOtp = true;
-                              _error = null;
-                            }),
-                    child: const Text('First time or forgot password? Use OTP'),
-                  ),
+                  if (!isSamurai) ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => setState(() {
+                                _useOtp = true;
+                                _error = null;
+                              }),
+                      child: const Text('First time or forgot password? Login with WhatsApp OTP'),
+                    ),
+                  ],
                 ] else if (!_otpSent) ...[
                   TextField(
                     controller: _phoneCtrl,
@@ -233,17 +242,18 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.chat, color: Colors.white, size: 20),
                       onPressed: _loading ? null : _sendOtp,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: const Color(0xFF25D366),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppTokens.radius),
                         ),
                       ),
-                      child: Text(_loading ? 'Sending OTP…' : 'Send OTP'),
+                      label: Text(_loading ? 'Sending WhatsApp OTP…' : 'Send WhatsApp OTP'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -260,8 +270,8 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                   TextField(
                     controller: _otpCtrl,
                     decoration: InputDecoration(
-                      labelText: 'OTP',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      labelText: '6-digit WhatsApp OTP',
+                      prefixIcon: const Icon(Icons.lock_clock_outlined),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppTokens.radius),
                       ),
@@ -277,7 +287,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                     child: ElevatedButton(
                       onPressed: _loading ? null : _verifyOtp,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: const Color(0xFF25D366),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(

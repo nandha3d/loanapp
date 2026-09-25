@@ -18,6 +18,7 @@ class AppTextField extends StatefulWidget {
     this.autofillHints,
     this.onChanged,
     this.maxLines = 1,
+    this.enabled = true,
   });
 
   final String label;
@@ -31,6 +32,7 @@ class AppTextField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onChanged;
   final int maxLines;
+  final bool enabled;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -63,6 +65,7 @@ class _AppTextFieldState extends State<AppTextField> {
         const SizedBox(height: 6),
         TextField(
           controller: widget.controller,
+          enabled: widget.enabled,
           obscureText: widget.obscureText && _obscured,
           keyboardType: widget.keyboardType,
           autofillHints: widget.autofillHints,

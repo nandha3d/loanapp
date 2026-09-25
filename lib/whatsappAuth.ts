@@ -164,6 +164,7 @@ export interface SendWhatsAppOtpOptions {
   purpose?: 'login' | 'borrower_login' | '2fa' | 'reset_password' | 'registration';
   userId?: string | null;
   customerId?: string | null;
+  otpCode?: string;
 }
 
 export interface SendWhatsAppOtpResult {
@@ -178,7 +179,7 @@ export interface SendWhatsAppOtpResult {
  * Returns a signed challenge token to be verified by verifyWhatsAppOtp.
  */
 export async function sendWhatsAppAuthOtp(options: SendWhatsAppOtpOptions): Promise<SendWhatsAppOtpResult> {
-  const { phone, tenantId, host, tenantSlug, purpose = 'login', userId, customerId } = options;
+  const { phone, tenantId, host, tenantSlug, purpose = 'login', userId, customerId, otpCode: customOtp } = options;
 
   // 1. Strict Samurai protection guard
   const isExcluded = await isSamuraiExcludedDomain({ host, tenantSlug, tenantId });
@@ -242,7 +243,7 @@ export async function sendWhatsAppAuthOtp(options: SendWhatsAppOtpOptions): Prom
   }
 
   // 4. Generate secure 6-digit OTP & Hash
-  const otpCode = generateBorrowerOtp();
+  const otpCode = customOtp || generateBorrowerOtp();
   const secretStr = getBorrowerSecretString();
   const otpHash = hashBorrowerOtp(otpCode, secretStr);
 

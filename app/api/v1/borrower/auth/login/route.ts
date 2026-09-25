@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
         tenantSlug,
         purpose: 'borrower_login',
         customerId: customer.id,
+        otpCode: code,
       }).catch((err) => console.error('[v1/borrower/auth/login] WhatsApp dispatch error:', err));
     }
 

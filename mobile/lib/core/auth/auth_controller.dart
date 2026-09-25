@@ -95,6 +95,40 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String> sendWhatsAppOtp(String phone, {String? tenantSlug}) async {
+    state = state.copyWith(clearError: true);
+    try {
+      final res = await _repo.sendWhatsAppOtp(phone: phone, tenantSlug: tenantSlug);
+      return res['challengeToken'] as String;
+    } on Object catch (e) {
+      state = state.copyWith(error: _readable(e));
+      rethrow;
+    }
+  }
+
+  Future<void> loginWithWhatsAppOtp({
+    required String phone,
+    required String otp,
+    required String challengeToken,
+    String? tenantSlug,
+  }) async {
+    state = state.copyWith(clearError: true);
+    try {
+      final user = await _repo.loginWithWhatsAppOtp(
+        phone: phone,
+        otp: otp,
+        challengeToken: challengeToken,
+        tenantSlug: tenantSlug,
+      );
+      state = AuthState(stage: AuthStage.authenticated, user: user);
+      _fcm.startTokenSync();
+      unawaited(refreshUser());
+    } on Object catch (e) {
+      state = state.copyWith(error: _readable(e));
+      rethrow;
+    }
+  }
+
   Future<void> verifyTotp(String code) async {
     state = state.copyWith(clearError: true);
     try {
