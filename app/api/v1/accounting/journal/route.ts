@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
   const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const searchParams = req.nextUrl.searchParams;
     const page = Number(searchParams.get('page') ?? '1');
     const take = 50;
@@ -47,12 +49,7 @@ export async function GET(req: NextRequest) {
     
     const status = searchParams.get('status') || undefined;
     const search = searchParams.get('search') || undefined;
-    const branchId = searchParams.get('branchId') || undefined;
-
     const and: any[] = [];
-    if (branchId) {
-      and.push({ OR: [{ branchId }, { branchId: null }] });
-    }
     if (search) {
       and.push({
         OR: [
@@ -64,6 +61,7 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       tenantId: ctx.tenantId,
+      ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
       entryDate: { gte: from, lte: to },
       status,
       ...(and.length ? { AND: and } : {}),
@@ -87,7 +85,7 @@ export async function GET(req: NextRequest) {
       pages: Math.ceil(total / take),
     });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -100,11 +98,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const body = await req.json();
-    const { action, entryDate: entryDateStr, narration, branchId, lines } = body;
+    const { action, entryDate: entryDateStr, narration, lines } = body;
+    if (body.branchId && body.branchId !== ctx.branchId) return fail('Branch mismatch', 403);
+    if (!ctx.branchId) return fail('An active branch is required', 400);
 
     if (!entryDateStr || !lines || !Array.isArray(lines) || lines.length < 2) {
       return fail('Invalid journal entries data', 400);
+    }
+    const accountIds = [...new Set(lines.map((line) => line.accountId))];
+    if (accountIds.some((id) => typeof id !== 'string' || !id) ||
+        await prisma.account.count({ where: { tenantId: ctx.tenantId, id: { in: accountIds } } }) !== accountIds.length) {
+      return fail('Account not found', 404);
     }
 
     const entryDate = new Date(entryDateStr);
@@ -131,6 +137,7 @@ export async function POST(req: NextRequest) {
       const entry = await prisma.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          branchId: ctx.branchId,
           entryDate,
           narration,
           status: 'draft',
@@ -162,7 +169,7 @@ export async function POST(req: NextRequest) {
       const entry = await prisma.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
-          branchId: branchId || null,
+          branchId: ctx.branchId,
           entryDate,
           narration,
           status: 'pending_approval',
@@ -203,7 +210,7 @@ export async function POST(req: NextRequest) {
       const je = await tx.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
-          branchId: branchId || null,
+          branchId: ctx.branchId,
           entryNo,
           entryDate,
           narration,
@@ -247,6 +254,6 @@ export async function POST(req: NextRequest) {
 
     return ok({ success: true, status: 'posted', entryId: entry.id, entryNo });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

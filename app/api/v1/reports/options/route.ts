@@ -1,21 +1,35 @@
-import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { requireApiContext, ADMIN_API_ROLES } from '@/lib/apiAuth';
+import { resolveActor } from '@/lib/api/dualAuth';
+import { ok, fail } from '@/lib/api/v1-envelope';
+import { getReportsForAppType } from '@/lib/reports/catalog';
+import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
+import type { AppType } from '@/lib/appConfig';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const authResult = await requireApiContext(ADMIN_API_ROLES);
-    if ('response' in authResult && authResult.response) return authResult.response;
-    const context = 'context' in authResult ? authResult.context : (authResult as any);
+    const context = await resolveActor(req);
+    if (!context) return fail('Unauthorized', 401);
+    if (context.role === 'agent') return fail('Forbidden', 403);
 
     const { searchParams } = new URL(req.url);
     const requestedAppType = searchParams.get('appType');
-    const effectiveAppType = requestedAppType || context.appType;
+    if (requestedAppType && requestedAppType !== context.appType) return fail('Report not found', 404);
+    const effectiveAppType = context.appType;
     const { tenantId, branchId } = context;
+    const premiumAccountingEnabled = await isPremiumAccountingEnabled(tenantId);
+    const reports = getReportsForAppType(effectiveAppType as AppType, { premiumAccountingEnabled: true })
+      .map(({ slug, name, category, addon }) => ({
+        slug,
+        name,
+        category,
+        addon,
+        locked: addon === 'premium_accounting' && !premiumAccountingEnabled,
+      }));
 
     const [branches, agents, loans, payments, chitGroups, customers] = await Promise.all([
       prisma.branch.findMany({
-        where: { tenantId },
+        where: { tenantId, ...(branchId ? { id: branchId } : {}) },
         select: { id: true, name: true },
       }),
       prisma.user.findMany({
@@ -27,7 +41,7 @@ export async function GET(req: Request) {
         select: { loanType: true, status: true, frequency: true },
       }),
       prisma.payment.findMany({
-        where: { tenantId },
+        where: { tenantId, loan: { appType: effectiveAppType, ...(branchId ? { branchId } : {}) } },
         select: { paymentMode: true },
       }),
       effectiveAppType === 'chitfunds'
@@ -50,27 +64,18 @@ export async function GET(req: Request) {
     const frequencies = Array.from(new Set(loans.map(l => l.frequency).filter(Boolean)));
     const paymentModes = Array.from(new Set(payments.map(p => p.paymentMode).filter(Boolean)));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        branches,
-        agents,
-        loanTypes,
-        statuses,
-        frequencies,
-        paymentModes,
-        chitGroups: chitGroups.map((g) => ({ id: g.id, name: g.groupCode ? `${g.name} (${g.groupCode})` : g.name })),
-        customers: customers.map((c) => ({ id: c.id, name: `${c.name} (${c.customerCode})` })),
-      },
-      error: null,
-      pagination: null,
+    return ok({
+      reports,
+      branches,
+      agents,
+      loanTypes,
+      statuses,
+      frequencies,
+      paymentModes,
+      chitGroups: chitGroups.map((g) => ({ id: g.id, name: g.groupCode ? `${g.name} (${g.groupCode})` : g.name })),
+      customers: customers.map((c) => ({ id: c.id, name: `${c.name} (${c.customerCode})` })),
     });
   } catch (error: any) {
-    return NextResponse.json({
-      success: false,
-      data: null,
-      error: error.message,
-      pagination: null,
-    }, { status: 500 });
+    return fail(error.message, 500);
   }
 }

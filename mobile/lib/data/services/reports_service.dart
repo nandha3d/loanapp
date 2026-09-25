@@ -9,6 +9,22 @@ class ReportsService {
   ReportsService(this._dio);
   final Dio _dio;
 
+  Future<List<Map<String, dynamic>>> fetchCatalog() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOptions);
+    return unwrapEnvelope(res, (dynamic data) {
+      final reports = (data as Map<String, dynamic>)['reports'] as List<dynamic>? ?? const [];
+      return reports.map((dynamic item) => Map<String, dynamic>.from(item as Map)).toList(growable: false);
+    });
+  }
+
+  Future<Map<String, dynamic>> fetchReport(String slug, DateTime from, DateTime to) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.report(slug),
+      queryParameters: {'from': _fmtDate(from), 'to': _fmtDate(to)},
+    );
+    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
   /// Fetch accounting capital summary.
   Future<AccountingSummary> fetchAccountingSummary() async {
     final res =

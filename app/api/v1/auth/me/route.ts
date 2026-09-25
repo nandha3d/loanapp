@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { getSetting } from '@/lib/tenant';
 
 export async function GET(req: NextRequest) {
@@ -17,17 +17,21 @@ export async function GET(req: NextRequest) {
     return fail('User not found', 404);
   }
 
-  // Verticals the tenant subscribed to (microlending/autofinance/chitfunds/
+  // Verticals the user has access to (microlending/autofinance/chitfunds/
   // goldloan) — drives the mobile portal module cards, mirroring web /portal.
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId: user.tenantId },
-    select: { enabledModules: true, gpsTrackingEnabled: true },
+    select: {
+      gpsTrackingEnabled: true,
+      npaEnabled: true,
+      kycEnabled: true,
+      bureauEnabled: true,
+      premiumAccountingEnabled: true,
+      whatsappSmsEnabled: true,
+      foreclosureEnabled: true,
+    },
   });
-  let verticals: string[] = [];
-  try {
-    const parsed = JSON.parse(subscription?.enabledModules || '[]');
-    if (Array.isArray(parsed)) verticals = parsed.filter((m) => typeof m === 'string');
-  } catch { /* malformed JSON → empty list */ }
+  const verticals = await resolveUserVerticals(user);
 
   // Tenant security policy: the mobile app only shows the biometric lock
   // screen when this is explicitly enabled (Settings → Security).
@@ -38,6 +42,12 @@ export async function GET(req: NextRequest) {
     verticals,
     biometricLockRequired,
     gpsTrackingEnabled: Boolean(subscription?.gpsTrackingEnabled),
+    npaEnabled: Boolean(subscription?.npaEnabled),
+    kycEnabled: Boolean(subscription?.kycEnabled),
+    bureauEnabled: Boolean(subscription?.bureauEnabled),
+    premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
+    whatsappSmsEnabled: Boolean(subscription?.whatsappSmsEnabled),
+    foreclosureEnabled: Boolean(subscription?.foreclosureEnabled),
     id: user.id,
     name: user.name,
     phone: user.phone,

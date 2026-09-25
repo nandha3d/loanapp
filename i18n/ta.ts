@@ -75,6 +75,7 @@ export const ta = {
     frequency:          'கால இடைவெளி',
     daily:              'தினசரி',
     weekly:             'வாராந்திர',
+    biweekly:           'இருவாரத்திற்கு ஒருமுறை',
     monthly:            'மாதாந்திர',
     custom:             'தனிப்பயன்',
     allFrequencies:     'அனைத்தும்',

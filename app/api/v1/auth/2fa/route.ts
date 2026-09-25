@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { verifySync } from 'otplib';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken, issueRefreshToken, loginWindowFailure } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, loginWindowFailure, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { checkRateLimit, getClientIp, routeKey, loginUserKey } from '@/lib/rateLimit';
 
 /**
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
 
     const token = await issueMobileToken({ userId: user.id, tenantId: user.tenantId, branchId: user.branchId, role: user.role, appType: user.appType });
     const refreshToken = await issueRefreshToken(user.id, user.tenantId).catch(() => null);
+    const verticals = await resolveUserVerticals(user);
 
     return ok({
       token,
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
         tenantSlug: user.tenant.slug,
         gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
         enabledModules: enabledModulesForRole(user.role),
+        verticals,
       },
     });
   } catch (e: any) {

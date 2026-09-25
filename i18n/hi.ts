@@ -75,6 +75,7 @@ export const hi = {
     frequency:          'आवृत्ति',
     daily:              'दैनिक',
     weekly:             'साप्ताहिक',
+    biweekly:           'हर दो सप्ताह',
     monthly:            'मासिक',
     custom:             'कस्टम',
     allFrequencies:     'सभी',

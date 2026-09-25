@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promise<any[]> {
   const fyStart = parseInt(fiscalYear.split('-')[0]);
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const searchParams = req.nextUrl.searchParams;
     const today = new Date();
     const fy = searchParams.get('fiscalYear')
@@ -68,11 +70,11 @@ export async function GET(req: NextRequest) {
       const [incomeAgg, expenseAgg] = await Promise.all([
         prisma.journalLine.aggregate({
           _sum: { credit: true, debit: true },
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { classType: 'income' } },
+          where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
         }),
         prisma.journalLine.aggregate({
           _sum: { debit: true, credit: true },
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { classType: 'expense' } },
+          where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
         }),
       ]);
       const netIncome = Number(incomeAgg._sum.credit ?? 0) - Number(incomeAgg._sum.debit ?? 0);
@@ -97,7 +99,7 @@ export async function GET(req: NextRequest) {
 
     return ok(result);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -111,6 +113,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
+    if (ctx.branchId) return fail('Forbidden', 403);
     const body = await req.json();
     const { action, periodId, reason } = body;
 
@@ -150,11 +154,11 @@ export async function POST(req: NextRequest) {
 
       const [incomeAgg, expenseAgg] = await Promise.all([
         prisma.journalLine.findMany({
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { classType: 'income' } },
+          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
           include: { account: true },
         }),
         prisma.journalLine.findMany({
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { classType: 'expense' } },
+          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
           include: { account: true },
         }),
       ]);
@@ -295,6 +299,6 @@ export async function POST(req: NextRequest) {
 
     return fail('Invalid action', 400);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/kyc_service.dart';
 import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -18,8 +21,28 @@ class KycReviewScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(kycQueueProvider);
     final t = T.of(ref);
+    final user = ref.watch(authControllerProvider).user;
+    final isDeveloper = user?.role == UserRole.developer;
+    final isSubscribed = user?.kycEnabled == true || isDeveloper;
+
+    if (!isSubscribed) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(t.x('kyc.title')),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/dashboard'),
+          ),
+        ),
+        body: _KycLockedView(ref: ref),
+      );
+    }
+
+    final async = ref.watch(kycQueueProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -38,11 +61,17 @@ class KycReviewScreen extends ConsumerWidget {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, __) => const Skeleton(height: 84, borderRadius: 12),
         ),
-        error: (e, _) => EmptyState(
-          icon: Icons.cloud_off,
-          title: t.x('err.failed_to_load'),
-          subtitle: e.toString(),
-        ),
+        error: (e, _) {
+          final errStr = e.toString();
+          if (errStr.contains('403') || errStr.contains('not enabled')) {
+            return _KycLockedView(ref: ref);
+          }
+          return EmptyState(
+            icon: Icons.cloud_off,
+            title: t.x('err.failed_to_load'),
+            subtitle: e.toString(),
+          );
+        },
         data: (items) => items.isEmpty
             ? EmptyState(
                 icon: Icons.verified_user_outlined,
@@ -60,6 +89,181 @@ class KycReviewScreen extends ConsumerWidget {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _KycLockedView extends StatelessWidget {
+  const _KycLockedView({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 480),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppTokens.radius),
+            boxShadow: AppTokens.shadowLg,
+            border: Border.all(color: AppColors.warning.withAlpha(60), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.warningBg,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.warning.withAlpha(120),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.verified_user_outlined,
+                      size: 38,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.lock_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'KYC Verification Suite',
+                style: AppTypography.nameLg.copyWith(fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Instant Aadhaar OTP verification, document OCR, and video KYC reviews are locked for your organization.',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    _buildFeatureItem(Icons.fingerprint_rounded, 'Instant Aadhaar OTP & offline XML e-KYC'),
+                    const SizedBox(height: 10),
+                    _buildFeatureItem(Icons.videocam_outlined, 'Live video recording & facial liveliness audit'),
+                    const SizedBox(height: 10),
+                    _buildFeatureItem(Icons.shield_outlined, 'RBI compliant audit logs & anti-fraud verification'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'KYC Add-on Plan',
+                      style: AppTypography.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                    Text(
+                      '₹199 / month',
+                      style: AppTypography.nameLg.copyWith(
+                        fontSize: 16,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    showAddonPurchaseSheet(
+                      context,
+                      ref,
+                      addonKey: 'kyc',
+                      onActivated: () => ref.invalidate(kycQueueProvider),
+                    );
+                  },
+                  icon: const Icon(Icons.flash_on_rounded, size: 18),
+                  label: const Text(
+                    'Purchase KYC Add-on (₹199/mo)',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Secured by Razorpay · Activated immediately',
+                style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTypography.caption.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

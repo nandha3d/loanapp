@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { writeAuditLog } from '@/lib/accounting/premium';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 // Matching engine local copy helper
-async function runMatching(statementId: string, ledgerAccountId: string, tenantId: string) {
+async function runMatching(statementId: string, ledgerAccountId: string, tenantId: string, branchId: string | null) {
   const lines = await prisma.bankStatementLine.findMany({
     where: { statementId, status: 'unmatched' },
   });
@@ -20,7 +21,7 @@ async function runMatching(statementId: string, ledgerAccountId: string, tenantI
     const candidates = await prisma.journalLine.findMany({
       where: {
         accountId: ledgerAccountId,
-        entry: { tenantId, status: 'posted', entryDate: { gte: from, lte: to } },
+        entry: { tenantId, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: from, lte: to } },
         id: { notIn: (await prisma.bankStatementLine.findMany({ where: { matchedJournalLineId: { not: null } }, select: { matchedJournalLineId: true } })).map(x => x.matchedJournalLineId!) },
       },
       include: { entry: { select: { entryDate: true, narration: true } } },
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const searchParams = req.nextUrl.searchParams;
     const statementId = searchParams.get('statementId');
     const bankAccountId = searchParams.get('bankAccountId');
@@ -80,7 +82,7 @@ export async function GET(req: NextRequest) {
     if (statementId) {
       const showUnmatchedOnly = searchParams.get('showUnmatchedOnly') === 'true';
       const stmt = await prisma.bankStatement.findFirst({
-        where: { id: statementId, bankAccount: { tenantId: ctx.tenantId } },
+        where: { id: statementId, bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
         include: {
           lines: {
             where: showUnmatchedOnly ? { status: 'unmatched' } : undefined,
@@ -104,7 +106,7 @@ export async function GET(req: NextRequest) {
 
     if (bankAccountId) {
       const detail = await prisma.bankAccount.findFirst({
-        where: { id: bankAccountId, tenantId: ctx.tenantId },
+        where: { id: bankAccountId, tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
         include: {
           ledgerAccount: { select: { id: true, code: true, name: true } },
           statements: {
@@ -120,7 +122,7 @@ export async function GET(req: NextRequest) {
 
     // Default: list bank accounts and ledger accounts (cash/bank)
     const accounts = await prisma.bankAccount.findMany({
-      where: { tenantId: ctx.tenantId, isActive: true },
+      where: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx), isActive: true },
       include: {
         ledgerAccount: { select: { code: true, name: true } },
         statements: {
@@ -135,7 +137,7 @@ export async function GET(req: NextRequest) {
     const bankAccountsWithBal = await Promise.all(accounts.map(async (ba) => {
       const agg = await prisma.journalLine.aggregate({
         _sum: { debit: true, credit: true },
-        where: { accountId: ba.ledgerAccountId, entry: { tenantId: ctx.tenantId, status: 'posted' } },
+        where: { accountId: ba.ledgerAccountId, entry: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx), status: 'posted' } },
       });
       const bookBalance = Number(ba.openingBalance) + Number(agg._sum.debit ?? 0) - Number(agg._sum.credit ?? 0);
       return {
@@ -158,7 +160,7 @@ export async function GET(req: NextRequest) {
 
     return ok({ bankAccounts: bankAccountsWithBal, ledgerAccounts });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -172,6 +174,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const body = await req.json();
     const { action } = body;
 
@@ -180,10 +183,18 @@ export async function POST(req: NextRequest) {
       if (!name || !bankName || !accountNo || !ledgerAccountId) {
         return fail('Missing required fields for bank account creation', 400);
       }
+      const branchId = await resolveWriteBranchId(ctx);
+      if (!branchId) return fail('An active branch is required', 400);
+      const ledgerAccount = await prisma.account.findFirst({
+        where: { id: ledgerAccountId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!ledgerAccount) return fail('Ledger account not found', 404);
 
       const ba = await prisma.bankAccount.create({
         data: {
           tenantId: ctx.tenantId,
+          branchId,
           name,
           bankName,
           accountNo,
@@ -212,7 +223,7 @@ export async function POST(req: NextRequest) {
       }
 
       const ba = await prisma.bankAccount.findFirst({
-        where: { id: bankAccountId, tenantId: ctx.tenantId },
+        where: { id: bankAccountId, tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
       });
       if (!ba) return fail('Bank account not found', 404);
 
@@ -251,7 +262,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await runMatching(stmt.id, ba.ledgerAccountId, ctx.tenantId);
+      await runMatching(stmt.id, ba.ledgerAccountId, ctx.tenantId, ba.branchId);
 
       await writeAuditLog({
         tenantId: ctx.tenantId,
@@ -268,14 +279,29 @@ export async function POST(req: NextRequest) {
       const { proposalId } = body;
       if (!proposalId) return fail('Missing proposalId', 400);
 
-      const proposal = await prisma.bankMatchProposal.findUnique({
-        where: { id: proposalId },
-        include: { statementLine: true },
+      const proposal = await prisma.bankMatchProposal.findFirst({
+        where: {
+          id: proposalId,
+          statementLine: { statement: { bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } } },
+        },
+        include: { statementLine: { include: { statement: { include: { bankAccount: true } } } } },
       });
       if (!proposal) return fail('Proposal not found', 404);
+      const journalLine = await prisma.journalLine.findFirst({
+        where: {
+          id: proposal.journalLineId,
+          accountId: proposal.statementLine.statement.bankAccount.ledgerAccountId,
+          entry: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx), status: 'posted' },
+        },
+        select: { id: true },
+      });
+      if (!journalLine) return fail('Journal line not found', 404);
 
-      await prisma.bankStatementLine.update({
-        where: { id: proposal.statementLineId },
+      await prisma.bankStatementLine.updateMany({
+        where: {
+          id: proposal.statementLineId,
+          statement: { bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
+        },
         data: {
           status: 'matched',
           matchedJournalLineId: proposal.journalLineId,
@@ -299,7 +325,13 @@ export async function POST(req: NextRequest) {
       const { proposalId } = body;
       if (!proposalId) return fail('Missing proposalId', 400);
 
-      await prisma.bankMatchProposal.delete({ where: { id: proposalId } });
+      const deleted = await prisma.bankMatchProposal.deleteMany({
+        where: {
+          id: proposalId,
+          statementLine: { statement: { bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } } },
+        },
+      });
+      if (!deleted.count) return fail('Proposal not found', 404);
       return ok({ success: true });
     }
 
@@ -307,10 +339,14 @@ export async function POST(req: NextRequest) {
       const { statementLineId } = body;
       if (!statementLineId) return fail('Missing statementLineId', 400);
 
-      await prisma.bankStatementLine.update({
-        where: { id: statementLineId },
+      const updated = await prisma.bankStatementLine.updateMany({
+        where: {
+          id: statementLineId,
+          statement: { bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
+        },
         data: { status: 'ignored' },
       });
+      if (!updated.count) return fail('Statement line not found', 404);
 
       await writeAuditLog({
         tenantId: ctx.tenantId,
@@ -327,10 +363,14 @@ export async function POST(req: NextRequest) {
       const { statementLineId } = body;
       if (!statementLineId) return fail('Missing statementLineId', 400);
 
-      await prisma.bankStatementLine.update({
-        where: { id: statementLineId },
+      const updated = await prisma.bankStatementLine.updateMany({
+        where: {
+          id: statementLineId,
+          statement: { bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
+        },
         data: { status: 'unmatched', matchedJournalLineId: null, matchedAt: null, matchedById: null },
       });
+      if (!updated.count) return fail('Statement line not found', 404);
 
       await writeAuditLog({
         tenantId: ctx.tenantId,
@@ -348,7 +388,7 @@ export async function POST(req: NextRequest) {
       if (!statementId) return fail('Missing statementId', 400);
 
       const stmt = await prisma.bankStatement.findFirst({
-        where: { id: statementId, bankAccount: { tenantId: ctx.tenantId } },
+        where: { id: statementId, bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
         include: { _count: { select: { lines: { where: { status: 'unmatched' } } } } },
       });
       if (!stmt) return fail('Statement not found', 404);
@@ -356,8 +396,8 @@ export async function POST(req: NextRequest) {
         return fail('All lines must be matched or ignored.', 400);
       }
 
-      await prisma.bankStatement.update({
-        where: { id: statementId },
+      await prisma.bankStatement.updateMany({
+        where: { id: statementId, bankAccount: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) } },
         data: { status: 'reconciled' },
       });
 
@@ -375,6 +415,6 @@ export async function POST(req: NextRequest) {
 
     return fail('Invalid action', 400);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

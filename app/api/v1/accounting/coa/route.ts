@@ -5,6 +5,7 @@ import { resolveActor } from '@/lib/api/dualAuth';
 import { defaultNormalSide } from '@/lib/accounting/enums';
 import { seedDefaultCoA } from '@/lib/accounting/seedDefaultCoA';
 import { writeAuditLog } from '@/lib/accounting/premium';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const showInactive = req.nextUrl.searchParams.get('showInactive') === 'true';
     
     const accounts = await prisma.account.findMany({
@@ -57,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     return ok(formatted);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const body = await req.json();
     const { action } = body;
 
@@ -81,6 +84,9 @@ export async function POST(req: NextRequest) {
     const { code, name, classType, subType, parentId, isCash, description } = body;
     if (!code || !name || !classType) {
       return fail('Missing code, name or classType', 400);
+    }
+    if (parentId && !(await prisma.account.findFirst({ where: { id: parentId, tenantId: ctx.tenantId }, select: { id: true } }))) {
+      return fail('Parent account not found', 404);
     }
 
     const exists = await prisma.account.findUnique({
@@ -116,7 +122,7 @@ export async function POST(req: NextRequest) {
 
     return ok({ success: true, account });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -129,6 +135,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const body = await req.json();
     const { id, action, name, subType, parentId, isCash, description, isActive } = body;
 
@@ -142,12 +149,15 @@ export async function PATCH(req: NextRequest) {
     if (!account) {
       return fail('Account not found', 404);
     }
+    if (parentId && !(await prisma.account.findFirst({ where: { id: parentId, tenantId: ctx.tenantId }, select: { id: true } }))) {
+      return fail('Parent account not found', 404);
+    }
 
     if (action === 'toggle') {
       const nextActive = !account.isActive;
       if (!nextActive) {
         const children = await prisma.account.count({
-          where: { parentId: id, isActive: true },
+          where: { tenantId: ctx.tenantId, parentId: id, isActive: true },
         });
         if (children > 0) {
           return fail('has_active_children', 400);
@@ -195,6 +205,6 @@ export async function PATCH(req: NextRequest) {
 
     return ok({ success: true, account: updated });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

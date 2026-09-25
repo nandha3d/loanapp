@@ -271,3 +271,59 @@ export async function requireMobileContext(req: NextRequest): Promise<MobileAuth
     return { response: fail('Unauthorized', 401) };
   }
 }
+
+export async function resolveUserVerticals(user: {
+  id: string;
+  tenantId: string;
+  branchId?: string | null;
+  role: string;
+  appType: string;
+}): Promise<string[]> {
+  const { ALL_MODULES, normalizeModuleList, mergeModuleLists } = await import('@/types/modules');
+  if (user.role === 'developer') {
+    return [...ALL_MODULES];
+  }
+
+  const prisma = (await import('../db')).default;
+
+  if (user.role === 'admin' || user.role === 'agent') {
+    if (user.branchId) {
+      const { getUserModulesForBranch } = await import('@/lib/branch');
+      const branchModules = await getUserModulesForBranch(user.id, user.branchId, user.role, user.appType);
+      if (branchModules.length > 0) return branchModules;
+    }
+    const sub = await prisma.tenantSubscription.findUnique({
+      where: { tenantId: user.tenantId },
+      select: { enabledModules: true },
+    });
+    const subModules = normalizeModuleList(sub?.enabledModules);
+    if (subModules.length > 0) return subModules;
+    return normalizeModuleList([user.appType]);
+  }
+
+  if (user.role === 'superadmin') {
+    const branches = await prisma.branch.findMany({
+      where: { tenantId: user.tenantId, status: 'active' },
+      select: { enabledModules: true },
+    });
+    const branchModules = mergeModuleLists(...branches.map((b) => b.enabledModules));
+    if (branchModules.length > 0) return branchModules;
+
+    const sub = await prisma.tenantSubscription.findUnique({
+      where: { tenantId: user.tenantId },
+      select: { enabledModules: true },
+    });
+    const subModules = normalizeModuleList(sub?.enabledModules);
+    if (subModules.length > 0) return subModules;
+    return normalizeModuleList([user.appType]);
+  }
+
+  const sub = await prisma.tenantSubscription.findUnique({
+    where: { tenantId: user.tenantId },
+    select: { enabledModules: true },
+  });
+  const subModules = normalizeModuleList(sub?.enabledModules);
+  if (subModules.length > 0) return subModules;
+  return normalizeModuleList([user.appType]);
+}
+

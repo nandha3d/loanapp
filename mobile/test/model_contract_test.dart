@@ -154,6 +154,7 @@ void main() {
         required double dueAmount,
         required double receivedAmount,
         required String status,
+        String? frequency,
       }) {
         return CollectionRow(
           instalmentId: id,
@@ -168,6 +169,7 @@ void main() {
           receivedAmount: receivedAmount,
           dueDate: dueDate,
           status: status,
+          frequency: frequency,
         );
       }
 
@@ -201,6 +203,26 @@ void main() {
       expect(overduePartial.overdueOutstanding, 500);
       expect(overduePaid.isResolved, isTrue);
       expect(overduePaid.overdueOutstanding, 0);
+      for (final cadence in [
+        'daily', 'weekly', 'biweekly', 'monthly',
+        'single_payment', 'custom_duration',
+      ]) {
+        expect(row(
+          id: cadence,
+          dueDate: today,
+          dueAmount: 100,
+          receivedAmount: 0,
+          status: 'upcoming',
+          frequency: cadence,
+        ).cadence, cadence);
+      }
+      expect(row(
+        id: 'legacy',
+        dueDate: today,
+        dueAmount: 100,
+        receivedAmount: 0,
+        status: 'upcoming',
+      ).cadence, 'daily');
     });
 
     test('MOB-MODEL-006 dashboard summary parses todayBreakdown and overdueBreakdown with fallbacks', () {

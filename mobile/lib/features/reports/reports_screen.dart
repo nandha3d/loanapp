@@ -5,11 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/reports_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -60,11 +63,13 @@ class ReportsScreen extends ConsumerStatefulWidget {
 class _ReportsScreenState extends ConsumerState<ReportsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
+  late final bool _canViewCatalog;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _canViewCatalog = ref.read(authControllerProvider).user?.role != UserRole.agent;
+    _tabs = TabController(length: _canViewCatalog ? 3 : 2, vsync: this);
   }
 
   @override
@@ -97,14 +102,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
           tabs: [
             Tab(text: t.x('rep.overdueTab')),
             Tab(text: t.x('rep.agentPerfTab')),
+            if (_canViewCatalog) Tab(text: t.x('rep.catalogTab')),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
-        children: const [
-          _OverdueTab(),
-          _AgentPerfTab(),
+        children: [
+          const _OverdueTab(),
+          const _AgentPerfTab(),
+          if (_canViewCatalog) const _CatalogTab(),
         ],
       ),
     );
@@ -540,6 +547,193 @@ class _AgentRow extends StatelessWidget {
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+
+final _catalogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(reportsServiceProvider).fetchCatalog();
+});
+
+class _CatalogTab extends ConsumerStatefulWidget {
+  const _CatalogTab();
+
+  @override
+  ConsumerState<_CatalogTab> createState() => _CatalogTabState();
+}
+
+class _CatalogTabState extends ConsumerState<_CatalogTab> {
+  Map<String, dynamic>? _selected;
+  Future<Map<String, dynamic>>? _report;
+
+  void _open(Map<String, dynamic> item) {
+    if (item['locked'] == true) {
+      showAddonPurchaseSheet(context, ref,
+        addonKey: 'premium_accounting',
+        onActivated: () => ref.invalidate(_catalogProvider),
+      );
+      return;
+    }
+    final range = ref.read(_dateRangeProvider);
+    setState(() {
+      _selected = item;
+      _report = ref.read(reportsServiceProvider).fetchReport(
+            item['slug'] as String, range.from, range.to);
+    });
+  }
+
+  void _reload(DateTime from, DateTime to) {
+    ref.read(_dateRangeProvider.notifier).state = _DateRange(from: from, to: to);
+    final item = _selected;
+    if (item != null) {
+      setState(() {
+        _report = ref.read(reportsServiceProvider).fetchReport(
+              item['slug'] as String, from, to);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    final selected = _selected;
+    if (selected != null) {
+      final range = ref.watch(_dateRangeProvider);
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextButton.icon(
+            onPressed: () => setState(() => _selected = null),
+            icon: const Icon(Icons.arrow_back),
+            label: Text(t.x('rep.title')),
+          ),
+          Text(selected['name']?.toString() ?? '', style: AppTypography.sectionTitle),
+          const SizedBox(height: 12),
+          _DateRangeCard(
+            from: range.from,
+            to: range.to,
+            dateFmt: DateFormat('dd MMM yyyy'),
+            onApply: _reload,
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<Map<String, dynamic>>(
+            future: _report,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return _ErrorView(message: snapshot.error.toString());
+              if (!snapshot.hasData) return const Skeleton(height: 160);
+              return _ReportData(data: snapshot.data!);
+            },
+          ),
+        ],
+      );
+    }
+
+    final catalog = ref.watch(_catalogProvider);
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(_catalogProvider);
+        await ref.read(_catalogProvider.future);
+      },
+      child: catalog.when(
+        loading: () => _ListSkeleton(),
+        error: (error, _) => ListView(children: [_ErrorView(message: error.toString())]),
+        data: (items) {
+          if (items.isEmpty) return ListView(children: [
+            const SizedBox(height: 80),
+            EmptyState(icon: Icons.description_outlined, title: t.x('rep.noData')),
+          ]);
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final locked = item['locked'] == true;
+              return Card(
+                child: ListTile(
+                  title: Text(item['name']?.toString() ?? ''),
+                  subtitle: Text(item['category']?.toString() ?? ''),
+                  trailing: Icon(locked ? Icons.lock_outline : Icons.chevron_right),
+                  onTap: () => _open(item),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReportData extends ConsumerWidget {
+  const _ReportData({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final columns = (data['columns'] as List<dynamic>? ?? const [])
+        .map((dynamic value) => Map<String, dynamic>.from(value as Map))
+        .toList();
+    final rows = (data['rows'] as List<dynamic>? ?? const [])
+        .map((dynamic value) => Map<String, dynamic>.from(value as Map))
+        .toList();
+    final kpis = (data['kpis'] as List<dynamic>? ?? const [])
+        .map((dynamic value) => Map<String, dynamic>.from(value as Map));
+    final totals = Map<String, dynamic>.from(data['totals'] as Map? ?? const {});
+    final fmt = ref.watch(currencyFmtProvider);
+
+    String label(dynamic raw) {
+      final key = raw?.toString() ?? '';
+      final translated = t.x(key);
+      if (translated != key) return translated;
+      final plain = key.split('.').last.replaceAllMapped(
+        RegExp(r'([a-z])([A-Z])'), (match) => '${match[1]} ${match[2]}');
+      return plain.replaceAll(RegExp(r'[-_]'), ' ');
+    }
+
+    String display(dynamic value, String? type) {
+      if (value == null) return '—';
+      if (type == 'currency' && value is num) return fmt.format(value);
+      return value.toString();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...kpis.map((kpi) => Card(child: ListTile(
+          title: Text(label(kpi['label'])),
+          trailing: Text(display(kpi['value'], null), style: AppTypography.label),
+        ))),
+        if (rows.isEmpty) Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(t.x('rep.noData'), textAlign: TextAlign.center),
+        ),
+        ...rows.map((row) => Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(children: [
+            for (final column in columns)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Expanded(child: Text(label(column['label'] ?? column['key']), style: AppTypography.caption)),
+                  Flexible(child: Text(display(row[column['key']], column['type'] as String?), textAlign: TextAlign.right)),
+                ]),
+              ),
+          ]),
+        ))),
+        if (totals.isNotEmpty) Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(children: [
+            for (final column in columns)
+              if (totals.containsKey(column['key']))
+                Row(children: [
+                  Expanded(child: Text(label(column['label'] ?? column['key']), style: AppTypography.label)),
+                  Flexible(child: Text(display(totals[column['key']], column['type'] as String?), textAlign: TextAlign.right)),
+                ]),
+          ]),
+        )),
+      ],
+    );
+  }
+}
 
 class _ListSkeleton extends StatelessWidget {
   @override

@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/npa.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/npa_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -50,9 +53,37 @@ class NpaScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final isDeveloper = user?.role == UserRole.developer;
+    final isSubscribed = user?.npaEnabled == true || isDeveloper;
+
     final summary = ref.watch(_npaSummaryProvider);
     final loans = ref.watch(_npaLoansProvider);
     final category = ref.watch(_npaCategoryProvider);
+
+    final isSummary403 = summary.hasError &&
+        (summary.error.toString().contains('403') ||
+            summary.error.toString().contains('not enabled'));
+    final isLoans403 = loans.hasError &&
+        (loans.error.toString().contains('403') ||
+            loans.error.toString().contains('not enabled'));
+
+    if (!isSubscribed || isSummary403 || isLoans403) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('NPA Monitoring'),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/dashboard'),
+          ),
+        ),
+        body: _NpaLockedView(ref: ref),
+        bottomNavigationBar: const AppBottomNav(currentRoute: '/npa'),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -443,4 +474,325 @@ class _ErrorCard extends StatelessWidget {
 
 String _label(String value) {
   return _categories[value] ?? value.replaceAll('_', ' ').toUpperCase();
+}
+
+class _NpaLockedView extends StatelessWidget {
+  const _NpaLockedView({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authControllerProvider).user;
+    final canPurchase = user?.role == UserRole.superadmin ||
+        user?.role == UserRole.admin ||
+        user?.role == UserRole.developer;
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const SizedBox(height: 10),
+        // Hero Icon Card
+        Center(
+          child: Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.warning.withAlpha(40),
+                  AppColors.warningBg,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.warning.withAlpha(120), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.warning.withAlpha(40),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.lock_rounded,
+                size: 42,
+                color: AppColors.warning,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.warningBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.warning.withAlpha(100)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
+                SizedBox(width: 4),
+                Text(
+                  'PREMIUM ADD-ON',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.warning,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Center(
+          child: Text(
+            'NPA Monitoring is Locked',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'Automated RBI delinquency tracking, loss provisioning calculations, and portfolio health analytics for compliant lending.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Feature list container
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: AppTokens.shadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'WHAT IS INCLUDED IN THIS ADD-ON',
+                style: AppTypography.tiny.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildFeatureItem(
+                icon: Icons.rule_folder_outlined,
+                color: AppColors.warning,
+                title: 'RBI Norms Delinquency Tracking',
+                subtitle:
+                    'Automated classification: SMA-0 (1-30d), SMA-1 (31-60d), SMA-2 (61-90d), Sub-standard, Doubtful & Loss.',
+              ),
+              const Divider(height: 20),
+              _buildFeatureItem(
+                icon: Icons.calculate_outlined,
+                color: AppColors.info,
+                title: 'Real-time Risk Provisioning',
+                subtitle:
+                    'Dynamic capital provisioning reserves across secured and unsecured loans to satisfy RBI compliance.',
+              ),
+              const Divider(height: 20),
+              _buildFeatureItem(
+                icon: Icons.insights_rounded,
+                color: AppColors.purple,
+                title: 'Portfolio GNPA / NNPA Metrics',
+                subtitle:
+                    'Real-time Gross NPA ratio calculation and risk bucket breakdown for lenders and audits.',
+              ),
+              const Divider(height: 20),
+              _buildFeatureItem(
+                icon: Icons.upgrade_rounded,
+                color: AppColors.success,
+                title: 'Automated Loan Regularisation Upgrades',
+                subtitle:
+                    'Instant 1-tap regularisation back to standard asset category once overdue arrears are cleared.',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Action CTA
+        if (canPurchase) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withAlpha(20),
+                  AppColors.primaryLight,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withAlpha(80)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '₹499 / month',
+                          style: AppTypography.nameLg.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'Billed monthly · Cancel anytime',
+                          style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'ORGANIZATION ADD-ON',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.flash_on_rounded, size: 18),
+                    label: const Text(
+                      'Purchase Add-on · Subscribe via Razorpay',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                      ),
+                    ),
+                    onPressed: () => showAddonPurchaseSheet(
+                      context,
+                      ref,
+                      addonKey: 'npa',
+                      onActivated: () {
+                        ref.invalidate(_npaSummaryProvider);
+                        ref.invalidate(_npaLoansProvider);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.verified_user_outlined, size: 12, color: AppColors.textLight),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Powered by Razorpay Payment Gateway',
+                      style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.warningBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.warning.withAlpha(100)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: AppColors.warning, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'NPA Classification is an organization add-on. Please contact your workspace administrator to purchase.',
+                    style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+
+  Widget _buildFeatureItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(35),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: AppTypography.caption.copyWith(color: AppColors.textSecondary, height: 1.3),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

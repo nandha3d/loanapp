@@ -18,11 +18,9 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
-final _rangeFilterProvider = StateProvider.autoDispose<int>((ref) => 30);
-
 final _fullAnalyticsProvider =
-    FutureProvider.autoDispose.family<FullAnalytics, int>((ref, range) {
-  return ref.watch(analyticsServiceProvider).fullAnalytics(range: range);
+    FutureProvider.autoDispose<FullAnalytics>((ref) {
+  return ref.watch(analyticsServiceProvider).fullAnalytics();
 });
 
 class AnalyticsScreen extends ConsumerWidget {
@@ -84,8 +82,7 @@ class AnalyticsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final range = ref.watch(_rangeFilterProvider);
-    final async = ref.watch(_fullAnalyticsProvider(range));
+    final async = ref.watch(_fullAnalyticsProvider);
     final fmt = ref.watch(currencyFmtProvider);
     final t = T.of(ref);
 
@@ -115,24 +112,11 @@ class AnalyticsScreen extends ConsumerWidget {
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          ref.invalidate(_fullAnalyticsProvider(range));
+          ref.invalidate(_fullAnalyticsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Date Filter Pills
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _FilterPill(label: '7 Days', val: 7, current: range),
-                const SizedBox(width: 8),
-                _FilterPill(label: '14 Days', val: 14, current: range),
-                const SizedBox(width: 8),
-                _FilterPill(label: '30 Days', val: 30, current: range),
-              ],
-            ),
-            const SizedBox(height: 16),
-
             async.when(
               loading: () => const Column(
                 children: [
@@ -196,6 +180,7 @@ class AnalyticsScreen extends ConsumerWidget {
                       _AgentLeaderboard(agents: data.agentLeaderboard, fmt: fmt),
                       const SizedBox(height: 16),
                     ],
+                    _AdditionalAnalytics(data: data, fmt: fmt),
                   ],
                 );
               },
@@ -209,36 +194,6 @@ class AnalyticsScreen extends ConsumerWidget {
 }
 
 // ─── Sub-widgets ─────────────────────────────────────
-
-class _FilterPill extends ConsumerWidget {
-  const _FilterPill({required this.label, required this.val, required this.current});
-  final String label;
-  final int val;
-  final int current;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final active = val == current;
-    return GestureDetector(
-      onTap: () => ref.read(_rangeFilterProvider.notifier).state = val,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: active ? AppColors.primary : AppColors.border),
-        ),
-        child: Text(
-          label,
-          style: AppTypography.label.copyWith(
-            color: active ? Colors.white : AppColors.textSecondary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _EfficiencyGauge extends StatelessWidget {
   const _EfficiencyGauge({required this.eff});
@@ -710,4 +665,209 @@ class _AgentLeaderboard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdditionalAnalytics extends ConsumerWidget {
+  const _AdditionalAnalytics({required this.data, required this.fmt});
+  final FullAnalytics data;
+  final NumberFormat fmt;
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: AppTypography.body)),
+            const SizedBox(width: 8),
+            Text(value, style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    return Column(
+      children: [
+        _AnalyticsSection(
+          title: t.x('analytics.metrics'),
+          children: [
+            _row(t.x('analytics.capitalBalance'), fmt.format(data.capitalBalance)),
+            _row(t.x('analytics.forecast30d'), fmt.format(data.cashflowForecast30d.total)),
+            _row(t.x('analytics.projectedOverdue'), fmt.format(data.projectedOverdue)),
+            _row(t.x('analytics.prevWeekCollected'), fmt.format(data.prevWeekCollected)),
+            _row(t.x('analytics.currentWeekCollected'), fmt.format(data.currentWeekCollected)),
+            _row(t.x('analytics.todayCash'), fmt.format(data.todayCashCollected)),
+            _row(t.x('analytics.todayUpi'), fmt.format(data.todayUpiCollected)),
+            _row(t.x('analytics.emiPressure'), fmt.format(data.emiPressure.amount)),
+            _row(t.x('dash.customers'), data.emiPressure.count.toString()),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _AnalyticsSection(
+          title: t.x('analytics.portfolioDetails'),
+          children: [
+            _row(t.x('analytics.totalRecovered'), fmt.format(data.portfolio.totalRecovered)),
+            _row(t.x('analytics.npaAmount'), fmt.format(data.portfolio.npaAmount)),
+            _row(t.x('analytics.activeCount'), data.portfolio.activeCount.toString()),
+            _row(t.x('analytics.closedCount'), data.portfolio.closedCount.toString()),
+            _row(t.x('dash.overdue_loans'), data.portfolio.overdueCount.toString()),
+            _row(t.x('rep.expected'), fmt.format(data.collectionEfficiency.expected)),
+            _row(t.x('rep.collected'), fmt.format(data.collectionEfficiency.collected)),
+          ],
+        ),
+        if (data.trend7d.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.trend7d'),
+            children: [
+              for (final point in data.trend7d)
+                _row(
+                  point.label.isNotEmpty ? point.label : point.date,
+                  '${t.x('rep.expected')}: ${fmt.format(point.expected)} · '
+                  '${t.x('rep.collected')}: ${fmt.format(point.collected)}',
+                ),
+            ],
+          ),
+        ],
+        if (data.collectionFunnel.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.collectionFunnel'),
+            children: [
+              for (final step in data.collectionFunnel)
+                _row(step.label, step.count.toString()),
+            ],
+          ),
+        ],
+        if (data.attentionLoans.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.attentionLoans'),
+            children: [
+              for (final loan in data.attentionLoans)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${loan.customerName} · ${loan.customerCode}',
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                      Text('${t.x('analytics.loan')}: ${loan.loanCode}', style: AppTypography.caption),
+                      _row(t.x('analytics.dueToday'), fmt.format(loan.dueToday)),
+                      _row(t.x('analytics.overdueDays'), loan.overdueDays.toString()),
+                      _row(t.x('rep.outstanding'), fmt.format(loan.overdueAmount)),
+                      Text(loan.riskLevel, style: AppTypography.caption),
+                      if (loan.badges.isNotEmpty)
+                        Text(loan.badges.join(' · '), style: AppTypography.caption),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+        _AnalyticsSection(
+          title: t.x('analytics.frequencyTotals'),
+          children: [
+            _row(t.x('analytics.daily'), fmt.format(data.frequencyTotals.daily)),
+            _row(t.x('analytics.weekly'), fmt.format(data.frequencyTotals.weekly)),
+            _row(t.x('analytics.biweekly'), fmt.format(data.frequencyTotals.biweekly)),
+            _row(t.x('analytics.monthly'), fmt.format(data.frequencyTotals.monthly)),
+          ],
+        ),
+        if (data.borrowerLeaderboard.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.borrowerLeaderboard'),
+            children: [
+              for (final borrower in data.borrowerLeaderboard)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${borrower.name} · ${borrower.customerCode}',
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                      _row(t.x('analytics.activePrincipal'),
+                          fmt.format(borrower.totalActivePrincipal)),
+                      _row(t.x('rep.outstanding'), fmt.format(borrower.overdueAmount)),
+                      _row(t.x('analytics.missedPayments'), borrower.missedCount.toString()),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+        if (data.routeHealth.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.routeHealth'),
+            children: [
+              for (final route in data.routeHealth)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(route.name,
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                      _row(t.x('dash.customers'), route.customers.toString()),
+                      _row(t.x('rep.overdueTab'), route.overdue.toString()),
+                      _row(t.x('rep.collected'), fmt.format(route.collected)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+        if (data.operationalFeed.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _AnalyticsSection(
+            title: t.x('analytics.operationalFeed'),
+            children: [
+              for (final event in data.operationalFeed)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${event.user} · ${event.action}',
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                      Text(event.entity, style: AppTypography.caption),
+                      if (event.time != null)
+                        Text(DateFormat('dd MMM HH:mm').format(event.time!.toLocal()),
+                            style: AppTypography.caption),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AnalyticsSection extends StatelessWidget {
+  const _AnalyticsSection({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: AppTypography.sectionTitle),
+            const SizedBox(height: 8),
+            ...children,
+          ],
+        ),
+      );
 }

@@ -15,33 +15,10 @@ export async function GET(req: NextRequest) {
       ctx.branchId
     );
 
-    // Map TrendDay to CollectionPoint expected by mobile analytics model
-    const trend7d = (data.trend7d || []).map((t) => ({
-      date: t.dateKey,
-      expected: t.expected,
-      collected: t.collected,
-    }));
-
-    // Return the response in the standard envelope structure
     return ok({
-      collectionEfficiency: data.collectionEfficiency,
-      capitalBalance: data.capitalBalance,
-      portfolio: data.portfolio,
-      trend7d,
-      agingBuckets: data.agingBuckets,
-      riskScore: data.riskScore,
-      agentLeaderboard: (data.agentLeaderboard || []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        expected: a.collected / (a.efficiency > 0 ? a.efficiency / 100 : 1), // back-compute expected if needed
-        collected: a.collected,
-        hitRate: Math.round(a.efficiency),
-      })),
-      borrowerSegments: data.borrowerSegments,
-      cashflowForecast7d: data.cashflowForecast7d,
-      insights: data.smartInsights || [],
-      prevWeekCollected: data.prevWeekCollected,
-      currentWeekCollected: data.currentWeekCollected,
+      ...data,
+      trend7d: data.trend7d.map((day) => ({ ...day, date: day.dateKey })),
+      insights: data.smartInsights,
     });
   } catch (e: any) {
     return fail(e.message || 'Failed to fetch full analytics data');

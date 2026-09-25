@@ -9,6 +9,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
@@ -23,12 +24,14 @@ class _ModuleItem {
     required this.color,
     required this.bgColor,
     this.moduleKey,
+    this.addonKey,
     this.minRole,
   });
   final IconData icon;
   final String label, subtitle, route;
   final Color color, bgColor;
   final String? moduleKey;
+  final String? addonKey;
   final UserRole? minRole;
 }
 
@@ -76,6 +79,7 @@ final _allModules = <_ModuleItem>[
     label: 'KYC Review',
     subtitle: 'Verify pending customer KYC',
     route: '/kyc-review',
+    addonKey: 'kyc',
     color: AppColors.warning,
     bgColor: AppColors.warningBg,
     minRole: UserRole.admin,
@@ -131,6 +135,7 @@ final _allModules = <_ModuleItem>[
     subtitle: 'Portfolio risk, provisioning & upgrades',
     route: '/npa',
     moduleKey: 'npa',
+    addonKey: 'npa',
     color: AppColors.warning,
     bgColor: AppColors.warningBg,
     minRole: UserRole.admin,
@@ -258,7 +263,24 @@ class MoreScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
           ],
-          for (final m in visible) _ModuleTile(item: m),
+          for (final m in visible)
+            Builder(
+              builder: (ctx) {
+                final isLocked = m.addonKey != null &&
+                    user != null &&
+                    !user.isAddonSubscribed(m.addonKey!);
+                return _ModuleTile(
+                  item: m,
+                  isLocked: isLocked,
+                  onTap: isLocked && m.addonKey != 'npa'
+                      ? () => showAddonPurchaseSheet(ctx, ref, addonKey: m.addonKey!)
+                      : null,
+                  onUpgradeTap: isLocked
+                      ? () => showAddonPurchaseSheet(ctx, ref, addonKey: m.addonKey!)
+                      : null,
+                );
+              },
+            ),
           const SizedBox(height: 4),
           // Always visible regardless of role/module gating — this used to
           // only exist in the (now removed) side drawer, which was the only
@@ -443,9 +465,16 @@ class _ProfileHeader extends StatelessWidget {
 // ── Module tile ───────────────────────────────────────────────────────────────
 
 class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({required this.item, this.onTap});
+  const _ModuleTile({
+    required this.item,
+    this.onTap,
+    this.isLocked = false,
+    this.onUpgradeTap,
+  });
   final _ModuleItem item;
   final VoidCallback? onTap;
+  final bool isLocked;
+  final VoidCallback? onUpgradeTap;
 
   @override
   Widget build(BuildContext context) {
@@ -462,22 +491,95 @@ class _ModuleTile extends StatelessWidget {
             decoration: const BoxDecoration(boxShadow: AppTokens.shadow),
             child: Row(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: item.bgColor,
-                    borderRadius:
-                        BorderRadius.circular(AppTokens.radiusKpiIcon),
-                  ),
-                  child: Icon(item.icon, color: item.color, size: 26),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: isLocked ? AppColors.warningBg : item.bgColor,
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radiusKpiIcon),
+                      ),
+                      child: Icon(
+                        item.icon,
+                        color: isLocked ? AppColors.warning : item.color,
+                        size: 26,
+                      ),
+                    ),
+                    if (isLocked)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(
+                            Icons.lock_rounded,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.label, style: AppTypography.sectionTitle),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.label,
+                              style: AppTypography.sectionTitle,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isLocked) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningBg,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.warning.withAlpha(120),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.lock_rounded,
+                                    size: 10,
+                                    color: AppColors.warning,
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'LOCKED',
+                                    style: TextStyle(
+                                      color: AppColors.warning,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         item.subtitle,
@@ -489,11 +591,48 @@ class _ModuleTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textLight,
-                  size: 20,
-                ),
+                if (isLocked)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onUpgradeTap ?? onTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.primary.withAlpha(80),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bolt_rounded,
+                            size: 14,
+                            color: AppColors.primaryDark,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Upgrade',
+                            style: AppTypography.extraTiny.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textLight,
+                    size: 20,
+                  ),
               ],
             ),
           ),

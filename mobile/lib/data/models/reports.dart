@@ -91,6 +91,11 @@ class AccountingSummary {
     required this.totalDisbursed,
     required this.totalExpenses,
     required this.currentCapital,
+    required this.liquidCash,
+    required this.loanOutstanding,
+    required this.netWorth,
+    required this.branchCashAvailable,
+    required this.agentFloat,
     required this.netProfit,
     required this.projectedRevenue,
     required this.capitalIn,
@@ -101,6 +106,11 @@ class AccountingSummary {
   final double totalDisbursed;
   final double totalExpenses;
   final double currentCapital;
+  final double liquidCash;
+  final double loanOutstanding;
+  final double netWorth;
+  final double branchCashAvailable;
+  final double agentFloat;
   final double netProfit;
   final double projectedRevenue;
   final double capitalIn;
@@ -115,6 +125,11 @@ class AccountingSummary {
       totalDisbursed:   n(json['totalDisbursed']),
       totalExpenses:    n(json['totalExpenses']),
       currentCapital:   n(json['currentCapital']),
+      liquidCash: n(json['liquidCash']),
+      loanOutstanding: n(json['loanOutstanding']),
+      netWorth: n(json['netWorth']),
+      branchCashAvailable: n(json['branchCashAvailable']),
+      agentFloat: n(json['agentFloat']),
       netProfit:        n(json['netProfit']),
       projectedRevenue: n(json['projectedRevenue']),
       capitalIn:        n(json['capitalIn']),

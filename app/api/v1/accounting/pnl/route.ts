@@ -2,16 +2,14 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
   if (!ctx) return fail('Unauthorized', 401);
 
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
-    return fail('Forbidden', 403);
-  }
-
   try {
+    await assertPremiumAccountingAccess(ctx);
     const searchParams = req.nextUrl.searchParams;
     const now = new Date();
     const fromStr = searchParams.get('from');
@@ -28,16 +26,18 @@ export async function GET(req: NextRequest) {
       where: {
         entry: {
           tenantId: ctx.tenantId,
+          ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
           status: 'posted',
           entryDate: { gte: fromDate, lte: toDate },
         },
+        account: { tenantId: ctx.tenantId },
       },
       _sum: { debit: true, credit: true },
     });
 
     const accountIds = lines.map((l) => l.accountId);
     const accounts = await prisma.account.findMany({
-      where: { id: { in: accountIds } },
+      where: { tenantId: ctx.tenantId, id: { in: accountIds } },
       select: { id: true, code: true, name: true, classType: true, subType: true, normalSide: true, parentId: true },
       orderBy: { code: 'asc' },
     });
@@ -71,6 +71,6 @@ export async function GET(req: NextRequest) {
       to,
     });
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

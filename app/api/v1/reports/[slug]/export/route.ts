@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
-import { requireApiContext, ADMIN_API_ROLES } from '@/lib/apiAuth';
+import { resolveActor } from '@/lib/api/dualAuth';
 import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import type { AppType } from '@/lib/appConfig';
 import { toCSV } from '@/lib/reports/csv';
@@ -9,24 +9,29 @@ import { toWorkbook } from '@/lib/reports/excel';
 import { TableReportPDF } from '@/lib/reports/pdf';
 import { getDictionary } from '@/lib/i18n';
 import { getBranding, getSetting } from '@/lib/tenant';
+import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const authResult = await requireApiContext(ADMIN_API_ROLES);
-    if ('response' in authResult && authResult.response) return authResult.response;
-    const context = 'context' in authResult ? authResult.context : (authResult as any);
+    const context = await resolveActor(req);
+    if (!context) return new NextResponse('Unauthorized', { status: 401 });
+    if (!['admin', 'superadmin', 'developer'].includes(context.role)) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
 
     const { slug } = await params;
     const { searchParams } = new URL(req.url);
-    const requestedAppType = searchParams.get('appType') || req.headers.get('x-app-type');
-    const effectiveAppType = requestedAppType || context.appType;
+    const effectiveAppType = context.appType;
     const definition = getReportDefinitionForAppType(effectiveAppType as AppType, slug);
 
     if (!definition) {
       return new NextResponse(`Report builder for slug '${slug}' not found`, { status: 404 });
+    }
+    if (definition.addon === 'premium_accounting' && !await isPremiumAccountingEnabled(context.tenantId)) {
+      return new NextResponse('Premium Accounting is not enabled for your subscription.', { status: 403 });
     }
 
     const format = searchParams.get('format') || 'csv';
@@ -36,7 +41,7 @@ export async function GET(
 
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
-    const branchId = searchParams.get('branchId') || context.branchId;
+    const branchId = context.branchId;
     const agentId = searchParams.get('agentId') || undefined;
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;

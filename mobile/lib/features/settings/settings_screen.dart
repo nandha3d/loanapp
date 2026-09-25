@@ -15,6 +15,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -423,47 +424,207 @@ class SettingsScreen extends ConsumerWidget {
                     onTap: () => context.push('/settings/bulk'),
                   ),
                   const Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.assignment_ind_outlined,
-                      color: AppColors.primary,
-                    ),
-                    title: Text(
-                      'Bureau Pull Configuration',
-                      style: AppTypography.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      'Configure CRIF bureau pull API credentials',
-                      style: AppTypography.caption,
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/bureau'),
-                  ),
+                  () {
+                    final isBureauSubscribed =
+                        user?.isAddonSubscribed('bureau') == true;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.assignment_ind_outlined,
+                        color: isBureauSubscribed
+                            ? AppColors.primary
+                            : AppColors.warning,
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Bureau Pull Configuration',
+                              style: AppTypography.bodyLarge,
+                            ),
+                          ),
+                          if (!isBureauSubscribed) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningBg,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.warning.withAlpha(120),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.lock_rounded,
+                                    size: 10,
+                                    color: AppColors.warning,
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'LOCKED',
+                                    style: TextStyle(
+                                      color: AppColors.warning,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        isBureauSubscribed
+                            ? 'Configure CRIF bureau pull API credentials'
+                            : '₹399/mo · Instant CRIF High Mark credit reports',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isBureauSubscribed)
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Upgrade',
+                                style: AppTypography.extraTiny.copyWith(
+                                  color: AppColors.primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: AppColors.textLight,
+                          ),
+                        ],
+                      ),
+                      onTap: isBureauSubscribed
+                          ? () => context.push('/settings/bureau')
+                          : () => showAddonPurchaseSheet(
+                                context,
+                                ref,
+                                addonKey: 'bureau',
+                              ),
+                    );
+                  }(),
                   const Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.warning_amber_outlined,
-                      color: AppColors.primary,
-                    ),
-                    title: Text(
-                      'NPA Status Rules',
-                      style: AppTypography.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      'Configure overdue days and automated penalties',
-                      style: AppTypography.caption,
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/npa'),
-                  ),
+                  () {
+                    final isNpaSubscribed =
+                        user?.isAddonSubscribed('npa') == true;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.warning_amber_outlined,
+                        color: isNpaSubscribed
+                            ? AppColors.primary
+                            : AppColors.warning,
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'NPA Status Rules',
+                              style: AppTypography.bodyLarge,
+                            ),
+                          ),
+                          if (!isNpaSubscribed) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningBg,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.warning.withAlpha(120),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.lock_rounded,
+                                    size: 10,
+                                    color: AppColors.warning,
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'LOCKED',
+                                    style: TextStyle(
+                                      color: AppColors.warning,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        isNpaSubscribed
+                            ? 'Configure overdue days and automated penalties'
+                            : '₹499/mo · Overdue classification and provisioning engine',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isNpaSubscribed)
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Upgrade',
+                                style: AppTypography.extraTiny.copyWith(
+                                  color: AppColors.primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: AppColors.textLight,
+                          ),
+                        ],
+                      ),
+                      onTap: isNpaSubscribed
+                          ? () => context.push('/settings/npa')
+                          : () => showAddonPurchaseSheet(
+                                context,
+                                ref,
+                                addonKey: 'npa',
+                              ),
+                    );
+                  }(),
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 import {
   getOperationalCashflowSeries,
   getNetProfit,
@@ -11,8 +12,7 @@ import {
 /**
  * GET /api/v1/accounting/statements?from=&to=
  * Read-only financial statements for mobile — ALL figures computed server-side
- * via the shared accounting queries (no client math). Premium-derived numbers
- * (net profit, top expenses) are 0/empty for non-premium tenants.
+ * via the shared accounting queries (no client math). Requires the premium add-on.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
   const branchId = ctx.branchId ?? null;
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const [cashflow, netProfit, topExpenses, cashBank] = await Promise.all([
       getOperationalCashflowSeries(ctx.tenantId, branchId, from, to),
       getNetProfit(ctx.tenantId, branchId, { from, to }),
@@ -53,6 +54,6 @@ export async function GET(req: NextRequest) {
       topExpenses,
     });
   } catch (e: any) {
-    return fail(e?.message ?? 'Statements failed', 500);
+    return fail(e?.message ?? 'Statements failed', e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

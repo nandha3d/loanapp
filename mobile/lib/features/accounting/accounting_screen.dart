@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -12,6 +13,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
 import 'package:zolofund/data/services/reports_service.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
@@ -71,10 +73,12 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
+    final premiumEnabled =
+        ref.watch(authControllerProvider).user?.premiumAccountingEnabled ?? false;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_titleForView(t)),
+        title: Text(_titleForView(t, premiumEnabled)),
         centerTitle: true,
         leading: _activeView != 'dashboard'
             ? IconButton(
@@ -97,7 +101,9 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
         ],
       ),
       body: SafeArea(
-        child: switch (_activeView) {
+        child: !premiumEnabled && _activeView != 'dashboard'
+            ? _buildDashboardView(context, premiumEnabled)
+            : switch (_activeView) {
           'coa' => const _CoAView(),
           'journal' => const _JournalView(),
           'periods' => const _PeriodsView(),
@@ -109,14 +115,15 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
           'vendors' => const _VendorsView(),
           'export' => const _ExportRunsView(),
           'settings' => const _PremiumSettingsView(),
-          _ => _buildDashboardView(context),
+          _ => _buildDashboardView(context, premiumEnabled),
         },
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/accounting'),
     );
   }
 
-  String _titleForView(T t) {
+  String _titleForView(T t, bool premiumEnabled) {
+    if (!premiumEnabled) return t.x('title.accounting');
     return switch (_activeView) {
       'dashboard' => t.x('title.accounting'),
       'coa' => t.x('accounting.chart_of_accounts'),
@@ -134,7 +141,7 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
     };
   }
 
-  Widget _buildDashboardView(BuildContext context) {
+  Widget _buildDashboardView(BuildContext context, bool premiumEnabled) {
     final t = T.of(ref);
     final summaryAsync = ref.watch(_accountingSummaryProvider);
 
@@ -155,14 +162,16 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
           Text(t.x('accounting.premium_operations'),
               style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.4,
+          Stack(
             children: [
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.4,
+                children: [
               _MenuTile(
                 title: t.x('accounting.chart_of_accounts'),
                 icon: Icons.account_tree_outlined,
@@ -235,6 +244,37 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                 color: Colors.grey,
                 onTap: () => setState(() => _activeView = 'settings'),
               ),
+                ],
+              ),
+              if (!premiumEnabled)
+                Positioned.fill(
+                  child: Material(
+                    color: AppColors.background.withValues(alpha: 0.88),
+                    child: Semantics(
+                      button: true,
+                      label: t.x('accounting.unlock_premium'),
+                      child: InkWell(
+                        onTap: () => showAddonPurchaseSheet(
+                            context, ref, addonKey: 'premium_accounting'),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.lock_outline, size: 36),
+                              const SizedBox(height: 12),
+                              Text(t.x('accounting.premium_locked'),
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.sectionTitle),
+                              const SizedBox(height: 8),
+                              Text(t.x('accounting.unlock_premium'),
+                                  textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 24),
@@ -301,7 +341,7 @@ class _SummarySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     return _Card(
-      title: t.x('acc.today_summary'),
+      title: t.x('acc.accounting_summary'),
       child: summaryAsync.when(
         loading: () => const Skeleton(height: 160),
         error: (e, _) => _InlineError(message: e.toString()),
@@ -358,6 +398,26 @@ class _SummaryBody extends ConsumerWidget {
           value: fmt.format(summary.currentCapital),
           valueColor: AppColors.info,
         ),
+        for (final metric in <(String, double)>[
+          (t.x('acc.liquid_cash'), summary.liquidCash),
+          (t.x('wallet.branch_pool_balance'), summary.branchCashAvailable),
+          (t.x('wallet.agents_float'), summary.agentFloat),
+          (t.x('acc.loan_outstanding'), summary.loanOutstanding),
+          (t.x('acc.net_worth'), summary.netWorth),
+          (t.x('acc.capital_in'), summary.capitalIn),
+          (t.x('acc.capital_out'), summary.capitalOut),
+          (t.x('acc.projected_revenue'), summary.projectedRevenue),
+        ]) ...[
+          const _Divider(),
+          _FinRow(
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: AppColors.info,
+            iconBg: AppColors.infoBg,
+            label: metric.$1,
+            value: fmt.format(metric.$2),
+            valueColor: AppColors.textPrimary,
+          ),
+        ],
         const SizedBox(height: 12),
         Container(
           width: double.infinity,

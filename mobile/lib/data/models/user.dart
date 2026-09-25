@@ -95,6 +95,13 @@ class User {
     this.tenantSlug,
     this.biometricLockRequired = false,
     this.gpsTrackingEnabled = false,
+    this.npaEnabled = false,
+    this.kycEnabled = false,
+    this.bureauEnabled = false,
+    this.premiumAccountingEnabled = false,
+    this.whatsappSmsEnabled = false,
+    this.foreclosureEnabled = false,
+    this.verticals = const [],
   });
 
   final String id;
@@ -111,6 +118,9 @@ class User {
   /// Server-driven module visibility list (spec §5).
   final List<String> enabledModules;
 
+  /// Subscribed application verticals (microlending, chitfunds, autofinance, etc.)
+  final List<String> verticals;
+
   /// Tenant slug — needed for X-Tenant-Slug header.
   final String? tenantSlug;
 
@@ -121,7 +131,45 @@ class User {
   /// Whether the tenant subscribed to GPS tracking add-on.
   final bool gpsTrackingEnabled;
 
+  /// Subscription add-on flags
+  final bool npaEnabled;
+  final bool kycEnabled;
+  final bool bureauEnabled;
+  final bool premiumAccountingEnabled;
+  final bool whatsappSmsEnabled;
+  final bool foreclosureEnabled;
+
   bool hasModule(String module) => enabledModules.contains(module);
+
+  bool isAddonSubscribed(String addonKey) {
+    if (role == UserRole.developer) return true;
+    switch (addonKey.toLowerCase()) {
+      case 'npa':
+      case 'npaenabled':
+        return npaEnabled;
+      case 'gps_tracking':
+      case 'gpstrackingenabled':
+        return gpsTrackingEnabled;
+      case 'kyc':
+      case 'kycenabled':
+        return kycEnabled;
+      case 'bureau':
+      case 'bureauenabled':
+        return bureauEnabled;
+      case 'premium_accounting':
+      case 'premiumaccountingenabled':
+      case 'accounting':
+        return premiumAccountingEnabled;
+      case 'whatsapp_sms':
+      case 'whatsappsmsenabled':
+        return whatsappSmsEnabled;
+      case 'foreclosure':
+      case 'foreclosureenabled':
+        return foreclosureEnabled;
+      default:
+        return false;
+    }
+  }
 
   User copyWith({
     String? id,
@@ -138,6 +186,13 @@ class User {
     String? tenantSlug,
     bool? biometricLockRequired,
     bool? gpsTrackingEnabled,
+    bool? npaEnabled,
+    bool? kycEnabled,
+    bool? bureauEnabled,
+    bool? premiumAccountingEnabled,
+    bool? whatsappSmsEnabled,
+    bool? foreclosureEnabled,
+    List<String>? verticals,
   }) {
     return User(
       id: id ?? this.id,
@@ -151,10 +206,18 @@ class User {
       status: status ?? this.status,
       totpEnabled: totpEnabled ?? this.totpEnabled,
       enabledModules: enabledModules ?? this.enabledModules,
+      verticals: verticals ?? this.verticals,
       tenantSlug: tenantSlug ?? this.tenantSlug,
       biometricLockRequired:
           biometricLockRequired ?? this.biometricLockRequired,
       gpsTrackingEnabled: gpsTrackingEnabled ?? this.gpsTrackingEnabled,
+      npaEnabled: npaEnabled ?? this.npaEnabled,
+      kycEnabled: kycEnabled ?? this.kycEnabled,
+      bureauEnabled: bureauEnabled ?? this.bureauEnabled,
+      premiumAccountingEnabled:
+          premiumAccountingEnabled ?? this.premiumAccountingEnabled,
+      whatsappSmsEnabled: whatsappSmsEnabled ?? this.whatsappSmsEnabled,
+      foreclosureEnabled: foreclosureEnabled ?? this.foreclosureEnabled,
     );
   }
 
@@ -174,9 +237,20 @@ class User {
           (json['enabledModules'] as List<dynamic>? ?? const <dynamic>[])
               .map((dynamic e) => e as String)
               .toList(growable: false),
+      verticals:
+          (json['verticals'] as List<dynamic>? ?? const <dynamic>[])
+              .map((dynamic e) => e.toString())
+              .toList(growable: false),
       tenantSlug: json['tenantSlug'] as String?,
       biometricLockRequired: (json['biometricLockRequired'] as bool?) ?? false,
       gpsTrackingEnabled: (json['gpsTrackingEnabled'] as bool?) ?? false,
+      npaEnabled: (json['npaEnabled'] as bool?) ?? false,
+      kycEnabled: (json['kycEnabled'] as bool?) ?? false,
+      bureauEnabled: (json['bureauEnabled'] as bool?) ?? false,
+      premiumAccountingEnabled:
+          (json['premiumAccountingEnabled'] as bool?) ?? false,
+      whatsappSmsEnabled: (json['whatsappSmsEnabled'] as bool?) ?? false,
+      foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
     );
   }
 
@@ -192,8 +266,15 @@ class User {
         'status': status,
         'totpEnabled': totpEnabled,
         'enabledModules': enabledModules,
+        'verticals': verticals,
         'tenantSlug': tenantSlug,
         'biometricLockRequired': biometricLockRequired,
         'gpsTrackingEnabled': gpsTrackingEnabled,
+        'npaEnabled': npaEnabled,
+        'kycEnabled': kycEnabled,
+        'bureauEnabled': bureauEnabled,
+        'premiumAccountingEnabled': premiumAccountingEnabled,
+        'whatsappSmsEnabled': whatsappSmsEnabled,
+        'foreclosureEnabled': foreclosureEnabled,
       };
 }

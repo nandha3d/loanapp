@@ -76,6 +76,7 @@ export const kn = {
     daily:              'ದೈನಂದಿನ',
     weekly:             'ಸಾಪ್ತಾಹಿಕ',
     monthly:            'ಮಾಸಿಕ',
+    biweekly:           'ಎರಡು ವಾರಕ್ಕೊಮ್ಮೆ',
     custom:             'ಕಸ್ಟಮ್',
     allFrequencies:     'ಎಲ್ಲಾ',
     frequencyBreakdown: 'ಆವರ್ತನವಾರು ವಿವರ',

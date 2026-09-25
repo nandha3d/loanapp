@@ -161,6 +161,8 @@ class Endpoints {
   static const String reportsDaily = '/reports/daily';
   static const String reportsAgent = '/reports/agent';
   static const String reportsOverdue = '/reports/overdue';
+  static const String reportsOptions = '/reports/options';
+  static String report(String slug) => '/reports/$slug';
 
   // Payment
   static const String paymentQr = '/payment/qr';
@@ -188,6 +190,8 @@ class Endpoints {
   static const String adminBilling = '/admin/billing';
   static const String adminAffiliates = '/admin/affiliates';
   static const String adminRequests = '/admin/requests';
+  static const String addonCheckout = '/billing/addon-checkout';
+  static const String verifyAddonPayment = '/billing/verify-addon-payment';
 
   // Premium Accounting
   static const String accountingCoa = '/accounting/coa';

@@ -26,7 +26,13 @@ final _verticalsProvider = FutureProvider<List<String>>((ref) async {
     if (list.isNotEmpty) return list;
   } catch (_) {}
   final user = ref.read(authControllerProvider).user;
-  return user?.enabledModules ?? const [];
+  if (user?.verticals.isNotEmpty == true) {
+    return user!.verticals;
+  }
+  if (user?.appType != null && user!.appType.isNotEmpty) {
+    return [user.appType];
+  }
+  return const [AppType.microlending];
 });
 
 // Portal palette — rich ZoloFund brand purple gradient and modern glassmorphic surfaces
@@ -103,7 +109,11 @@ class PortalScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final verticalsAsync = ref.watch(_verticalsProvider);
-    final cachedVerticals = user?.enabledModules ?? const <String>[];
+    final cachedVerticals = (user?.verticals.isNotEmpty == true)
+        ? user!.verticals
+        : (user?.appType != null && user!.appType.isNotEmpty
+            ? [user!.appType]
+            : const [AppType.microlending]);
 
     final role = user?.role;
     final isAgent = role == UserRole.agent;
@@ -136,26 +146,20 @@ class PortalScreen extends ConsumerWidget {
                       loading: () => _appGrid(
                         context,
                         ref,
-                        cachedVerticals.isNotEmpty
-                            ? cachedVerticals
-                            : [user?.appType ?? AppType.microlending],
+                        cachedVerticals,
                         cols,
                       ),
                       error: (_, __) => _appGrid(
                         context,
                         ref,
-                        cachedVerticals.isNotEmpty
-                            ? cachedVerticals
-                            : [user?.appType ?? AppType.microlending],
+                        cachedVerticals,
                         cols,
                       ),
                       data: (verticals) => _appGrid(
                         context,
                         ref,
                         verticals.isEmpty
-                            ? (cachedVerticals.isNotEmpty
-                                ? cachedVerticals
-                                : [user?.appType ?? AppType.microlending])
+                            ? cachedVerticals
                             : verticals,
                         cols,
                       ),

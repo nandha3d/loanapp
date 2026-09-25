@@ -75,6 +75,7 @@ export const en = {
     frequency:          'Frequency',
     daily:              'Daily',
     weekly:             'Weekly',
+    biweekly:           'Biweekly',
     monthly:            'Monthly',
     custom:             'Custom',
     allFrequencies:     'All',

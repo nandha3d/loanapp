@@ -79,6 +79,14 @@ const addons = [
     isActive: true,
     sortOrder: 5,
   },
+  {
+    addon: 'npa',
+    displayName: 'NPA Monitoring & Engine',
+    description: 'Automated RBI-compliant NPA classification, SMA tracking, and provisioning reports.',
+    monthlyPrice: 499,
+    isActive: true,
+    sortOrder: 6,
+  },
 ];
 
 (async () => {

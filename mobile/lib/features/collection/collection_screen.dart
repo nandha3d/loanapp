@@ -62,6 +62,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
     with WidgetsBindingObserver {
   bool _nearest = false;
   bool _showMap = false;
+  String _cadence = 'all';
   double? _agentLat;
   double? _agentLng;
   bool _locating = false;
@@ -368,6 +369,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
             ),
           if (ref.watch(authControllerProvider).user?.role == UserRole.agent)
             const LocationStatusBanner(),
+          if (isMicrolending && async.valueOrNull != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _CadencePills(
+                current: _cadence,
+                rows: async.valueOrNull!,
+                onTap: (value) => setState(() => _cadence = value),
+                t: t,
+              ),
+            ),
           Expanded(
             child: async.when(
               loading: () => ListView.separated(
@@ -389,11 +400,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                     title: t.x('dash.no_schedule'),
                   );
                 }
-                final allGroups = _groupByCustomer(rows);
+                final cadenceRows = isMicrolending && _cadence != 'all'
+                    ? rows.where((r) => r.cadence == _cadence).toList()
+                    : rows;
+                final allGroups =
+                    _groupCollectionRows(cadenceRows, byLoan: isMicrolending);
                 final filteredGroups = _applyGroupFilter(allGroups, filter);
-                final todaysRows = rows.where((r) => r.isTodayBucket).toList();
+                final todaysRows =
+                    cadenceRows.where((r) => r.isTodayBucket).toList();
                 final overdueRows =
-                    rows.where((r) => r.isOverdueBucket).toList();
+                    cadenceRows.where((r) => r.isOverdueBucket).toList();
                 final totalDue =
                     todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
                 final totalCollected = todaysRows.fold<double>(
@@ -417,6 +433,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                     agentLng: _agentLng,
                     fmt: fmt,
                     t: t,
+                    showCadenceDate: isMicrolending,
                     onCollect: (CollectionRow row) =>
                         _openQuickCollect(context, row, rows),
                   );
@@ -445,7 +462,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                       const SizedBox(height: 14),
                       _FilterPills(
                         current: filter,
-                        rows: rows,
+                        rows: cadenceRows,
                         onTap: (k) =>
                             ref.read(_filterProvider.notifier).state = k,
                         t: t,
@@ -527,12 +544,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
     }
   }
 
-  // One card per customer: collapse a customer's instalments (today's due +
-  // any overdue) into a single group. Preserves API order (dueDate asc).
-  List<_CustomerGroup> _groupByCustomer(List<CollectionRow> rows) {
+  // Preserve the original customer grouping outside microlending. Its payment
+  // sheet scopes one loan, so microlending cards must show one loan's dues.
+  List<_CustomerGroup> _groupCollectionRows(
+    List<CollectionRow> rows, {
+    bool byLoan = false,
+  }) {
     final m = <String, List<CollectionRow>>{};
     for (final r in rows) {
-      m.putIfAbsent(r.customerId, () => <CollectionRow>[]).add(r);
+      m.putIfAbsent(byLoan ? r.loanId : r.customerId, () => <CollectionRow>[])
+          .add(r);
     }
     return m.values.map((rs) => _CustomerGroup(rs)).toList();
   }
@@ -936,6 +957,7 @@ class _CollectionMap extends StatelessWidget {
     required this.rows,
     required this.fmt,
     required this.t,
+    required this.showCadenceDate,
     required this.onCollect,
     this.agentLat,
     this.agentLng,
@@ -944,6 +966,7 @@ class _CollectionMap extends StatelessWidget {
   final List<CollectionRow> rows;
   final NumberFormat fmt;
   final T t;
+  final bool showCadenceDate;
   final ValueChanged<CollectionRow> onCollect;
   final double? agentLat;
   final double? agentLng;
@@ -1134,6 +1157,11 @@ class _CollectionMap extends StatelessWidget {
                                 isPaid ? AppColors.success : AppColors.danger,
                           ),
                         ),
+                        if (showCadenceDate && row.cadence != 'daily')
+                          Text(
+                            '${t.x('coll.due_label')} ${DateFormat('dd/MM/yyyy').format(row.dueDate)}',
+                            style: AppTypography.caption,
+                          ),
                       ],
                     ),
                   ),
@@ -1155,9 +1183,9 @@ class _CollectionMap extends StatelessWidget {
                       Navigator.pop(ctx);
                       onCollect(row);
                     },
-                    child: const Text(
-                      'Collect Payment',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      t.x('btn.collect'),
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
@@ -1464,6 +1492,63 @@ class _CollectionSummaryHeader extends StatelessWidget {
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Filter pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _CadencePills extends StatelessWidget {
+  const _CadencePills({
+    required this.current,
+    required this.rows,
+    required this.onTap,
+    required this.t,
+  });
+
+  final String current;
+  final List<CollectionRow> rows;
+  final ValueChanged<String> onTap;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    const cadences = [
+      'daily',
+      'weekly',
+      'biweekly',
+      'monthly',
+      'single_payment',
+      'custom_duration',
+      'custom',
+    ];
+    const labels = {
+      'daily': 'plan.daily',
+      'weekly': 'plan.weekly',
+      'biweekly': 'plan.biweekly',
+      'monthly': 'plan.monthly',
+      'single_payment': 'plan.single_payment',
+      'custom_duration': 'plan.custom_duration',
+      'custom': 'plan.custom',
+    };
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _Pill(
+            label: t.x('coll.filter_all'),
+            count: rows.length,
+            active: current == 'all',
+            onTap: () => onTap('all'),
+          ),
+          for (final cadence in cadences)
+            _Pill(
+              label: t.x(labels[cadence]!),
+              count: rows.where((r) => r.cadence == cadence).length,
+              active: current == cadence,
+              onTap: () => onTap(cadence),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _FilterPills extends StatelessWidget {
   const _FilterPills({
@@ -1772,7 +1857,7 @@ class _CollectionCard extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  DateFormat('dd MMM yyyy').format(row.dueDate),
+                                  '${t.x('coll.due_label')} ${DateFormat('dd/MM/yyyy').format(row.dueDate)}',
                                   style: AppTypography.bodyLarge,
                                 ),
                                 const SizedBox(height: 2),
@@ -1807,9 +1892,9 @@ class _CollectionCard extends ConsumerWidget {
                                     color: AppColors.primary,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: const Text(
-                                    'Collect',
-                                    style: TextStyle(
+                                  child: Text(
+                                    t.x('btn.collect'),
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -1840,6 +1925,12 @@ class _CollectionCard extends ConsumerWidget {
     final overdue = group.nextOverdue;
     final allCollected = group.allCollected;
     final rrow = group.receiptRow;
+    final showDueDate = responsive && today != null && today.cadence != 'daily';
+    final todayActionLabel =
+        showDueDate ? t.x('btn.collect') : t.x('coll.btn_today');
+    final todayDueDate = showDueDate
+        ? '${t.x('coll.due_label')} ${DateFormat('dd/MM/yyyy').format(today.dueDate)}'
+        : null;
 
     final double displayAmount;
     final String displayLabel;
@@ -2023,7 +2114,8 @@ class _CollectionCard extends ConsumerWidget {
                                 primary: true,
                                 enabled: today != null,
                                 icon: Icons.today_rounded,
-                                label: t.x('coll.btn_today'),
+                                label: todayActionLabel,
+                                dueDate: todayDueDate,
                                 amount: today != null
                                     ? fmt.format(group.todayDue)
                                     : null,
@@ -2056,7 +2148,8 @@ class _CollectionCard extends ConsumerWidget {
                                 primary: true,
                                 enabled: today != null,
                                 icon: Icons.today_rounded,
-                                label: t.x('coll.btn_today'),
+                                label: todayActionLabel,
+                                dueDate: todayDueDate,
                                 amount: today != null
                                     ? fmt.format(group.todayDue)
                                     : null,
@@ -2205,12 +2298,14 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.amount,
+    this.dueDate,
   });
   final bool primary;
   final bool enabled;
   final IconData icon;
   final String label;
   final String? amount;
+  final String? dueDate;
   final VoidCallback? onTap;
 
   @override
@@ -2237,7 +2332,7 @@ class _ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          height: 60,
+          height: dueDate == null ? 60 : 76,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -2268,6 +2363,13 @@ class _ActionButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.bodyLarge
                       .copyWith(color: fg, fontWeight: FontWeight.w800),
+                ),
+              if (dueDate != null)
+                Text(
+                  dueDate!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.tiny.copyWith(color: fg),
                 ),
             ],
           ),

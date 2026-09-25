@@ -3,6 +3,7 @@ import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import { getSetting } from '@/lib/tenant';
+import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import type { AppType } from '@/lib/appConfig';
 
 export async function GET(
@@ -20,16 +21,21 @@ export async function GET(
     const { slug } = await params;
     const { searchParams } = new URL(req.url);
 
-    const requestedAppType = searchParams.get('appType') || req.headers.get('x-app-type');
-    const privileged = ['superadmin', 'developer', 'admin'].includes(context.role);
-    const effectiveAppType = (requestedAppType && (privileged || requestedAppType === context.appType))
-      ? requestedAppType
-      : context.appType;
+    const requestedAppType = searchParams.get('appType');
+    if (requestedAppType && requestedAppType !== context.appType) return fail('Report not found', 404);
+    const requestedBranchId = searchParams.get('branchId');
+    if (context.branchId && requestedBranchId && requestedBranchId !== context.branchId) {
+      return fail('Report not found', 404);
+    }
+    const effectiveAppType = context.appType;
 
     const definition = getReportDefinitionForAppType(effectiveAppType as AppType, slug);
 
     if (!definition) {
       return fail(`Report builder for slug '${slug}' not found`, 404);
+    }
+    if (definition.addon === 'premium_accounting' && !(await isPremiumAccountingEnabled(context.tenantId))) {
+      return fail('Premium accounting subscription required', 403);
     }
 
     const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -37,7 +43,7 @@ export async function GET(
 
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
-    const branchId = searchParams.get('branchId') || context.branchId;
+    const branchId = context.branchId || requestedBranchId;
     const agentId = searchParams.get('agentId') || undefined;
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;

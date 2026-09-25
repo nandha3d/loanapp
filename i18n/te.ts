@@ -75,6 +75,7 @@ export const te = {
     frequency:          'కాలపరిమితి',
     daily:              'రోజువారీ',
     weekly:             'వారపు',
+    biweekly:           'రెండు వారాలకు ఒకసారి',
     monthly:            'నెలవారీ',
     custom:             'అనుకూల',
     allFrequencies:     'అన్నీ',

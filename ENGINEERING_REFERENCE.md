@@ -366,6 +366,7 @@ Order of operations, all inside one Serializable transaction:
 - **MONEY-12** — Schedules MUST NOT be modified once `hasFinancialActivity(loanId)` is true.
 - **MONEY-13** — Collection writes are idempotent through `buildCollectionIdempotencyKey()` — `(tenantId, agentId, instalmentId, amount, mode, date)`. A retried mobile submission must not double-post. Never bypass it.
 - **MONEY-21** — **Collection submission vs Payment correction**: `submitCollectionEntry` records new incoming collections and is strictly blocked on fully collected instalments by `getCollectionSubmissionBlockReason`. Modifying or correcting existing payments MUST use `correctInstalmentPayment` / `correctInstalmentPaymentInTx`, which updates the instalment amount, records a ledger adjustment for the delta, and executes `reallocateLoanRepayments` inside a transaction. Never call `submitCollectionEntry` inside a transaction or for a payment correction.
+- **MONEY-23** — Mobile Micro Lending collection cards group dues by `loanId`, because `QuickCollectSheet` submits against one loan. The card amount must match the dues preloaded by that sheet; never add two loans under one customer card. Cadence labels use `Loan.frequency`, and dates beside collection actions use the persisted `Instalment.dueDate`. The existing `/api/v1/collection/today` cadence-day worklist remains unchanged.
 
 #### Micro Lending agent preclose requests
 

@@ -4,6 +4,12 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { writeAuditLog, getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
+
+async function accountsBelongToTenant(tenantId: string, accountIds: string[]): Promise<boolean> {
+  const uniqueIds = [...new Set(accountIds)];
+  return await prisma.account.count({ where: { tenantId, id: { in: uniqueIds } } }) === uniqueIds.length;
+}
 
 async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
   const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
@@ -40,8 +46,9 @@ export async function GET(
   const { id } = await params;
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const entry = await prisma.journalEntry.findFirst({
-      where: { id, tenantId: ctx.tenantId },
+      where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}) },
       include: {
         lines: {
           include: { account: { select: { code: true, name: true } } },
@@ -53,13 +60,13 @@ export async function GET(
       },
     });
 
-    if (!entry) {
+    if (!entry || !(await accountsBelongToTenant(ctx.tenantId, entry.lines.map((line) => line.accountId)))) {
       return fail('Journal entry not found', 404);
     }
 
     return ok(entry);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }
 
@@ -77,6 +84,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    await assertPremiumAccountingAccess(ctx);
     const body = await req.json();
     const { action } = body;
 
@@ -88,10 +96,13 @@ export async function POST(
 
     if (action === 'approve') {
       const entry = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, status: 'pending_approval' },
+        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
         include: { lines: true },
       });
       if (!entry) return fail('Journal entry not found or not pending approval', 404);
+      if (!(await accountsBelongToTenant(ctx.tenantId, entry.lines.map((line) => line.accountId)))) {
+        return fail('Journal entry not found', 404);
+      }
 
       const entryNo = await assignNextEntryNo(ctx.tenantId, entry.entryDate);
       await prisma.$transaction(async (tx) => {
@@ -123,6 +134,11 @@ export async function POST(
 
     if (action === 'reject') {
       const { note } = body;
+      const entry = await prisma.journalEntry.findFirst({
+        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
+        select: { id: true },
+      });
+      if (!entry) return fail('Journal entry not found or not pending approval', 404);
       await prisma.journalEntry.update({
         where: { id, tenantId: ctx.tenantId },
         data: { status: 'rejected' },
@@ -148,10 +164,13 @@ export async function POST(
       if (!reason) return fail('Reversal reason is mandatory', 400);
 
       const original = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, status: 'posted' },
+        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted' },
         include: { lines: true },
       });
       if (!original) return fail('Original journal entry not found or not posted', 404);
+      if (!(await accountsBelongToTenant(ctx.tenantId, original.lines.map((line) => line.accountId)))) {
+        return fail('Original journal entry not found', 404);
+      }
 
       const entryDate = new Date();
       const entryNo = await assignNextEntryNo(ctx.tenantId, entryDate);
@@ -167,6 +186,7 @@ export async function POST(
         const rev = await tx.journalEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            branchId: original.branchId,
             entryNo,
             entryDate,
             narration: `Reversal of ${original.entryNo ?? id}: ${reason}`,
@@ -220,10 +240,13 @@ export async function POST(
 
     if (action === 'post_draft') {
       const draft = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, status: 'draft' },
+        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
         include: { lines: true },
       });
       if (!draft) return fail('Draft journal entry not found', 404);
+      if (!(await accountsBelongToTenant(ctx.tenantId, draft.lines.map((line) => line.accountId)))) {
+        return fail('Draft journal entry not found', 404);
+      }
 
       const totalDr = draft.lines.reduce((s, l) => s + Number(l.debit), 0);
       const totalCr = draft.lines.reduce((s, l) => s + Number(l.credit), 0);
@@ -288,7 +311,7 @@ export async function POST(
 
     if (action === 'delete_draft') {
       const draft = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, status: 'draft' },
+        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
       });
       if (!draft) return fail('Draft journal entry not found', 404);
 
@@ -308,6 +331,6 @@ export async function POST(
 
     return fail('Invalid action', 400);
   } catch (e: any) {
-    return fail(e.message, 500);
+    return fail(e.message, e instanceof PremiumAccountingServiceError ? e.status : 500);
   }
 }

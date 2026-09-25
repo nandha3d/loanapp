@@ -2,13 +2,17 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
+import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
   if (!ctx) return fail('Unauthorized', 401);
 
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
-    return fail('Forbidden', 403);
+  try {
+    await assertPremiumAccountingAccess(ctx);
+  } catch (error) {
+    if (error instanceof PremiumAccountingServiceError) return fail(error.message, error.status);
+    throw error;
   }
 
   try {
@@ -19,13 +23,13 @@ export async function GET(req: NextRequest) {
 
     const lines = await prisma.journalLine.groupBy({
       by: ['accountId'],
-      where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { lte: asOfDate } } },
+      where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { lte: asOfDate } } },
       _sum: { debit: true, credit: true },
     });
 
     const accountIds = lines.map((l) => l.accountId);
     const accounts = await prisma.account.findMany({
-      where: { id: { in: accountIds } },
+      where: { tenantId: ctx.tenantId, id: { in: accountIds } },
       select: { id: true, code: true, name: true, classType: true },
       orderBy: { code: 'asc' },
     });

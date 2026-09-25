@@ -204,6 +204,13 @@ async function main() {
       description: 'Query CRIF/CIBIL credit history directly for applicants',
       monthlyPrice: 199, // Medium complexity
       sortOrder: 4
+    },
+    {
+      addon: 'npa',
+      displayName: 'NPA Monitoring & Provisioning Engine',
+      description: 'Automated RBI-compliant NPA classification, SMA tracking, and provisioning reports',
+      monthlyPrice: 499,
+      sortOrder: 5
     }
   ];
 

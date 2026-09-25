@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
           gpsTrackingEnabled: selectedAddons.includes('gps_tracking'),
           premiumAccountingEnabled: selectedAddons.includes('premium_accounting'),
           bureauEnabled: selectedAddons.includes('bureau'),
+          npaEnabled: selectedAddons.includes('npa'),
 
           basePlanPrice,
           modulesPrice,
@@ -249,6 +250,7 @@ export async function POST(req: NextRequest) {
 }
 
 function serializeUser(user: any) {
+  const sub = user.tenant?.subscription;
   return {
     id: user.id,
     name: user.name,
@@ -261,6 +263,13 @@ function serializeUser(user: any) {
     status: user.status,
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant?.slug ?? null,
+    gpsTrackingEnabled: Boolean(sub?.gpsTrackingEnabled),
+    npaEnabled: Boolean(sub?.npaEnabled),
+    kycEnabled: Boolean(sub?.kycEnabled),
+    bureauEnabled: Boolean(sub?.bureauEnabled),
+    premiumAccountingEnabled: Boolean(sub?.premiumAccountingEnabled),
+    whatsappSmsEnabled: Boolean(sub?.whatsappSmsEnabled),
+    foreclosureEnabled: Boolean(sub?.foreclosureEnabled),
     enabledModules: enabledModulesForRole(user.role, user.appType),
   };
 }

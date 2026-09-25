@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class BankReconciliationScreen extends ConsumerStatefulWidget {
@@ -28,7 +31,9 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
   @override
   void initState() {
     super.initState();
-    _fetchBankAccounts();
+    if (ref.read(authControllerProvider).user?.premiumAccountingEnabled ?? false) {
+      _fetchBankAccounts();
+    }
   }
 
   Future<void> _fetchBankAccounts() async {
@@ -140,6 +145,39 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
 
   @override
   Widget build(BuildContext context) {
+    final premiumEnabled =
+        ref.watch(authControllerProvider).user?.premiumAccountingEnabled ?? false;
+    if (!premiumEnabled) {
+      final t = T.of(ref);
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(title: Text(t.x('accounting.bank_rec'))),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                t.x('accounting.premium_locked'),
+                style: AppTypography.sectionTitle,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.lock_open),
+                label: Text(t.x('accounting.unlock_premium')),
+                onPressed: () => showAddonPurchaseSheet(
+                  context,
+                  ref,
+                  addonKey: 'premium_accounting',
+                  onActivated: _fetchBankAccounts,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(

@@ -67,6 +67,22 @@ class CollectionRow {
   final String? collectionEntryId;
   final String? frequency;
 
+  String get cadence {
+    switch (frequency?.toLowerCase()) {
+      case null:
+      case 'daily':
+        return 'daily';
+      case 'weekly':
+      case 'biweekly':
+      case 'monthly':
+      case 'single_payment':
+      case 'custom_duration':
+        return frequency!.toLowerCase();
+      default:
+        return 'custom';
+    }
+  }
+
   double get outstanding {
     final value = dueAmount - receivedAmount;
     return value > 0 ? value : 0;

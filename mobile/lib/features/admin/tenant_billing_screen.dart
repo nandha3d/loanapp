@@ -5,7 +5,9 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/admin_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
@@ -168,7 +170,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         : 'N/A';
 
     final user = ref.watch(authControllerProvider).user;
-    final isGpsSubscribed = user?.gpsTrackingEnabled == true;
+    final role = _billingData['role'] as String? ?? 'admin';
+    final isDev = role == 'developer' || user?.role == UserRole.developer;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -229,125 +232,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         // Add-ons & Premium Modules
         Text('Add-ons & Premium Modules', style: AppTypography.sectionTitle),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isGpsSubscribed
-                  ? AppColors.success.withAlpha(80)
-                  : AppColors.border,
-            ),
-            boxShadow: AppTokens.shadow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isGpsSubscribed
-                          ? AppColors.successBg
-                          : AppColors.warningBg,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.gps_fixed_rounded,
-                      color: isGpsSubscribed
-                          ? AppColors.success
-                          : AppColors.warning,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'GPS Live Tracking',
-                              style: AppTypography.bodySmall.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            if (!isGpsSubscribed)
-                              const Icon(
-                                Icons.lock_rounded,
-                                size: 14,
-                                color: AppColors.warning,
-                              ),
-                          ],
-                        ),
-                        Text(
-                          isGpsSubscribed
-                              ? 'Active · Real-time agent location & routes'
-                              : '₹299/mo · Live agent field map & route audit',
-                          style: AppTypography.extraTiny.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isGpsSubscribed
-                          ? AppColors.successBg
-                          : AppColors.warningBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isGpsSubscribed
-                            ? AppColors.success
-                            : AppColors.warning,
-                      ),
-                    ),
-                    child: Text(
-                      isGpsSubscribed ? 'ACTIVE' : 'LOCKED',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: isGpsSubscribed
-                            ? AppColors.success
-                            : AppColors.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (!isGpsSubscribed) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => showGpsAddonSubscribeSheet(context, ref),
-                    icon: const Icon(Icons.flash_on_rounded, size: 16),
-                    label: const Text('Subscribe to GPS Add-on (₹299/mo)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
+        ..._buildAddonList(user, isDev),
+        const SizedBox(height: 16),
 
         if (!widget.isSubscriptionOnly) ...[
           Text('Billing Statements', style: AppTypography.sectionTitle),
@@ -389,6 +275,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
     bool kyc = sub?['kycEnabled'] == true;
     bool gps = sub?['gpsTrackingEnabled'] == true;
     bool acct = sub?['premiumAccountingEnabled'] == true;
+    bool npa = sub?['npaEnabled'] == true;
+    bool bureau = sub?['bureauEnabled'] == true;
 
     showModalBottomSheet<void>(
       context: context,
@@ -435,6 +323,16 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                   ),
                   const SizedBox(height: 12),
                   CheckboxListTile(
+                    title: const Text('NPA Monitoring & Provisioning Engine'),
+                    value: npa,
+                    onChanged: (v) => setModalState(() => npa = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Credit Bureau Integration (CRIF)'),
+                    value: bureau,
+                    onChanged: (v) => setModalState(() => bureau = v ?? false),
+                  ),
+                  CheckboxListTile(
                     title: const Text('WhatsApp/SMS Enabled'),
                     value: whatsapp,
                     onChanged: (v) => setModalState(() => whatsapp = v ?? false),
@@ -474,6 +372,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                           'maxActiveLoans': int.tryParse(maxLoansController.text.trim()) ?? 100,
                           'maxAgents': int.tryParse(maxAgentsController.text.trim()) ?? 5,
                           'maxBranches': int.tryParse(maxBranchesController.text.trim()) ?? 3,
+                          'npaEnabled': npa,
+                          'bureauEnabled': bureau,
                           'whatsappSmsEnabled': whatsapp,
                           'receiptPdfAllowed': pdf,
                           'kycEnabled': kyc,
@@ -498,6 +398,220 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       },
     );
   }
+
+  List<Widget> _buildAddonList(User? user, bool isDev) {
+    final addons = [
+      _BillingAddonItem(
+        key: 'npa',
+        name: 'NPA Monitoring & Provisioning',
+        priceText: '₹499/mo',
+        desc: 'Overdue classification (SMA 0/1/2/NPA) & RBI provisioning engine',
+        icon: Icons.health_and_safety_outlined,
+        isSubscribed: user?.npaEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'gps_tracking',
+        name: 'GPS Live Tracking',
+        priceText: '₹299/mo',
+        desc: 'Real-time agent location, geotagged collections & route audit',
+        icon: Icons.gps_fixed_rounded,
+        isSubscribed: user?.gpsTrackingEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'kyc',
+        name: 'KYC Verification Suite',
+        priceText: '₹199/mo',
+        desc: 'Instant Aadhaar OTP verification, document OCR & Video KYC',
+        icon: Icons.verified_user_outlined,
+        isSubscribed: user?.kycEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'bureau',
+        name: 'Credit Bureau Integration',
+        priceText: '₹399/mo',
+        desc: 'Instant CRIF High Mark credit reports and risk scoring',
+        icon: Icons.assignment_ind_outlined,
+        isSubscribed: user?.bureauEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'premium_accounting',
+        name: 'Premium Ledger & Accounting',
+        priceText: '₹399/mo',
+        desc: 'Automated double-entry journals, trial balance & P&L exports',
+        icon: Icons.account_balance_outlined,
+        isSubscribed: user?.premiumAccountingEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'whatsapp_sms',
+        name: 'WhatsApp & SMS Notifications',
+        priceText: '₹199/mo',
+        desc: 'Instant collection receipts and automated repayment reminders',
+        icon: Icons.chat_bubble_outline_rounded,
+        isSubscribed: user?.whatsappSmsEnabled == true || isDev,
+      ),
+    ];
+
+    return addons.map((addon) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: addon.isSubscribed
+                ? AppColors.success.withAlpha(80)
+                : AppColors.border,
+          ),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: addon.isSubscribed
+                        ? AppColors.successBg
+                        : AppColors.warningBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    addon.icon,
+                    color: addon.isSubscribed
+                        ? AppColors.success
+                        : AppColors.warning,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              addon.name,
+                              style: AppTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (!addon.isSubscribed)
+                            const Icon(
+                              Icons.lock_rounded,
+                              size: 14,
+                              color: AppColors.warning,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        addon.isSubscribed
+                            ? 'Active · Included in organization plan'
+                            : '${addon.priceText} · ${addon.desc}',
+                        style: AppTypography.extraTiny.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: addon.isSubscribed
+                        ? AppColors.successBg
+                        : AppColors.warningBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: addon.isSubscribed
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
+                  ),
+                  child: Text(
+                    addon.isSubscribed ? 'ACTIVE' : 'LOCKED',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: addon.isSubscribed
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!addon.isSubscribed) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    showAddonPurchaseSheet(
+                      context,
+                      ref,
+                      addonKey: addon.key,
+                      onActivated: () {
+                        _fetchBilling();
+                        ref
+                            .read(authControllerProvider.notifier)
+                            .refreshProfile();
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.flash_on_rounded, size: 16),
+                  label: Text(
+                    'Subscribe to ${addon.name} (${addon.priceText})',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }).toList();
+  }
+}
+
+class _BillingAddonItem {
+  const _BillingAddonItem({
+    required this.key,
+    required this.name,
+    required this.priceText,
+    required this.desc,
+    required this.icon,
+    required this.isSubscribed,
+  });
+  final String key;
+  final String name;
+  final String priceText;
+  final String desc;
+  final IconData icon;
+  final bool isSubscribed;
 }
 
 class _InvoiceRow extends StatelessWidget {

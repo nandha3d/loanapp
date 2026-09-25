@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken, issueRefreshToken, loginWindowFailure } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, loginWindowFailure, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { extractTenantSlugFromHost } from '@/lib/tenant';
 
 /**
@@ -47,7 +47,17 @@ export async function POST(req: NextRequest) {
             select: {
               slug: true,
               status: true,
-              subscription: { select: { gpsTrackingEnabled: true } },
+              subscription: {
+                select: {
+                  gpsTrackingEnabled: true,
+                  npaEnabled: true,
+                  kycEnabled: true,
+                  bureauEnabled: true,
+                  premiumAccountingEnabled: true,
+                  whatsappSmsEnabled: true,
+                  foreclosureEnabled: true,
+                },
+              },
             },
           },
         },
@@ -65,7 +75,17 @@ export async function POST(req: NextRequest) {
             select: {
               slug: true,
               status: true,
-              subscription: { select: { gpsTrackingEnabled: true } },
+              subscription: {
+                select: {
+                  gpsTrackingEnabled: true,
+                  npaEnabled: true,
+                  kycEnabled: true,
+                  bureauEnabled: true,
+                  premiumAccountingEnabled: true,
+                  whatsappSmsEnabled: true,
+                  foreclosureEnabled: true,
+                },
+              },
             },
           },
         },
@@ -105,18 +125,20 @@ export async function POST(req: NextRequest) {
 
     const token = await issueMobileToken({ userId: user.id, tenantId: user.tenantId, branchId: user.branchId, role: user.role, appType: user.appType });
     const refreshToken = await issueRefreshToken(user.id, user.tenantId).catch(() => null);
+    const verticals = await resolveUserVerticals(user);
 
     return ok({
       token,
       refreshToken,
-      user: serializeUser(user),
+      user: serializeUser(user, verticals),
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Login failed', 500);
   }
 }
 
-function serializeUser(user: any) {
+function serializeUser(user: any, verticals: string[] = []) {
+  const sub = user.tenant?.subscription;
   return {
     id: user.id,
     name: user.name,
@@ -129,8 +151,15 @@ function serializeUser(user: any) {
     status: user.status,
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant?.slug ?? null,
-    gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
+    gpsTrackingEnabled: Boolean(sub?.gpsTrackingEnabled),
+    npaEnabled: Boolean(sub?.npaEnabled),
+    kycEnabled: Boolean(sub?.kycEnabled),
+    bureauEnabled: Boolean(sub?.bureauEnabled),
+    premiumAccountingEnabled: Boolean(sub?.premiumAccountingEnabled),
+    whatsappSmsEnabled: Boolean(sub?.whatsappSmsEnabled),
+    foreclosureEnabled: Boolean(sub?.foreclosureEnabled),
     enabledModules: enabledModulesForRole(user.role, user.appType),
+    verticals,
   };
 }
 

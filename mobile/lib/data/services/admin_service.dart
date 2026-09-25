@@ -136,6 +136,33 @@ class AdminService {
     unwrapEnvelope(res, (dynamic d) => d);
   }
 
+  // --- Add-on Purchase & Razorpay Verification ---
+  Future<Map<String, dynamic>> createAddonCheckout(String addonKey) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.addonCheckout,
+      data: {'addonKey': addonKey},
+    );
+    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<Map<String, dynamic>> verifyAddonPayment({
+    required String addonKey,
+    required String orderId,
+    required String paymentId,
+    String? signature,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.verifyAddonPayment,
+      data: {
+        'addonKey': addonKey,
+        'orderId': orderId,
+        'paymentId': paymentId,
+        if (signature != null) 'signature': signature,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
   // --- Affiliates ---
   Future<Map<String, dynamic>> getAffiliates() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.adminAffiliates);

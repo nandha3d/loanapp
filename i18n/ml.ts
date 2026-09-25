@@ -75,6 +75,7 @@ export const ml = {
     frequency:          'ആവൃത്തി',
     daily:              'പ്രതിദിനം',
     weekly:             'പ്രതിവാരം',
+    biweekly:           'രണ്ടാഴ്ചയിലൊരിക്കൽ',
     monthly:            'പ്രതിമാസം',
     custom:             'കസ്റ്റം',
     allFrequencies:     'എല്ലാം',

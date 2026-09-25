@@ -106,6 +106,7 @@ export function addonKeysFromSubscriptionFlags(flags: {
   kycEnabled?: boolean;
   gpsTrackingEnabled?: boolean;
   premiumAccountingEnabled?: boolean;
+  npaEnabled?: boolean;
 }) {
   const selectedAddons: string[] = [];
   if (flags.whatsappSmsEnabled) selectedAddons.push('whatsapp_sms');
@@ -113,5 +114,6 @@ export function addonKeysFromSubscriptionFlags(flags: {
   if (flags.kycEnabled) selectedAddons.push('kyc');
   if (flags.gpsTrackingEnabled) selectedAddons.push('gps_tracking');
   if (flags.premiumAccountingEnabled) selectedAddons.push('premium_accounting');
+  if (flags.npaEnabled) selectedAddons.push('npa');
   return selectedAddons;
 }

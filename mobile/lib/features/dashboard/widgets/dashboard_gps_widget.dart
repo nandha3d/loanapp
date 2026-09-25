@@ -16,6 +16,7 @@ import 'package:zolofund/data/models/agent_location.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 
 // ── Map pin data ──────────────────────────────────────────────────────────────
 
@@ -1405,7 +1406,13 @@ void showGpsAddonSubscribeSheet(BuildContext context, WidgetRef ref) {
                   ),
                   onPressed: () {
                     Navigator.pop(ctx);
-                    context.push('/portal/billing');
+                    showAddonPurchaseSheet(
+                      context,
+                      ref,
+                      addonKey: 'gps_tracking',
+                      onActivated: () =>
+                          ref.read(authControllerProvider.notifier).refreshProfile(),
+                    );
                   },
                 ),
               ),
