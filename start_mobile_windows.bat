@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
 cd /d "%~dp0mobile"
 
 echo Starting Flutter Windows App...
-echo (Hot reload: press 'r' in this window | Hot restart: press 'R' | Quit: press 'q')
+echo [Hot reload: press 'r' ^| Hot restart: press 'R' ^| Quit: press 'q']
 echo.
 
 flutter run -d windows --dart-define=API_BASE_URL=http://localhost:3000/api/v1
