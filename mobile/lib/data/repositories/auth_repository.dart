@@ -51,6 +51,33 @@ class AuthRepository {
     return result.user!;
   }
 
+  Future<Map<String, dynamic>> sendWhatsAppOtp({
+    required String phone,
+    String? tenantSlug,
+  }) {
+    return _service.sendWhatsAppOtp(phone: phone, tenantSlug: tenantSlug);
+  }
+
+  Future<User> loginWithWhatsAppOtp({
+    required String phone,
+    required String otp,
+    required String challengeToken,
+    String? tenantSlug,
+  }) async {
+    final result = await _service.loginWithWhatsAppOtp(
+      phone: phone,
+      otp: otp,
+      challengeToken: challengeToken,
+      tenantSlug: tenantSlug,
+    );
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
+    return result.user!;
+  }
+
   /// Session bootstrap. A stored token + cached profile mean the user IS
   /// logged in — a slow or dead network must never bounce them to the login
   /// screen. Only an explicit server rejection (401/403 after the dio

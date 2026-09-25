@@ -64,6 +64,46 @@ class AuthService {
     });
   }
 
+  Future<Map<String, dynamic>> sendWhatsAppOtp({
+    required String phone,
+    String? tenantSlug,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.whatsappSendOtp,
+      data: {
+        'phone': phone,
+        'purpose': 'login',
+        if (tenantSlug != null && tenantSlug.isNotEmpty) 'tenantSlug': tenantSlug,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<LoginResult> loginWithWhatsAppOtp({
+    required String phone,
+    required String otp,
+    required String challengeToken,
+    String? tenantSlug,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.whatsappVerifyOtp,
+      data: {
+        'phone': phone,
+        'otp': otp,
+        'challengeToken': challengeToken,
+        if (tenantSlug != null && tenantSlug.isNotEmpty) 'tenantSlug': tenantSlug,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final map = d as Map<String, dynamic>;
+      return LoginResult(
+        token: map['token'] as String,
+        refreshToken: map['refreshToken'] as String?,
+        user: User.fromJson(map['user'] as Map<String, dynamic>),
+      );
+    });
+  }
+
   Future<LoginResult> registerWithEmail({
     required String businessName,
     required String ownerName,

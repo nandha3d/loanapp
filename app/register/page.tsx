@@ -76,6 +76,95 @@ function RegisterForm() {
   const [error, setError] = useState('');
   const [referralCode, setReferralCode] = useState('');
 
+  // WhatsApp OTP verification state
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
+  const [whatsappToken, setWhatsappToken] = useState('');
+  const [waSending, setWaSending] = useState(false);
+  const [waVerifying, setWaVerifying] = useState(false);
+  const [waShowOtp, setWaShowOtp] = useState(false);
+  const [waOtpCode, setWaOtpCode] = useState('');
+  const [waChallengeToken, setWaChallengeToken] = useState('');
+  const [waCooldown, setWaCooldown] = useState(0);
+  const [waStatusMsg, setWaStatusMsg] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  // Cooldown countdown timer
+  useEffect(() => {
+    if (waCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setWaCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [waCooldown]);
+
+  const handleSendWhatsAppOtp = async () => {
+    const pc = validateIndianMobile(ownerPhone);
+    if (!pc.ok) {
+      setPhoneError(pc.error);
+      return;
+    }
+    setWaSending(true);
+    setWaStatusMsg(null);
+    try {
+      const res = await fetch('/api/v1/auth/whatsapp/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: ownerPhone,
+          purpose: 'registration',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setWaStatusMsg({ text: data.error || 'Failed to send WhatsApp OTP.', isError: true });
+        setWaSending(false);
+        return;
+      }
+      setWaChallengeToken(data.data.challengeToken);
+      setWaShowOtp(true);
+      setWaCooldown(60);
+      setWaStatusMsg({ text: 'WhatsApp verification code sent! Please check your WhatsApp.' });
+    } catch (err: any) {
+      setWaStatusMsg({ text: err.message || 'Network error sending OTP.', isError: true });
+    } finally {
+      setWaSending(false);
+    }
+  };
+
+  const handleVerifyWhatsAppOtp = async () => {
+    const cleanOtp = waOtpCode.trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setWaStatusMsg({ text: 'Please enter a 6-digit OTP code.', isError: true });
+      return;
+    }
+    setWaVerifying(true);
+    setWaStatusMsg(null);
+    try {
+      const res = await fetch('/api/v1/auth/whatsapp/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: ownerPhone,
+          otp: cleanOtp,
+          challengeToken: waChallengeToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.data?.registrationToken) {
+        setWaStatusMsg({ text: data.error || 'Invalid OTP code. Please try again.', isError: true });
+        setWaVerifying(false);
+        return;
+      }
+      setWhatsappVerified(true);
+      setWhatsappToken(data.data.registrationToken);
+      setWaShowOtp(false);
+      setWaStatusMsg({ text: '✓ Mobile verified successfully! Instant activation enabled.' });
+    } catch (err: any) {
+      setWaStatusMsg({ text: err.message || 'Error verifying OTP.', isError: true });
+    } finally {
+      setWaVerifying(false);
+    }
+  };
+
   // Extract referral code on mount and track visit
   useEffect(() => {
     let code = searchParams.get('ref') || '';
@@ -344,7 +433,8 @@ function RegisterForm() {
             selectedModules,
             selectedAddons,
             paymentOption: selectedPlan === 'free' ? 'free' : paymentOption,
-            referralCode
+            referralCode,
+            whatsappVerificationToken: whatsappVerified ? whatsappToken : undefined,
           };
 
       const res = await fetch(endpoint, {
@@ -397,6 +487,22 @@ function RegisterForm() {
         } else {
           await signIn('google', { callbackUrl: '/portal' });
         }
+      } else if (data.activatedImmediately) {
+        // Instant activation unlocked via WhatsApp verification: sign straight into the dashboard!
+        try {
+          const signInRes = await signIn('credentials', {
+            username: data.username || ownerPhone,
+            password: ownerPassword,
+            redirect: false,
+          });
+          if (signInRes && !signInRes.error) {
+            router.push('/portal');
+            return;
+          }
+        } catch {
+          // Fall through to login redirect
+        }
+        router.push(`/login?registered=1&username=${encodeURIComponent(data.username || ownerPhone)}`);
       } else {
         router.push(`/login?registerPending=1&emailSent=${data.emailSent ? 1 : 0}&username=${encodeURIComponent(data.username || ownerPhone)}&email=${encodeURIComponent(ownerEmail || '')}`);
       }
@@ -509,7 +615,15 @@ function RegisterForm() {
                     style={phoneError ? { borderColor: 'var(--danger)' } : undefined}
                     placeholder="e.g. 9876543210"
                     value={ownerPhone}
-                    onChange={(e) => { setOwnerPhone(e.target.value); if (phoneError) setPhoneError(''); }}
+                    onChange={(e) => {
+                      setOwnerPhone(e.target.value);
+                      if (phoneError) setPhoneError('');
+                      if (whatsappVerified) {
+                        setWhatsappVerified(false);
+                        setWhatsappToken('');
+                        setWaShowOtp(false);
+                      }
+                    }}
                     onBlur={() => { const r = validateIndianMobile(ownerPhone); setPhoneError(r.ok ? '' : r.error); }}
                     required
                   />
@@ -527,6 +641,150 @@ function RegisterForm() {
                     <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
                       Your phone number is also your login username.
                     </small>
+                  )}
+
+                  {/* WhatsApp Verification Widget */}
+                  {!simpleMode && (
+                    <div style={{ marginTop: '8px' }}>
+                      {whatsappVerified ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '0.76rem',
+                          color: 'var(--success)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>verified</span>
+                            <span><strong>Verified via WhatsApp</strong> (Instant Activation)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setWhatsappVerified(false); setWhatsappToken(''); setWaShowOtp(false); }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '0.72rem',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {!waShowOtp ? (
+                            <button
+                              type="button"
+                              disabled={waSending || !validateIndianMobile(ownerPhone).ok || availability.phone.available === false}
+                              onClick={handleSendWhatsAppOtp}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 12px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: '#16a34a',
+                                background: 'rgba(34, 197, 94, 0.1)',
+                                border: '1px solid rgba(34, 197, 94, 0.3)',
+                                borderRadius: '6px',
+                                cursor: (waSending || !validateIndianMobile(ownerPhone).ok) ? 'not-allowed' : 'pointer',
+                                opacity: (!validateIndianMobile(ownerPhone).ok) ? 0.6 : 1,
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '15px' }}>chat</span>
+                              {waSending ? 'Sending OTP to WhatsApp...' : 'Verify Mobile with WhatsApp OTP'}
+                            </button>
+                          ) : (
+                            <div style={{
+                              background: 'var(--bg-light)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '8px',
+                              padding: '12px',
+                              marginTop: '4px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  Enter 6-digit WhatsApp OTP
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setWaShowOtp(false)}
+                                  style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  value={waOtpCode}
+                                  onChange={(e) => setWaOtpCode(e.target.value.replace(/\D/g, ''))}
+                                  placeholder="6-digit code"
+                                  style={{
+                                    flex: 1,
+                                    letterSpacing: '4px',
+                                    textAlign: 'center',
+                                    fontWeight: 700,
+                                    fontSize: '0.95rem',
+                                    padding: '6px 10px',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '6px',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={waVerifying || waOtpCode.trim().length !== 6}
+                                  onClick={handleVerifyWhatsAppOtp}
+                                  className="btn btn-primary"
+                                  style={{ padding: '6px 14px', fontSize: '0.78rem' }}
+                                >
+                                  {waVerifying ? 'Verifying...' : 'Confirm'}
+                                </button>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '0.72rem' }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>
+                                  Didn't receive code?
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={waCooldown > 0 || waSending}
+                                  onClick={handleSendWhatsAppOtp}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: waCooldown > 0 ? 'var(--text-light)' : 'var(--primary)',
+                                    cursor: waCooldown > 0 ? 'default' : 'pointer',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {waCooldown > 0 ? `Resend in ${waCooldown}s` : 'Resend WhatsApp OTP'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {waStatusMsg && (
+                            <div style={{
+                              marginTop: '6px',
+                              fontSize: '0.74rem',
+                              color: waStatusMsg.isError ? 'var(--danger)' : 'var(--success)'
+                            }}>
+                              {waStatusMsg.text}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -552,7 +810,9 @@ function RegisterForm() {
                     <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.email.message}</small>
                   ) : (
                     <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
-                      We'll send an activation link here — your account stays inactive until verified.
+                      {whatsappVerified
+                        ? 'Used for monthly reports & notifications. Your account activates immediately via WhatsApp verification!'
+                        : "We'll send an activation link here — your account stays inactive until verified."}
                     </small>
                   )}
                 </div>

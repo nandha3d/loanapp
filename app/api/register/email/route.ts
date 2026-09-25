@@ -38,7 +38,8 @@ export async function POST(request: Request) {
       selectedModules = [],
       selectedAddons = [],
       paymentOption,
-      referralCode
+      referralCode,
+      whatsappVerificationToken,
     } = body;
 
     // Validate fields (username is optional — defaults to the phone number)
@@ -74,6 +75,12 @@ export async function POST(request: Request) {
     const conflicts = await findUserUniqueConflicts({ username, phone, email });
     if (conflicts.length > 0) {
       return NextResponse.json({ success: false, error: conflicts[0].message }, { status: 409 });
+    }
+
+    let isWhatsAppVerified = false;
+    if (whatsappVerificationToken) {
+      const { verifyRegistrationToken } = await import('@/lib/whatsappAuth');
+      isWhatsAppVerified = await verifyRegistrationToken(whatsappVerificationToken, phone);
     }
 
     const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'];
@@ -189,8 +196,8 @@ export async function POST(request: Request) {
           passwordHash: hashedPassword,
           role: 'superadmin',
           appType: finalModules[0],
-          // Account stays inactive until the owner verifies their email.
-          status: 'pending',
+          // Activated immediately if verified via WhatsApp OTP, otherwise pending email verification
+          status: isWhatsAppVerified ? 'active' : 'pending',
           canCreateLoan: true
         }
       });
@@ -279,22 +286,25 @@ export async function POST(request: Request) {
     });
 
     // Use platform SMTP for email registration activation so delivery does not
-    // depend on Supabase OTP/magic-link mail. Capture the outcome so the client
-    // can tell the user whether to expect a mail or to use "resend".
-    const emailResult = await sendVerificationEmail({
-      tenantId: result.tenantId,
-      email: result.ownerEmail,
-      name: result.ownerName,
-      userId: result.userId,
-    }).catch((e) => {
-      console.error('[VERIFY_EMAIL_SEND]', e);
-      return { success: false, error: e?.message } as { success: boolean; error?: string };
-    });
+    // depend on Supabase OTP/magic-link mail. If WhatsApp verified, account is already active.
+    let emailSent = false;
+    let emailError: string | undefined;
+    if (!isWhatsAppVerified) {
+      const emailResult = await sendVerificationEmail({
+        tenantId: result.tenantId,
+        email: result.ownerEmail,
+        name: result.ownerName,
+        userId: result.userId,
+      }).catch((e) => {
+        console.error('[VERIFY_EMAIL_SEND]', e);
+        return { success: false, error: e?.message } as { success: boolean; error?: string };
+      });
+      emailSent = emailResult.success === true;
+      emailError = emailResult.error;
 
-    if (!emailResult.success) {
-      // Account is created but pending; mail could not be sent. Don't fail the
-      // signup — surface emailSent:false so the UI can offer a resend.
-      console.error('[VERIFY_EMAIL_SEND] not delivered:', emailResult.error);
+      if (!emailSent) {
+        console.error('[VERIFY_EMAIL_SEND] not delivered:', emailError);
+      }
     }
 
     let checkoutUrl: string | null = null;
@@ -328,11 +338,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        requiresVerification: true,
-        emailSent: emailResult.success === true,
-        message: emailResult.success
-          ? 'Account created. Check your email to verify and activate your account.'
-          : 'Account created, but we could not send the verification email. Please use "Resend verification email" on the login page.',
+        requiresVerification: !isWhatsAppVerified,
+        activatedImmediately: isWhatsAppVerified,
+        emailSent,
+        message: isWhatsAppVerified
+          ? 'Account created and verified successfully via WhatsApp! You can now log in.'
+          : (emailSent
+            ? 'Account created. Check your email to verify and activate your account.'
+            : 'Account created, but we could not send the verification email. Please use "Resend verification email" on the login page.'),
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
         username: result.username,
