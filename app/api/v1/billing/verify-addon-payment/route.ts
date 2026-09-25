@@ -4,7 +4,8 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getPlatformPaymentSettings } from '@/lib/platformPayment';
-import { calculateVerticalSubscriptionPricing, normalizeEnabledModules } from '@/lib/subscription';
+import { normalizeEnabledModules } from '@/lib/subscription';
+import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 
 const ADDON_BOOLEAN_FIELDS: Record<string, string> = {
   npa: 'npaEnabled',

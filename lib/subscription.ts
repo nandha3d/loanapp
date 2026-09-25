@@ -272,3 +272,5 @@ export async function upsertSubscription(
     create: { tenantId, ...data },
   });
 }
+
+export { calculateVerticalSubscriptionPricing } from '@/lib/pricing';

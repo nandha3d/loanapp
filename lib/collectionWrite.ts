@@ -584,14 +584,14 @@ export async function recordActualLoanCollection(
         idempotencyKey: input.idempotencyKey,
       },
       include: {
-        instalment: { select: { instalmentNo: true } },
+        instalment: { select: { id: true, instalmentNo: true } },
       },
     });
     if (existing) {
       return {
-        posted: existing.instalmentId ? [{
-          instalmentId: existing.instalmentId,
-          instalmentNo: existing.instalment?.instalmentNo ?? 0,
+        posted: existing.instalment ? [{
+          instalmentId: existing.instalment.id,
+          instalmentNo: existing.instalment.instalmentNo,
           applied: Number(existing.receivedAmount),
         }] : [],
         applied: Number(existing.receivedAmount),
