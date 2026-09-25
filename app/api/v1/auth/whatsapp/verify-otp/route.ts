@@ -61,6 +61,18 @@ export async function POST(req: NextRequest) {
 
     const { claims } = verification;
 
+    // Handle owner registration mobile verification
+    if (claims.purpose === 'registration') {
+      const { issueRegistrationVerificationToken } = await import('@/lib/whatsappAuth');
+      const registrationToken = await issueRegistrationVerificationToken(claims.phone);
+      return ok({
+        verified: true,
+        phone: claims.phone,
+        registrationToken,
+        message: 'Mobile number verified successfully via WhatsApp.',
+      });
+    }
+
     // Handle borrower login
     if (claims.purpose === 'borrower_login' || claims.customerId) {
       const customer = await prisma.customer.findFirst({

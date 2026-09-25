@@ -65,7 +65,16 @@ export async function POST(req: NextRequest) {
     let userId: string | null = null;
     let customerId: string | null = null;
 
-    if (purpose === 'borrower_login') {
+    if (purpose === 'registration') {
+      // Owner registration OTP: Ensure the phone number isn't already taken
+      const existingUser = await prisma.user.findFirst({
+        where: { phone: normalised.digits10 },
+        select: { id: true },
+      });
+      if (existingUser) {
+        return fail('An account with this phone number already exists. Please log in instead.', 409);
+      }
+    } else if (purpose === 'borrower_login') {
       const customer = await prisma.customer.findFirst({
         where: {
           phone: normalised.digits10,

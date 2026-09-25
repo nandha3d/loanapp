@@ -161,7 +161,7 @@ export interface SendWhatsAppOtpOptions {
   tenantId?: string | null;
   host?: string | null;
   tenantSlug?: string | null;
-  purpose?: 'login' | 'borrower_login' | '2fa' | 'reset_password';
+  purpose?: 'login' | 'borrower_login' | '2fa' | 'reset_password' | 'registration';
   userId?: string | null;
   customerId?: string | null;
 }
@@ -467,4 +467,47 @@ export async function verifyWhatsAppAuthOtp(options: VerifyWhatsAppOtpOptions): 
       customerId: payload.customerId,
     },
   };
+}
+
+/**
+ * Issues a signed proof token confirming that a phone number was verified via WhatsApp OTP for registration.
+ * Valid for 30 minutes.
+ */
+export async function issueRegistrationVerificationToken(phone: string): Promise<string> {
+  const normalised = normalisePhoneForWhatsApp(phone);
+  if (!normalised) {
+    throw new Error('Invalid phone format for registration verification token');
+  }
+
+  return await new SignJWT({
+    phone: normalised.digits10,
+    e164: normalised.e164,
+    role: 'whatsapp_verified_registration',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setIssuer('zolofund')
+    .setAudience('whatsapp-registration-verified')
+    .setExpirationTime('30m')
+    .sign(getChallengeSecret());
+}
+
+/**
+ * Validates a registration verification token against an expected phone number.
+ */
+export async function verifyRegistrationToken(token: string | undefined | null, expectedPhone: string): Promise<boolean> {
+  if (!token || typeof token !== 'string') return false;
+  const normalised = normalisePhoneForWhatsApp(expectedPhone);
+  if (!normalised) return false;
+
+  try {
+    const verified = await jwtVerify(token, getChallengeSecret(), {
+      issuer: 'zolofund',
+      audience: 'whatsapp-registration-verified',
+    });
+    const payload = verified.payload;
+    return payload.role === 'whatsapp_verified_registration' && payload.phone === normalised.digits10;
+  } catch {
+    return false;
+  }
 }

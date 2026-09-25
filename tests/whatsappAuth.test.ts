@@ -101,6 +101,20 @@ async function runTests() {
   });
   assert.equal(verifyWrongPhone.success, false);
 
+  // 5. Registration verification token flow
+  const { issueRegistrationVerificationToken, verifyRegistrationToken } = await import('../lib/whatsappAuth');
+  const regToken = await issueRegistrationVerificationToken('9876543210');
+  assert.ok(regToken, 'Registration verification token must be issued');
+
+  const validVerification = await verifyRegistrationToken(regToken, '9876543210');
+  assert.equal(validVerification, true, 'Valid registration token must verify successfully');
+
+  const invalidPhoneVerification = await verifyRegistrationToken(regToken, '9123456789');
+  assert.equal(invalidPhoneVerification, false, 'Registration token with mismatched phone must fail');
+
+  const invalidTokenVerification = await verifyRegistrationToken('invalid.token.here', '9876543210');
+  assert.equal(invalidTokenVerification, false, 'Invalid registration token format must fail gracefully');
+
   console.log('All WhatsApp Auth tests passed successfully!');
 }
 
