@@ -43,10 +43,9 @@ class AnalyticsService {
   }
 
   /// Full consolidated analytics for the enhanced mobile dashboard.
-  Future<FullAnalytics> fullAnalytics({int? range}) async {
+  Future<FullAnalytics> fullAnalytics() async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.analyticsFull,
-      queryParameters: range != null ? {'range': range.toString()} : null,
     );
     return unwrapEnvelope(
       res,

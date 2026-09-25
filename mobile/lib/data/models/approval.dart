@@ -31,7 +31,12 @@ class Approval {
 
   factory Approval.fromJson(Map<String, dynamic> json) {
     final req = json['requestedBy'] as Map<String, dynamic>?;
-    final payloadStr = (json['requestedChanges'] as String?) ?? (json['payload'] as String?) ?? '{}';
+    final rawChanges = json['requestedChanges'] ?? json['payload'];
+    final payloadStr = rawChanges is String
+        ? rawChanges
+        : rawChanges != null
+            ? jsonEncode(rawChanges)
+            : '{}';
     bool insufficient = json['insufficientFloat'] == true;
     String? warning = json['floatWarning'] as String?;
     double? agentF = json['agentFloat'] != null ? (json['agentFloat'] as num).toDouble() : null;
@@ -56,7 +61,9 @@ class Approval {
       status: (json['status'] as String?) ?? 'pending',
       payload: payloadStr,
       requestedByName: (req?['name'] as String?) ?? 'Unknown',
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: json['createdAt'] == null
+          ? DateTime.now()
+          : DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now(),
       reviewNote: (json['reviewNotes'] as String?) ?? (json['reviewNote'] as String?),
       insufficientFloat: insufficient,
       agentFloat: agentF,

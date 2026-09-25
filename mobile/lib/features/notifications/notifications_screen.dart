@@ -30,11 +30,38 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _markingAll = false;
+  int _page = 1;
+  final List<NotificationItem> _extraItems = [];
+  bool _hasMore = true;
+  bool _loadingMore = false;
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final nextPage = _page + 1;
+      final results = await ref
+          .read(notificationsServiceProvider)
+          .fetchNotifications(page: nextPage, pageSize: 50);
+      if (results.length < 50) {
+        _hasMore = false;
+      }
+      _extraItems.addAll(results);
+      _page = nextPage;
+    } catch (_) {
+      // Keep _hasMore true to allow retry
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
 
   Future<void> _markAllRead() async {
     setState(() => _markingAll = true);
     try {
       await ref.read(notificationsServiceProvider).markAllRead();
+      _page = 1;
+      _extraItems.clear();
+      _hasMore = true;
       ref.invalidate(_notificationsProvider);
     } finally {
       if (mounted) setState(() => _markingAll = false);
@@ -43,7 +70,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _markOneRead(NotificationItem item) async {
     if (item.isRead) return;
-    await ref.read(notificationsServiceProvider).markRead(item.id).catchError((_) {});
+    await ref
+        .read(notificationsServiceProvider)
+        .markRead(item.id)
+        .catchError((_) {});
     ref.invalidate(_notificationsProvider);
   }
 
@@ -83,7 +113,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: AppColors.primary.withAlpha(25),
-                    child: Icon(Icons.reply, color: AppColors.primary, size: 20),
+                    child:
+                        Icon(Icons.reply, color: AppColors.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -92,7 +123,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       children: [
                         Text(
                           '${t.x('notif.action_reply')} — ${item.title ?? 'Alert'}',
-                          style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                          style: AppTypography.bodyLarge
+                              .copyWith(fontWeight: FontWeight.w700),
                         ),
                         Text(
                           item.message,
@@ -177,11 +209,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         final qId = uri.queryParameters['id'];
         if (qId != null && qId.isNotEmpty) return qId;
         if (uri.pathSegments.isNotEmpty &&
-            (uri.pathSegments.first == 'approvals' || uri.pathSegments.contains('approvals'))) {
+            (uri.pathSegments.first == 'approvals' ||
+                uri.pathSegments.contains('approvals'))) {
           final idx = uri.pathSegments.indexOf('approvals');
           if (idx + 1 < uri.pathSegments.length) {
             final seg = uri.pathSegments[idx + 1];
-            if (seg.isNotEmpty && seg != 'approve' && seg != 'reject') return seg;
+            if (seg.isNotEmpty && seg != 'approve' && seg != 'reject')
+              return seg;
           }
         }
       }
@@ -197,7 +231,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radius)),
           title: Text(t.x('appr.approve_request')),
           content: Text(item.message),
           actions: [
@@ -206,9 +241,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               child: Text(t.x('common.cancel')),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.success),
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(t.x('btn.approve'), style: const TextStyle(color: Colors.white)),
+              child: Text(t.x('btn.approve'),
+                  style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -253,7 +290,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radius)),
           title: Text(t.x('appr.reject_request')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -265,7 +303,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 controller: noteCtrl,
                 decoration: InputDecoration(
                   labelText: t.x('notif.confirm_reject_prompt'),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
                 ),
                 maxLines: 2,
               ),
@@ -277,9 +316,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               child: Text(t.x('common.cancel')),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(t.x('btn.reject'), style: const TextStyle(color: Colors.white)),
+              child: Text(t.x('btn.reject'),
+                  style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -287,7 +328,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (ok != true) return;
 
       try {
-        await ref.read(approvalServiceProvider).reject(approvalId, note: noteCtrl.text.trim());
+        await ref
+            .read(approvalServiceProvider)
+            .reject(approvalId, note: noteCtrl.text.trim());
         await _markOneRead(item);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -371,9 +414,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
+                const Icon(Icons.cloud_off,
+                    size: 48, color: AppColors.textLight),
                 const SizedBox(height: 12),
-                Text(t.x('err.failed_to_load'), style: AppTypography.sectionTitle),
+                Text(t.x('err.failed_to_load'),
+                    style: AppTypography.sectionTitle),
                 const SizedBox(height: 6),
                 Text(
                   e.toString(),
@@ -390,7 +435,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
           ),
         ),
-        data: (items) {
+        data: (baseItems) {
+          final items = [...baseItems, ..._extraItems];
           if (items.isEmpty) {
             return EmptyState(
               icon: Icons.notifications_none_outlined,
@@ -401,12 +447,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
           final now = DateTime.now();
           final todayStart = DateTime(now.year, now.month, now.day);
-          final today = items.where((n) => n.createdAt.isAfter(todayStart)).toList();
-          final earlier = items.where((n) => !n.createdAt.isAfter(todayStart)).toList();
+          final today =
+              items.where((n) => n.createdAt.isAfter(todayStart)).toList();
+          final earlier =
+              items.where((n) => !n.createdAt.isAfter(todayStart)).toList();
 
           return RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: () async => ref.invalidate(_notificationsProvider),
+            onRefresh: () async {
+              setState(() {
+                _page = 1;
+                _extraItems.clear();
+                _hasMore = true;
+              });
+              ref.invalidate(_notificationsProvider);
+            },
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
@@ -442,6 +497,27 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ),
                   ),
                 ],
+                if (_hasMore && items.length >= 20)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: _loadingMore
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : TextButton.icon(
+                              icon: const Icon(Icons.expand_more, size: 18),
+                              label: Text(
+                                t.x('notif.load_more'),
+                                style: AppTypography.label
+                                    .copyWith(color: AppColors.primary),
+                              ),
+                              onPressed: _loadMore,
+                            ),
+                    ),
+                  ),
               ],
             ),
           );
@@ -499,7 +575,8 @@ class _NotificationTile extends ConsumerWidget {
     final relTime = _relativeTime(item.createdAt, t);
 
     final isApproval = item.type.contains('approval') ||
-        (item.title != null && item.title!.toLowerCase().contains('approval')) ||
+        (item.title != null &&
+            item.title!.toLowerCase().contains('approval')) ||
         (item.link != null && item.link!.contains('approvals'));
     final isCollection = item.type == 'collection_received' ||
         item.type == 'payment' ||
@@ -585,7 +662,8 @@ class _NotificationTile extends ConsumerWidget {
                                 color: iconColor,
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(iconData, color: Colors.white, size: 9),
+                              child:
+                                  Icon(iconData, color: Colors.white, size: 9),
                             ),
                           ),
                         ),
@@ -731,14 +809,30 @@ class _NotificationTile extends ConsumerWidget {
       return (Icons.payments_outlined, AppColors.success, AppColors.successBg);
     }
     if (type == 'float_insufficient') {
-      return (Icons.warning_amber_rounded, const Color(0xFFD97706), const Color(0xFFFEF3C7));
+      return (
+        Icons.warning_amber_rounded,
+        const Color(0xFFD97706),
+        const Color(0xFFFEF3C7)
+      );
     }
     return switch (type) {
-      'payment' => (Icons.payments_outlined, AppColors.success, AppColors.successBg),
-      'penalty' => (Icons.warning_amber_outlined, AppColors.warning, AppColors.warningBg),
+      'payment' => (
+          Icons.payments_outlined,
+          AppColors.success,
+          AppColors.successBg
+        ),
+      'penalty' => (
+          Icons.warning_amber_outlined,
+          AppColors.warning,
+          AppColors.warningBg
+        ),
       'approval' => (Icons.approval_outlined, AppColors.info, AppColors.infoBg),
       'new' => (Icons.fiber_new_outlined, AppColors.purple, AppColors.purpleBg),
-      _ => (Icons.notifications_outlined, AppColors.primary, AppColors.primaryLight),
+      _ => (
+          Icons.notifications_outlined,
+          AppColors.primary,
+          AppColors.primaryLight
+        ),
     };
   }
 

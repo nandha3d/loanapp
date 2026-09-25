@@ -286,8 +286,10 @@ class Endpoints {
 
   // Doc 22b/19: grouped contributions + payment proof intents, borrower upload.
   static const String borrowerUpload = '/borrower/upload';
-  static const String borrowerChitContributions = '/borrower/chits/contributions';
-  static const String borrowerChitPaymentIntents = '/borrower/chits/payment-intents';
+  static const String borrowerChitContributions =
+      '/borrower/chits/contributions';
+  static const String borrowerChitPaymentIntents =
+      '/borrower/chits/payment-intents';
   // Loan statement PDF (raw bytes, audit 03 parity with the web portal).
   static const String borrowerStatement = '/borrower/statement';
 }

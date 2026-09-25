@@ -25,29 +25,6 @@ const ALL_APP_TYPES: readonly AppType[] = [
 
 const LENDING_APP_TYPES: readonly AppType[] = ALL_APP_TYPES.filter((appType) => appType !== 'chitfunds');
 
-export const AGENT_ALLOWED_REPORT_SLUGS = new Set<string>([
-  'daily-collection',
-  'date-wise-collection',
-  'agent-wise-collection',
-  'area-wise-collection',
-  'customer-collection-history',
-  'collection-mode-report',
-  'missed-collection-report',
-  'partial-payment-report',
-  'advance-payment-report',
-  'collection-efficiency',
-  'todays-emi-report',
-  'upcoming-emi-report',
-  'emi-schedule',
-  'agent-performance',
-  'agent-attendance',
-  'missed-visit-report',
-  'commission-report',
-  'customer-register',
-  'customer-loan-history',
-  'overdue',
-]);
-
 type DefinitionSeed = Omit<ReportDefinition, 'builder'>;
 
 function titleCase(slug: string): string {

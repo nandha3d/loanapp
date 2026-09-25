@@ -2,6 +2,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zolofund/data/models/approval.dart';
 import 'package:zolofund/data/models/collection_entry.dart';
 import 'package:zolofund/data/models/collection_run.dart';
 import 'package:zolofund/data/models/customer.dart';
@@ -325,6 +326,101 @@ void main() {
       expect(summaryWithFallback.overdueBreakdown.total.totalOverdue, 5000);
       expect(summaryWithFallback.overdueBreakdown.total.collectedToday, 1000);
       expect(summaryWithFallback.overdueBreakdown.total.remaining, 4000);
+    });
+
+    test('MOB-MODEL-009 KYC document parses backend Prisma format and API contract', () {
+      final kycFromPrisma = KycDocument.fromJson({
+        'id': 'k1',
+        'docType': 'aadhaar',
+        'fileName': 'aadhaar.jpg',
+        'filePath': '/uploads/tenants/demo/aadhaar.jpg',
+        'fileSize': 102400,
+      });
+      expect(kycFromPrisma.type, 'aadhaar');
+      expect(kycFromPrisma.url, '/uploads/tenants/demo/aadhaar.jpg');
+      expect(kycFromPrisma.fileName, 'aadhaar.jpg');
+
+      final kycFromApi = KycDocument.fromJson({
+        'id': 'k2',
+        'type': 'pan',
+        'fileName': 'pan.jpg',
+        'url': '/api/files/demo/pan.jpg',
+      });
+      expect(kycFromApi.type, 'pan');
+      expect(kycFromApi.url, '/api/files/demo/pan.jpg');
+    });
+
+    test('MOB-MODEL-010 Approval parses float shortage warning fields', () {
+      final approval = Approval.fromJson({
+        'id': 'appr-1',
+        'entityType': 'loan',
+        'action': 'create',
+        'status': 'pending',
+        'insufficientFloat': true,
+        'createdAt': '2026-09-01T00:00:00.000Z',
+        'agentFloat': 20000.0,
+        'floatDeficit': 10000.0,
+        'floatWarning': 'Agent float shortfall: available ₹20000, required ₹30000',
+        'requestedChanges': {
+          'principal': 30000,
+        },
+      });
+
+      expect(approval.insufficientFloat, isTrue);
+      expect(approval.agentFloat, 20000.0);
+      expect(approval.floatDeficit, 10000.0);
+      expect(approval.floatWarning, contains('shortfall'));
+    });
+
+    test('MOB-MODEL-011 Loan parses rich detail, metrics, and restructure', () {
+      final loan = Loan.fromJson({
+        'id': 'l-detail',
+        'loanCode': 'ML-001',
+        'customerId': 'c1',
+        'principalAmount': 50000,
+        'disbursedAmount': 47500,
+        'interestRate': 12,
+        'frequency': 'monthly',
+        'status': 'active',
+        'npaStatus': 'standard',
+        'npaClassifiedAt': '2026-09-01T00:00:00.000Z',
+        'paidCount': 3,
+        'totalPayable': 56000,
+        'totalCollected': 14000,
+        'metrics': {
+          'totalOutstanding': 42000,
+          'overdueAmount': 0,
+          'missedCount': 0,
+          'paidCount': 3,
+        },
+        'restructure': {
+          'restructuredRate': 4500,
+          'arrears': 1000,
+          'futureInstalmentsCount': 9,
+          'isApplicable': true,
+        },
+        'payments': [
+          {
+            'id': 'p1',
+            'amount': 4666,
+            'paymentDate': '2026-07-01T00:00:00.000Z',
+            'paymentMode': 'cash',
+          }
+        ],
+        'guarantor': {
+          'id': 'g1',
+          'name': 'Ramesh Kumar',
+          'phone': '9876543210',
+          'relation': 'Brother',
+        },
+      });
+
+      expect(loan.metrics?.totalOutstanding, 42000);
+      expect(loan.metrics?.paidCount, 3);
+      expect(loan.restructure?.restructuredRate, 4500);
+      expect(loan.restructure?.isApplicable, isTrue);
+      expect(loan.payments.length, 1);
+      expect(loan.guarantor?.name, 'Ramesh Kumar');
     });
   });
 }

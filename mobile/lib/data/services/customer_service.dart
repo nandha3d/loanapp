@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
@@ -16,22 +17,62 @@ class CustomerService {
   CustomerService(this._dio);
   final Dio _dio;
 
-  Future<List<Customer>> list({String? query, String? cursor, int? limit}) async {
-    final queryParams = <String, dynamic>{
-      if (query != null && query.isNotEmpty) 'q': query,
-      if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
-      if (limit != null) 'limit': limit,
-    };
-    final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.customers,
-      queryParameters: queryParams.isEmpty ? null : queryParams,
-    );
-    return unwrapEnvelope(res, (dynamic d) {
-      final list = (d as List<dynamic>);
-      return list
+  Future<List<Customer>> list(
+      {String? query, String? cursor, int? limit}) async {
+    // If a specific cursor is requested, fetch just that single page
+    if (cursor != null && cursor.isNotEmpty) {
+      final queryParams = <String, dynamic>{
+        if (query != null && query.isNotEmpty) 'q': query,
+        'cursor': cursor,
+        if (limit != null) 'limit': limit,
+      };
+      final res = await _dio.get<Map<String, dynamic>>(
+        Endpoints.customers,
+        queryParameters: queryParams,
+      );
+      return unwrapEnvelope(res, (dynamic d) {
+        final list = (d as List<dynamic>);
+        return list
+            .map((dynamic e) => Customer.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false);
+      });
+    }
+
+    // Default: follow nextCursor across all pages (up to 50 pages) to match web parity
+    final all = <Customer>[];
+    String? currentCursor;
+    for (var page = 0; page < 50; page++) {
+      final queryParams = <String, dynamic>{
+        if (query != null && query.isNotEmpty) 'q': query,
+        'limit': limit ?? 100,
+        if (currentCursor != null) 'cursor': currentCursor,
+      };
+      final res = await _dio.get<Map<String, dynamic>>(
+        Endpoints.customers,
+        queryParameters: queryParams,
+      );
+      final body = res.data;
+      if (body is! Map<String, dynamic>) {
+        throw ApiException('Malformed response', statusCode: res.statusCode);
+      }
+      final err = body['error'];
+      if (err != null) {
+        throw ApiException(
+          err is String ? err : err.toString(),
+          statusCode: res.statusCode,
+        );
+      }
+      final pageRows = (body['data'] as List<dynamic>? ?? const <dynamic>[])
           .map((dynamic e) => Customer.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
-    });
+      all.addAll(pageRows);
+
+      final pagination = body['pagination'] as Map<String, dynamic>?;
+      final next = pagination?['nextCursor'] as String?;
+      if (next == null || pageRows.isEmpty) break;
+      currentCursor = next;
+    }
+    return all;
   }
 
   Future<Customer> getById(String id) async {

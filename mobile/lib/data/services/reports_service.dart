@@ -12,17 +12,28 @@ class ReportsService {
   Future<List<Map<String, dynamic>>> fetchCatalog() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOptions);
     return unwrapEnvelope(res, (dynamic data) {
-      final reports = (data as Map<String, dynamic>)['reports'] as List<dynamic>? ?? const [];
-      return reports.map((dynamic item) => Map<String, dynamic>.from(item as Map)).toList(growable: false);
+      final reports =
+          (data as Map<String, dynamic>)['reports'] as List<dynamic>? ??
+              const [];
+      return reports
+          .map((dynamic item) => Map<String, dynamic>.from(item as Map))
+          .toList(growable: false);
     });
   }
 
-  Future<Map<String, dynamic>> fetchReport(String slug, DateTime from, DateTime to) async {
+  Future<Map<String, dynamic>> fetchReport(
+      String slug, DateTime from, DateTime to,
+      [String? language]) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.report(slug),
-      queryParameters: {'from': _fmtDate(from), 'to': _fmtDate(to)},
+      queryParameters: {
+        'from': _fmtDate(from),
+        'to': _fmtDate(to),
+        if (language != null && language.isNotEmpty) 'lang': language,
+      },
     );
-    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
   }
 
   /// Fetch accounting capital summary.
@@ -31,8 +42,7 @@ class ReportsService {
         await _dio.get<Map<String, dynamic>>(Endpoints.accountingSummary);
     return unwrapEnvelope(
       res,
-      (dynamic d) =>
-          AccountingSummary.fromJson(d as Map<String, dynamic>),
+      (dynamic d) => AccountingSummary.fromJson(d as Map<String, dynamic>),
     );
   }
 
@@ -46,8 +56,7 @@ class ReportsService {
 
   /// Fetch overdue loans report.
   Future<List<OverdueItem>> fetchOverdueReport() async {
-    final res =
-        await _dio.get<Map<String, dynamic>>(Endpoints.reportsOverdue);
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOverdue);
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
           .map((dynamic e) => OverdueItem.fromJson(e as Map<String, dynamic>))
@@ -57,7 +66,9 @@ class ReportsService {
 
   /// Fetch agent performance report for a date range.
   Future<List<AgentPerf>> fetchAgentPerformance(
-      DateTime from, DateTime to,) async {
+    DateTime from,
+    DateTime to,
+  ) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.reportsAgent,
       queryParameters: <String, String>{
@@ -66,15 +77,16 @@ class ReportsService {
       },
     );
     return unwrapEnvelope(res, (dynamic d) {
-      final list = (d is Map<String, dynamic> ? d['agents'] : d) as List<dynamic>? ?? const [];
+      final list =
+          (d is Map<String, dynamic> ? d['agents'] : d) as List<dynamic>? ??
+              const [];
       return list
           .map((dynamic e) => AgentPerf.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
     });
   }
 
-  static String _fmtDate(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
+  static String _fmtDate(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 }

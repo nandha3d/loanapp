@@ -213,10 +213,12 @@ class Loan {
       interestRate: num$(json['interestRate']),
       frequency: (json['frequency'] as String?) ?? 'daily',
       status: (json['status'] as String?) ?? 'active',
-      startDate: DateTime.parse(json['startDate'] as String),
+      startDate: json['startDate'] == null
+          ? DateTime.now()
+          : DateTime.tryParse(json['startDate'] as String) ?? DateTime.now(),
       endDate: json['endDate'] == null
           ? null
-          : DateTime.parse(json['endDate'] as String),
+          : DateTime.tryParse(json['endDate'] as String),
       instalmentCount:
           int$(json['instalmentCount'] ?? json['totalInstalments'] ?? json['tenure']),
       penaltyRate: num$(json['penaltyRate']),

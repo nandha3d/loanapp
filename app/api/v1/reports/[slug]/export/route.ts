@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { resolveActor } from '@/lib/api/dualAuth';
-import { getReportDefinitionForAppType, AGENT_ALLOWED_REPORT_SLUGS } from '@/lib/reports/catalog';
+import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import type { AppType } from '@/lib/appConfig';
 import { toCSV } from '@/lib/reports/csv';
 import { toWorkbook } from '@/lib/reports/excel';
@@ -18,14 +18,11 @@ export async function GET(
   try {
     const context = await resolveActor(req);
     if (!context) return new NextResponse('Unauthorized', { status: 401 });
+    if (!['admin', 'superadmin', 'developer'].includes(context.role)) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
 
     const { slug } = await params;
-    if (context.role === 'agent' && !AGENT_ALLOWED_REPORT_SLUGS.has(slug)) {
-      return new NextResponse('Forbidden', { status: 403 });
-    }
-    if (!['admin', 'superadmin', 'developer', 'agent'].includes(context.role)) {
-      return new NextResponse('Forbidden', { status: 403 });
-    }
 
     const { searchParams } = new URL(req.url);
     const effectiveAppType = context.appType;

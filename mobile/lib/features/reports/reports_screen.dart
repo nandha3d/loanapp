@@ -5,12 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
-import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
-import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/reports_service.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -34,8 +32,7 @@ class _DateRange {
   final DateTime to;
 }
 
-final _dateRangeProvider =
-    StateProvider.autoDispose<_DateRange>((ref) {
+final _dateRangeProvider = StateProvider.autoDispose<_DateRange>((ref) {
   final now = DateTime.now();
   return _DateRange(
     from: now.subtract(const Duration(days: 30)),
@@ -43,8 +40,7 @@ final _dateRangeProvider =
   );
 });
 
-final _agentPerfProvider =
-    FutureProvider.autoDispose<List<AgentPerf>>((ref) {
+final _agentPerfProvider = FutureProvider.autoDispose<List<AgentPerf>>((ref) {
   final range = ref.watch(_dateRangeProvider);
   return ref
       .watch(reportsServiceProvider)
@@ -346,8 +342,7 @@ class _DateRangeCard extends ConsumerWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               textStyle: AppTypography.label,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -418,8 +413,7 @@ class _AgentTable extends ConsumerWidget {
         children: [
           // Header row
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.vertical(
@@ -519,8 +513,8 @@ class _AgentRow extends StatelessWidget {
             flex: 2,
             child: Text(
               fmt.format(agent.expected),
-              style: AppTypography.body
-                  .copyWith(color: AppColors.textSecondary),
+              style:
+                  AppTypography.body.copyWith(color: AppColors.textSecondary),
               textAlign: TextAlign.right,
             ),
           ),
@@ -548,7 +542,8 @@ class _AgentRow extends StatelessWidget {
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-final _catalogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+final _catalogProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   return ref.watch(reportsServiceProvider).fetchCatalog();
 });
 
@@ -565,7 +560,9 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
 
   void _open(Map<String, dynamic> item) {
     if (item['locked'] == true) {
-      showAddonPurchaseSheet(context, ref,
+      showAddonPurchaseSheet(
+        context,
+        ref,
         addonKey: 'premium_accounting',
         onActivated: () => ref.invalidate(_catalogProvider),
       );
@@ -575,17 +572,21 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
     setState(() {
       _selected = item;
       _report = ref.read(reportsServiceProvider).fetchReport(
-            item['slug'] as String, range.from, range.to);
+          item['slug'] as String,
+          range.from,
+          range.to,
+          ref.read(languageProvider).name);
     });
   }
 
   void _reload(DateTime from, DateTime to) {
-    ref.read(_dateRangeProvider.notifier).state = _DateRange(from: from, to: to);
+    ref.read(_dateRangeProvider.notifier).state =
+        _DateRange(from: from, to: to);
     final item = _selected;
     if (item != null) {
       setState(() {
         _report = ref.read(reportsServiceProvider).fetchReport(
-              item['slug'] as String, from, to);
+            item['slug'] as String, from, to, ref.read(languageProvider).name);
       });
     }
   }
@@ -604,7 +605,8 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             icon: const Icon(Icons.arrow_back),
             label: Text(t.x('rep.title')),
           ),
-          Text(selected['name']?.toString() ?? '', style: AppTypography.sectionTitle),
+          Text(selected['name']?.toString() ?? '',
+              style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
           _DateRangeCard(
             from: range.from,
@@ -616,7 +618,9 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
           FutureBuilder<Map<String, dynamic>>(
             future: _report,
             builder: (context, snapshot) {
-              if (snapshot.hasError) return _ErrorView(message: snapshot.error.toString());
+              if (snapshot.hasError) {
+                return _ErrorView(message: snapshot.error.toString());
+              }
               if (!snapshot.hasData) return const Skeleton(height: 160);
               return _ReportData(data: snapshot.data!);
             },
@@ -633,12 +637,16 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
       },
       child: catalog.when(
         loading: () => _ListSkeleton(),
-        error: (error, _) => ListView(children: [_ErrorView(message: error.toString())]),
+        error: (error, _) =>
+            ListView(children: [_ErrorView(message: error.toString())]),
         data: (items) {
-          if (items.isEmpty) return ListView(children: [
-            const SizedBox(height: 80),
-            EmptyState(icon: Icons.description_outlined, title: t.x('rep.noData')),
-          ]);
+          if (items.isEmpty) {
+            return ListView(children: [
+              const SizedBox(height: 80),
+              EmptyState(
+                  icon: Icons.description_outlined, title: t.x('rep.noData')),
+            ]);
+          }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: items.length,
@@ -650,7 +658,8 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
                 child: ListTile(
                   title: Text(item['name']?.toString() ?? ''),
                   subtitle: Text(item['category']?.toString() ?? ''),
-                  trailing: Icon(locked ? Icons.lock_outline : Icons.chevron_right),
+                  trailing:
+                      Icon(locked ? Icons.lock_outline : Icons.chevron_right),
                   onTap: () => _open(item),
                 ),
               );
@@ -677,7 +686,8 @@ class _ReportData extends ConsumerWidget {
         .toList();
     final kpis = (data['kpis'] as List<dynamic>? ?? const [])
         .map((dynamic value) => Map<String, dynamic>.from(value as Map));
-    final totals = Map<String, dynamic>.from(data['totals'] as Map? ?? const {});
+    final totals =
+        Map<String, dynamic>.from(data['totals'] as Map? ?? const {});
     final fmt = ref.watch(currencyFmtProvider);
 
     String label(dynamic raw) {
@@ -685,7 +695,7 @@ class _ReportData extends ConsumerWidget {
       final translated = t.x(key);
       if (translated != key) return translated;
       final plain = key.split('.').last.replaceAllMapped(
-        RegExp(r'([a-z])([A-Z])'), (match) => '${match[1]} ${match[2]}');
+          RegExp(r'([a-z])([A-Z])'), (match) => '${match[1]} ${match[2]}');
       return plain.replaceAll(RegExp(r'[-_]'), ' ');
     }
 
@@ -698,38 +708,56 @@ class _ReportData extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ...kpis.map((kpi) => Card(child: ListTile(
-          title: Text(label(kpi['label'])),
-          trailing: Text(display(kpi['value'], null), style: AppTypography.label),
-        ))),
-        if (rows.isEmpty) Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(t.x('rep.noData'), textAlign: TextAlign.center),
-        ),
-        ...rows.map((row) => Card(child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(children: [
-            for (final column in columns)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(children: [
-                  Expanded(child: Text(label(column['label'] ?? column['key']), style: AppTypography.caption)),
-                  Flexible(child: Text(display(row[column['key']], column['type'] as String?), textAlign: TextAlign.right)),
-                ]),
-              ),
-          ]),
-        ))),
-        if (totals.isNotEmpty) Card(child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(children: [
-            for (final column in columns)
-              if (totals.containsKey(column['key']))
-                Row(children: [
-                  Expanded(child: Text(label(column['label'] ?? column['key']), style: AppTypography.label)),
-                  Flexible(child: Text(display(totals[column['key']], column['type'] as String?), textAlign: TextAlign.right)),
-                ]),
-          ]),
-        )),
+        ...kpis.map((kpi) => Card(
+                child: ListTile(
+              title: Text(label(kpi['label'])),
+              trailing:
+                  Text(display(kpi['value'], null), style: AppTypography.label),
+            ))),
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(t.x('rep.noData'), textAlign: TextAlign.center),
+          ),
+        ...rows.map((row) => Card(
+                child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(children: [
+                for (final column in columns)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(children: [
+                      Expanded(
+                          child: Text(label(column['label'] ?? column['key']),
+                              style: AppTypography.caption)),
+                      Flexible(
+                          child: Text(
+                              display(row[column['key']],
+                                  column['type'] as String?),
+                              textAlign: TextAlign.right)),
+                    ]),
+                  ),
+              ]),
+            ))),
+        if (totals.isNotEmpty)
+          Card(
+              child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(children: [
+              for (final column in columns)
+                if (totals.containsKey(column['key']))
+                  Row(children: [
+                    Expanded(
+                        child: Text(label(column['label'] ?? column['key']),
+                            style: AppTypography.label)),
+                    Flexible(
+                        child: Text(
+                            display(totals[column['key']],
+                                column['type'] as String?),
+                            textAlign: TextAlign.right)),
+                  ]),
+            ]),
+          )),
       ],
     );
   }

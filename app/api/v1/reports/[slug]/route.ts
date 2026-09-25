@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { getReportDefinitionForAppType, AGENT_ALLOWED_REPORT_SLUGS } from '@/lib/reports/catalog';
+import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import { getSetting } from '@/lib/tenant';
+import { getDictionarySync } from '@/lib/i18n';
+import { getReportLabel } from '@/lib/reports/types';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import type { AppType } from '@/lib/appConfig';
 
@@ -13,12 +15,9 @@ export async function GET(
   try {
     const context = await resolveActor(req);
     if (!context) return fail('Unauthorized', 401);
+    if (!['admin', 'superadmin', 'developer'].includes(context.role)) return fail('Forbidden', 403);
 
     const { slug } = await params;
-
-    if (context.role === 'agent' && !AGENT_ALLOWED_REPORT_SLUGS.has(slug)) {
-      return fail('Forbidden', 403);
-    }
 
     const { searchParams } = new URL(req.url);
 
@@ -45,7 +44,7 @@ export async function GET(
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
     const branchId = context.branchId || requestedBranchId;
-    const agentId = context.role === 'agent' ? context.userId : (searchParams.get('agentId') || undefined);
+    const agentId = searchParams.get('agentId') || undefined;
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;
     const loanType = searchParams.get('loanType') || undefined;
@@ -77,6 +76,11 @@ export async function GET(
       loanId,
       groupId,
     });
+
+    const dict = getDictionarySync(searchParams.get('lang') || 'en');
+    payload.title = getReportLabel(payload.title, dict);
+    payload.columns = payload.columns.map((column) => ({ ...column, label: getReportLabel(column.label, dict) }));
+    payload.kpis = payload.kpis?.map((kpi) => ({ ...kpi, label: getReportLabel(kpi.label, dict) }));
 
     const currencySymbol = await getSetting(context.tenantId, 'currency_symbol', '₹');
     payload.meta = {

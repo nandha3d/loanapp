@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
 
   const { searchParams } = new URL(req.url);
   const now = new Date();
