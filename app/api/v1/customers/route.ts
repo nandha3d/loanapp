@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
       });
     } else {
       // Cursor pagination for mobile
-      const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
+      const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 100, maxLimit: 200 });
       const rows = await prisma.customer.findMany({
         where,
         include: {

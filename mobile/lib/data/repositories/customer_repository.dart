@@ -7,7 +7,8 @@ class CustomerRepository {
   CustomerRepository(this._service);
   final CustomerService _service;
 
-  Future<List<Customer>> list({String? query}) => _service.list(query: query);
+  Future<List<Customer>> list({String? query, String? cursor, int? limit}) =>
+      _service.list(query: query, cursor: cursor, limit: limit);
   Future<Customer> getById(String id) => _service.getById(id);
   Future<Customer> create({
     required String name,

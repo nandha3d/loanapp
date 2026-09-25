@@ -220,16 +220,33 @@ class CreditScore {
 }
 
 class KycDocument {
-  const KycDocument({required this.id, required this.type, required this.url});
+  const KycDocument({
+    required this.id,
+    required this.type,
+    required this.url,
+    this.docType,
+    this.filePath,
+    this.fileName,
+  });
   final String id;
   final String type;
   final String url;
+  final String? docType;
+  final String? filePath;
+  final String? fileName;
 
-  factory KycDocument.fromJson(Map<String, dynamic> json) => KycDocument(
-        id: json['id'] as String,
-        type: (json['type'] as String?) ?? '',
-        url: (json['url'] as String?) ?? '',
-      );
+  factory KycDocument.fromJson(Map<String, dynamic> json) {
+    final typeStr = (json['type'] as String?) ?? (json['docType'] as String?) ?? '';
+    final urlStr = (json['url'] as String?) ?? (json['filePath'] as String?) ?? '';
+    return KycDocument(
+      id: (json['id'] as String?) ?? '',
+      type: typeStr,
+      url: urlStr,
+      docType: (json['docType'] as String?) ?? typeStr,
+      filePath: (json['filePath'] as String?) ?? urlStr,
+      fileName: json['fileName'] as String?,
+    );
+  }
 }
 
 class Guarantor {

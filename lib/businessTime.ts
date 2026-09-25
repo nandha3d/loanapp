@@ -28,3 +28,37 @@ export function startOfBusinessTomorrow(now: Date = new Date()): Date {
   const start = startOfBusinessToday(now);
   return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
+
+/**
+ * Date instance representing 00:00:00.000 UTC of the current calendar date in IST.
+ * Intended for Prisma @db.Date columns (e.g. DailyCollection.date) where PostgreSQL
+ * expects UTC midnight of that business calendar day.
+ */
+export function startOfBusinessDayUtc(now: Date = new Date()): Date {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  const yyyy = ist.getUTCFullYear();
+  const mm = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(ist.getUTCDate()).padStart(2, '0');
+  return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+}
+
+/**
+ * Parses a date string (YYYY-MM-DD or ISO) into a UTC midnight Date aligned with business date.
+ */
+export function parseBusinessDayUtc(dateStr?: string | null, fallbackNow: Date = new Date()): Date {
+  if (!dateStr) return startOfBusinessDayUtc(fallbackNow);
+  const trimmed = dateStr.trim();
+  const parts = trimmed.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const yyyy = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    const dd = parseInt(parts[2], 10);
+    if (!isNaN(yyyy) && !isNaN(mm) && !isNaN(dd)) {
+      return new Date(Date.UTC(yyyy, mm - 1, dd));
+    }
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) return startOfBusinessDayUtc(d);
+  return startOfBusinessDayUtc(fallbackNow);
+}
+

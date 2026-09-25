@@ -7,22 +7,21 @@ import { getSetting } from '@/lib/tenant';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { creditCollection } from '@/lib/wallet';
+import { startOfBusinessDayUtc } from '@/lib/businessTime';
 
 type Tx = Prisma.TransactionClient;
 
 function startOfDay(value?: string | Date | null): Date {
-  const d = value ? new Date(value) : new Date();
+  if (!value) return startOfBusinessDayUtc();
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return startOfBusinessDayUtc();
   if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
     const yyyy = d.getUTCFullYear();
     const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(d.getUTCDate()).padStart(2, '0');
     return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
-  } else {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
   }
+  return startOfBusinessDayUtc(d);
 }
 
 type CollectibleInstalment = {
@@ -578,6 +577,32 @@ export async function recordActualLoanCollection(
 
   const collectionDate = startOfDay(input.collectionDate);
 
+  if (input.idempotencyKey) {
+    const existing = await prisma.collectionEntry.findFirst({
+      where: {
+        tenantId: actor.tenantId,
+        idempotencyKey: input.idempotencyKey,
+      },
+      include: {
+        instalment: { select: { instalmentNo: true } },
+      },
+    });
+    if (existing) {
+      return {
+        posted: existing.instalmentId ? [{
+          instalmentId: existing.instalmentId,
+          instalmentNo: existing.instalment?.instalmentNo ?? 0,
+          applied: Number(existing.receivedAmount),
+        }] : [],
+        applied: Number(existing.receivedAmount),
+        leftover: Math.max(0, amount - Number(existing.receivedAmount)),
+        entryId: existing.id,
+        customerId: loan.customerId,
+        branchId: loan.branchId,
+      };
+    }
+  }
+
   // Prefetch the agent-only confirmation decision ONCE (avoids a user lookup per
   // instalment inside the transaction).
   const collector = await prisma.user.findUnique({
@@ -610,8 +635,7 @@ export async function recordActualLoanCollection(
       let firstEntryId: string | null = null;
       let cashApplied = 0;
       const idempotencyKey = input.idempotencyKey
-        ? `${input.idempotencyKey}:${targetInstalment.id}`
-        : buildCollectionIdempotencyKey({
+        ?? buildCollectionIdempotencyKey({
             tenantId: actor.tenantId,
             agentId: actor.userId,
             instalmentId: targetInstalment.id,

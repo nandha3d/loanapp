@@ -6,7 +6,7 @@ import { getAgentRouteIds } from '@/lib/access';
 import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPolicy';
 import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
-import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { startOfBusinessToday, startOfBusinessTomorrow, startOfBusinessDayUtc } from '@/lib/businessTime';
 import { summarizeCollectionWorklist } from '@/lib/collectionSummary';
 import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
         tenantId: ctx.tenantId,
         appType: ctx.appType,
         agentId: ctx.userId,
-        date: today,
+        date: startOfBusinessDayUtc(),
       },
       select: { id: true, status: true, totalCollected: true },
     });

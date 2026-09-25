@@ -138,6 +138,9 @@ export async function GET(req: NextRequest) {
         };
         if (insufficientFloat) {
           changesPayload.floatWarning = `Agent float is ₹${agentFloat} (needs ₹${disbursed})`;
+          changesPayload.insufficientFloat = true;
+          changesPayload.agentFloat = agentFloat;
+          changesPayload.floatDeficit = agentFloat !== null ? disbursed - agentFloat : 0;
         }
 
         mappedList.push({
@@ -161,6 +164,7 @@ export async function GET(req: NextRequest) {
           insufficientFloat,
           agentFloat,
           floatDeficit: insufficientFloat && agentFloat !== null ? disbursed - agentFloat : 0,
+          floatWarning: insufficientFloat ? `Agent float is ₹${agentFloat} (needs ₹${disbursed})` : null,
         } as any);
       }
     }

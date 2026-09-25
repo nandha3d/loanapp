@@ -13,6 +13,7 @@ import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
+import { collectFromAgentInTx } from '@/lib/wallet';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
@@ -319,13 +320,27 @@ export async function reviewRequest(formData: FormData) {
             });
           }
         } else if (request.requestType === 'cash_handover') {
-          await tx.dailyCollection.update({
+          const daily = await tx.dailyCollection.update({
             where: { id: request.entityId },
             data: {
               status: 'settled',
               lockedAt: new Date(),
             },
           });
+          const rawChanges = JSON.parse(request.requestedChanges || '{}');
+          const handoverAmount = Number(rawChanges.amount ?? daily.totalCollected ?? 0);
+          if (handoverAmount > 0) {
+            const fallbackBranchId = await getActiveBranchId();
+            await collectFromAgentInTx(tx, {
+              tenantId,
+              appType,
+              agentId: daily.agentId,
+              branchId: daily.branchId ?? fallbackBranchId,
+              amount: handoverAmount,
+              byUserId: userId,
+              note: `Cash handover approved: ${reviewNotes || request.reason || ''}`.trim(),
+            });
+          }
         }
       }
 

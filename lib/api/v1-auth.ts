@@ -120,6 +120,48 @@ export async function verifyMobileToken(token: string): Promise<MobileTokenClaim
   };
 }
 
+export async function isTokenRevoked(token: string): Promise<boolean> {
+  try {
+    const { createHash } = await import('crypto');
+    const hash = createHash('sha256').update(token).digest('hex');
+    const prisma = (await import('../db')).default;
+    const found = await prisma.rateLimit.findUnique({
+      where: { key: `revoked_jwt:${hash}` },
+      select: { expiresAt: true },
+    });
+    if (!found) return false;
+    return found.expiresAt.getTime() > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+export async function revokeMobileToken(token: string, userId?: string): Promise<void> {
+  const { createHash } = await import('crypto');
+  const hash = createHash('sha256').update(token).digest('hex');
+  const prisma = (await import('../db')).default;
+  const now = new Date();
+  const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
+  await prisma.rateLimit.upsert({
+    where: { key: `revoked_jwt:${hash}` },
+    create: {
+      key: `revoked_jwt:${hash}`,
+      count: 1,
+      windowStart: now,
+      expiresAt,
+    },
+    update: {
+      expiresAt,
+    },
+  });
+  if (userId) {
+    await prisma.mobileRefreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+  }
+}
+
 /**
  * Branch-scoped where clause helper — mirrors `lib/apiAuth.ts#scopedBranchWhere`
  * so v1 handlers can reuse the same scoping behaviour.
@@ -244,6 +286,9 @@ export async function requireMobileContext(req: NextRequest): Promise<MobileAuth
     return { response: fail('Unauthorized', 401) };
   }
   const token = header.slice('Bearer '.length).trim();
+  if (await isTokenRevoked(token)) {
+    return { response: fail('Unauthorized', 401) };
+  }
   try {
     const claims = await verifyMobileToken(token);
     // Active module override: web forwards the URL-resolved module via X-App-Type

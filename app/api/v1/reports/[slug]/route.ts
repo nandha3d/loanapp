@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
+import { getReportDefinitionForAppType, AGENT_ALLOWED_REPORT_SLUGS } from '@/lib/reports/catalog';
 import { getSetting } from '@/lib/tenant';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import type { AppType } from '@/lib/appConfig';
@@ -14,11 +14,12 @@ export async function GET(
     const context = await resolveActor(req);
     if (!context) return fail('Unauthorized', 401);
 
-    if (context.role === 'agent') {
+    const { slug } = await params;
+
+    if (context.role === 'agent' && !AGENT_ALLOWED_REPORT_SLUGS.has(slug)) {
       return fail('Forbidden', 403);
     }
 
-    const { slug } = await params;
     const { searchParams } = new URL(req.url);
 
     const requestedAppType = searchParams.get('appType');
@@ -44,7 +45,7 @@ export async function GET(
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
     const branchId = context.branchId || requestedBranchId;
-    const agentId = searchParams.get('agentId') || undefined;
+    const agentId = context.role === 'agent' ? context.userId : (searchParams.get('agentId') || undefined);
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;
     const loanType = searchParams.get('loanType') || undefined;

@@ -4,6 +4,8 @@ import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPolicy';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 
 /**
  * Returns today's instalments grouped by route for the current user.
@@ -14,15 +16,9 @@ export async function GET(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  // Anchor "today" to IST (UTC+5:30) so the business day boundary is correct
-  // regardless of the server's timezone — matches /api/v1/dashboard logic.
-  const IST_OFFSET_MS = 330 * 60 * 1000;
-  const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  const istMidnightUtcMs =
-    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) -
-    IST_OFFSET_MS;
-  const today = new Date(istMidnightUtcMs);
-  const tomorrow = new Date(istMidnightUtcMs + 24 * 60 * 60 * 1000);
+  // Day window in the business timezone (IST), matching /collection/dashboard.
+  const today = startOfBusinessToday();
+  const tomorrow = startOfBusinessTomorrow();
 
   const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 1000, maxLimit: 5000 });
 
@@ -94,6 +90,43 @@ export async function GET(req: NextRequest) {
         r.loan.customer.lng = point.longitude;
       }
       delete (r.loan.customer as any).collectionPoints;
+    }
+
+    // Project repayment distribution across all loan instalments so receivedAmount,
+    // status, outstandingAmount match the authoritative /collection/dashboard calculation
+    const allLoanIds = Array.from(new Set(rows.map((r) => r.loanId)));
+    if (allLoanIds.length > 0) {
+      const allInstalmentsForLoans = await prisma.instalment.findMany({
+        where: { loanId: { in: allLoanIds } },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      });
+
+      const paymentsToday = await prisma.payment.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          paymentDate: { gte: today, lt: tomorrow },
+          loanId: { in: allLoanIds },
+        },
+        select: { loanId: true, amount: true },
+      });
+
+      const { distributedInstalments } = getDistributedInstalmentsAndMetrics(
+        allInstalmentsForLoans,
+        today,
+        paymentsToday,
+      );
+
+      const distributedMap = new Map(distributedInstalments.map((i) => [i.id, i]));
+
+      for (const r of rows) {
+        const dist = distributedMap.get(r.id);
+        if (dist) {
+          r.receivedAmount = dist.receivedAmount as any;
+          r.status = dist.status;
+          (r as any).outstandingAmount = dist.outstandingAmount;
+          (r as any).overdueAmount = dist.overdueAmount;
+        }
+      }
     }
 
     // Frequency-aware: a non-daily loan's overdue rows only surface on its

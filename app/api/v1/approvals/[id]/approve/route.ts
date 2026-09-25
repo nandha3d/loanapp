@@ -9,7 +9,7 @@ import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
-import { disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
+import { disburseFromAgent, disburseFromBranch, collectFromAgentInTx } from '@/lib/wallet';
 
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
   'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
@@ -256,13 +256,26 @@ export async function PATCH(
             });
           }
         } else if (request.requestType === 'cash_handover') {
-          await tx.dailyCollection.update({
+          const daily = await tx.dailyCollection.update({
             where: { id: request.entityId },
             data: {
               status: 'settled',
               lockedAt: new Date(),
             },
           });
+          const rawChanges = JSON.parse(request.requestedChanges || '{}');
+          const handoverAmount = Number(rawChanges.amount ?? daily.totalCollected ?? 0);
+          if (handoverAmount > 0) {
+            await collectFromAgentInTx(tx, {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              agentId: daily.agentId,
+              branchId: daily.branchId ?? ctx.branchId,
+              amount: handoverAmount,
+              byUserId: ctx.userId,
+              note: `Cash handover approved: ${note || request.reason || ''}`.trim(),
+            });
+          }
         }
       });
 

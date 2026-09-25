@@ -16,10 +16,15 @@ class CustomerService {
   CustomerService(this._dio);
   final Dio _dio;
 
-  Future<List<Customer>> list({String? query}) async {
+  Future<List<Customer>> list({String? query, String? cursor, int? limit}) async {
+    final queryParams = <String, dynamic>{
+      if (query != null && query.isNotEmpty) 'q': query,
+      if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+      if (limit != null) 'limit': limit,
+    };
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.customers,
-      queryParameters: query == null || query.isEmpty ? null : {'q': query},
+      queryParameters: queryParams.isEmpty ? null : queryParams,
     );
     return unwrapEnvelope(res, (dynamic d) {
       final list = (d as List<dynamic>);

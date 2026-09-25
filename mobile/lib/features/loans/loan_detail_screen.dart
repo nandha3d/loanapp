@@ -726,16 +726,19 @@ class _OverdueSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final todayStart = DateTime.now();
     final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
-    final missedCount = (loan.status == 'closed' ||
-            (loan.totalPayable - loan.totalCollected) <= 0)
-        ? 0
-        : loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
+    final missedCount = loan.metrics?.missedCount ??
+        ((loan.status == 'closed' ||
+                (loan.totalPayable - loan.totalCollected) <= 0)
+            ? 0
+            : loan.instalments.where((i) => i.dynamicStatus == 'missed').length);
     final outstanding = (loan.totalPayable - loan.totalCollected) > 0
         ? (loan.totalPayable - loan.totalCollected)
         : 0.0;
 
     final double overdueAmount;
-    if (outstanding <= 0 || loan.status == 'closed') {
+    if (loan.metrics != null) {
+      overdueAmount = loan.metrics!.overdueAmount;
+    } else if (outstanding <= 0 || loan.status == 'closed') {
       overdueAmount = 0;
     } else {
       final payable =

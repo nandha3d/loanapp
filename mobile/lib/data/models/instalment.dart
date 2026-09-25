@@ -60,8 +60,11 @@ class Instalment {
   /// mirroring the web interface's dynamic status logic.
   /// Returns: paid | partial | missed | due_today | upcoming
   String get dynamicStatus {
-    // If the server already marked it paid, partial or waived, honour that.
-    if (status == 'paid' || status == 'partial' || status == 'waived') return status;
+    final s = status.replaceAll(' ', '_').toLowerCase();
+    // If the server provided an authoritative status, honour it.
+    if (s == 'paid' || s == 'partial' || s == 'waived' || s == 'due_today' || s == 'missed') {
+      return s;
+    }
 
     // Client-side checks based on amounts.
     final isPaid = receivedAmount >= dueAmount && dueAmount > 0;

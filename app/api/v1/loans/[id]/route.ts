@@ -138,7 +138,19 @@ export async function GET(
     today,
   );
 
-  return ok({ ...loan, instalments, restructure, extendedSchedule });
+  const payableInsts = preMappedInstalments.filter((i) => i.status !== 'waived');
+  const pastDueInsts = payableInsts.filter((i) => new Date(i.dueDate) < today);
+  const missedCount = pastDueInsts.filter((i) => i.status === 'missed' || i.status === 'partial').length;
+  const overdueAmount = pastDueInsts.reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
+  const totalOutstanding = Math.max(0, Number(loan.totalPayable) - Number(loan.totalCollected));
+  const metrics = {
+    totalOutstanding,
+    overdueAmount: Math.min(overdueAmount, totalOutstanding),
+    missedCount,
+    paidCount: preMappedInstalments.filter((i) => i.status === 'paid').length,
+  };
+
+  return ok({ ...loan, instalments, restructure, extendedSchedule, metrics });
 }
 
 /**

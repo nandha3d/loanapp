@@ -12,7 +12,7 @@ class NotificationsService {
   Future<List<NotificationItem>> fetchNotifications({
     bool unreadOnly = false,
     int page = 1,
-    int pageSize = 20,
+    int pageSize = 100,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.notifications,

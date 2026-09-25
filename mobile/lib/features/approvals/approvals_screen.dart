@@ -135,17 +135,8 @@ class _ApprovalCard extends ConsumerWidget {
     final fmt = DateFormat('dd MMM yyyy, hh:mm a');
     final t = T.of(ref);
 
-    bool insufficientFloat = false;
-    String? floatWarning;
-    try {
-      if (approval.payload.isNotEmpty && approval.payload != '{}') {
-        final data = jsonDecode(approval.payload);
-        if (data is Map<String, dynamic>) {
-          insufficientFloat = data['insufficientFloat'] == true;
-          floatWarning = data['floatWarning'] as String?;
-        }
-      }
-    } catch (_) {}
+    final insufficientFloat = approval.insufficientFloat;
+    final floatWarning = approval.floatWarning;
 
     String entityLabel;
     if (approval.entityType == 'customer') {

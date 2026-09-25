@@ -68,8 +68,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
   @override
   void initState() {
     super.initState();
-    _canViewCatalog = ref.read(authControllerProvider).user?.role != UserRole.agent;
-    _tabs = TabController(length: _canViewCatalog ? 3 : 2, vsync: this);
+    _canViewCatalog = true;
+    _tabs = TabController(length: 3, vsync: this);
   }
 
   @override

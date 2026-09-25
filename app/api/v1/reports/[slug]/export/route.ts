@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { resolveActor } from '@/lib/api/dualAuth';
-import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
+import { getReportDefinitionForAppType, AGENT_ALLOWED_REPORT_SLUGS } from '@/lib/reports/catalog';
 import type { AppType } from '@/lib/appConfig';
 import { toCSV } from '@/lib/reports/csv';
 import { toWorkbook } from '@/lib/reports/excel';
@@ -18,11 +18,15 @@ export async function GET(
   try {
     const context = await resolveActor(req);
     if (!context) return new NextResponse('Unauthorized', { status: 401 });
-    if (!['admin', 'superadmin', 'developer'].includes(context.role)) {
+
+    const { slug } = await params;
+    if (context.role === 'agent' && !AGENT_ALLOWED_REPORT_SLUGS.has(slug)) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+    if (!['admin', 'superadmin', 'developer', 'agent'].includes(context.role)) {
       return new NextResponse('Forbidden', { status: 403 });
     }
 
-    const { slug } = await params;
     const { searchParams } = new URL(req.url);
     const effectiveAppType = context.appType;
     const definition = getReportDefinitionForAppType(effectiveAppType as AppType, slug);
@@ -42,7 +46,7 @@ export async function GET(
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
     const branchId = context.branchId;
-    const agentId = searchParams.get('agentId') || undefined;
+    const agentId = context.role === 'agent' ? context.userId : (searchParams.get('agentId') || undefined);
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;
     const loanType = searchParams.get('loanType') || undefined;

@@ -109,6 +109,11 @@ export async function GET(
       ...g,
       aadharNumber: maskAadharNumber(decryptAadharNumber(g.aadharNumber)),
     })),
+    kycDocuments: customer.kycDocuments.map((doc) => ({
+      ...doc,
+      type: doc.docType,
+      url: doc.filePath,
+    })),
   });
 }
 

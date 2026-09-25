@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { getReportsForAppType } from '@/lib/reports/catalog';
+import { getReportsForAppType, AGENT_ALLOWED_REPORT_SLUGS } from '@/lib/reports/catalog';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import type { AppType } from '@/lib/appConfig';
 
@@ -10,7 +10,6 @@ export async function GET(req: NextRequest) {
   try {
     const context = await resolveActor(req);
     if (!context) return fail('Unauthorized', 401);
-    if (context.role === 'agent') return fail('Forbidden', 403);
 
     const { searchParams } = new URL(req.url);
     const requestedAppType = searchParams.get('appType');
@@ -18,7 +17,7 @@ export async function GET(req: NextRequest) {
     const effectiveAppType = context.appType;
     const { tenantId, branchId } = context;
     const premiumAccountingEnabled = await isPremiumAccountingEnabled(tenantId);
-    const reports = getReportsForAppType(effectiveAppType as AppType, { premiumAccountingEnabled: true })
+    let allReports = getReportsForAppType(effectiveAppType as AppType, { premiumAccountingEnabled: true })
       .map(({ slug, name, category, addon }) => ({
         slug,
         name,
@@ -26,6 +25,11 @@ export async function GET(req: NextRequest) {
         addon,
         locked: addon === 'premium_accounting' && !premiumAccountingEnabled,
       }));
+
+    if (context.role === 'agent') {
+      allReports = allReports.filter((r) => AGENT_ALLOWED_REPORT_SLUGS.has(r.slug));
+    }
+    const reports = allReports;
 
     const [branches, agents, loans, payments, chitGroups, customers] = await Promise.all([
       prisma.branch.findMany({
