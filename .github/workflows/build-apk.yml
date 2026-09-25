@@ -43,17 +43,18 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 secret missing — release build needs the keystore for Google Sign-In to work."
-            exit 1
-          fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/zolofund-release.jks
-          cat > android/key.properties <<EOF
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Decoding release keystore from GitHub secret..."
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/zolofund-release.jks
+            cat > android/key.properties <<EOF
           storePassword=$STORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           keyAlias=$KEY_ALIAS
           storeFile=zolofund-release.jks
           EOF
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret is not configured — build.gradle.kts will fall back to debug signing for this CI build."
+          fi
 
       - name: Build release APK
         run: |

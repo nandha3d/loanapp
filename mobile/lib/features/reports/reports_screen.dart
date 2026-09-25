@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
@@ -67,8 +69,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
   @override
   void initState() {
     super.initState();
-    _canViewCatalog = true;
-    _tabs = TabController(length: 3, vsync: this);
+    final role = ref.read(authControllerProvider).user?.role;
+    _canViewCatalog = role == UserRole.admin ||
+        role == UserRole.superadmin ||
+        role == UserRole.developer;
+    _tabs = TabController(length: _canViewCatalog ? 3 : 2, vsync: this);
   }
 
   @override

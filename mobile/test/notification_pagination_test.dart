@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zolofund/data/models/notification_item.dart';
 import 'package:zolofund/data/services/notifications_service.dart';
-import 'package:zolofund/shared/constants/endpoints.dart';
 
 class _MockNotificationAdapter implements HttpClientAdapter {
   _MockNotificationAdapter({required this.totalItems});
