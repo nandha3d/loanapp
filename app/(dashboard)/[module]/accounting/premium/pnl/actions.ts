@@ -1,11 +1,13 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
 import { getActiveBranchId } from '@/lib/branch';
 
 export async function getPnLData(from: string, to: string) {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const branchId = await getActiveBranchId();
   const fromDate = new Date(from);
   const toDate = new Date(to);
@@ -16,6 +18,7 @@ export async function getPnLData(from: string, to: string) {
     where: {
       entry: {
         tenantId,
+        appType,
         status: 'posted',
         entryDate: { gte: fromDate, lte: toDate },
         ...(branchId ? { branchId } : {}),

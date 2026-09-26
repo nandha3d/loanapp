@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
 
       autoPostCollection({
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         entryId: entry.id,
         loanId: entry.loanId,
         loanCode: entry.loan.loanCode,
@@ -174,6 +175,7 @@ export async function POST(req: NextRequest) {
       if (handoverTotal > 0) {
         autoPostCollection({
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           entryId: `handover-${routeId}-${agentId}-${Date.now()}`,
           loanId: routeId,
           loanCode: `Route/${routeId.slice(0, 8)}`,

@@ -77,6 +77,8 @@ export function formatIndianCurrency(amount: number | string, symbol = '₹'): s
  */
 export async function writeAuditLog(params: {
   tenantId: string;
+  appType?: string | null;
+  branchId?: string | null;
   userId?: string;
   action: string;
   entityType: string;
@@ -85,10 +87,12 @@ export async function writeAuditLog(params: {
   after?: object;
   reason?: string;
 }) {
-  const { tenantId, userId, action, entityType, entityId, before, after, reason } = params;
+  const { tenantId, appType, branchId, userId, action, entityType, entityId, before, after, reason } = params;
   await prisma.accountingAuditLog.create({
     data: {
       tenantId,
+      appType,
+      branchId,
       userId,
       action,
       entityType,

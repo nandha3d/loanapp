@@ -30,6 +30,8 @@ function parseTaxCode(code: string): { kind: 'cgst' | 'sgst' | 'igst' | 'gst' | 
 
 export async function getGstr1Rows(params: {
   tenantId: string;
+  appType: string;
+  branchId?: string | null;
   month: number; // 1-12
   year: number;
 }): Promise<{ rows: Gstr1Row[]; gstin: string; state: string }> {
@@ -43,6 +45,8 @@ export async function getGstr1Rows(params: {
   const entries = await prisma.journalEntry.findMany({
     where: {
       tenantId: params.tenantId,
+      appType: params.appType,
+      ...(params.branchId ? { branchId: params.branchId } : {}),
       entryDate: { gte: fromDate, lte: toDate },
       status: 'posted',
       lines: { some: { taxCode: { not: null } } },
@@ -105,6 +109,8 @@ export async function getGstr1Rows(params: {
 
 export async function generateGstr1Csv(params: {
   tenantId: string;
+  appType: string;
+  branchId?: string | null;
   month: number;
   year: number;
 }): Promise<string> {

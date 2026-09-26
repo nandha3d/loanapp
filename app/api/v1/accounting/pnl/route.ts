@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       where: {
         entry: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
           status: 'posted',
           entryDate: { gte: fromDate, lte: toDate },

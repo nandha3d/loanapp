@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
 
   const { xml, voucherCount } = await generateTallyXml({
     tenantId: actor.tenantId,
+    appType: actor.appType,
+    branchId: actor.branchId,
     fromDate: from,
     toDate: to,
     status: searchParams.get('status') ?? 'posted',

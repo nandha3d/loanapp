@@ -240,6 +240,7 @@ export async function reconcileSelfPayToken(input: {
     void import('@/lib/accounting/autoPost').then(({ autoPostCollection }) =>
       autoPostCollection({
         tenantId: tok.tenantId,
+        appType: instalment.loan.appType,
         entryId: result.entryId!,
         loanId: instalment.loanId,
         loanCode: instalment.loan.loanCode,

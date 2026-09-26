@@ -1,15 +1,19 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function getTrialBalanceData(asOf: string) {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const asOfDate = new Date(asOf);
 
   const lines = await prisma.journalLine.groupBy({
     by: ['accountId'],
-    where: { entry: { tenantId, status: 'posted', entryDate: { lte: asOfDate } } },
+    where: { entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { lte: asOfDate } } },
     _sum: { debit: true, credit: true },
   });
 

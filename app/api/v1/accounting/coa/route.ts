@@ -6,6 +6,7 @@ import { defaultNormalSide } from '@/lib/accounting/enums';
 import { seedDefaultCoA } from '@/lib/accounting/seedDefaultCoA';
 import { writeAuditLog } from '@/lib/accounting/premium';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
+import { getModuleAccountBalances } from '@/lib/accounting/queries';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
@@ -27,15 +28,7 @@ export async function GET(req: NextRequest) {
       orderBy: { code: 'asc' },
     });
 
-    const now = new Date();
-    const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    
-    const balances = await prisma.accountBalance.findMany({
-      where: { tenantId: ctx.tenantId, periodKey },
-      select: { accountId: true, closingDr: true, closingCr: true },
-    });
-    
-    const balMap = new Map(balances.map((b) => [b.accountId, b]));
+    const balMap = await getModuleAccountBalances(ctx.tenantId, ctx.appType, ctx.branchId ?? null);
 
     const formatted = accounts.map((a) => {
       const bal = balMap.get(a.id);
@@ -113,6 +106,8 @@ export async function POST(req: NextRequest) {
 
     await writeAuditLog({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      branchId: ctx.branchId,
       userId: ctx.userId,
       action: 'create',
       entityType: 'account',
@@ -171,6 +166,8 @@ export async function PATCH(req: NextRequest) {
 
       await writeAuditLog({
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        branchId: ctx.branchId,
         userId: ctx.userId,
         action: 'update',
         entityType: 'account',
@@ -196,6 +193,8 @@ export async function PATCH(req: NextRequest) {
 
     await writeAuditLog({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      branchId: ctx.branchId,
       userId: ctx.userId,
       action: 'update',
       entityType: 'account',

@@ -1,9 +1,12 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getOrCreateAccountingSettings } from '@/lib/accounting/premium';
+import { getOrCreateAccountingSettings } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
+import { buildDedupKey } from '@/lib/accounting/postingKeys';
 
 export async function getSettings() {
   const session = await auth();
@@ -117,11 +120,10 @@ export async function migrateBasicAccountingData(): Promise<{ ok: boolean; impor
   if (!['admin','superadmin','developer'].includes(role)) return { ok: false, imported: 0, skipped: 0, error: 'Insufficient role' };
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
-  // SCOPE-9: deliberately tenant-wide, NOT branch-scoped. This rebuilds the
-  // whole double-entry journal from the cash ledger; rebuilding one branch's
-  // slice would produce an unbalanced book. Do not add a branch filter here.
-  const entries = await prisma.accountEntry.findMany({ where: { tenantId }, orderBy: { entryDate: 'asc' } });
+  // Rebuild all branches of this module; each journal keeps its source branch.
+  const entries = await prisma.accountEntry.findMany({ where: { tenantId, appType }, orderBy: { entryDate: 'asc' } });
   if (entries.length === 0) return { ok: true, imported: 0, skipped: 0 };
 
   // Find accounts by code (CoA must be seeded first)
@@ -138,7 +140,7 @@ export async function migrateBasicAccountingData(): Promise<{ ok: boolean; impor
 
   // Check already migrated (narration contains tag)
   const existingNarrations = await prisma.journalEntry.findMany({
-    where: { tenantId, narration: { contains: '[BASIC:' } },
+    where: { tenantId, appType, narration: { contains: '[BASIC:' } },
     select: { narration: true },
   });
   const migratedIds = new Set(
@@ -211,10 +213,14 @@ export async function migrateBasicAccountingData(): Promise<{ ok: boolean; impor
     await prisma.journalEntry.create({
       data: {
         tenantId,
+        appType,
+        branchId: entry.branchId,
         entryDate: date,
         narration,
         status: 'posted',
         sourceType: 'basic_migration',
+        sourceId: entry.id,
+        dedupKey: buildDedupKey('basic_migration', tenantId, entry.id),
         createdById: creatorId,
         lines: {
           create: lines.map((l, i) => ({
@@ -237,9 +243,10 @@ export async function getMigrationStats(): Promise<{ basicEntries: number; migra
   const session = await auth();
   if (!session) return { basicEntries: 0, migratedCount: 0 };
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const [basicEntries, migratedCount] = await Promise.all([
-    prisma.accountEntry.count({ where: { tenantId } }),
-    prisma.journalEntry.count({ where: { tenantId, sourceType: 'basic_migration' } }),
+    prisma.accountEntry.count({ where: { tenantId, appType } }),
+    prisma.journalEntry.count({ where: { tenantId, appType, sourceType: 'basic_migration' } }),
   ]);
   return { basicEntries, migratedCount };
 }

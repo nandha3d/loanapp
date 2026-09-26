@@ -897,6 +897,7 @@ export async function POST(req: NextRequest) {
       });
       await postLoanOrigination(tx, {
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         branchId: loan.branchId,
         loanId: loan.id,
         loanCode,

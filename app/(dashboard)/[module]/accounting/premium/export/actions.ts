@@ -2,9 +2,11 @@
 
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
 import { getActiveBranchId } from '@/lib/branch';
-import { getOrCreateAccountingSettings, getPeriodKey, writeAuditLog } from '@/lib/accounting/premium';
+import { getOrCreateAccountingSettings, getPeriodKey } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
 import ExcelJS from 'exceljs';
 
 function requireRole(role: string, allowed: string[]) {
@@ -100,6 +102,7 @@ function dateStringToPeriodKey(dateStr: string): string {
 
 async function fetchPostedJEs(
   tenantId: string,
+  appType: string,
   periodKey: string,
   branchId?: string | null,
 ): Promise<JournalEntryWithLines[]> {
@@ -107,6 +110,7 @@ async function fetchPostedJEs(
   return prisma.journalEntry.findMany({
     where: {
       tenantId,
+      appType,
       status: 'posted',
       entryDate: { gte: from, lte: to },
       ...(branchId ? { branchId } : {}),
@@ -125,6 +129,7 @@ async function fetchPostedJEs(
 
 async function recordExportRun(params: {
   tenantId: string;
+  appType: string;
   userId: string;
   kind: 'tally_xml' | 'excel' | 'json';
   periodKey: string;
@@ -135,6 +140,7 @@ async function recordExportRun(params: {
   await prisma.accountingExportRun.create({
     data: {
       tenantId: params.tenantId,
+      appType: params.appType,
       kind: params.kind,
       periodKey: params.periodKey,
       branchId: params.branchId ?? null,
@@ -157,17 +163,19 @@ export async function exportTallyXml(
   requireRole(role, ['superadmin', 'developer']);
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const settings = await getOrCreateAccountingSettings(tenantId);
   const companyName = settings.tallyCompanyName ?? 'My Company';
 
-  const activeBranchId = branchId ?? (await getActiveBranchId());
-  const jes = await fetchPostedJEs(tenantId, periodKey, activeBranchId);
+  const activeBranchId = await getActiveBranchId();
+  const jes = await fetchPostedJEs(tenantId, appType, periodKey, activeBranchId);
 
   const xml = buildTallyXml(jes, companyName);
   const filename = `tally_vouchers_${periodKey}${activeBranchId ? `_${activeBranchId}` : ''}.xml`;
 
   await recordExportRun({
     tenantId,
+    appType,
     userId,
     kind: 'tally_xml',
     periodKey,
@@ -200,7 +208,8 @@ export async function exportJsonDump(
   requireRole(role, ['superadmin', 'developer']);
 
   const tenantId = await getDefaultTenantId();
-  const activeBranchId = branchId ?? (await getActiveBranchId());
+  const appType = await getUserAppType();
+  const activeBranchId = await getActiveBranchId();
   const periodKey = dateStringToPeriodKey(from);
 
   const fromDate = new Date(from);
@@ -214,6 +223,7 @@ export async function exportJsonDump(
     prisma.journalEntry.findMany({
       where: {
         tenantId,
+        appType,
         entryDate: { gte: fromDate, lte: toDate },
         ...(activeBranchId ? { branchId: activeBranchId } : {}),
       },
@@ -225,13 +235,15 @@ export async function exportJsonDump(
     prisma.bill.findMany({
       where: {
         tenantId,
+        appType,
+        ...(activeBranchId ? { branchId: activeBranchId } : {}),
         billDate: { gte: fromDate, lte: toDate },
       },
       include: { vendor: { select: { name: true } } },
       orderBy: { billDate: 'asc' },
     }),
-    prisma.accountingPeriod.findUnique({
-      where: { tenantId_periodKey: { tenantId, periodKey } },
+    prisma.accountingPeriod.findFirst({
+      where: { tenantId, appType, periodKey },
     }),
   ]);
 
@@ -255,6 +267,7 @@ export async function exportJsonDump(
 
   await recordExportRun({
     tenantId,
+    appType,
     userId,
     kind: 'json',
     periodKey,
@@ -286,12 +299,14 @@ export async function exportExcelWorkbook(
   requireRole(role, ['superadmin', 'developer']);
 
   const tenantId = await getDefaultTenantId();
-  const activeBranchId = branchId ?? (await getActiveBranchId());
+  const appType = await getUserAppType();
+  const activeBranchId = await getActiveBranchId();
   const { from, to } = periodKeyToDates(periodKey);
 
   const jes = await prisma.journalEntry.findMany({
     where: {
       tenantId,
+      appType,
       status: 'posted',
       entryDate: { gte: from, lte: to },
       ...(activeBranchId ? { branchId: activeBranchId } : {}),
@@ -342,6 +357,7 @@ export async function exportExcelWorkbook(
 
   await recordExportRun({
     tenantId,
+    appType,
     userId,
     kind: 'excel',
     periodKey,
@@ -367,9 +383,11 @@ export async function listExportRuns() {
   const session = await auth();
   if (!session) throw new Error('Unauthorized');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const runs = await prisma.accountingExportRun.findMany({
-    where: { tenantId },
+    where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 20,
   });
@@ -456,7 +474,8 @@ export async function pushToTally(
 
   const companyName = settings.tallyCompanyName ?? 'My Company';
   const activeBranchId = await getActiveBranchId();
-  const jes = await fetchPostedJEs(tenantId, periodKey, activeBranchId);
+  const appType = await getUserAppType();
+  const jes = await fetchPostedJEs(tenantId, appType, periodKey, activeBranchId);
 
   const xml = buildTallyXml(jes, companyName);
 

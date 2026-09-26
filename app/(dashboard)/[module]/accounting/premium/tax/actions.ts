@@ -1,9 +1,12 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getPeriodKey } from '@/lib/accounting/premium';
+import { getPeriodKey } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
 
 // Helper: get tax account codes
 const GST_OUTPUT_CGST_CODE = '2310';
@@ -39,6 +42,9 @@ export async function recomputeGstSummary(
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
+  if (branchId) return { ok: false, error: 'Forbidden' };
 
   // Find accounts by code
   const accounts = await prisma.account.findMany({
@@ -70,7 +76,7 @@ export async function recomputeGstSummary(
       _sum: { [field]: true },
       where: {
         accountId,
-        entry: { tenantId, status: 'posted', entryDate: { gte: from, lte: to } },
+        entry: { tenantId, appType, status: 'posted', entryDate: { gte: from, lte: to } },
       },
     });
     return Number((agg._sum as any)[field] ?? 0);
@@ -97,9 +103,10 @@ export async function recomputeGstSummary(
 
   // Upsert GstSummary — schema has unique(tenantId, periodKey, gstType)
   const gs = await prisma.gstSummary.upsert({
-    where: { tenantId_periodKey_gstType: { tenantId, periodKey, gstType: 'GSTR3B' } },
+    where: { tenantId_appType_periodKey_gstType: { tenantId, appType, periodKey, gstType: 'GSTR3B' } },
     create: {
       tenantId,
+      appType,
       periodKey,
       gstType: 'GSTR3B',
       outputCgst: outputCGST,
@@ -160,9 +167,10 @@ export async function markGstFiled(
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const gs = await prisma.gstSummary.findUnique({
-    where: { tenantId_periodKey_gstType: { tenantId, periodKey, gstType: 'GSTR3B' } },
+    where: { tenantId_appType_periodKey_gstType: { tenantId, appType, periodKey, gstType: 'GSTR3B' } },
   });
   if (!gs) return { ok: false, error: 'No summary found. Recompute first.' };
 
@@ -186,9 +194,10 @@ export async function getGstSummary(periodKey: string): Promise<GstSummaryData |
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const gs = await prisma.gstSummary.findUnique({
-    where: { tenantId_periodKey_gstType: { tenantId, periodKey, gstType: 'GSTR3B' } },
+    where: { tenantId_appType_periodKey_gstType: { tenantId, appType, periodKey, gstType: 'GSTR3B' } },
   });
   if (!gs) return null;
 
@@ -229,6 +238,7 @@ export async function getTdsRegister(quarterKey: string): Promise<any[]> {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const { from, to } = quarterKeyRange(quarterKey);
 
@@ -239,7 +249,9 @@ export async function getTdsRegister(quarterKey: string): Promise<any[]> {
     where: {
       // TdsDeduction has no paymentDate; use periodKey or createdAt
       createdAt: { gte: from, lte: to },
-      bill: { tenantId },
+      tenantId,
+      appType,
+      bill: { tenantId, appType },
     },
     include: {
       bill: {
@@ -276,11 +288,14 @@ export async function recordChallan(input: {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   await prisma.tdsDeduction.updateMany({
     where: {
       id: { in: input.deductionIds },
-      bill: { tenantId },
+      tenantId,
+      appType,
+      bill: { tenantId, appType },
     },
     data: {
       challanNo: input.challanNo,

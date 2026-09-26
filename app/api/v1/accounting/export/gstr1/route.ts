@@ -26,10 +26,10 @@ export async function GET(req: NextRequest) {
   const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()), 10) || now.getFullYear();
 
   if (searchParams.get('format') === 'json') {
-    return ok(await getGstr1Rows({ tenantId: actor.tenantId, month, year }));
+    return ok(await getGstr1Rows({ tenantId: actor.tenantId, appType: actor.appType, branchId: actor.branchId, month, year }));
   }
 
-  const csv = await generateGstr1Csv({ tenantId: actor.tenantId, month, year });
+  const csv = await generateGstr1Csv({ tenantId: actor.tenantId, appType: actor.appType, branchId: actor.branchId, month, year });
   return new NextResponse(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

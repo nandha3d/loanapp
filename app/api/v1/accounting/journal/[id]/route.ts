@@ -48,7 +48,7 @@ export async function GET(
   try {
     await assertPremiumAccountingAccess(ctx);
     const entry = await prisma.journalEntry.findFirst({
-      where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}) },
+      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}) },
       include: {
         lines: {
           include: { account: { select: { code: true, name: true } } },
@@ -96,7 +96,7 @@ export async function POST(
 
     if (action === 'approve') {
       const entry = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
         include: { lines: true },
       });
       if (!entry) return fail('Journal entry not found or not pending approval', 404);
@@ -114,7 +114,7 @@ export async function POST(
           await bumpAccountBalance(tx as any, line.accountId, entry.entryDate, line.debit, line.credit);
         }
         await tx.accountingApproval.updateMany({
-          where: { entityId: id, status: 'pending' },
+          where: { tenantId: ctx.tenantId, appType: ctx.appType, entityId: id, status: 'pending' },
           data: { status: 'approved', approvedById: ctx.userId, reviewedAt: new Date() },
         });
         await tx.accountingAuditLog.create({
@@ -135,20 +135,24 @@ export async function POST(
     if (action === 'reject') {
       const { note } = body;
       const entry = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'pending_approval' },
         select: { id: true },
       });
       if (!entry) return fail('Journal entry not found or not pending approval', 404);
-      await prisma.journalEntry.update({
-        where: { id, tenantId: ctx.tenantId },
-        data: { status: 'rejected' },
-      });
-      await prisma.accountingApproval.updateMany({
-        where: { entityId: id, status: 'pending' },
-        data: { status: 'rejected', approvedById: ctx.userId, reviewNote: note || '', reviewedAt: new Date() },
-      });
+      await prisma.$transaction([
+        prisma.journalEntry.update({
+          where: { id, tenantId: ctx.tenantId, appType: ctx.appType },
+          data: { status: 'rejected' },
+        }),
+        prisma.accountingApproval.updateMany({
+          where: { tenantId: ctx.tenantId, appType: ctx.appType, entityId: id, status: 'pending' },
+          data: { status: 'rejected', approvedById: ctx.userId, reviewNote: note || '', reviewedAt: new Date() },
+        }),
+      ]);
       await writeAuditLog({
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        branchId: ctx.branchId,
         userId: ctx.userId,
         action: 'reject',
         entityType: 'journal_entry',
@@ -164,7 +168,7 @@ export async function POST(
       if (!reason) return fail('Reversal reason is mandatory', 400);
 
       const original = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted' },
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted' },
         include: { lines: true },
       });
       if (!original) return fail('Original journal entry not found or not posted', 404);
@@ -175,8 +179,8 @@ export async function POST(
       const entryDate = new Date();
       const entryNo = await assignNextEntryNo(ctx.tenantId, entryDate);
       const periodKey = getPeriodKey(entryDate);
-      const period = await prisma.accountingPeriod.findUnique({
-        where: { tenantId_periodKey: { tenantId: ctx.tenantId, periodKey } },
+      const period = await prisma.accountingPeriod.findFirst({
+        where: { tenantId: ctx.tenantId, appType: ctx.appType, periodKey },
       });
       if (period && ['locked', 'closed'].includes(period.status) && ctx.role !== 'developer') {
         return fail('period_locked', 400);
@@ -186,6 +190,7 @@ export async function POST(
         const rev = await tx.journalEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: original.appType,
             branchId: original.branchId,
             entryNo,
             entryDate,
@@ -240,7 +245,7 @@ export async function POST(
 
     if (action === 'post_draft') {
       const draft = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
         include: { lines: true },
       });
       if (!draft) return fail('Draft journal entry not found', 404);
@@ -254,8 +259,8 @@ export async function POST(
       if (totalDr === 0) return fail('empty_entry', 400);
 
       const periodKey = getPeriodKey(draft.entryDate);
-      const period = await prisma.accountingPeriod.findUnique({
-        where: { tenantId_periodKey: { tenantId: ctx.tenantId, periodKey } },
+      const period = await prisma.accountingPeriod.findFirst({
+        where: { tenantId: ctx.tenantId, appType: ctx.appType, periodKey },
       });
       if (period && ['locked', 'closed'].includes(period.status) && ctx.role !== 'developer') {
         return fail('period_locked', 400);
@@ -267,21 +272,25 @@ export async function POST(
       const cap = ctx.role === 'admin' ? Number(settings?.adminJeCap ?? 50000) : Infinity;
 
       if (totalDr > cap) {
-        await prisma.journalEntry.update({
-          where: { id },
-          data: { status: 'pending_approval' },
-        });
-        await prisma.accountingApproval.create({
-          data: {
-            tenantId: ctx.tenantId,
-            entityType: 'journal_entry',
-            entityId: id,
-            amount: totalDr,
-            level: 1,
-            approverRole: 'superadmin',
-            requestedById: ctx.userId,
-          },
-        });
+        await prisma.$transaction([
+          prisma.journalEntry.update({
+            where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'draft' },
+            data: { status: 'pending_approval' },
+          }),
+          prisma.accountingApproval.create({
+            data: {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              branchId: draft.branchId,
+              entityType: 'journal_entry',
+              entityId: id,
+              amount: totalDr,
+              level: 1,
+              approverRole: 'superadmin',
+              requestedById: ctx.userId,
+            },
+          }),
+        ]);
         return ok({ success: true, status: 'pending_approval', entryId: id });
       }
 
@@ -311,14 +320,18 @@ export async function POST(
 
     if (action === 'delete_draft') {
       const draft = await prisma.journalEntry.findFirst({
-        where: { id, tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'draft' },
       });
       if (!draft) return fail('Draft journal entry not found', 404);
 
-      await prisma.journalLine.deleteMany({ where: { entryId: id } });
-      await prisma.journalEntry.delete({ where: { id } });
+      await prisma.$transaction([
+        prisma.journalLine.deleteMany({ where: { entryId: id } }),
+        prisma.journalEntry.delete({ where: { id, tenantId: ctx.tenantId, appType: ctx.appType } }),
+      ]);
       await writeAuditLog({
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        branchId: ctx.branchId,
         userId: ctx.userId,
         action: 'delete',
         entityType: 'journal_entry',

@@ -12,6 +12,9 @@ export const POSTING_DEFAULTS = {
   bank_account: '1200',
   other_expenses: '5900',
   owners_capital: '3100',
+  vendor_payable: '2110',
+  input_cgst: '1410',
+  input_sgst: '1420',
 } as const;
 
 export type PostingKey = keyof typeof POSTING_DEFAULTS;

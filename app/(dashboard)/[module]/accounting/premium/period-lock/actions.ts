@@ -1,21 +1,26 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
+import { getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 
 export async function listPeriods(fiscalYear?: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const today = new Date();
   const fy = fiscalYear ?? getFiscalYear(today, await getFyStartMonth(tenantId));
 
   let periods = await prisma.accountingPeriod.findMany({
-    where: { tenantId, fiscalYear: fy },
+    where: { tenantId, appType, fiscalYear: fy },
     include: {
       lockedBy: { select: { name: true } },
       closedBy: { select: { name: true } },
@@ -25,8 +30,8 @@ export async function listPeriods(fiscalYear?: string) {
   });
 
   // If no periods exist for this FY, auto-create them
-  if (periods.length === 0) {
-    periods = await autoCreateFYPeriods(tenantId, fy);
+  if (periods.length < 12) {
+    periods = await autoCreateFYPeriods(tenantId, appType, fy);
   }
 
   // Compute net profit for each period from journal lines
@@ -34,11 +39,11 @@ export async function listPeriods(fiscalYear?: string) {
     const [incomeAgg, expenseAgg] = await Promise.all([
       prisma.journalLine.aggregate({
         _sum: { credit: true, debit: true },
-        where: { entry: { tenantId, status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { classType: 'income' } },
+        where: { entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId, classType: 'income' } },
       }),
       prisma.journalLine.aggregate({
         _sum: { debit: true, credit: true },
-        where: { entry: { tenantId, status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { classType: 'expense' } },
+        where: { entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId, classType: 'expense' } },
       }),
     ]);
     const netIncome = Number(incomeAgg._sum.credit ?? 0) - Number(incomeAgg._sum.debit ?? 0);
@@ -64,11 +69,10 @@ export async function listPeriods(fiscalYear?: string) {
   return result;
 }
 
-async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promise<any[]> {
+async function autoCreateFYPeriods(tenantId: string, appType: string, fiscalYear: string): Promise<any[]> {
   // FY '2026-27' starts at the tenant-configured month of 2026
   const fyStart = parseInt(fiscalYear.split('-')[0]);
   const startMonth = (await getFyStartMonth(tenantId)) - 1; // 0-based month index
-  const created = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fyStart, startMonth + i, 1);
     const year = d.getFullYear();
@@ -77,36 +81,23 @@ async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promis
     const periodFrom = new Date(year, month, 1);
     const periodTo = new Date(year, month + 1, 0);
     try {
-      const p = await prisma.accountingPeriod.create({
-        data: { tenantId, periodKey, periodFrom, periodTo, fiscalYear, status: 'open' },
+      await prisma.accountingPeriod.create({
+        data: { tenantId, appType, periodKey, periodFrom, periodTo, fiscalYear, status: 'open' },
       });
-      created.push(p);
     } catch {} // May already exist
   }
-  return created.length > 0 ? created : await prisma.accountingPeriod.findMany({ where: { tenantId, fiscalYear }, orderBy: { periodFrom: 'asc' } });
-}
-
-export async function ensurePeriodExists(tenantId: string, date: Date) {
-  const periodKey = getPeriodKey(date);
-  const fiscalYear = getFiscalYear(date, await getFyStartMonth(tenantId));
-  const month = date.getMonth();
-  const year = date.getFullYear();
-  const periodFrom = new Date(year, month, 1);
-  const periodTo = new Date(year, month + 1, 0);
-
-  return prisma.accountingPeriod.upsert({
-    where: { tenantId_periodKey: { tenantId, periodKey } },
-    create: { tenantId, periodKey, periodFrom, periodTo, fiscalYear, status: 'open' },
-    update: {},
-  });
+  return prisma.accountingPeriod.findMany({ where: { tenantId, appType, fiscalYear }, orderBy: { periodFrom: 'asc' } });
 }
 
 export async function softLockPeriod(periodId: string, reason?: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (await getActiveBranchId()) return { ok: false, error: 'Insufficient role' };
+  if (!await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId, appType } })) return { ok: false, error: 'Period not found' };
 
   await prisma.$transaction([
     prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'soft_locked', lockedById: session.user!.id!, lockedAt: new Date() } }),
@@ -121,8 +112,11 @@ export async function lockPeriod(periodId: string, reason?: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (await getActiveBranchId()) return { ok: false, error: 'Insufficient role' };
+  if (!await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId, appType } })) return { ok: false, error: 'Period not found' };
 
   await prisma.$transaction([
     prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'locked', lockedById: session.user!.id!, lockedAt: new Date() } }),
@@ -137,21 +131,23 @@ export async function closePeriod(periodId: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (await getActiveBranchId()) return { ok: false, error: 'Insufficient role' };
 
-  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId } });
+  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId, appType } });
   if (!period) return { ok: false, error: 'Period not found' };
   if (period.status === 'closed') return { ok: true, data: { closingJEId: period.closingJEId } }; // Idempotent
 
   // Compute P&L
   const [incomeAgg, expenseAgg] = await Promise.all([
     prisma.journalLine.findMany({
-      where: { entry: { tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { classType: 'income' } },
+      where: { entry: { tenantId, appType, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId, classType: 'income' } },
       include: { account: true },
     }),
     prisma.journalLine.findMany({
-      where: { entry: { tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { classType: 'expense' } },
+      where: { entry: { tenantId, appType, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId, classType: 'expense' } },
       include: { account: true },
     }),
   ]);
@@ -198,6 +194,7 @@ export async function closePeriod(periodId: string) {
     const je = await tx.journalEntry.create({
       data: {
         tenantId,
+        appType,
         entryDate: period.periodTo,
         entryNo,
         narration: `Close ${period.periodKey}`,
@@ -241,9 +238,12 @@ export async function unlockPeriod(periodId: string, reason: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
   if (!reason || reason.length < 10) return { ok: false, error: 'no_reason' };
+  if (await getActiveBranchId()) return { ok: false, error: 'Insufficient role' };
+  if (!await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId, appType } })) return { ok: false, error: 'Period not found' };
 
   await prisma.$transaction([
     prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'open', lockedById: null, lockedAt: null } }),
@@ -258,17 +258,19 @@ export async function reopenPeriod(periodId: string, reason: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
   if (!reason || reason.length < 10) return { ok: false, error: 'no_reason' };
+  if (await getActiveBranchId()) return { ok: false, error: 'Insufficient role' };
 
-  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId } });
+  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, tenantId, appType } });
   if (!period) return { ok: false, error: 'Not found' };
 
   await prisma.$transaction(async (tx) => {
     // If closed, reverse the closing JE
     if (period.closingJEId) {
-      const closingJE = await tx.journalEntry.findUnique({ where: { id: period.closingJEId }, include: { lines: true } });
+      const closingJE = await tx.journalEntry.findFirst({ where: { id: period.closingJEId, tenantId, appType }, include: { lines: true } });
       if (closingJE) {
         const reversalLines = closingJE.lines.map((l, i) => ({
           accountId: l.accountId,
@@ -284,6 +286,7 @@ export async function reopenPeriod(periodId: string, reason: string) {
         const reversalJE = await tx.journalEntry.create({
           data: {
             tenantId,
+            appType,
             entryDate: new Date(),
             entryNo,
             narration: `Reversal of period close ${period.periodKey}`,
@@ -320,10 +323,14 @@ export async function listAuditLog(filter: { action?: string; entityType?: strin
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const rows = await prisma.accountingAuditLog.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       action: filter.action || undefined,
       entityType: filter.entityType || undefined,
       createdAt: {
@@ -347,9 +354,10 @@ export async function getDistinctFiscalYears() {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const periods = await prisma.accountingPeriod.findMany({
-    where: { tenantId },
+    where: { tenantId, appType },
     select: { fiscalYear: true },
     distinct: ['fiscalYear'],
     orderBy: { fiscalYear: 'desc' },

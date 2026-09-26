@@ -6,7 +6,7 @@ import { ReportBuilderParams, ReportPayload } from '../types';
 // listed per bank account with running balance. Reconciliation status is read from
 // BankStatementLine.matchedJournalLineId (set => reconciled) where available.
 export async function buildBankBook(params: ReportBuilderParams): Promise<ReportPayload> {
-  const { tenantId, from, to, branchId } = params;
+  const { tenantId, appType, from, to, branchId } = params;
 
   const dateFrom = new Date(from);
   dateFrom.setHours(0, 0, 0, 0);
@@ -45,7 +45,7 @@ export async function buildBankBook(params: ReportBuilderParams): Promise<Report
   const priorLines = await prisma.journalLine.findMany({
     where: {
       accountId: { in: ledgerAccountIds },
-      entry: { tenantId, ...branchFilter, entryDate: { lt: dateFrom } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { lt: dateFrom } },
     },
     select: { accountId: true, debit: true, credit: true },
   });
@@ -58,7 +58,7 @@ export async function buildBankBook(params: ReportBuilderParams): Promise<Report
   const lines = await prisma.journalLine.findMany({
     where: {
       accountId: { in: ledgerAccountIds },
-      entry: { tenantId, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
     },
     include: {
       entry: { select: { entryDate: true, postingDate: true, narration: true } },

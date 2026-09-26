@@ -262,6 +262,7 @@ export async function injectBranchCash(input: {
   void import('@/lib/accounting/autoPost').then(({ autoPostCapitalAdd }) =>
     autoPostCapitalAdd({
       tenantId: input.tenantId,
+      appType: input.appType,
       entryId: `topup-${input.branchId}-${Date.now()}`,
       description: input.note || 'Branch cash top-up',
       amount: input.amount,

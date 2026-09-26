@@ -79,6 +79,7 @@ async function ensureJeNotDuplicate(tenantId: string, tag: string): Promise<bool
  */
 export async function autoPostLoanDisburse(opts: {
   tenantId: string;
+  appType: string;
   loanId: string;
   loanCode: string;
   amount: number;
@@ -108,6 +109,7 @@ export async function autoPostLoanDisburse(opts: {
     await prisma.journalEntry.create({
       data: {
         tenantId: opts.tenantId,
+        appType: opts.appType,
         entryDate: opts.date,
         narration,
         status: 'posted',
@@ -147,6 +149,7 @@ export async function autoPostLoanDisburse(opts: {
  */
 export async function autoPostCollection(opts: {
   tenantId: string;
+  appType: string;
   entryId: string;
   loanId: string;
   loanCode: string;
@@ -181,6 +184,7 @@ export async function autoPostCollection(opts: {
     await prisma.journalEntry.create({
       data: {
         tenantId: opts.tenantId,
+        appType: opts.appType,
         entryDate: opts.date,
         narration,
         status: 'posted',
@@ -213,6 +217,7 @@ export async function autoPostCollection(opts: {
  */
 export async function autoPostExpense(opts: {
   tenantId: string;
+  appType: string;
   entryId: string;
   description: string;
   amount: number;
@@ -242,6 +247,7 @@ export async function autoPostExpense(opts: {
     await prisma.journalEntry.create({
       data: {
         tenantId: opts.tenantId,
+        appType: opts.appType,
         entryDate: opts.date,
         narration,
         status: 'posted',
@@ -274,6 +280,7 @@ export async function autoPostExpense(opts: {
  */
 export async function autoPostCapitalAdd(opts: {
   tenantId: string;
+  appType: string;
   entryId: string;
   description: string;
   amount: number;
@@ -303,6 +310,7 @@ export async function autoPostCapitalAdd(opts: {
     await prisma.journalEntry.create({
       data: {
         tenantId: opts.tenantId,
+        appType: opts.appType,
         entryDate: opts.date,
         narration,
         status: 'posted',
@@ -335,6 +343,7 @@ export async function autoPostCapitalAdd(opts: {
  */
 export async function autoPostCapitalWithdraw(opts: {
   tenantId: string;
+  appType: string;
   entryId: string;
   description: string;
   amount: number;
@@ -364,6 +373,7 @@ export async function autoPostCapitalWithdraw(opts: {
     await prisma.journalEntry.create({
       data: {
         tenantId: opts.tenantId,
+        appType: opts.appType,
         entryDate: opts.date,
         narration,
         status: 'posted',

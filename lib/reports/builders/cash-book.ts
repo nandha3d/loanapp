@@ -6,7 +6,7 @@ import { ReportBuilderParams, ReportPayload } from '../types';
 // with running balance (debit - credit cumulative) and an opening balance computed from all
 // cash postings before `from`.
 export async function buildCashBook(params: ReportBuilderParams): Promise<ReportPayload> {
-  const { tenantId, from, to, branchId } = params;
+  const { tenantId, appType, from, to, branchId } = params;
 
   const dateFrom = new Date(from);
   dateFrom.setHours(0, 0, 0, 0);
@@ -19,7 +19,7 @@ export async function buildCashBook(params: ReportBuilderParams): Promise<Report
   const priorLines = await prisma.journalLine.findMany({
     where: {
       account: { tenantId, isCash: true },
-      entry: { tenantId, ...branchFilter, entryDate: { lt: dateFrom } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { lt: dateFrom } },
     },
     select: { debit: true, credit: true },
   });
@@ -28,7 +28,7 @@ export async function buildCashBook(params: ReportBuilderParams): Promise<Report
   const lines = await prisma.journalLine.findMany({
     where: {
       account: { tenantId, isCash: true },
-      entry: { tenantId, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
     },
     include: {
       entry: { select: { entryDate: true, postingDate: true, narration: true } },

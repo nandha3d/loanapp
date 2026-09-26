@@ -5,7 +5,7 @@ import { ReportBuilderParams, ReportPayload } from '../types';
 // Single-day chronological listing of all JournalLine postings (joined to JournalEntry).
 // Uses `from` as the target day, ignores `to` (per task instruction).
 export async function buildDayBook(params: ReportBuilderParams): Promise<ReportPayload> {
-  const { tenantId, from, branchId } = params;
+  const { tenantId, appType, from, branchId } = params;
 
   const dayStart = new Date(from);
   dayStart.setHours(0, 0, 0, 0);
@@ -18,6 +18,7 @@ export async function buildDayBook(params: ReportBuilderParams): Promise<ReportP
     where: {
       entry: {
         tenantId,
+        appType,
         ...branchFilter,
         entryDate: { gte: dayStart, lte: dayEnd },
       },

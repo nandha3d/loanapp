@@ -1,15 +1,16 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
+import { getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
+import { BillPostingError, postBillInTx } from '@/lib/accounting/bills';
 
 const VENDOR_PAYABLE_CODE = '2110';
-const INPUT_CGST_CODE = '1410';
-const INPUT_SGST_CODE = '1420';
-const INPUT_IGST_CODE = '1430';
 const TDS_PAYABLE_CODE = '2210';
 
 // ─── Vendor CRUD ─────────────────────────────────────────────────────────────
@@ -18,16 +19,20 @@ export async function listVendors(filter?: { isActive?: boolean; search?: string
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const vendors = await prisma.vendor.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       isActive: filter?.isActive !== undefined ? filter.isActive : true,
       name: filter?.search ? { contains: filter.search } : undefined,
     },
     include: {
       bills: {
-        where: { status: { in: ['unpaid', 'partial'] } },
+        where: { appType, status: { in: ['unpaid', 'partial'] } },
         select: { totalAmount: true, paidAmount: true },
       },
       _count: { select: { bills: true } },
@@ -64,8 +69,11 @@ export async function createVendor(input: {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['admin', 'superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (!branchId) return { ok: false, error: 'Forbidden' };
 
   if (input.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(input.gstin)) {
     return { ok: false, error: 'gstin_invalid' };
@@ -77,6 +85,8 @@ export async function createVendor(input: {
   const vendor = await prisma.vendor.create({
     data: {
       tenantId,
+      appType,
+      branchId,
       name: input.name,
       gstin: input.gstin,
       pan: input.pan,
@@ -103,6 +113,8 @@ export async function updateVendor(id: string, input: Partial<{
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['admin', 'superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
@@ -110,7 +122,7 @@ export async function updateVendor(id: string, input: Partial<{
     return { ok: false, error: 'gstin_invalid' };
   }
 
-  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId }, select: { id: true } });
+  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) }, select: { id: true } });
   if (!vendor) return { ok: false, error: 'not_found' };
   await prisma.vendor.update({ where: { id }, data: input });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'update', entityType: 'vendor', entityId: id });
@@ -121,10 +133,12 @@ export async function deactivateVendor(id: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
-  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId }, select: { id: true } });
+  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) }, select: { id: true } });
   if (!vendor) return { ok: false, error: 'not_found' };
   await prisma.vendor.update({ where: { id }, data: { isActive: false } });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'delete', entityType: 'vendor', entityId: id });
@@ -137,10 +151,14 @@ export async function listBills(filter?: { vendorId?: string; status?: string; s
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   return prisma.bill.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       vendorId: filter?.vendorId,
       status: filter?.status,
       billNo: filter?.search ? { contains: filter.search } : undefined,
@@ -156,9 +174,11 @@ export async function getBill(id: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const bill = await prisma.bill.findFirst({
-    where: { id, tenantId },
+    where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) },
     include: {
       vendor: true,
       lines: { orderBy: { lineNo: 'asc' } },
@@ -196,13 +216,19 @@ export async function createBill(input: {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['admin', 'superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
   const validLines = (input.lines ?? []).filter((line) => line.accountId && Number(line.amount) > 0);
   if (validLines.length === 0) return { ok: false, error: 'bill_no_lines' };
+  const vendor = await prisma.vendor.findFirst({ where: { id: input.vendorId, tenantId, appType, ...(branchId ? { branchId } : {}) }, select: { id: true, branchId: true } });
+  if (!vendor || !vendor.branchId) return { ok: false, error: 'Not found' };
+  const lineAccountIds = [...new Set(validLines.map((line) => line.accountId))];
+  if (await prisma.account.count({ where: { tenantId, id: { in: lineAccountIds } } }) !== lineAccountIds.length) return { ok: false, error: 'Not found' };
 
-  const existing = await prisma.bill.findFirst({ where: { tenantId, billNo: input.billNo } });
+  const existing = await prisma.bill.findFirst({ where: { tenantId, appType, billNo: input.billNo } });
   if (existing) return { ok: false, error: 'bill_no_duplicate' };
 
   const processedLines = validLines.map((l, i) => {
@@ -218,6 +244,8 @@ export async function createBill(input: {
   const bill = await prisma.bill.create({
     data: {
       tenantId,
+      appType,
+      branchId: vendor.branchId,
       vendorId: input.vendorId,
       billNo: input.billNo,
       billDate: new Date(input.billDate),
@@ -249,11 +277,13 @@ export async function postBill(id: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['admin', 'superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
   const bill = await prisma.bill.findFirst({
-    where: { id, tenantId },
+    where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) },
     include: { vendor: true, lines: true },
   });
   if (!bill) return { ok: false, error: 'Not found' };
@@ -262,71 +292,24 @@ export async function postBill(id: string) {
   const settings = await prisma.accountingSettings.findUnique({ where: { tenantId } });
   const adminBillCap = Number(settings?.adminBillCap ?? 100000);
   if (role === 'admin' && Number(bill.totalAmount) > adminBillCap) {
-    await prisma.bill.update({ where: { id }, data: { status: 'pending_approval' } });
-    await prisma.accountingApproval.create({
-      data: { tenantId, entityType: 'bill', entityId: id, amount: bill.totalAmount, level: 1, approverRole: 'superadmin', requestedById: session.user!.id! },
-    });
+    await prisma.$transaction([
+      prisma.bill.update({ where: { id, tenantId, appType, status: 'draft' }, data: { status: 'pending_approval' } }),
+      prisma.accountingApproval.create({
+        data: { tenantId, appType, branchId: bill.branchId, entityType: 'bill', entityId: id, amount: bill.totalAmount, level: 1, approverRole: 'superadmin', requestedById: session.user!.id! },
+      }),
+    ]);
     return { ok: true, data: { pending: true } };
   }
 
-  const payableAcct = await prisma.account.findFirst({ where: { tenantId, code: VENDOR_PAYABLE_CODE } });
-  const cgstAcct = await prisma.account.findFirst({ where: { tenantId, code: INPUT_CGST_CODE } });
-  const sgstAcct = await prisma.account.findFirst({ where: { tenantId, code: INPUT_SGST_CODE } });
-  if (!payableAcct) return { ok: false, error: 'Vendor payable account (2110) not found. Seed CoA first.' };
-
-  // Fetch line accounts
-  const accountIds = bill.lines.map(l => l.accountId).filter(Boolean) as string[];
-  const lineAccounts = accountIds.length
-    ? await prisma.account.findMany({ where: { id: { in: accountIds } }, select: { id: true } })
-    : [];
-  const lineAccountSet = new Set(lineAccounts.map(a => a.id));
-
-  const jeLines: Array<{ accountId: string; debit: number; credit: number; description?: string; lineNo: number }> = [];
-
-  for (const line of bill.lines) {
-    if (!line.accountId || !lineAccountSet.has(line.accountId)) continue;
-    jeLines.push({ accountId: line.accountId, debit: Number(line.amount), credit: 0, description: line.description ?? undefined, lineNo: jeLines.length });
-
-    if (Number(line.gstAmount) > 0) {
-      const half = Number(line.gstAmount) / 2;
-      if (cgstAcct) jeLines.push({ accountId: cgstAcct.id, debit: half, credit: 0, description: 'Input CGST', lineNo: jeLines.length });
-      if (sgstAcct) jeLines.push({ accountId: sgstAcct.id, debit: half, credit: 0, description: 'Input SGST', lineNo: jeLines.length });
-    }
+  try {
+    const je = await prisma.$transaction((tx) => postBillInTx(tx, {
+      tenantId, appType, branchId, billId: id, actorId: session.user!.id!, expectedStatus: 'draft',
+    }));
+    return { ok: true, data: { journalEntryId: je.id } };
+  } catch (error) {
+    if (error instanceof BillPostingError) return { ok: false, error: error.message };
+    throw error;
   }
-
-  jeLines.push({ accountId: payableAcct.id, debit: 0, credit: Number(bill.totalAmount), description: `Bill ${bill.billNo} payable`, lineNo: jeLines.length });
-
-  const fyKey = getFiscalYear(bill.billDate, await getFyStartMonth(tenantId)).replace('-', '');
-  const count = await prisma.journalEntry.count({ where: { tenantId } });
-  const entryNo = `JE-${fyKey}-${String(count + 1).padStart(4, '0')}`;
-
-  const je = await prisma.$transaction(async (tx) => {
-    const entry = await tx.journalEntry.create({
-      data: {
-        tenantId,
-        entryDate: bill.billDate,
-        entryNo,
-        narration: `Bill ${bill.billNo} — ${bill.vendor.name}`,
-        sourceType: 'bill',
-        sourceId: id,
-        status: 'posted',
-        createdById: session.user!.id!,
-        totalDebit: Number(bill.totalAmount),
-        totalCredit: Number(bill.totalAmount),
-        lines: { create: jeLines },
-      },
-    });
-
-    for (const line of jeLines) {
-      await bumpAccountBalance(tx, line.accountId, bill.billDate, line.debit, line.credit);
-    }
-
-    await tx.bill.update({ where: { id }, data: { status: 'unpaid', journalEntryId: entry.id } });
-    return entry;
-  });
-
-  await writeAuditLog({ tenantId, userId: session.user?.id, action: 'post', entityType: 'bill', entityId: id, after: { journalEntryId: je.id } });
-  return { ok: true, data: { journalEntryId: je.id } };
 }
 
 export async function payBill(id: string, input: {
@@ -340,9 +323,12 @@ export async function payBill(id: string, input: {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
+  if (!['admin', 'superadmin', 'developer'].includes((session.user as any)?.role)) return { ok: false, error: 'Insufficient role' };
 
   const bill = await prisma.bill.findFirst({
-    where: { id, tenantId },
+    where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) },
     include: { vendor: true },
   });
   if (!bill) return { ok: false, error: 'Not found' };
@@ -353,6 +339,7 @@ export async function payBill(id: string, input: {
   const payableAcct = await prisma.account.findFirst({ where: { tenantId, code: VENDOR_PAYABLE_CODE } });
   const tdsAcct = await prisma.account.findFirst({ where: { tenantId, code: TDS_PAYABLE_CODE } });
   if (!payableAcct) return { ok: false, error: 'Vendor payable account (2110) not found.' };
+  if (!await prisma.account.findFirst({ where: { id: input.payFromAccountId, tenantId }, select: { id: true } })) return { ok: false, error: 'Not found' };
 
   const tdsAmt = input.tdsAmount ?? 0;
   const bankAmt = input.amount - tdsAmt;
@@ -374,6 +361,8 @@ export async function payBill(id: string, input: {
     const entry = await tx.journalEntry.create({
       data: {
         tenantId,
+        appType,
+        branchId: bill.branchId,
         entryDate,
         entryNo,
         narration: input.narration ?? `Pay ${bill.billNo} — ${bill.vendor.name}`,
@@ -407,6 +396,7 @@ export async function payBill(id: string, input: {
       await tx.tdsDeduction.create({
         data: {
           tenantId,
+          appType,
           billId: id,
           vendorId: bill.vendorId,
           section: bill.vendor.tdsSection ?? '194Q',
@@ -430,10 +420,12 @@ export async function cancelBill(id: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
-  const bill = await prisma.bill.findFirst({ where: { id, tenantId } });
+  const bill = await prisma.bill.findFirst({ where: { id, tenantId, appType, ...(branchId ? { branchId } : {}) } });
   if (!bill) return { ok: false, error: 'Not found' };
 
   await prisma.bill.update({ where: { id }, data: { status: 'cancelled' } });
@@ -445,9 +437,11 @@ export async function getAgeingReport() {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const bills = await prisma.bill.findMany({
-    where: { tenantId, status: { in: ['unpaid', 'partial'] } },
+    where: { tenantId, appType, ...(branchId ? { branchId } : {}), status: { in: ['unpaid', 'partial'] } },
     include: { vendor: { select: { id: true, name: true } } },
   });
 

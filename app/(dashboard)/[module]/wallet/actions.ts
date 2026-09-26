@@ -91,6 +91,7 @@ export async function releaseFundsAction(formData: FormData) {
       });
       await autoPostCapitalAdd({
         tenantId,
+        appType,
         entryId: entry.id,
         description: 'Capital top-up for agent release',
         amount: shortfall,

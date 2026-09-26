@@ -1,9 +1,12 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
+import { getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
 
 // BudgetLine fields in calendar order
 const MONTH_FIELDS = [
@@ -21,9 +24,10 @@ export async function listBudgets() {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const rows = await prisma.budget.findMany({
-    where: { tenantId },
+    where: { tenantId, appType },
     orderBy: { createdAt: 'desc' },
   });
   return JSON.parse(JSON.stringify(rows));
@@ -36,12 +40,14 @@ export async function createBudget(input: {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
   const budget = await prisma.budget.create({
     data: {
       tenantId,
+      appType,
       name: input.name,
       fiscalYear: input.fiscalYear,
     },
@@ -61,9 +67,10 @@ export async function getBudgetWithLines(budgetId: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   const budget = await prisma.budget.findFirst({
-    where: { id: budgetId, tenantId },
+    where: { id: budgetId, tenantId, appType },
     include: { lines: { orderBy: { accountId: 'asc' } } },
   });
   if (!budget) return null;
@@ -89,6 +96,7 @@ export async function updateBudgetLine(lineId: string, field: string, value: num
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
@@ -97,7 +105,7 @@ export async function updateBudgetLine(lineId: string, field: string, value: num
 
   // Verify line belongs to this tenant's budget
   const line = await prisma.budgetLine.findFirst({
-    where: { id: lineId, budget: { tenantId } },
+    where: { id: lineId, budget: { tenantId, appType } },
     include: { budget: { select: { status: true } } },
   });
   if (!line) return { ok: false, error: 'Not found' };
@@ -115,8 +123,11 @@ export async function addBudgetLine(budgetId: string, accountId: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (!await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType }, select: { id: true } })) return { ok: false, error: 'Not found' };
+  if (!await prisma.account.findFirst({ where: { id: accountId, tenantId }, select: { id: true } })) return { ok: false, error: 'Not found' };
 
   const existing = await prisma.budgetLine.findFirst({ where: { budgetId, accountId } });
   if (existing) return { ok: false, error: 'Account already in budget' };
@@ -129,10 +140,11 @@ export async function approveBudget(budgetId: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
-  const budget = await prisma.budget.findFirst({ where: { id: budgetId, tenantId } });
+  const budget = await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType } });
   if (!budget) return { ok: false, error: 'Not found' };
 
   await prisma.budget.update({
@@ -154,8 +166,10 @@ export async function archiveBudget(budgetId: string) {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (!await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType }, select: { id: true } })) return { ok: false, error: 'Not found' };
 
   await prisma.budget.update({ where: { id: budgetId }, data: { status: 'archived' } });
   await writeAuditLog({
@@ -173,9 +187,11 @@ export async function getVarianceForPeriod(budgetId: string, periodKey: string) 
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   const budget = await prisma.budget.findFirst({
-    where: { id: budgetId, tenantId },
+    where: { id: budgetId, tenantId, appType },
     include: { lines: true },
   });
   if (!budget) return [];
@@ -201,7 +217,7 @@ export async function getVarianceForPeriod(budgetId: string, periodKey: string) 
     _sum: { debit: true, credit: true },
     where: {
       accountId: { in: accountIds },
-      entry: { tenantId, status: 'posted', entryDate: { gte: from, lte: to } },
+      entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: from, lte: to } },
     },
   });
 

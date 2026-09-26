@@ -197,6 +197,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   void import('@/lib/accounting/autoPost').then(async ({ autoPostCollection }) => {
     const common = {
       tenantId: ctx.tenantId,
+      appType: loan.appType,
       loanId: loan.id,
       loanCode: loan.loanCode,
       date: now,

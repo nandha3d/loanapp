@@ -2405,6 +2405,8 @@ model AccountBalance {
 model JournalEntry {
   id           String    @id @default(cuid())
   tenantId     String    @map("tenant_id")
+  // Null means historical source could not be assigned to one module safely.
+  appType      String?   @map("app_type")
   branchId     String?   @map("branch_id")
   entryNo      String?   @map("entry_no")
   entryDate    DateTime  @map("entry_date") @db.Date
@@ -2438,6 +2440,7 @@ model JournalEntry {
   @@unique([tenantId, entryNo])
   @@unique([dedupKey])
   @@index([tenantId, entryDate])
+  @@index([tenantId, appType, status, entryDate])
   @@index([tenantId, status, entryDate])
   @@index([branchId, entryDate])
   @@map("journal_entries")
@@ -2472,6 +2475,8 @@ model JournalLine {
 model Vendor {
   id            String   @id @default(cuid())
   tenantId      String   @map("tenant_id")
+  appType       String?  @map("app_type")
+  branchId      String?  @map("branch_id")
   name          String
   pan           String?
   gstin         String?
@@ -2491,12 +2496,16 @@ model Vendor {
   bills  Bill[]
 
   @@index([tenantId, isActive])
+  @@index([tenantId, appType, isActive])
+  @@index([tenantId, appType, branchId])
   @@map("vendors")
 }
 
 model Bill {
   id             String    @id @default(cuid())
   tenantId       String    @map("tenant_id")
+  appType        String?   @map("app_type")
+  branchId       String?   @map("branch_id")
   vendorId       String    @map("vendor_id")
   billNo         String    @map("bill_no")
   billDate       DateTime  @map("bill_date") @db.Date
@@ -2518,7 +2527,9 @@ model Bill {
   lines         BillLine[]
   tdsDeductions TdsDeduction[]
 
-  @@unique([tenantId, billNo])
+  @@unique([tenantId, appType, billNo])
+  @@index([tenantId, appType, status])
+  @@index([tenantId, appType, branchId])
   @@index([tenantId, status])
   @@index([vendorId])
   @@map("bills")
@@ -2543,6 +2554,7 @@ model BillLine {
 model TdsDeduction {
   id          String    @id @default(cuid())
   tenantId    String    @map("tenant_id")
+  appType     String?   @map("app_type")
   billId      String?   @map("bill_id")
   vendorId    String?   @map("vendor_id")
   section     String
@@ -2558,12 +2570,14 @@ model TdsDeduction {
   bill Bill? @relation(fields: [billId], references: [id])
 
   @@index([tenantId, section, periodKey])
+  @@index([tenantId, appType, section, periodKey])
   @@map("tds_deductions")
 }
 
 model GstSummary {
   id           String    @id @default(cuid())
   tenantId     String    @map("tenant_id")
+  appType      String?   @map("app_type")
   periodKey    String    @map("period_key")
   gstType      String    @map("gst_type")
   outputIgst   Decimal   @default(0) @map("output_igst") @db.Decimal(18, 2)
@@ -2580,7 +2594,8 @@ model GstSummary {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, periodKey, gstType])
+  @@unique([tenantId, appType, periodKey, gstType])
+  @@index([tenantId, appType, periodKey])
   @@index([tenantId, periodKey])
   @@map("gst_summaries")
 }
@@ -2588,6 +2603,7 @@ model GstSummary {
 model Budget {
   id           String    @id @default(cuid())
   tenantId     String    @map("tenant_id")
+  appType      String?   @map("app_type")
   fiscalYear   String    @map("fiscal_year")
   name         String
   status       String    @default("draft")
@@ -2599,7 +2615,8 @@ model Budget {
   tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   lines  BudgetLine[]
 
-  @@unique([tenantId, fiscalYear, name])
+  @@unique([tenantId, appType, fiscalYear, name])
+  @@index([tenantId, appType, fiscalYear])
   @@index([tenantId, fiscalYear])
   @@map("budgets")
 }
@@ -2631,6 +2648,7 @@ model BudgetLine {
 model BankAccount {
   id              String   @id @default(cuid())
   tenantId        String   @map("tenant_id")
+  appType         String?  @map("app_type")
   branchId        String?  @map("branch_id")
   name            String
   bankName        String   @map("bank_name")
@@ -2648,7 +2666,8 @@ model BankAccount {
   ledgerAccount Account         @relation(fields: [ledgerAccountId], references: [id])
   statements    BankStatement[]
 
-  @@unique([tenantId, accountNo])
+  @@unique([tenantId, appType, accountNo])
+  @@index([tenantId, appType, branchId])
   @@index([tenantId, isActive])
   @@map("bank_accounts")
 }
@@ -2715,6 +2734,7 @@ model BankMatchProposal {
 model AccountingPeriod {
   id          String    @id @default(cuid())
   tenantId    String    @map("tenant_id")
+  appType     String?   @map("app_type")
   periodKey   String    @map("period_key")
   periodFrom  DateTime  @map("period_from") @db.Date
   periodTo    DateTime  @map("period_to") @db.Date
@@ -2735,7 +2755,7 @@ model AccountingPeriod {
   closingJE JournalEntry? @relation("PeriodClosingJE", fields: [closingJEId], references: [id])
   locks     PeriodLock[]
 
-  @@unique([tenantId, periodKey])
+  @@unique([tenantId, appType, periodKey])
   @@index([tenantId, status])
   @@map("accounting_periods")
 }
@@ -2757,6 +2777,8 @@ model PeriodLock {
 model AccountingAuditLog {
   id         String   @id @default(cuid())
   tenantId   String   @map("tenant_id")
+  appType    String?  @map("app_type")
+  branchId   String?  @map("branch_id")
   userId     String?  @map("user_id")
   action     String
   entityType String   @map("entity_type")
@@ -2774,6 +2796,7 @@ model AccountingAuditLog {
 
   @@index([tenantId, entityType, entityId, createdAt])
   @@index([tenantId, createdAt])
+  @@index([tenantId, appType, branchId, createdAt])
   @@map("accounting_audit_log")
 }
 
@@ -2815,6 +2838,8 @@ model AccountingSettings {
 model AccountingApproval {
   id            String    @id @default(cuid())
   tenantId      String    @map("tenant_id")
+  appType       String?   @map("app_type")
+  branchId      String?   @map("branch_id")
   entityType    String    @map("entity_type")
   entityId      String    @map("entity_id")
   amount        Decimal   @db.Decimal(18, 2)
@@ -2833,6 +2858,8 @@ model AccountingApproval {
   approvedBy  User?  @relation("ApprovalApprover", fields: [approvedById], references: [id])
 
   @@index([tenantId, status, level])
+  @@index([tenantId, appType, status, level])
+  @@index([tenantId, appType, branchId])
   @@index([entityType, entityId])
   @@map("accounting_approvals")
 }
@@ -2840,6 +2867,7 @@ model AccountingApproval {
 model AccountingExportRun {
   id        String   @id @default(cuid())
   tenantId  String   @map("tenant_id")
+  appType   String?  @map("app_type")
   kind      String
   periodKey String?  @map("period_key")
   branchId  String?  @map("branch_id")
@@ -2851,6 +2879,8 @@ model AccountingExportRun {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, appType, branchId, createdAt], map: "acct_export_scope_branch_created_idx")
+  @@index([tenantId, appType, createdAt])
   @@map("accounting_export_runs")
 }
 

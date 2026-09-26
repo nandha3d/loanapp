@@ -1,18 +1,28 @@
 'use server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { writeAuditLog } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
+
+async function getBankScope() {
+  const [tenantId, appType, branchId] = await Promise.all([
+    getDefaultTenantId(), getUserAppType(), getActiveBranchId(),
+  ]);
+  return { tenantId, appType, ...(branchId ? { branchId } : {}) };
+}
 
 // List all bank accounts for this tenant
 export async function listBankAccounts() {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId, appType } = scope;
 
   const accounts = await prisma.bankAccount.findMany({
-    where: { tenantId, isActive: true },
+    where: { ...scope, isActive: true },
     include: {
       ledgerAccount: { select: { code: true, name: true } },
       statements: {
@@ -28,7 +38,7 @@ export async function listBankAccounts() {
   const result = await Promise.all(accounts.map(async (ba) => {
     const agg = await prisma.journalLine.aggregate({
       _sum: { debit: true, credit: true },
-      where: { accountId: ba.ledgerAccountId, entry: { tenantId, status: 'posted' } },
+      where: { accountId: ba.ledgerAccountId, entry: { ...scope, status: 'posted' } },
     });
     const bookBalance = Number(ba.openingBalance) + Number(agg._sum.debit ?? 0) - Number(agg._sum.credit ?? 0);
     return {
@@ -58,13 +68,18 @@ export async function createBankAccount(input: {
 }) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId, appType, branchId } = scope;
   const role = (session.user as any)?.role;
   if (!['admin','superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
+  if (!branchId) return { ok: false, error: 'Forbidden' };
+  if (!await prisma.account.findFirst({ where: { id: input.ledgerAccountId, tenantId }, select: { id: true } })) return { ok: false, error: 'Ledger account not found' };
 
   const ba = await prisma.bankAccount.create({
     data: {
       tenantId,
+      appType,
+      branchId,
       name: input.name,
       bankName: input.bankName,
       accountNo: input.accountNo,
@@ -83,10 +98,10 @@ export async function createBankAccount(input: {
 export async function getBankAccountDetail(bankAccountId: string) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
 
   return prisma.bankAccount.findFirst({
-    where: { id: bankAccountId, tenantId },
+    where: { id: bankAccountId, ...scope },
     include: {
       ledgerAccount: { select: { id: true, code: true, name: true } },
       statements: {
@@ -103,10 +118,10 @@ export async function getBankAccountDetail(bankAccountId: string) {
 export async function getStatementWithLines(statementId: string, showUnmatchedOnly = false) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
 
   const stmt = await prisma.bankStatement.findFirst({
-    where: { id: statementId, bankAccount: { tenantId } },
+    where: { id: statementId, bankAccount: scope },
     include: {
       lines: {
         where: showUnmatchedOnly ? { status: 'unmatched' } : undefined,
@@ -140,11 +155,12 @@ export async function importStatement(bankAccountId: string, rows: Array<{
 }>, statementFrom: string, statementTo: string, openingBalance: number, closingBalance: number) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId, appType } = scope;
   const role = (session.user as any)?.role;
   if (!['admin','superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
-  const ba = await prisma.bankAccount.findFirst({ where: { id: bankAccountId, tenantId } });
+  const ba = await prisma.bankAccount.findFirst({ where: { id: bankAccountId, ...scope } });
   if (!ba) return { ok: false, error: 'Bank account not found' };
 
   // Check for overlap
@@ -182,14 +198,14 @@ export async function importStatement(bankAccountId: string, rows: Array<{
   });
 
   // Auto-run matching
-  await runMatching(stmt.id, ba.ledgerAccountId, tenantId);
+  await runMatching(stmt.id, ba.ledgerAccountId, scope);
 
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'import_statement', entityType: 'bank_statement', entityId: stmt.id });
   return { ok: true, data: stmt };
 }
 
 // Matching engine
-async function runMatching(statementId: string, ledgerAccountId: string, tenantId: string) {
+async function runMatching(statementId: string, ledgerAccountId: string, scope: { tenantId: string; appType: string; branchId?: string }) {
   const lines = await prisma.bankStatementLine.findMany({
     where: { statementId, status: 'unmatched' },
   });
@@ -205,7 +221,7 @@ async function runMatching(statementId: string, ledgerAccountId: string, tenantI
     const candidates = await prisma.journalLine.findMany({
       where: {
         accountId: ledgerAccountId,
-        entry: { tenantId, status: 'posted', entryDate: { gte: from, lte: to } },
+        entry: { ...scope, status: 'posted', entryDate: { gte: from, lte: to } },
         id: { notIn: (await prisma.bankStatementLine.findMany({ where: { matchedJournalLineId: { not: null } }, select: { matchedJournalLineId: true } })).map(x => x.matchedJournalLineId!) },
       },
       include: { entry: { select: { entryDate: true, narration: true } } },
@@ -254,16 +270,22 @@ async function runMatching(statementId: string, ledgerAccountId: string, tenantI
 export async function acceptProposal(proposalId: string) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId } = scope;
 
-  const proposal = await prisma.bankMatchProposal.findUnique({
-    where: { id: proposalId },
-    include: { statementLine: true },
+  const proposal = await prisma.bankMatchProposal.findFirst({
+    where: { id: proposalId, statementLine: { statement: { bankAccount: scope } } },
+    include: { statementLine: { include: { statement: { include: { bankAccount: true } } } } },
   });
   if (!proposal) return { ok: false, error: 'Not found' };
+  const journalLine = await prisma.journalLine.findFirst({
+    where: { id: proposal.journalLineId, accountId: proposal.statementLine.statement.bankAccount.ledgerAccountId, entry: { ...scope, status: 'posted' } },
+    select: { id: true },
+  });
+  if (!journalLine) return { ok: false, error: 'Not found' };
 
-  await prisma.bankStatementLine.update({
-    where: { id: proposal.statementLineId },
+  await prisma.bankStatementLine.updateMany({
+    where: { id: proposal.statementLineId, statement: { bankAccount: scope } },
     data: { status: 'matched', matchedJournalLineId: proposal.journalLineId, matchedAt: new Date(), matchedById: session.user?.id },
   });
 
@@ -275,16 +297,18 @@ export async function rejectProposal(proposalId: string) {
   const session = await auth();
   if (!session) redirect('/login');
 
-  await prisma.bankMatchProposal.delete({ where: { id: proposalId } });
+  const scope = await getBankScope();
+  await prisma.bankMatchProposal.deleteMany({ where: { id: proposalId, statementLine: { statement: { bankAccount: scope } } } });
   return { ok: true };
 }
 
 export async function ignoreLine(statementLineId: string) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId } = scope;
 
-  await prisma.bankStatementLine.update({ where: { id: statementLineId }, data: { status: 'ignored' } });
+  await prisma.bankStatementLine.updateMany({ where: { id: statementLineId, statement: { bankAccount: scope } }, data: { status: 'ignored' } });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'ignore', entityType: 'bank_statement_line', entityId: statementLineId });
   return { ok: true };
 }
@@ -292,10 +316,11 @@ export async function ignoreLine(statementLineId: string) {
 export async function unmatchLine(statementLineId: string) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId } = scope;
 
-  await prisma.bankStatementLine.update({
-    where: { id: statementLineId },
+  await prisma.bankStatementLine.updateMany({
+    where: { id: statementLineId, statement: { bankAccount: scope } },
     data: { status: 'unmatched', matchedJournalLineId: null, matchedAt: null, matchedById: null },
   });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'unmatch', entityType: 'bank_statement_line', entityId: statementLineId });
@@ -305,16 +330,17 @@ export async function unmatchLine(statementLineId: string) {
 export async function markReconciled(statementId: string) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const scope = await getBankScope();
+  const { tenantId } = scope;
 
   const stmt = await prisma.bankStatement.findFirst({
-    where: { id: statementId, bankAccount: { tenantId } },
+    where: { id: statementId, bankAccount: scope },
     include: { _count: { select: { lines: { where: { status: 'unmatched' } } } } },
   });
   if (!stmt) return { ok: false, error: 'Statement not found' };
   if ((stmt as any)._count.lines > 0) return { ok: false, error: 'All lines must be matched or ignored.' };
 
-  await prisma.bankStatement.update({ where: { id: statementId }, data: { status: 'reconciled' } });
+  await prisma.bankStatement.updateMany({ where: { id: statementId, bankAccount: scope }, data: { status: 'reconciled' } });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'match', entityType: 'bank_statement', entityId: statementId, after: { status: 'reconciled' } });
   return { ok: true };
 }
@@ -322,7 +348,7 @@ export async function markReconciled(statementId: string) {
 export async function getLedgerAccounts() {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
+  const { tenantId } = await getBankScope();
 
   return prisma.account.findMany({
     where: { tenantId, isActive: true, subType: { in: ['cash','bank'] } },

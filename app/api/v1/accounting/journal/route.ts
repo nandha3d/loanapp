@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
       entryDate: { gte: from, lte: to },
       status,
@@ -125,8 +126,8 @@ export async function POST(req: NextRequest) {
     }
 
     const periodKey = getPeriodKey(entryDate);
-    const period = await prisma.accountingPeriod.findUnique({
-      where: { tenantId_periodKey: { tenantId: ctx.tenantId, periodKey } },
+    const period = await prisma.accountingPeriod.findFirst({
+      where: { tenantId: ctx.tenantId, appType: ctx.appType, periodKey },
     });
     if (period && ['locked', 'closed'].includes(period.status) && ctx.role !== 'developer') {
       return fail('period_locked', 400);
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       const entry = await prisma.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId: ctx.branchId,
           entryDate,
           narration,
@@ -166,39 +168,45 @@ export async function POST(req: NextRequest) {
     const cap = ctx.role === 'admin' ? Number(settings?.adminJeCap ?? 50000) : Infinity;
 
     if (totalDr > cap) {
-      const entry = await prisma.journalEntry.create({
-        data: {
-          tenantId: ctx.tenantId,
-          branchId: ctx.branchId,
-          entryDate,
-          narration,
-          status: 'pending_approval',
-          sourceType: 'manual',
-          totalDebit: totalDr,
-          totalCredit: totalCr,
-          createdById: ctx.userId,
-          lines: {
-            create: lines.map((l, i) => ({
-              accountId: l.accountId,
-              debit: l.debit,
-              credit: l.credit,
-              description: l.description || null,
-              lineNo: i,
-            })),
+      const entry = await prisma.$transaction(async (tx) => {
+        const created = await tx.journalEntry.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: ctx.branchId,
+            entryDate,
+            narration,
+            status: 'pending_approval',
+            sourceType: 'manual',
+            totalDebit: totalDr,
+            totalCredit: totalCr,
+            createdById: ctx.userId,
+            lines: {
+              create: lines.map((l, i) => ({
+                accountId: l.accountId,
+                debit: l.debit,
+                credit: l.credit,
+                description: l.description || null,
+                lineNo: i,
+              })),
+            },
           },
-        },
-      });
+        });
 
-      await prisma.accountingApproval.create({
-        data: {
-          tenantId: ctx.tenantId,
-          entityType: 'journal_entry',
-          entityId: entry.id,
-          amount: totalDr,
-          level: 1,
-          approverRole: 'superadmin',
-          requestedById: ctx.userId,
-        },
+        await tx.accountingApproval.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: ctx.branchId,
+            entityType: 'journal_entry',
+            entityId: created.id,
+            amount: totalDr,
+            level: 1,
+            approverRole: 'superadmin',
+            requestedById: ctx.userId,
+          },
+        });
+        return created;
       });
 
       return ok({ success: true, status: 'pending_approval', entryId: entry.id });
@@ -210,6 +218,7 @@ export async function POST(req: NextRequest) {
       const je = await tx.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId: ctx.branchId,
           entryNo,
           entryDate,

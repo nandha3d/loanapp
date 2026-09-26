@@ -347,6 +347,7 @@ export async function collectRunLines(
         digitalPosts.map((d) =>
           autoPostCollection({
             tenantId: actor.tenantId,
+            appType: actor.appType,
             entryId: d.entryId,
             loanId: d.loanId,
             loanCode: d.loanCode,

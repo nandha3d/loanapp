@@ -95,6 +95,7 @@ export async function postLoanOrigination(
   tx: Prisma.TransactionClient,
   input: {
     tenantId: string;
+    appType: string;
     branchId?: string | null;
     loanId: string;
     loanCode: string;
@@ -147,6 +148,7 @@ export async function postLoanOrigination(
   const entry = await tx.journalEntry.create({
     data: {
       tenantId: input.tenantId,
+      appType: input.appType,
       branchId: input.branchId ?? null,
       entryDate: input.entryDate,
       narration,

@@ -85,6 +85,7 @@ export async function addAccountEntry(formData: FormData) {
   if (type === 'expense') {
     await autoPostExpense({
       tenantId,
+      appType,
       entryId: entry.id,
       description: description || 'Expense',
       amount,
@@ -96,6 +97,7 @@ export async function addAccountEntry(formData: FormData) {
   } else if (type === 'capital_add') {
     await autoPostCapitalAdd({
       tenantId,
+      appType,
       entryId: entry.id,
       description: description || 'Capital Addition',
       amount,
@@ -107,6 +109,7 @@ export async function addAccountEntry(formData: FormData) {
   } else if (type === 'capital_withdraw') {
     await autoPostCapitalWithdraw({
       tenantId,
+      appType,
       entryId: entry.id,
       description: description || 'Capital Withdrawal',
       amount,

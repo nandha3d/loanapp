@@ -202,11 +202,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (type === 'expense') {
-      await autoPostExpense({ tenantId: ctx.tenantId, entryId: entry.id, description: description || 'Expense', amount, date: entryDate, branchId, createdById: ctx.userId, category });
+      await autoPostExpense({ tenantId: ctx.tenantId, appType: ctx.appType, entryId: entry.id, description: description || 'Expense', amount, date: entryDate, branchId, createdById: ctx.userId, category });
     } else if (type === 'capital_add') {
-      await autoPostCapitalAdd({ tenantId: ctx.tenantId, entryId: entry.id, description: description || 'Capital Addition', amount, date: entryDate, branchId, createdById: ctx.userId, category });
+      await autoPostCapitalAdd({ tenantId: ctx.tenantId, appType: ctx.appType, entryId: entry.id, description: description || 'Capital Addition', amount, date: entryDate, branchId, createdById: ctx.userId, category });
     } else if (type === 'capital_withdraw') {
-      await autoPostCapitalWithdraw({ tenantId: ctx.tenantId, entryId: entry.id, description: description || 'Capital Withdrawal', amount, date: entryDate, branchId, createdById: ctx.userId, category });
+      await autoPostCapitalWithdraw({ tenantId: ctx.tenantId, appType: ctx.appType, entryId: entry.id, description: description || 'Capital Withdrawal', amount, date: entryDate, branchId, createdById: ctx.userId, category });
     }
 
     return ok({ id: entry.id, type, amount });

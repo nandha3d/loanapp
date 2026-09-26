@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     const lines = await prisma.journalLine.groupBy({
       by: ['accountId'],
-      where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { lte: asOfDate } } },
+      where: { entry: { tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { lte: asOfDate } } },
       _sum: { debit: true, credit: true },
     });
 

@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/db';
+import { bumpAccountBalance } from '@/lib/accounting/balances';
+import { BillPostingError, postBillInTx } from '@/lib/accounting/bills';
 import {
   getCashBankBalance,
   getDailyCashflowSeries,
@@ -9,7 +11,6 @@ import {
   getOrCreateAccountingSettings,
   getPeriodKey,
   isPremiumAccountingEnabled,
-  writeAuditLog,
 } from '@/lib/accounting/premium';
 
 const ACCOUNTING_ROLES = new Set(['admin', 'superadmin', 'developer']);
@@ -20,7 +21,7 @@ export type PremiumAccountingActor = {
   userId: string;
   role: string;
   branchId?: string | null;
-  appType?: string | null;
+  appType: string;
 };
 
 export class PremiumAccountingServiceError extends Error {
@@ -54,9 +55,9 @@ export async function getPremiumCashflow(
   const branchId = actor.branchId ?? null;
 
   const [series, cashBankBalance, topExpenses] = await Promise.all([
-    getDailyCashflowSeries(actor.tenantId, branchId, from, to),
-    getCashBankBalance(actor.tenantId, branchId, to),
-    getTopExpenses(actor.tenantId, branchId, { from, to }, 8),
+    getDailyCashflowSeries(actor.tenantId, branchId, from, to, actor.appType),
+    getCashBankBalance(actor.tenantId, branchId, to, actor.appType),
+    getTopExpenses(actor.tenantId, branchId, { from, to }, 8, actor.appType),
   ]);
   const totalInflow = series.reduce((sum, row) => sum + row.inflow, 0);
   const totalOutflow = series.reduce((sum, row) => sum + row.outflow, 0);
@@ -81,6 +82,8 @@ export async function listPremiumApprovals(
   const limit = Math.min(100, Math.max(1, Number(input.limit || 50) || 50));
   const where: Prisma.AccountingApprovalWhereInput = {
     tenantId: actor.tenantId,
+    appType: actor.appType,
+    ...(actor.branchId ? { branchId: actor.branchId } : {}),
     status: input.status || undefined,
     entityType: input.entityType || undefined,
   };
@@ -111,25 +114,44 @@ export async function reviewPremiumApproval(
   }
 
   const approval = await prisma.accountingApproval.findFirst({
-    where: { id: input.approvalId, tenantId: actor.tenantId },
+    where: { id: input.approvalId, tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) },
   });
   if (!approval) throw new PremiumAccountingServiceError('Approval not found', 404);
   if (approval.status !== 'pending') throw new PremiumAccountingServiceError('Already processed', 400);
+  const targetWhere = {
+    id: approval.entityId,
+    tenantId: actor.tenantId,
+    appType: actor.appType,
+    ...(actor.branchId ? { branchId: actor.branchId } : {}),
+  };
+  if (approval.entityType === 'journal_entry' && !await prisma.journalEntry.findFirst({ where: targetWhere, select: { id: true } })) {
+    throw new PremiumAccountingServiceError('Approval not found', 404);
+  }
+  if (approval.entityType === 'bill' && !await prisma.bill.findFirst({ where: targetWhere, select: { id: true } })) {
+    throw new PremiumAccountingServiceError('Approval not found', 404);
+  }
 
   if (action === 'cancel') {
     if (approval.requestedById !== actor.userId) {
       throw new PremiumAccountingServiceError('Not found or not yours', 404);
     }
-    await prisma.accountingApproval.update({
-      where: { id: approval.id },
-      data: { status: 'cancelled' },
-    });
-    await writeAuditLog({
-      tenantId: actor.tenantId,
-      userId: actor.userId,
-      action: 'cancel',
-      entityType: approval.entityType,
-      entityId: approval.entityId,
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.accountingApproval.updateMany({
+        where: { id: approval.id, tenantId: actor.tenantId, appType: actor.appType, status: 'pending', requestedById: actor.userId },
+        data: { status: 'cancelled' },
+      });
+      if (changed.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      const targetWhere = { id: approval.entityId, tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}), status: 'pending_approval' };
+      if (approval.entityType === 'journal_entry') {
+        const target = await tx.journalEntry.updateMany({ where: targetWhere, data: { status: 'draft' } });
+        if (target.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      } else if (approval.entityType === 'bill') {
+        const target = await tx.bill.updateMany({ where: targetWhere, data: { status: 'draft' } });
+        if (target.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      }
+      await tx.accountingAuditLog.create({
+        data: { tenantId: actor.tenantId, appType: actor.appType, branchId: approval.branchId, userId: actor.userId, action: 'cancel', entityType: approval.entityType, entityId: approval.entityId },
+      });
     });
     return { success: true };
   }
@@ -137,29 +159,28 @@ export async function reviewPremiumApproval(
   if (!REVIEW_ROLES.has(actor.role)) {
     throw new PremiumAccountingServiceError('Insufficient role', 403);
   }
+  if (approval.level > 1 && actor.role !== approval.approverRole) {
+    throw new PremiumAccountingServiceError('Insufficient role', 403);
+  }
 
   if (action === 'reject') {
-    await prisma.accountingApproval.update({
-      where: { id: approval.id },
-      data: {
-        status: 'rejected',
-        approvedById: actor.userId,
-        reviewNote: input.note,
-        reviewedAt: new Date(),
-      },
-    });
-    if (approval.entityType === 'journal_entry') {
-      await prisma.journalEntry.update({ where: { id: approval.entityId }, data: { status: 'rejected' } });
-    } else if (approval.entityType === 'bill') {
-      await prisma.bill.update({ where: { id: approval.entityId }, data: { status: 'draft' } });
-    }
-    await writeAuditLog({
-      tenantId: actor.tenantId,
-      userId: actor.userId,
-      action: 'reject',
-      entityType: approval.entityType,
-      entityId: approval.entityId,
-      reason: input.note ?? undefined,
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.accountingApproval.updateMany({
+        where: { id: approval.id, tenantId: actor.tenantId, appType: actor.appType, status: 'pending' },
+        data: { status: 'rejected', approvedById: actor.userId, reviewNote: input.note, reviewedAt: new Date() },
+      });
+      if (changed.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      const targetWhere = { id: approval.entityId, tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}), status: 'pending_approval' };
+      if (approval.entityType === 'journal_entry') {
+        const target = await tx.journalEntry.updateMany({ where: targetWhere, data: { status: 'rejected' } });
+        if (target.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      } else if (approval.entityType === 'bill') {
+        const target = await tx.bill.updateMany({ where: targetWhere, data: { status: 'draft' } });
+        if (target.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      }
+      await tx.accountingAuditLog.create({
+        data: { tenantId: actor.tenantId, appType: actor.appType, branchId: approval.branchId, userId: actor.userId, action: 'reject', entityType: approval.entityType, entityId: approval.entityId, reason: input.note ?? undefined },
+      });
     });
     return { success: true };
   }
@@ -168,63 +189,48 @@ export async function reviewPremiumApproval(
   const amount = Number(approval.amount);
   const threshold = Number(settings.twoLevelApprovalThreshold);
   if (approval.level === 1 && amount > threshold && actor.role === 'superadmin') {
-    await prisma.$transaction([
-      prisma.accountingApproval.update({
-        where: { id: approval.id },
-        data: {
-          status: 'approved',
-          approvedById: actor.userId,
-          reviewNote: input.note,
-          reviewedAt: new Date(),
-        },
-      }),
-      prisma.accountingApproval.create({
-        data: {
-          tenantId: actor.tenantId,
-          entityType: approval.entityType,
-          entityId: approval.entityId,
-          amount: approval.amount,
-          level: 2,
-          approverRole: 'developer',
-          requestedById: approval.requestedById,
-        },
-      }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.accountingApproval.updateMany({
+        where: { id: approval.id, tenantId: actor.tenantId, appType: actor.appType, status: 'pending' },
+        data: { status: 'approved', approvedById: actor.userId, reviewNote: input.note, reviewedAt: new Date() },
+      });
+      if (changed.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      await tx.accountingApproval.create({
+        data: { tenantId: actor.tenantId, appType: actor.appType, branchId: approval.branchId, entityType: approval.entityType, entityId: approval.entityId, amount: approval.amount, level: 2, approverRole: 'developer', requestedById: approval.requestedById },
+      });
+      await tx.accountingAuditLog.create({
+        data: { tenantId: actor.tenantId, appType: actor.appType, branchId: approval.branchId, userId: actor.userId, action: 'approve', entityType: approval.entityType, entityId: approval.entityId, reason: `L1 approved to L2. ${input.note ?? ''}` },
+      });
+    });
     return { success: true, routedToL2: true };
   }
 
-  await prisma.accountingApproval.update({
-    where: { id: approval.id },
-    data: {
-      status: 'approved',
-      approvedById: actor.userId,
-      reviewNote: input.note,
-      reviewedAt: new Date(),
-    },
-  });
-  if (approval.entityType === 'journal_entry') {
-    const count = await prisma.journalEntry.count({ where: { tenantId: actor.tenantId } });
-    const je = await prisma.journalEntry.findFirst({ where: { id: approval.entityId, tenantId: actor.tenantId } });
-    if (je && je.status === 'pending_approval') {
+  await prisma.$transaction(async (tx) => {
+    const changed = await tx.accountingApproval.updateMany({
+      where: { id: approval.id, tenantId: actor.tenantId, appType: actor.appType, status: 'pending' },
+      data: { status: 'approved', approvedById: actor.userId, reviewNote: input.note, reviewedAt: new Date() },
+    });
+    if (changed.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+    const targetWhere = { id: approval.entityId, tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}), status: 'pending_approval' };
+    if (approval.entityType === 'journal_entry') {
+      const je = await tx.journalEntry.findFirst({ where: targetWhere, include: { lines: true } });
+      if (!je) throw new PremiumAccountingServiceError('Already processed', 400);
+      const count = await tx.journalEntry.count({ where: { tenantId: actor.tenantId } });
       const fyKey = `${je.entryDate.getFullYear()}${String(je.entryDate.getFullYear() + 1).slice(-2)}`;
-      await prisma.journalEntry.update({
-        where: { id: approval.entityId },
-        data: { status: 'posted', entryNo: `JE-${fyKey}-${String(count).padStart(4, '0')}` },
-      });
+      const posted = await tx.journalEntry.updateMany({ where: targetWhere, data: { status: 'posted', entryNo: `JE-${fyKey}-${String(count).padStart(4, '0')}`, approvedById: actor.userId, approvedAt: new Date() } });
+      if (posted.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
+      for (const line of je.lines) await bumpAccountBalance(tx, line.accountId, je.entryDate, line.debit, line.credit);
+    } else if (approval.entityType === 'bill') {
+      try {
+        await postBillInTx(tx, { tenantId: actor.tenantId, appType: actor.appType, branchId: actor.branchId ?? null, billId: approval.entityId, actorId: actor.userId, expectedStatus: 'pending_approval' });
+      } catch (error) {
+        if (error instanceof BillPostingError) throw new PremiumAccountingServiceError(error.message, 400);
+        throw error;
+      }
     }
-  } else if (approval.entityType === 'bill') {
-    const bill = await prisma.bill.findFirst({ where: { id: approval.entityId, tenantId: actor.tenantId } });
-    if (bill && bill.status === 'pending_approval') {
-      await prisma.bill.update({ where: { id: approval.entityId }, data: { status: 'unpaid' } });
-    }
-  }
-  await writeAuditLog({
-    tenantId: actor.tenantId,
-    userId: actor.userId,
-    action: 'approve',
-    entityType: approval.entityType,
-    entityId: approval.entityId,
-    reason: input.note ?? undefined,
+    await tx.accountingAuditLog.create({
+      data: { tenantId: actor.tenantId, appType: actor.appType, branchId: approval.branchId, userId: actor.userId, action: 'approve', entityType: approval.entityType, entityId: approval.entityId, reason: input.note ?? undefined },
+    });
   });
   return { success: true, routedToL2: false };
 }
@@ -233,7 +239,7 @@ export async function listPremiumBudgets(actor: PremiumAccountingActor, input: {
   await assertPremiumAccountingAccess(actor);
   const periodKey = input.periodKey ?? getPeriodKey(new Date());
   const budgets = await prisma.budget.findMany({
-    where: { tenantId: actor.tenantId },
+    where: { tenantId: actor.tenantId, appType: actor.appType },
     include: { lines: true },
     orderBy: { createdAt: 'desc' },
   });
@@ -261,10 +267,10 @@ export async function getPremiumTaxSummary(actor: PremiumAccountingActor, input:
   const periodKey = input.periodKey ?? getPeriodKey(new Date());
   const [gst, tds] = await Promise.all([
     prisma.gstSummary.findUnique({
-      where: { tenantId_periodKey_gstType: { tenantId: actor.tenantId, periodKey, gstType: 'GSTR3B' } },
+      where: { tenantId_appType_periodKey_gstType: { tenantId: actor.tenantId, appType: actor.appType, periodKey, gstType: 'GSTR3B' } },
     }),
     prisma.tdsDeduction.findMany({
-      where: { tenantId: actor.tenantId, periodKey },
+      where: { tenantId: actor.tenantId, appType: actor.appType, periodKey, bill: { appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) } },
       include: { bill: { include: { vendor: { select: { name: true, pan: true } } } } },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -310,6 +316,8 @@ export async function listPremiumVendors(actor: PremiumAccountingActor, input: {
   const vendors = await prisma.vendor.findMany({
     where: {
       tenantId: actor.tenantId,
+      appType: actor.appType,
+      ...(actor.branchId ? { branchId: actor.branchId } : {}),
       ...(search
         ? {
             OR: [
@@ -322,6 +330,7 @@ export async function listPremiumVendors(actor: PremiumAccountingActor, input: {
     },
     include: {
       bills: {
+        where: { appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) },
         select: { totalAmount: true, paidAmount: true, status: true, dueDate: true },
       },
     },
@@ -373,7 +382,7 @@ export async function getPremiumAccountingSettings(actor: PremiumAccountingActor
 export async function listPremiumExportRuns(actor: PremiumAccountingActor) {
   await assertPremiumAccountingAccess(actor);
   return prisma.accountingExportRun.findMany({
-    where: { tenantId: actor.tenantId },
+    where: { tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });

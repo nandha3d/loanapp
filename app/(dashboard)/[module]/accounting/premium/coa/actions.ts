@@ -2,11 +2,14 @@
 
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 import { revalidatePath } from 'next/cache';
 import { seedDefaultCoA } from '@/lib/accounting/seedDefaultCoA';
 import { defaultNormalSide } from '@/lib/accounting/enums';
-import { writeAuditLog } from '@/lib/accounting/premium';
+import { writePremiumAuditLog as writeAuditLog } from '../access';
+import { getModuleAccountBalances } from '@/lib/accounting/queries';
 
 function hasRole(role: string | undefined, allowed: string[]) {
   return !!role && allowed.includes(role);
@@ -16,15 +19,12 @@ function serialize<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-async function getAccountsForTenant(tenantId: string, showInactive = false) {
+async function getAccountsForTenant(tenantId: string, appType: string, branchId: string | null, showInactive = false) {
   const accounts = await prisma.account.findMany({
     where: { tenantId, ...(showInactive ? {} : { isActive: true }) },
     orderBy: { code: 'asc' },
   });
-  const now = new Date();
-  const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const balances = await prisma.accountBalance.findMany({ where: { tenantId, periodKey }, select: { accountId: true, closingDr: true, closingCr: true } });
-  const balMap = new Map(balances.map((b) => [b.accountId, b]));
+  const balMap = await getModuleAccountBalances(tenantId, appType, branchId);
   return accounts.map((a) => ({ ...a, balance: balMap.get(a.id) ?? null }));
 }
 
@@ -86,13 +86,17 @@ export async function reseedDefaultCoA() {
   const role = (session?.user as any)?.role;
   if (!hasRole(role, ['superadmin', 'developer'])) return { error: 'Unauthorized' };
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const result = await seedDefaultCoA(tenantId);
-  const accounts = await getAccountsForTenant(tenantId, true);
+  const accounts = await getAccountsForTenant(tenantId, appType, branchId, true);
   revalidatePath('/accounting/premium/coa');
   return { success: true, ...result, accounts: serialize(accounts) };
 }
 
 export async function listAccounts(showInactive = false) {
   const tenantId = await getDefaultTenantId();
-  return serialize(await getAccountsForTenant(tenantId, showInactive));
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
+  return serialize(await getAccountsForTenant(tenantId, appType, branchId, showInactive));
 }

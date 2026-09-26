@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
   try {
     await assertPremiumAccountingAccess(ctx);
     const [cashflow, netProfit, topExpenses, cashBank] = await Promise.all([
-      getOperationalCashflowSeries(ctx.tenantId, branchId, from, to),
-      getNetProfit(ctx.tenantId, branchId, { from, to }),
-      getTopExpenses(ctx.tenantId, branchId, { from, to }, 8),
-      getCashBankBalance(ctx.tenantId, branchId, to),
+      getOperationalCashflowSeries(ctx.tenantId, branchId, from, to, ctx.appType),
+      getNetProfit(ctx.tenantId, branchId, { from, to }, ctx.appType),
+      getTopExpenses(ctx.tenantId, branchId, { from, to }, 8, ctx.appType),
+      getCashBankBalance(ctx.tenantId, branchId, to, ctx.appType),
     ]);
 
     const totalInflow = cashflow.reduce((s, d) => s + d.inflow, 0);

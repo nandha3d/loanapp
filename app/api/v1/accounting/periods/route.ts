@@ -6,10 +6,9 @@ import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/l
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 
-async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promise<any[]> {
+async function autoCreateFYPeriods(tenantId: string, appType: string, fiscalYear: string): Promise<any[]> {
   const fyStart = parseInt(fiscalYear.split('-')[0]);
   const startMonth = (await getFyStartMonth(tenantId)) - 1; // 0-based month index
-  const created = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fyStart, startMonth + i, 1);
     const year = d.getFullYear();
@@ -18,13 +17,12 @@ async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promis
     const periodFrom = new Date(year, month, 1);
     const periodTo = new Date(year, month + 1, 0);
     try {
-      const p = await prisma.accountingPeriod.create({
-        data: { tenantId, periodKey, periodFrom, periodTo, fiscalYear, status: 'open' },
+      await prisma.accountingPeriod.create({
+        data: { tenantId, appType, periodKey, periodFrom, periodTo, fiscalYear, status: 'open' },
       });
-      created.push(p);
     } catch {}
   }
-  return created.length > 0 ? created : await prisma.accountingPeriod.findMany({ where: { tenantId, fiscalYear }, orderBy: { periodFrom: 'asc' } });
+  return prisma.accountingPeriod.findMany({ where: { tenantId, appType, fiscalYear }, orderBy: { periodFrom: 'asc' } });
 }
 
 function groupByAccount(lines: any[]): Record<string, { net: number }> {
@@ -53,7 +51,7 @@ export async function GET(req: NextRequest) {
       ?? getFiscalYear(today, await getFyStartMonth(ctx.tenantId));
 
     let periods = await prisma.accountingPeriod.findMany({
-      where: { tenantId: ctx.tenantId, fiscalYear: fy },
+      where: { tenantId: ctx.tenantId, appType: ctx.appType, fiscalYear: fy },
       include: {
         lockedBy: { select: { name: true } },
         closedBy: { select: { name: true } },
@@ -62,19 +60,19 @@ export async function GET(req: NextRequest) {
       orderBy: { periodFrom: 'asc' },
     });
 
-    if (periods.length === 0) {
-      periods = await autoCreateFYPeriods(ctx.tenantId, fy);
+    if (periods.length < 12) {
+      periods = await autoCreateFYPeriods(ctx.tenantId, ctx.appType, fy);
     }
 
     const result = await Promise.all(periods.map(async (p) => {
       const [incomeAgg, expenseAgg] = await Promise.all([
         prisma.journalLine.aggregate({
           _sum: { credit: true, debit: true },
-          where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
+          where: { entry: { tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
         }),
         prisma.journalLine.aggregate({
           _sum: { debit: true, credit: true },
-          where: { entry: { tenantId: ctx.tenantId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
+          where: { entry: { tenantId: ctx.tenantId, appType: ctx.appType, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), status: 'posted', entryDate: { gte: p.periodFrom, lte: p.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
         }),
       ]);
       const netIncome = Number(incomeAgg._sum.credit ?? 0) - Number(incomeAgg._sum.debit ?? 0);
@@ -123,7 +121,7 @@ export async function POST(req: NextRequest) {
     }
 
     const period = await prisma.accountingPeriod.findFirst({
-      where: { id: periodId, tenantId: ctx.tenantId },
+      where: { id: periodId, tenantId: ctx.tenantId, appType: ctx.appType },
     });
     if (!period) {
       return fail('Period not found', 404);
@@ -134,7 +132,7 @@ export async function POST(req: NextRequest) {
         prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'soft_locked', lockedById: ctx.userId, lockedAt: new Date() } }),
         prisma.periodLock.create({ data: { periodId, action: 'soft_lock', reason: reason || null, byUserId: ctx.userId } }),
       ]);
-      await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'soft_lock_period', entityType: 'period', entityId: periodId, reason });
+      await writeAuditLog({ tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, action: 'soft_lock_period', entityType: 'period', entityId: periodId, reason });
       return ok({ success: true });
     }
 
@@ -143,7 +141,7 @@ export async function POST(req: NextRequest) {
         prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'locked', lockedById: ctx.userId, lockedAt: new Date() } }),
         prisma.periodLock.create({ data: { periodId, action: 'lock', reason: reason || null, byUserId: ctx.userId } }),
       ]);
-      await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'lock_period', entityType: 'period', entityId: periodId, reason });
+      await writeAuditLog({ tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, action: 'lock_period', entityType: 'period', entityId: periodId, reason });
       return ok({ success: true });
     }
 
@@ -154,11 +152,11 @@ export async function POST(req: NextRequest) {
 
       const [incomeAgg, expenseAgg] = await Promise.all([
         prisma.journalLine.findMany({
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
+          where: { entry: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'income' } },
           include: { account: true },
         }),
         prisma.journalLine.findMany({
-          where: { entry: { tenantId: ctx.tenantId, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
+          where: { entry: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'posted', entryDate: { gte: period.periodFrom, lte: period.periodTo } }, account: { tenantId: ctx.tenantId, classType: 'expense' } },
           include: { account: true },
         }),
       ]);
@@ -200,6 +198,7 @@ export async function POST(req: NextRequest) {
         const je = await tx.journalEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             entryDate: period.periodTo,
             entryNo,
             narration: `Close ${period.periodKey}`,
@@ -226,7 +225,7 @@ export async function POST(req: NextRequest) {
         return je.id;
       });
 
-      await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'close_period', entityType: 'period', entityId: periodId });
+      await writeAuditLog({ tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, action: 'close_period', entityType: 'period', entityId: periodId });
       return ok({ success: true, closingJEId });
     }
 
@@ -238,7 +237,7 @@ export async function POST(req: NextRequest) {
         prisma.accountingPeriod.update({ where: { id: periodId }, data: { status: 'open', lockedById: null, lockedAt: null } }),
         prisma.periodLock.create({ data: { periodId, action: 'unlock', reason, byUserId: ctx.userId } }),
       ]);
-      await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'unlock_period', entityType: 'period', entityId: periodId, reason });
+      await writeAuditLog({ tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, action: 'unlock_period', entityType: 'period', entityId: periodId, reason });
       return ok({ success: true });
     }
 
@@ -249,7 +248,7 @@ export async function POST(req: NextRequest) {
 
       await prisma.$transaction(async (tx) => {
         if (period.closingJEId) {
-          const closingJE = await tx.journalEntry.findUnique({ where: { id: period.closingJEId }, include: { lines: true } });
+          const closingJE = await tx.journalEntry.findFirst({ where: { id: period.closingJEId, tenantId: ctx.tenantId, appType: ctx.appType }, include: { lines: true } });
           if (closingJE) {
             const reversalLines = closingJE.lines.map((l, i) => ({
               accountId: l.accountId,
@@ -265,6 +264,7 @@ export async function POST(req: NextRequest) {
             const reversalJE = await tx.journalEntry.create({
               data: {
                 tenantId: ctx.tenantId,
+                appType: ctx.appType,
                 entryDate: new Date(),
                 entryNo,
                 narration: `Reversal of period close ${period.periodKey}`,
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
         await tx.periodLock.create({ data: { periodId, action: 'reopen', reason, byUserId: ctx.userId } });
       });
 
-      await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'reopen_period', entityType: 'period', entityId: periodId, reason });
+      await writeAuditLog({ tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, action: 'reopen_period', entityType: 'period', entityId: periodId, reason });
       return ok({ success: true });
     }
 

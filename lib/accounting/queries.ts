@@ -9,9 +9,10 @@ export async function getOperationalSummary(
   tenantId: string,
   branchId: string | null,
   period: { from: Date; to: Date },
+  appType?: string,
 ) {
   const branchWhere = branchId ? { branchId } : {};
-  const collectionBranchWhere = branchId ? { loan: { branchId } } : {};
+  const collectionBranchWhere = { loan: { ...(branchId ? { branchId } : {}), ...(appType ? { appType } : {}) } };
 
   const [collectedRows, disbursedRows, expenseRows, loansOutstanding] = await Promise.all([
     // Verified collections in period
@@ -28,6 +29,7 @@ export async function getOperationalSummary(
     prisma.accountEntry.aggregate({
       where: {
         tenantId,
+        ...(appType ? { appType } : {}),
         ...branchWhere,
         type: 'loan_disburse',
         entryDate: { gte: period.from, lte: period.to },
@@ -38,6 +40,7 @@ export async function getOperationalSummary(
     prisma.accountEntry.aggregate({
       where: {
         tenantId,
+        ...(appType ? { appType } : {}),
         ...branchWhere,
         type: 'expense',
         entryDate: { gte: period.from, lte: period.to },
@@ -48,6 +51,7 @@ export async function getOperationalSummary(
     prisma.loan.aggregate({
       where: {
         tenantId,
+        ...(appType ? { appType } : {}),
         ...branchWhere,
         status: { in: ['active', 'overdue'] },
       },
@@ -69,9 +73,10 @@ export async function getOperationalCashflowSeries(
   branchId: string | null,
   from: Date,
   to: Date,
+  appType?: string,
 ): Promise<Array<{ date: string; inflow: number; outflow: number }>> {
   const branchWhere = branchId ? { branchId } : {};
-  const collectionBranchWhere = branchId ? { loan: { branchId } } : {};
+  const collectionBranchWhere = { loan: { ...(branchId ? { branchId } : {}), ...(appType ? { appType } : {}) } };
 
   const [collections, disbursals, expenses] = await Promise.all([
     prisma.collectionEntry.findMany({
@@ -79,11 +84,11 @@ export async function getOperationalCashflowSeries(
       select: { receivedAmount: true, submittedAt: true },
     }),
     prisma.accountEntry.findMany({
-      where: { tenantId, ...branchWhere, type: 'loan_disburse', entryDate: { gte: from, lte: to } },
+      where: { tenantId, ...(appType ? { appType } : {}), ...branchWhere, type: 'loan_disburse', entryDate: { gte: from, lte: to } },
       select: { amount: true, entryDate: true },
     }),
     prisma.accountEntry.findMany({
-      where: { tenantId, ...branchWhere, type: 'expense', entryDate: { gte: from, lte: to } },
+      where: { tenantId, ...(appType ? { appType } : {}), ...branchWhere, type: 'expense', entryDate: { gte: from, lte: to } },
       select: { amount: true, entryDate: true },
     }),
   ]);
@@ -114,7 +119,18 @@ export async function getCashBankBalance(
   tenantId: string,
   branchId: string | null,
   asOfDate: Date,
+  appType?: string,
 ): Promise<number> {
+  if (appType) {
+    const lines = await prisma.journalLine.aggregate({
+      where: {
+        entry: { tenantId, appType, status: 'posted', entryDate: { lte: asOfDate }, ...(branchId ? { branchId } : {}) },
+        account: { tenantId, subType: { in: ['cash', 'bank'] }, isActive: true },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    return Number(lines._sum.debit ?? 0) - Number(lines._sum.credit ?? 0);
+  }
   const periodKey = getPeriodKey(asOfDate);
 
   const balances = await prisma.accountBalance.findMany({
@@ -140,9 +156,11 @@ export async function getNetProfit(
   tenantId: string,
   branchId: string | null,
   period: { from: Date; to: Date },
+  appType?: string,
 ): Promise<number> {
   const entryWhere: Record<string, unknown> = {
     tenantId,
+    ...(appType ? { appType } : {}),
     status: 'posted',
     entryDate: { gte: period.from, lte: period.to },
     ...(branchId ? { branchId } : {}),
@@ -181,7 +199,18 @@ export async function getAccountBalance(
   branchId: string | null,
   code: string,
   asOfDate: Date,
+  appType?: string,
 ): Promise<number> {
+  if (appType) {
+    const lines = await prisma.journalLine.aggregate({
+      where: {
+        entry: { tenantId, appType, status: 'posted', entryDate: { lte: asOfDate }, ...(branchId ? { branchId } : {}) },
+        account: { tenantId, code },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    return Number(lines._sum.debit ?? 0) - Number(lines._sum.credit ?? 0);
+  }
   const periodKey = getPeriodKey(asOfDate);
 
   const account = await prisma.account.findUnique({
@@ -203,10 +232,13 @@ export async function getOpenBillsTotal(
   tenantId: string,
   branchId: string | null,
   asOfDate: Date,
+  appType: string,
 ): Promise<number> {
   const bills = await prisma.bill.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       status: { in: ['unpaid', 'partial'] },
       billDate: { lte: asOfDate },
     },
@@ -224,12 +256,14 @@ export async function getDailyCashflowSeries(
   branchId: string | null,
   from: Date,
   to: Date,
+  appType?: string,
 ): Promise<Array<{ date: string; inflow: number; outflow: number }>> {
   const lines = await prisma.journalLine.findMany({
     where: {
       account: { tenantId, subType: { in: ['cash', 'bank'] } },
       entry: {
         tenantId,
+        ...(appType ? { appType } : {}),
         status: 'posted',
         entryDate: { gte: from, lte: to },
         ...(branchId ? { branchId } : {}),
@@ -271,9 +305,11 @@ export async function getTopExpenses(
   branchId: string | null,
   period: { from: Date; to: Date },
   limit: number,
+  appType?: string,
 ): Promise<Array<{ accountId: string; name: string; total: number }>> {
   const entryWhere: Record<string, unknown> = {
     tenantId,
+    ...(appType ? { appType } : {}),
     status: 'posted',
     entryDate: { gte: period.from, lte: period.to },
     ...(branchId ? { branchId } : {}),
@@ -313,6 +349,7 @@ export async function getPendingApprovalsForUser(
   tenantId: string,
   branchId: string | null,
   limit: number,
+  appType: string,
 ): Promise<any[]> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -323,6 +360,8 @@ export async function getPendingApprovalsForUser(
   const approvals = await prisma.accountingApproval.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       status: 'pending',
       ...(['superadmin', 'developer'].includes(role)
         ? {}
@@ -342,6 +381,7 @@ export async function getBillsDueWithin(
   tenantId: string,
   branchId: string | null,
   days: number,
+  appType: string,
 ): Promise<any[]> {
   const today = new Date();
   const dueThreshold = new Date(today);
@@ -350,6 +390,8 @@ export async function getBillsDueWithin(
   const bills = await prisma.bill.findMany({
     where: {
       tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
       status: { in: ['unpaid', 'partial'] },
       dueDate: { lte: dueThreshold },
     },
@@ -366,11 +408,12 @@ export async function getBillsDueWithin(
 export async function getPeriodStatus(
   tenantId: string,
   from: Date,
+  appType: string,
 ): Promise<{ status: string; lastLockedAt: Date | null } | null> {
   const periodKey = getPeriodKey(from);
 
-  const period = await prisma.accountingPeriod.findUnique({
-    where: { tenantId_periodKey: { tenantId, periodKey } },
+  const period = await prisma.accountingPeriod.findFirst({
+    where: { tenantId, appType, periodKey },
     select: { status: true, lockedAt: true },
   });
 
@@ -380,4 +423,29 @@ export async function getPeriodStatus(
     status: period.status,
     lastLockedAt: period.lockedAt ?? null,
   };
+}
+
+export async function getModuleAccountBalances(
+  tenantId: string,
+  appType: string,
+  branchId: string | null,
+  asOf = new Date(),
+) {
+  const rows = await prisma.journalLine.groupBy({
+    by: ['accountId'],
+    where: {
+      entry: {
+        tenantId,
+        appType,
+        ...(branchId ? { branchId } : {}),
+        status: 'posted',
+        entryDate: { lte: asOf },
+      },
+    },
+    _sum: { debit: true, credit: true },
+  });
+  return new Map(rows.map((row) => {
+    const net = Number(row._sum.debit ?? 0) - Number(row._sum.credit ?? 0);
+    return [row.accountId, { closingDr: Math.max(0, net), closingCr: Math.max(0, -net) }];
+  }));
 }

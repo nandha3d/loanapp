@@ -1,10 +1,14 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getUserAppType } from '@/lib/tenant';
+import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function getCashFlowData(from: string, to: string) {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   const fromDate = new Date(from);
   const toDate = new Date(to);
 
@@ -15,14 +19,14 @@ export async function getCashFlowData(from: string, to: string) {
   // Opening cash balance (all entries before from)
   const openingLines = await prisma.journalLine.groupBy({
     by: ['accountId'],
-    where: { accountId: { in: [...cashIds] }, entry: { tenantId, status: 'posted', entryDate: { lt: fromDate } } },
+    where: { accountId: { in: [...cashIds] }, entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { lt: fromDate } } },
     _sum: { debit: true, credit: true },
   });
   const openingCash = openingLines.reduce((s, l) => s + Number(l._sum.debit ?? 0) - Number(l._sum.credit ?? 0), 0);
 
   // Period lines for cash accounts
   const periodLines = await prisma.journalLine.findMany({
-    where: { accountId: { in: [...cashIds] }, entry: { tenantId, status: 'posted', entryDate: { gte: fromDate, lte: toDate } } },
+    where: { accountId: { in: [...cashIds] }, entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: fromDate, lte: toDate } } },
     include: { entry: { select: { sourceType: true, narration: true, entryDate: true } } },
   });
 

@@ -8,7 +8,7 @@ import { ReportBuilderParams, ReportPayload } from '../types';
 // `loanId` param slot is reused to carry the target accountId for this single builder —
 // callers must pass the chart-of-accounts Account.id in `params.loanId`.
 export async function buildLedgerReport(params: ReportBuilderParams): Promise<ReportPayload> {
-  const { tenantId, from, to, branchId, loanId: accountId } = params;
+  const { tenantId, appType, from, to, branchId, loanId: accountId } = params;
 
   if (!accountId) {
     return {
@@ -45,7 +45,7 @@ export async function buildLedgerReport(params: ReportBuilderParams): Promise<Re
   const priorLines = await prisma.journalLine.findMany({
     where: {
       accountId,
-      entry: { tenantId, ...branchFilter, entryDate: { lt: dateFrom } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { lt: dateFrom } },
     },
     select: { debit: true, credit: true },
   });
@@ -54,7 +54,7 @@ export async function buildLedgerReport(params: ReportBuilderParams): Promise<Re
   const lines = await prisma.journalLine.findMany({
     where: {
       accountId,
-      entry: { tenantId, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
+      entry: { tenantId, appType, ...branchFilter, entryDate: { gte: dateFrom, lte: dateTo } },
     },
     include: {
       entry: { select: { entryDate: true, postingDate: true, voucherType: true, narration: true } },

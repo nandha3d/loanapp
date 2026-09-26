@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import PremiumDisabledPlaceholder from '@/components/accounting/PremiumDisabledPlaceholder';
@@ -40,6 +40,7 @@ export default async function PremiumDashboardPage({
   }
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const enabled = await isPremiumAccountingEnabled(tenantId);
   if (!enabled) return <PremiumDisabledPlaceholder addOnKey="premium_accounting" />;
 
@@ -102,20 +103,20 @@ export default async function PremiumDashboardPage({
     opPrev,
     opCashflow,
   ] = await Promise.all([
-    getCashBankBalance(tenantId, branchId, period.to),
-    getCashBankBalance(tenantId, branchId, prev.to),
-    getNetProfit(tenantId, branchId, period),
-    getNetProfit(tenantId, branchId, prev),
-    getAccountBalance(tenantId, branchId, '1310', period.to), // Loans Receivable
-    getOpenBillsTotal(tenantId, branchId, period.to),
-    getDailyCashflowSeries(tenantId, branchId, daysAgo89, today),
-    getTopExpenses(tenantId, branchId, period, 5),
-    getPendingApprovalsForUser(user.id, tenantId, branchId, 5),
-    getBillsDueWithin(tenantId, branchId, 7),
-    getPeriodStatus(tenantId, period.from),
-    getOperationalSummary(tenantId, branchId, period),
-    getOperationalSummary(tenantId, branchId, prev),
-    getOperationalCashflowSeries(tenantId, branchId, daysAgo89, today),
+    getCashBankBalance(tenantId, branchId, period.to, appType),
+    getCashBankBalance(tenantId, branchId, prev.to, appType),
+    getNetProfit(tenantId, branchId, period, appType),
+    getNetProfit(tenantId, branchId, prev, appType),
+    getAccountBalance(tenantId, branchId, '1310', period.to, appType), // Loans Receivable
+    getOpenBillsTotal(tenantId, branchId, period.to, appType),
+    getDailyCashflowSeries(tenantId, branchId, daysAgo89, today, appType),
+    getTopExpenses(tenantId, branchId, period, 5, appType),
+    getPendingApprovalsForUser(user.id, tenantId, branchId, 5, appType),
+    getBillsDueWithin(tenantId, branchId, 7, appType),
+    getPeriodStatus(tenantId, period.from, appType),
+    getOperationalSummary(tenantId, branchId, period, appType),
+    getOperationalSummary(tenantId, branchId, prev, appType),
+    getOperationalCashflowSeries(tenantId, branchId, daysAgo89, today, appType),
   ]);
 
   // Prefer JE-based data when available; fall back to operational data

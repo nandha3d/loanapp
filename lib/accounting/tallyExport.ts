@@ -30,6 +30,8 @@ const VALID_VOUCHER_TYPES = new Set(['Journal', 'Receipt', 'Payment', 'Contra'])
 
 export async function generateTallyXml(params: {
   tenantId: string;
+  appType: string;
+  branchId?: string | null;
   fromDate: Date;
   toDate: Date;
   status?: string; // default 'posted'
@@ -40,6 +42,8 @@ export async function generateTallyXml(params: {
   const entries = await prisma.journalEntry.findMany({
     where: {
       tenantId: params.tenantId,
+      appType: params.appType,
+      ...(params.branchId ? { branchId: params.branchId } : {}),
       entryDate: { gte: params.fromDate, lte: params.toDate },
       status: params.status ?? 'posted',
     },
