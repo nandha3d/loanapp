@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
         status: 'active',
         ...scopedBranchWhere(ctx),
       },
-      select: { id: true, name: true, email: true, phone: true },
+      select: { id: true, name: true, email: true, phone: true, branchId: true },
       orderBy: { name: 'asc' },
     });
     return ok(agents);

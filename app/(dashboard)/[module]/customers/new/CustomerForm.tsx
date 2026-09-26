@@ -155,7 +155,7 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
     setCreatingRoute(true);
     const formData = new FormData(e.currentTarget);
     const res = await createRoute(formData);
-    if (res.success && res.route) {
+    if (res.success && 'route' in res && res.route) {
       setLocalRoutes([...localRoutes, res.route]);
       setSelectedRouteId(res.route.id);
       setIsRouteModalOpen(false);

@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { listNotificationLogs } from '@/lib/notify/logs';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
@@ -17,11 +17,7 @@ export default async function NotificationLogPage({ params }: Props) {
 
   const tenantId = await getDefaultTenantId();
 
-  const logs = await prisma.notificationLog.findMany({
-    where: { tenantId },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  });
+  const { data: logs } = await listNotificationLogs(tenantId, { limit: 200 });
 
   return (
     <div className="page-content">

@@ -170,6 +170,7 @@ export default function SettingsClient({
   const [is2faModalOpen, setIs2faModalOpen] = useState(false);
   const [qrCode, setQrCode] = useState('');
   const [tempSecret, setTempSecret] = useState('');
+  const [setupToken, setSetupToken] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [isEnabling, setIsEnabling] = useState(false);
 
@@ -1592,17 +1593,18 @@ export default function SettingsClient({
           <div className="settings-item" style={{border:'1px solid var(--border)', padding:'20px', borderRadius:'var(--radius)'}}>
             <div className="si-info">
               <h4>{d.twoFa}</h4>
-              <p>{currentUser?.totpSecret ? d.statusEnabled : d.statusDisabled}</p>
+              <p>{currentUser?.totpEnabled ? d.statusEnabled : d.statusDisabled}</p>
             </div>
             <div>
-              {currentUser?.totpSecret ? (
+              {currentUser?.totpEnabled ? (
                 <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={async () => { if(confirm(d.disableTwoFaConfirm)) { await disable2fa(); window.location.reload(); } }}>
                   {d.disableTwoFa}
                 </button>
               ) : (
                 <button className="btn btn-primary btn-sm" onClick={async () => {
-                  const { secret, qrCodeUrl } = await generate2faSecret();
+                  const { secret, qrCodeUrl, setupToken } = await generate2faSecret();
                   setTempSecret(secret);
+                  setSetupToken(setupToken);
                   setQrCode(qrCodeUrl);
                   setIs2faModalOpen(true);
                 }}>
@@ -2086,7 +2088,7 @@ export default function SettingsClient({
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button className="btn btn-primary" style={{width:'100%'}} disabled={totpCode.length !== 6 || isEnabling} onClick={async () => {
               setIsEnabling(true);
-              const res = await verifyAndEnable2fa(tempSecret, totpCode);
+              const res = await verifyAndEnable2fa(setupToken, totpCode);
               if (res.success) {
                 window.location.reload();
               } else {

@@ -11,6 +11,33 @@ class NotificationsService {
 
   static const int defaultPageSize = 50;
 
+  Future<({List<Map<String, dynamic>> rows, String? nextCursor})> deliveryLog({
+    String? channel,
+    String? status,
+    String? from,
+    String? to,
+    String? search,
+    String? cursor,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.notificationLog,
+      queryParameters: {
+        'limit': 50,
+        if (channel != null) 'channel': channel,
+        if (status != null) 'status': status,
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final rows = unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>)
+        .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+        .toList(growable: false));
+    final next = (res.data?['pagination'] as Map<String, dynamic>?)?['nextCursor'] as String?;
+    return (rows: rows, nextCursor: next);
+  }
+
   Future<List<NotificationItem>> fetchNotifications({
     bool unreadOnly = false,
     int page = 1,

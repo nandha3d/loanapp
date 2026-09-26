@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
-import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -13,8 +12,9 @@ import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/penalty.dart';
 import 'package:zolofund/data/services/loan_service.dart';
 import 'package:zolofund/data/services/penalty_service.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/features/loans/widgets/loan_heatmap.dart';
-import 'package:zolofund/shared/constants/endpoints.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
@@ -24,18 +24,20 @@ import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _statusFilter = StateProvider.autoDispose<String>((ref) => 'all');
 final _routeFilter = StateProvider.autoDispose<String?>((ref) => null);
+final _queryFilter = StateProvider.autoDispose<String>((ref) => '');
+final _pageFilter = StateProvider.autoDispose<int>((ref) => 1);
 
-// Fetch all penalties (no status filter) and filter client-side.
-final _penaltiesProvider =
-    FutureProvider.autoDispose<List<Penalty>>((ref) async {
-  final dio = ref.watch(dioProvider);
-  final res = await dio.get<Map<String, dynamic>>(Endpoints.penalties);
-  return unwrapEnvelope(
-    res,
-    (dynamic d) => (d as List<dynamic>)
-        .map((e) => Penalty.fromJson(e as Map<String, dynamic>))
-        .toList(growable: false),
-  );
+final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
+  return ref.watch(settingsServiceProvider).routes();
+});
+
+final _penaltiesProvider = FutureProvider.autoDispose<PenaltyPage>((ref) {
+  return ref.watch(penaltyServiceProvider).listPage(
+        page: ref.watch(_pageFilter),
+        status: ref.watch(_statusFilter),
+        routeId: ref.watch(_routeFilter),
+        query: ref.watch(_queryFilter),
+      );
 });
 
 class PenaltiesScreen extends ConsumerWidget {
@@ -43,8 +45,6 @@ class PenaltiesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(_statusFilter);
-    final routeFilter = ref.watch(_routeFilter);
     final async = ref.watch(_penaltiesProvider);
     final t = T.of(ref);
 
@@ -62,14 +62,7 @@ class PenaltiesScreen extends ConsumerWidget {
       body: async.when(
         loading: () => _buildLoading(),
         error: (e, _) => _ErrorState(message: e.toString()),
-        data: (all) {
-          final list = all.where((p) {
-            final matchStatus = status == 'all' || p.status == status;
-            final matchRoute = routeFilter == null || p.routeId == routeFilter;
-            return matchStatus && matchRoute;
-          }).toList();
-          return _PenaltiesBody(all: all, filtered: list);
-        },
+        data: (page) => _PenaltiesBody(page: page),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/penalties'),
     );
@@ -88,9 +81,8 @@ class PenaltiesScreen extends ConsumerWidget {
 }
 
 class _PenaltiesBody extends ConsumerWidget {
-  const _PenaltiesBody({required this.all, required this.filtered});
-  final List<Penalty> all;
-  final List<Penalty> filtered;
+  const _PenaltiesBody({required this.page});
+  final PenaltyPage page;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -98,22 +90,16 @@ class _PenaltiesBody extends ConsumerWidget {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
 
-    final routeMap = <String, String>{};
-    for (final p in all) {
-      if (p.routeId != null && p.routeId!.isNotEmpty && p.routeName != null) {
-        routeMap[p.routeId!] = p.routeName!;
-      }
-    }
-
-    final totalGross = all.fold<double>(0, (s, p) => s + p.grossPenalty);
-    final totalSettled = all.fold<double>(0, (s, p) => s + p.settledAmount);
-    final totalWaived = all.fold<double>(0, (s, p) => s + p.waivedAmount);
+    final routes = ref.watch(_routesProvider).valueOrNull ?? const <AppRoute>[];
+    final totalGross = page.totalGross;
+    final totalSettled = page.totalSettled;
+    final totalWaived = page.totalWaived;
     final netOutstanding = totalGross - totalSettled - totalWaived;
 
     // Group by customer, then by loan — combine same-loan penalties into one
     // page; a customer with multiple loans becomes a swipeable card.
     final byCustomer = <String, Map<String, List<Penalty>>>{};
-    for (final p in filtered) {
+    for (final p in page.rows) {
       final ck = p.customerCode.isNotEmpty ? p.customerCode : p.customerName;
       final lk = p.loanId.isNotEmpty ? p.loanId : p.loanCode;
       byCustomer
@@ -183,7 +169,10 @@ class _PenaltiesBody extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
-                    onTap: () => ref.read(_statusFilter.notifier).state = s,
+                    onTap: () {
+                      ref.read(_pageFilter.notifier).state = 1;
+                      ref.read(_statusFilter.notifier).state = s;
+                    },
                     child: AnimatedContainer(
                       duration: AppTokens.transition,
                       padding: const EdgeInsets.symmetric(
@@ -212,7 +201,20 @@ class _PenaltiesBody extends ConsumerWidget {
               }).toList(),
             ),
           ),
-          if (routeMap.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          TextField(
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: t.x('pen.search_hint'),
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (value) {
+              ref.read(_pageFilter.notifier).state = 1;
+              ref.read(_queryFilter.notifier).state = value.trim();
+            },
+          ),
+          if (routes.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -233,33 +235,57 @@ class _PenaltiesBody extends ConsumerWidget {
                         value: null,
                         child: Text(t.x('coll.filter_all'),
                             style: AppTypography.body)),
-                    ...routeMap.entries.map(
+                    ...routes.where((route) => route.status == 'active').map(
                       (e) => DropdownMenuItem(
-                        value: e.key,
-                        child: Text(e.value, style: AppTypography.body),
+                        value: e.id,
+                        child: Text(e.name, style: AppTypography.body),
                       ),
                     ),
                   ],
-                  onChanged: (v) => ref.read(_routeFilter.notifier).state = v,
+                  onChanged: (v) {
+                    ref.read(_pageFilter.notifier).state = 1;
+                    ref.read(_routeFilter.notifier).state = v;
+                  },
                 ),
               ),
             ),
           ],
           const SizedBox(height: 12),
-          if (filtered.isEmpty)
+          if (page.rows.isEmpty)
             SizedBox(
               height: 260,
               child: EmptyState(
                 icon: Icons.check_circle_outline,
-                title: status == 'all'
-                    ? t.x('pen.no_recorded')
-                    : 'No $status penalties',
+                title: t.x('pen.no_results'),
                 subtitle: t.x('pen.clean_slate'),
               ),
             )
           else
             ...customerGroups
                 .map((loans) => _CustomerPenaltyCard(loans: loans, fmt: fmt)),
+          if (page.pages > 1) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  tooltip: t.x('pen.previous_page'),
+                  onPressed: page.page > 1
+                      ? () => ref.read(_pageFilter.notifier).state = page.page - 1
+                      : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text('${page.page} / ${page.pages}'),
+                IconButton(
+                  tooltip: t.x('pen.next_page'),
+                  onPressed: page.page < page.pages
+                      ? () => ref.read(_pageFilter.notifier).state = page.page + 1
+                      : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

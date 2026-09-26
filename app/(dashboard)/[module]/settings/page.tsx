@@ -32,13 +32,16 @@ export default async function SettingsPage() {
     prisma.route.findMany({
       where: { tenantId, appType, ...branchScope },
       include: {
-        assignedAgent: true,
+        assignedAgent: { select: { id: true, name: true } },
         _count: { select: { customers: true } },
         routeAgents: { include: { agent: { select: { id: true, name: true } } } }
       }
     }),
     prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
-    prisma.user.findMany({ where: { tenantId, appType, ...branchScope } }),
+    prisma.user.findMany({
+      where: { tenantId, appType, ...branchScope },
+      select: { id: true, name: true, role: true },
+    }),
     getTenantSettings(tenantId),
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),
@@ -173,7 +176,7 @@ export default async function SettingsPage() {
       settings={safeSettings}
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}
-      currentUser={currentUser}
+      currentUser={{ role: currentUser?.role, totpEnabled: Boolean(currentUser?.totpSecret) }}
       subscription={subscription}
       bureauCredential={decryptedCreds}
       viewerRole={userRole}

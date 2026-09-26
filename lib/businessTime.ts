@@ -29,6 +29,16 @@ export function startOfBusinessTomorrow(now: Date = new Date()): Date {
   return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
 
+/** UTC instant corresponding to 00:00 IST of an explicit YYYY-MM-DD date. */
+export function startOfBusinessDate(day: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('Invalid business date');
+  const utc = Date.parse(`${day}T00:00:00.000Z`);
+  if (!Number.isFinite(utc) || new Date(utc).toISOString().slice(0, 10) !== day) {
+    throw new Error('Invalid business date');
+  }
+  return new Date(utc - IST_OFFSET_MS);
+}
+
 /**
  * Date instance representing 00:00:00.000 UTC of the current calendar date in IST.
  * Intended for Prisma @db.Date columns (e.g. DailyCollection.date) where PostgreSQL

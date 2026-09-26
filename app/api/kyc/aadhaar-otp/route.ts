@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiContext } from '@/lib/apiAuth';
-import { startAadhaarOtpKyc, confirmAadhaarOtp } from '@/lib/kyc';
+import { startAadhaarOtpKyc, confirmAadhaarOtp, KycNotFoundError } from '@/lib/kyc';
 import prisma from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   const authResult = await requireApiContext();
   if (authResult.response) return authResult.response;
   const { context } = authResult;
-  const { tenantId, userId } = context;
+  const { tenantId } = context;
 
   // Gating check
   const sub = await prisma.tenantSubscription.findUnique({
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       if (!customerId || !aadhaarNumber) {
         return NextResponse.json({ error: 'customerId and aadhaarNumber required' }, { status: 400 });
       }
-      const result = await startAadhaarOtpKyc(customerId, tenantId, aadhaarNumber, userId);
+      const result = await startAadhaarOtpKyc(customerId, context, aadhaarNumber);
       return NextResponse.json({ success: true, data: result });
     }
 
@@ -37,12 +37,12 @@ export async function POST(req: NextRequest) {
       if (!sessionId || !otp) {
         return NextResponse.json({ error: 'sessionId and otp required' }, { status: 400 });
       }
-      const result = await confirmAadhaarOtp(sessionId, tenantId, otp, userId);
+      const result = await confirmAadhaarOtp(sessionId, context, otp);
       return NextResponse.json({ success: true, data: result });
     }
 
     return NextResponse.json({ error: 'Invalid action. Use initiate or verify.' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    return NextResponse.json({ error: err.message }, { status: err instanceof KycNotFoundError ? 404 : 400 });
   }
 }

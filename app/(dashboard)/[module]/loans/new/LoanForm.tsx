@@ -426,7 +426,8 @@ export default function LoanForm({
     if (pkg) {
       setFrequency(pkg.frequency);
       setTenure(pkg.tenure);
-      if (pkg.deductionType) setInterestType(pkg.deductionType);
+      // LoanPackage.deduction is stored in rupees, including percentage packages.
+      setInterestType('upfront_fixed');
       if (pkg.deduction !== undefined) setInterestRate(pkg.deduction);
       setPrincipal(pkg.principal);
     }

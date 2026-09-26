@@ -8,13 +8,42 @@ import { canManageAdmins } from '@/lib/roles';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
-import { generateSecret, generateURI, verifySync } from 'otplib';
-import QRCode from 'qrcode';
+import { startTwoFactorSetup, verifyTwoFactorSetup, disableTwoFactor, TwoFactorError } from '@/lib/twoFactor';
 import { encryptAadharNumber, encryptField } from '@/lib/pii';
-import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 import { storeTenantUpload } from '@/lib/fileUpload';
+import {
+  RouteError,
+  createManagedRoute,
+  deleteManagedRoute,
+  assignManagedRouteAgent,
+  removeManagedRouteAgent,
+  setManagedPrimaryAgent,
+} from '@/lib/routes/service';
+import { createPackage, deletePackage, PackageError } from '@/lib/packages/service';
+import { saveManagedNotificationTemplate, TemplateError } from '@/lib/notify/templates';
+
+async function settingsManagerActor() {
+  const session = await auth();
+  const role = (session?.user as { role?: string })?.role ?? '';
+  if (!session?.user?.id || !['admin', 'superadmin', 'developer'].includes(role)) return null;
+  return {
+    tenantId: await getDefaultTenantId(),
+    appType: await getUserAppType(),
+    branchId: await getActiveBranchId(),
+    userId: session.user.id,
+    role,
+  };
+}
+
+function managedRouteFailure(error: unknown) {
+  return { success: false, error: error instanceof RouteError ? error.message : 'Route operation failed' };
+}
+
+function packageFailure(error: unknown) {
+  return { success: false, error: error instanceof PackageError ? error.message : 'Package operation failed' };
+}
 
 export async function saveUpiQrCode(formData: FormData) {
   const session = await auth();
@@ -172,122 +201,48 @@ export async function savePenaltySettings(formData: FormData) {
 }
 
 export async function createRoute(formData: FormData) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const userId = session?.user?.id;
-  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
-    return { success: false, error: 'Unauthorized' };
-  }
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const branchId = await getActiveBranchId();
-  
-  const primaryAgentId = formData.get('primaryAgentId') as string || null;
-  const agentIds = formData.getAll('agentIds') as string[];
-  // Filter out the primary agent from shared agents to avoid duplication
-  const sharedAgentIds = agentIds.filter(id => id !== primaryAgentId);
-  
-  const newRoute = await prisma.route.create({
-    data: {
-      tenantId,
-      branchId,
-      name: formData.get('name') as string,
-      appType,
-      status: 'active',
-      assignedAgentId: primaryAgentId || null,
-      routeAgents: {
-        create: sharedAgentIds.map(id => ({
-          agentId: id,
-          isPrimary: false
-        }))
-      }
-    }
-  });
-  
-  revalidatePath('/settings');
-  return { success: true, route: newRoute };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    const route = await createManagedRoute(actor, {
+      name: String(formData.get('name') ?? ''),
+      primaryAgentId: String(formData.get('primaryAgentId') ?? '') || null,
+      sharedAgentIds: formData.getAll('agentIds').map(String),
+    });
+    revalidatePath('/settings');
+    return { success: true, route };
+  } catch (error) { return managedRouteFailure(error); }
 }
 
 export async function deleteRoute(id: string) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const userId = session?.user?.id;
-  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
-    return { success: false, error: 'Unauthorized' };
-  }
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-
-  // Verify ownership before delete
-  const route = await prisma.route.findFirst({ where: { id, tenantId, appType } });
-  if (!route) return { success: false, error: 'Route not found or access denied' };
-
-  const activeCustomerCount = await prisma.customer.count({
-    where: { routeId: id, tenantId, appType, status: 'active' },
-  });
-  const blockReason = getRouteDeletionBlockReason({ activeCustomerCount });
-  if (blockReason) return { success: false, error: blockReason };
-
-  await prisma.route.delete({ where: { id } });
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await deleteManagedRoute(actor, id);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return managedRouteFailure(error); }
 }
 
 export async function createLoanPackage(formData: FormData) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const userId = session?.user?.id;
-  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
-    return { success: false, error: 'Unauthorized' };
-  }
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const principal = Number(formData.get('principal'));
-  const deductionType = (formData.get('deductionType') as string) || 'fixed';
-  const deductionInput = Number(formData.get('deduction'));
-  const deduction = deductionType === 'percentage'
-    ? Math.round((principal * deductionInput) / 100)
-    : deductionInput;
-  
-  await prisma.loanPackage.create({
-    data: {
-      tenantId,
-      // Owned by the branch that created it; null only for a tenant-wide actor.
-      branchId: await getActiveBranchId(),
-      name: formData.get('name') as string,
-      principal,
-      deduction,
-      deductionType,
-      frequency: formData.get('frequency') as string,
-      tenure: Number(formData.get('tenure')),
-      perInstalment: Number(formData.get('perInstalment')),
-      penaltyRate: Number(formData.get('penaltyRate')),
-      appType,
-      status: 'active',
-    }
-  });
-  
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    const input = Object.fromEntries(formData.entries());
+    await createPackage(actor, input);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return packageFailure(error); }
 }
 
 export async function deleteLoanPackage(id: string) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const userId = session?.user?.id;
-  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
-    return { success: false, error: 'Unauthorized' };
-  }
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-
-  // Verify ownership before delete
-  const pkg = await prisma.loanPackage.findFirst({ where: { id, tenantId, appType } });
-  if (!pkg) return { success: false, error: 'Package not found or access denied' };
-
-  await prisma.loanPackage.delete({ where: { id } });
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await deletePackage(actor, id);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return packageFailure(error); }
 }
 
 export async function createUser(formData: FormData) {
@@ -378,78 +333,33 @@ export async function createUser(formData: FormData) {
 }
 
 export async function assignAgentToRoute(routeId: string, agentId: string) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  const role = (session?.user as any)?.role;
-  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const tenantId = await getDefaultTenantId();
-
-  // Verify route belongs to tenant
-  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
-  if (!route) return { success: false, error: 'Route not found' };
-
-  // Verify agent belongs to tenant
-  const agent = await prisma.user.findFirst({ where: { id: agentId, tenantId, role: 'agent' } });
-  if (!agent) return { success: false, error: 'Agent not found' };
-
-  await prisma.routeAgent.upsert({
-    where: { routeId_agentId: { routeId, agentId } },
-    create: { routeId, agentId },
-    update: {},
-  });
-
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await assignManagedRouteAgent(actor, routeId, agentId);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return managedRouteFailure(error); }
 }
 
 export async function setPrimaryAgent(routeId: string, agentId: string | null) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  const role = (session?.user as any)?.role;
-  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const tenantId = await getDefaultTenantId();
-
-  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
-  if (!route) return { success: false, error: 'Route not found' };
-
-  if (agentId) {
-    const agent = await prisma.user.findFirst({ where: { id: agentId, tenantId, role: 'agent' } });
-    if (!agent) return { success: false, error: 'Agent not found' };
-  }
-
-  await prisma.route.update({
-    where: { id: routeId },
-    data: { assignedAgentId: agentId || null },
-  });
-
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await setManagedPrimaryAgent(actor, routeId, agentId);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return managedRouteFailure(error); }
 }
 
 export async function removeAgentFromRoute(routeId: string, agentId: string) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  const role = (session?.user as any)?.role;
-  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const tenantId = await getDefaultTenantId();
-
-  // Verify route belongs to tenant before deleting
-  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
-  if (!route) return { success: false, error: 'Route not found' };
-
-  await prisma.routeAgent.deleteMany({ where: { routeId, agentId } });
-
-  revalidatePath('/settings');
-  return { success: true };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await removeManagedRouteAgent(actor, routeId, agentId);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return managedRouteFailure(error); }
 }
 
 export async function updateLanguage(lang: string) {
@@ -462,42 +372,27 @@ export async function updateLanguage(lang: string) {
 }
 
 export async function generate2faSecret() {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
-
-  const secret = generateSecret();
-  const username = (session.user as any).username;
-  const otpauth = generateURI({ secret, label: username, issuer: 'ZoloFund' });
-  const qrCodeUrl = await QRCode.toDataURL(otpauth);
-
-  return { secret, qrCodeUrl };
+  const actor = await settingsManagerActor();
+  if (!actor) throw new TwoFactorError('Unauthorized', 401);
+  return startTwoFactorSetup(actor);
 }
 
-export async function verifyAndEnable2fa(secret: string, code: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
-
-  const { valid: isValid } = verifySync({ token: code, secret });
-  if (!isValid) return { success: false, error: 'Invalid verification code' };
-
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { totpSecret: secret },
-  });
-
-  revalidatePath('/settings');
-  return { success: true };
+export async function verifyAndEnable2fa(setupToken: string, code: string) {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await verifyTwoFactorSetup(actor, setupToken, code);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof TwoFactorError ? error.message : '2FA verification failed' };
+  }
 }
 
 export async function disable2fa() {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
-
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { totpSecret: null },
-  });
-
+  const actor = await settingsManagerActor();
+  if (!actor) throw new TwoFactorError('Unauthorized', 401);
+  await disableTwoFactor(actor);
   revalidatePath('/settings');
   return { success: true };
 }
@@ -923,51 +818,15 @@ export async function saveNotificationTemplate(data: {
   body: string;
   isActive?: boolean;
 }) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const userId = session?.user?.id;
-  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
-    return { success: false, error: 'Unauthorized' };
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await saveManagedNotificationTemplate(actor, data);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof TemplateError ? error.message : 'Template save failed' };
   }
-  const tenantId = await getDefaultTenantId();
-
-  await prisma.notificationTemplate.upsert({
-    where: {
-      tenantId_name_channel_lang: {
-        tenantId,
-        name: data.name,
-        channel: data.channel,
-        lang: data.lang,
-      },
-    },
-    update: {
-      subject: data.subject || null,
-      body: data.body,
-      isActive: data.isActive ?? true,
-    },
-    create: {
-      tenantId,
-      name: data.name,
-      channel: data.channel,
-      lang: data.lang,
-      subject: data.subject || null,
-      body: data.body,
-      isActive: data.isActive ?? true,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: 'update',
-      entityType: 'notification_template',
-      newValue: JSON.stringify({ name: data.name, channel: data.channel, lang: data.lang }),
-    },
-  });
-
-  revalidatePath('/settings');
-  return { success: true };
 }
 
 /**

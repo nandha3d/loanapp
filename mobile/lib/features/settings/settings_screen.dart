@@ -32,6 +32,8 @@ class SettingsScreen extends ConsumerWidget {
     final t = T.of(ref);
     final lang = ref.watch(languageProvider);
     final voiceOn = ref.watch(voiceAssistProvider);
+    final canManageRoutes = user?.role == UserRole.admin ||
+        user?.role == UserRole.superadmin || user?.role == UserRole.developer;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -192,11 +194,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           _Section(
             title: t.x('set.routes'),
-            trailing: TextButton.icon(
+            trailing: canManageRoutes ? TextButton.icon(
               icon: const Icon(Icons.add, size: 16),
               label: Text(t.x('set.add_route')),
               onPressed: () => _showAddRoute(context, ref),
-            ),
+            ) : null,
             child: ref.watch(_routesProvider).when(
                   loading: () => const Skeleton(
                     height: 80,
@@ -217,7 +219,13 @@ class SettingsScreen extends ConsumerWidget {
                         )
                       : Column(
                           children: routes
-                              .map((r) => _RouteRow(route: r, t: t))
+                              .map((r) => _RouteRow(
+                                route: r,
+                                t: t,
+                                onTap: canManageRoutes
+                                    ? () => _showManageRoute(context, ref, r)
+                                    : null,
+                              ))
                               .toList(),
                         ),
                 ),
@@ -754,6 +762,17 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _showManageRoute(BuildContext context, WidgetRef ref, AppRoute route) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _ManageRouteSheet(
+        route: route,
+        onChanged: () => ref.invalidate(_routesProvider),
+      ),
+    );
+  }
+
   Future<void> _pickLanguage(
     BuildContext context,
     WidgetRef ref,
@@ -1039,13 +1058,16 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _RouteRow extends StatelessWidget {
-  const _RouteRow({required this.route, required this.t});
+  const _RouteRow({required this.route, required this.t, this.onTap});
   final AppRoute route;
   final T t;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
@@ -1078,6 +1100,173 @@ class _RouteRow extends StatelessWidget {
             style: AppTypography.caption,
           ),
         ],
+      ),
+      ),
+    );
+  }
+}
+
+class _ManageRouteSheet extends ConsumerStatefulWidget {
+  const _ManageRouteSheet({required this.route, required this.onChanged});
+  final AppRoute route;
+  final VoidCallback onChanged;
+
+  @override
+  ConsumerState<_ManageRouteSheet> createState() => _ManageRouteSheetState();
+}
+
+class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
+  late AppRoute _route;
+  late Future<List<Map<String, dynamic>>> _agents;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _route = widget.route;
+    _agents = ref.read(settingsServiceProvider).agents();
+  }
+
+  Future<void> _apply(Future<void> Function() action, {bool close = false}) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+      widget.onChanged();
+      if (!mounted) return;
+      if (close) {
+        Navigator.pop(context);
+      } else {
+        final routes = await ref.read(settingsServiceProvider).routes();
+        if (mounted) setState(() => _route = routes.firstWhere((r) => r.id == _route.id));
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _rename() async {
+    final t = T.of(ref);
+    final controller = TextEditingController(text: _route.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(t.x('set.edit_route')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(labelText: t.x('set.route_name')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog), child: Text(t.x('common.cancel'))),
+          TextButton(onPressed: () => Navigator.pop(dialog, controller.text.trim()), child: Text(t.x('common.save'))),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name != null && name.isNotEmpty && name != _route.name) {
+      await _apply(() => ref.read(settingsServiceProvider).updateRoute(_route.id, name));
+    }
+  }
+
+  Future<void> _delete() async {
+    final t = T.of(ref);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(t.x('set.delete_route')),
+        content: Text(t.x('set.delete_route_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(t.x('common.cancel'))),
+          TextButton(onPressed: () => Navigator.pop(dialog, true), child: Text(t.x('set.delete_route'))),
+        ],
+      ),
+    );
+    if (confirmed == true) await _apply(() => ref.read(settingsServiceProvider).deleteRoute(_route.id), close: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.viewInsetsOf(context).bottom + 16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_route.name, style: AppTypography.sectionTitle),
+              Text('${_route.customerCount} ${t.x('set.customers_suffix')}'),
+              if (_busy) const LinearProgressIndicator(),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(t.x('set.edit_route')),
+                enabled: !_busy,
+                onTap: _rename,
+              ),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _agents,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const CircularProgressIndicator();
+                  final agents = snapshot.data!
+                      .where((agent) => agent['branchId'] == _route.branchId)
+                      .toList(growable: false);
+                  return Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('primary-${_route.agentId}'),
+                        initialValue: _route.agentId ?? '',
+                        decoration: InputDecoration(labelText: t.x('set.primary_agent')),
+                        items: [
+                          DropdownMenuItem(value: '', child: Text(t.x('set.clear_primary'))),
+                          ...agents.map((agent) => DropdownMenuItem(
+                            value: agent['id'] as String,
+                            child: Text(agent['name'] as String? ?? ''),
+                          )),
+                        ],
+                        onChanged: _busy ? null : (id) => _apply(() => ref.read(settingsServiceProvider)
+                            .setPrimaryRouteAgent(_route.id, id?.isEmpty == true ? null : id)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(t.x('set.shared_agents'), style: AppTypography.bodyLarge),
+                      ..._route.sharedAgents.map((agent) => ListTile(
+                        title: Text(agent.name),
+                        trailing: IconButton(
+                          tooltip: t.x('set.remove_agent'),
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: _busy ? null : () => _apply(() => ref.read(settingsServiceProvider)
+                              .removeRouteAgent(_route.id, agent.id)),
+                        ),
+                      )),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('shared-${_route.sharedAgents.length}'),
+                        decoration: InputDecoration(labelText: t.x('set.assign_agent')),
+                        items: agents
+                            .where((agent) => agent['id'] != _route.agentId &&
+                                !_route.sharedAgents.any((assigned) => assigned.id == agent['id']))
+                            .map((agent) => DropdownMenuItem(
+                              value: agent['id'] as String,
+                              child: Text(agent['name'] as String? ?? ''),
+                            )).toList(),
+                        onChanged: _busy ? null : (id) {
+                          if (id != null) _apply(() => ref.read(settingsServiceProvider).assignRouteAgent(_route.id, id));
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: _busy ? null : _delete,
+                icon: const Icon(Icons.delete_outline),
+                label: Text(t.x('set.delete_route')),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,13 +1,48 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/data/models/reports.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
 class ReportsService {
   ReportsService(this._dio);
   final Dio _dio;
+
+  Future<Uint8List> exportReport({
+    required String slug,
+    required String format,
+    required Map<String, dynamic> filters,
+  }) async {
+    if (!const {'pdf', 'excel', 'csv'}.contains(format)) {
+      throw ArgumentError.value(format, 'format');
+    }
+    final res = await _dio.get<List<int>>(
+      Endpoints.reportExport(slug),
+      queryParameters: {...filters, 'format': format},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = res.data ?? const <int>[];
+    final type = res.headers.value('content-type') ?? '';
+    final expected = switch (format) {
+      'pdf' => 'application/pdf',
+      'excel' => 'spreadsheetml.sheet',
+      _ => 'text/csv',
+    };
+    if (res.statusCode != 200 || !type.contains(expected)) {
+      String message = 'Could not export report (${res.statusCode})';
+      try {
+        final body = jsonDecode(utf8.decode(bytes));
+        if (body is Map && body['error'] != null) message = body['error'].toString();
+      } catch (_) {}
+      throw ApiException(message, statusCode: res.statusCode);
+    }
+    return Uint8List.fromList(bytes);
+  }
 
   Future<List<Map<String, dynamic>>> fetchCatalog() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOptions);

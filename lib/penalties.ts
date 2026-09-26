@@ -1,5 +1,31 @@
 import prisma from './db';
 
+export function penaltyListWhere(scope: {
+  tenantId: string;
+  appType: string;
+  branchId?: string | null;
+  status?: string | null;
+  routeId?: string | null;
+  q?: string | null;
+}) {
+  const loan = {
+    tenantId: scope.tenantId,
+    appType: scope.appType,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
+  };
+  const q = scope.q?.trim();
+  return {
+    loan,
+    ...(scope.status && scope.status !== 'all' ? { status: scope.status } : {}),
+    ...(scope.routeId ? { customer: { routeId: scope.routeId } } : {}),
+    ...(q ? { OR: [
+      { loan: { loanCode: { contains: q } } },
+      { customer: { name: { contains: q } } },
+      { customer: { customerCode: { contains: q } } },
+    ] } : {}),
+  };
+}
+
 const ACTIVE_PENALTY_STATUSES = ['pending', 'partial'];
 
 type PenaltySyncScope = {

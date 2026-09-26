@@ -1,11 +1,41 @@
 import prisma from '@/lib/db';
-import { encryptAadharNumber } from '@/lib/pii';
+import { Prisma } from '@prisma/client';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import {
   initiateAadhaarOtp,
   verifyAadhaarOtp,
   createVideoKycSession,
   getVideoKycStatus,
 } from './digio';
+
+export type KycActor = {
+  tenantId: string;
+  appType: string;
+  branchId: string | null;
+  userId: string;
+  role: string;
+};
+
+export class KycNotFoundError extends Error {}
+
+export function kycCustomerWhere(actor: KycActor, customerId?: string): Prisma.CustomerWhereInput {
+  return {
+    ...(customerId ? { id: customerId } : {}),
+    tenantId: actor.tenantId,
+    appType: actor.appType,
+    ...(actor.role === 'agent'
+      ? { AND: [buildAgentCustomerAccessWhere({ userId: actor.userId })] }
+      : actor.branchId ? { branchId: actor.branchId } : {}),
+  };
+}
+
+async function assertScopedCustomer(actor: KycActor, customerId: string) {
+  const customer = await prisma.customer.findFirst({
+    where: kycCustomerWhere(actor, customerId),
+  });
+  if (!customer) throw new KycNotFoundError('Customer not found');
+  return customer;
+}
 
 // ── Helper: Gating Check ──────────────────────────────────────────────────────
 
@@ -23,38 +53,43 @@ async function assertKycSubscription(tenantId: string) {
 
 export async function startAadhaarOtpKyc(
   customerId: string,
-  tenantId: string,
+  actor: KycActor,
   aadhaarNumber: string,
-  agentId: string
 ) {
-  // Check subscription
-  await assertKycSubscription(tenantId);
+  if (!/^\d{12}$/.test(aadhaarNumber)) throw new Error('Valid 12-digit Aadhaar number required');
+  await assertKycSubscription(actor.tenantId);
+  const customer = await assertScopedCustomer(actor, customerId);
 
-  const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId },
-  });
-  if (!customer) throw new Error('Customer not found');
-
-  const result = await initiateAadhaarOtp(tenantId, aadhaarNumber, customer.name);
+  const result = await initiateAadhaarOtp(actor.tenantId, aadhaarNumber, customer.name);
   if (!result.success) throw new Error(result.error);
 
-  // Store the KYC session
-  const session = await prisma.kycSession.create({
-    data: {
-      tenantId,
-      customerId,
-      method:       'aadhaar_otp',
-      status:       'otp_sent',
-      digioRequestId: result.requestId,
-      otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-      initiatedById: agentId,
-    },
-  });
-
-  // Update customer KYC status
-  await prisma.customer.update({
-    where: { id: customerId },
-    data: { kycStatus: 'otp_initiated', kycMethod: 'aadhaar_otp' },
+  const session = await prisma.$transaction(async (tx) => {
+    const created = await tx.kycSession.create({
+      data: {
+        tenantId: actor.tenantId,
+        customerId,
+        method: 'aadhaar_otp',
+        status: 'otp_sent',
+        digioRequestId: result.requestId,
+        otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        initiatedById: actor.userId,
+      },
+    });
+    await tx.customer.update({
+      where: { id: customerId },
+      data: { kycStatus: 'otp_initiated', kycMethod: 'aadhaar_otp' },
+    });
+    await tx.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'kyc_initiated',
+        entityType: 'customer',
+        entityId: customerId,
+        newValue: JSON.stringify({ method: 'aadhaar_otp' }),
+      },
+    });
+    return created;
   });
 
   return { sessionId: session.id, requestId: result.requestId };
@@ -62,17 +97,22 @@ export async function startAadhaarOtpKyc(
 
 export async function confirmAadhaarOtp(
   sessionId: string,
-  tenantId: string,
+  actor: KycActor,
   otp: string,
-  agentId: string
 ) {
-  // Check subscription
-  await assertKycSubscription(tenantId);
+  if (!/^\d{4,8}$/.test(otp)) throw new Error('Valid OTP required');
+  await assertKycSubscription(actor.tenantId);
 
   const session = await prisma.kycSession.findFirst({
-    where: { id: sessionId, tenantId, method: 'aadhaar_otp', status: 'otp_sent' },
+    where: {
+      id: sessionId,
+      tenantId: actor.tenantId,
+      method: 'aadhaar_otp',
+      status: 'otp_sent',
+      customer: { is: kycCustomerWhere(actor) },
+    },
   });
-  if (!session) throw new Error('KYC session not found or already used');
+  if (!session) throw new KycNotFoundError('KYC session not found or already used');
   if (!session.digioRequestId) throw new Error('Invalid session state');
 
   // Check OTP expiry
@@ -80,7 +120,19 @@ export async function confirmAadhaarOtp(
     throw new Error('OTP has expired. Please initiate a new request.');
   }
 
-  const result = await verifyAadhaarOtp(tenantId, session.digioRequestId, otp);
+  const claimed = await prisma.kycSession.updateMany({
+    where: { id: sessionId, tenantId: actor.tenantId, status: 'otp_sent' },
+    data: { status: 'otp_verifying' },
+  });
+  if (claimed.count !== 1) throw new KycNotFoundError('KYC session not found or already used');
+
+  let result;
+  try {
+    result = await verifyAadhaarOtp(actor.tenantId, session.digioRequestId, otp);
+  } catch (error) {
+    await prisma.kycSession.update({ where: { id: sessionId }, data: { status: 'failed' } });
+    throw error;
+  }
   if (!result.success) {
     await prisma.kycSession.update({
       where: { id: sessionId },
@@ -112,7 +164,7 @@ export async function confirmAadhaarOtp(
         kycStatus:       'verified',
         kycMethod:       'aadhaar_otp',
         kycVerifiedAt:   new Date(),
-        kycVerifiedById: agentId,
+        kycVerifiedById: actor.userId,
         aadhaarVerified: true,
         aadhaarName:     kycData.name,
         aadhaarDob:      kycData.dob,
@@ -130,15 +182,15 @@ export async function confirmAadhaarOtp(
         status:       'otp_verified',
         responseData: JSON.stringify(kycData),
         reviewedAt:   new Date(),
-        reviewedById: agentId,
+        reviewedById: actor.userId,
       },
     });
 
     // Audit log
     await tx.auditLog.create({
       data: {
-        tenantId,
-        userId:     agentId,
+        tenantId: actor.tenantId,
+        userId:     actor.userId,
         action:     'kyc_verified',
         entityType: 'customer',
         entityId:   session.customerId,
@@ -154,19 +206,13 @@ export async function confirmAadhaarOtp(
 
 export async function startVideoKyc(
   customerId: string,
-  tenantId: string,
-  agentId: string
+  actor: KycActor,
 ) {
-  // Check subscription
-  await assertKycSubscription(tenantId);
-
-  const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId },
-  });
-  if (!customer) throw new Error('Customer not found');
+  await assertKycSubscription(actor.tenantId);
+  const customer = await assertScopedCustomer(actor, customerId);
 
   const result = await createVideoKycSession({
-    tenantId,
+    tenantId: actor.tenantId,
     customerName:  customer.name,
     customerPhone: customer.phone,
     referenceId:   customer.customerCode,
@@ -174,20 +220,32 @@ export async function startVideoKyc(
 
   if (!result.success) throw new Error(result.error);
 
-  const session = await prisma.kycSession.create({
-    data: {
-      tenantId,
-      customerId,
-      method:        'video_kyc',
-      status:        'initiated',
-      digioRequestId: result.sessionId,
-      initiatedById: agentId,
-    },
-  });
-
-  await prisma.customer.update({
-    where: { id: customerId },
-    data: { kycStatus: 'video_submitted', kycMethod: 'video_kyc' },
+  const session = await prisma.$transaction(async (tx) => {
+    const created = await tx.kycSession.create({
+      data: {
+        tenantId: actor.tenantId,
+        customerId,
+        method: 'video_kyc',
+        status: 'initiated',
+        digioRequestId: result.sessionId,
+        initiatedById: actor.userId,
+      },
+    });
+    await tx.customer.update({
+      where: { id: customerId },
+      data: { kycStatus: 'video_submitted', kycMethod: 'video_kyc' },
+    });
+    await tx.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'kyc_initiated',
+        entityType: 'customer',
+        entityId: customerId,
+        newValue: JSON.stringify({ method: 'video_kyc' }),
+      },
+    });
+    return created;
   });
 
   return {
@@ -198,18 +256,22 @@ export async function startVideoKyc(
 
 export async function reviewVideoKyc(
   sessionId: string,
-  tenantId: string,
-  adminId: string,
+  actor: KycActor,
   decision: 'approved' | 'rejected',
   notes: string = ''
 ) {
-  // Check subscription
-  await assertKycSubscription(tenantId);
+  if (!['admin', 'superadmin', 'developer'].includes(actor.role)) throw new Error('Forbidden');
+  await assertKycSubscription(actor.tenantId);
 
   const session = await prisma.kycSession.findFirst({
-    where: { id: sessionId, tenantId, method: 'video_kyc' },
+    where: {
+      id: sessionId,
+      tenantId: actor.tenantId,
+      method: 'video_kyc',
+      customer: { is: kycCustomerWhere(actor) },
+    },
   });
-  if (!session) throw new Error('Session not found');
+  if (!session) throw new KycNotFoundError('Session not found');
 
   const newKycStatus = decision === 'approved' ? 'verified' : 'rejected';
 
@@ -219,7 +281,7 @@ export async function reviewVideoKyc(
       data: {
         kycStatus:       newKycStatus,
         kycVerifiedAt:   decision === 'approved' ? new Date() : null,
-        kycVerifiedById: decision === 'approved' ? adminId : null,
+        kycVerifiedById: decision === 'approved' ? actor.userId : null,
         kycRejectedReason: decision === 'rejected' ? notes : null,
       },
     });
@@ -228,7 +290,7 @@ export async function reviewVideoKyc(
       where: { id: sessionId },
       data: {
         status:      decision === 'approved' ? 'video_approved' : 'video_rejected',
-        reviewedById: adminId,
+        reviewedById: actor.userId,
         reviewedAt:   new Date(),
         reviewNotes:  notes,
       },
@@ -236,8 +298,8 @@ export async function reviewVideoKyc(
 
     await tx.auditLog.create({
       data: {
-        tenantId,
-        userId:     adminId,
+        tenantId: actor.tenantId,
+        userId:     actor.userId,
         action:     `kyc_${decision}`,
         entityType: 'customer',
         entityId:   session.customerId,

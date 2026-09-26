@@ -13,6 +13,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/reports.dart';
 import 'package:zolofund/data/services/reports_service.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
@@ -926,8 +927,136 @@ class _CoAViewState extends ConsumerState<_CoAView> {
     }
   }
 
+  Future<void> _showAccountForm([Map<String, dynamic>? account]) async {
+    final t = T.of(ref);
+    final code = TextEditingController(text: account?['code']?.toString() ?? '');
+    final name = TextEditingController(text: account?['name']?.toString() ?? '');
+    final subType = TextEditingController(text: account?['subType']?.toString() ?? '');
+    final description = TextEditingController(text: account?['description']?.toString() ?? '');
+    String classType = account?['classType']?.toString() ?? 'asset';
+    String? parentId = account?['parentId']?.toString();
+    bool isCash = account?['isCash'] == true;
+    bool saving = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(t.x(account == null ? 'accounting.create_account' : 'accounting.edit_account')),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: code,
+                    enabled: account == null,
+                    decoration: InputDecoration(labelText: t.x('accounting.account_code')),
+                  ),
+                  TextField(
+                    controller: name,
+                    decoration: InputDecoration(labelText: t.x('accounting.account_name')),
+                  ),
+                  if (account == null)
+                    DropdownButtonFormField<String>(
+                      value: classType,
+                      decoration: InputDecoration(labelText: t.x('accounting.account_class')),
+                      items: ['asset', 'liability', 'equity', 'income', 'expense']
+                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => classType = value ?? classType),
+                    ),
+                  TextField(
+                    controller: subType,
+                    decoration: InputDecoration(labelText: t.x('accounting.account_subtype')),
+                  ),
+                  DropdownButtonFormField<String?>(
+                    value: parentId,
+                    decoration: InputDecoration(labelText: t.x('accounting.parent_account')),
+                    isExpanded: true,
+                    items: [
+                      DropdownMenuItem<String?>(value: null, child: Text(t.x('accounting.no_parent'))),
+                      ..._accounts
+                          .where((item) => item['id'] != account?['id'])
+                          .map((item) => DropdownMenuItem<String?>(
+                                value: item['id'] as String,
+                                child: Text('[${item['code']}] ${item['name']}', overflow: TextOverflow.ellipsis),
+                              )),
+                    ],
+                    onChanged: (value) => setDialogState(() => parentId = value),
+                  ),
+                  SwitchListTile(
+                    title: Text(t.x('accounting.cash_account')),
+                    value: isCash,
+                    onChanged: (value) => setDialogState(() => isCash = value),
+                  ),
+                  TextField(
+                    controller: description,
+                    decoration: InputDecoration(labelText: t.x('accounting.description')),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: Text(t.x('common.cancel')),
+            ),
+            TextButton(
+              onPressed: saving ? null : () async {
+                if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
+                setDialogState(() => saving = true);
+                try {
+                  final service = ref.read(accountingServiceProvider);
+                  if (account == null) {
+                    await service.createCoAAccount(
+                      code: code.text.trim(),
+                      name: name.text.trim(),
+                      classType: classType,
+                      subType: subType.text.trim(),
+                      parentId: parentId,
+                      isCash: isCash,
+                      description: description.text.trim(),
+                    );
+                  } else {
+                    await service.updateCoAAccount(
+                      account['id'] as String,
+                      name: name.text.trim(),
+                      subType: subType.text.trim(),
+                      parentId: parentId,
+                      clearParent: parentId == null,
+                      isCash: isCash,
+                      description: description.text.trim(),
+                    );
+                  }
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                  await _fetchAccounts();
+                } catch (error) {
+                  if (!dialogContext.mounted) return;
+                  setDialogState(() => saving = false);
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('$error')));
+                }
+              },
+              child: Text(t.x('common.save')),
+            ),
+          ],
+        ),
+      ),
+    );
+    code.dispose();
+    name.dispose();
+    subType.dispose();
+    description.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final canEdit = switch (ref.watch(authControllerProvider).user?.role) {
+      UserRole.superadmin || UserRole.developer => true,
+      _ => false,
+    };
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error.isNotEmpty) return Center(child: Text('Error: $_error'));
 
@@ -940,11 +1069,18 @@ class _CoAViewState extends ConsumerState<_CoAView> {
             children: [
               Text('${_accounts.length} Accounts in Ledger',
                   style: AppTypography.caption),
-              TextButton.icon(
-                icon: const Icon(Icons.refresh_outlined, size: 16),
-                label: const Text('Reseed CoA'),
-                onPressed: _reseedCoA,
-              ),
+              if (canEdit) ...[
+                IconButton(
+                  tooltip: T.of(ref).x('accounting.create_account'),
+                  icon: const Icon(Icons.add),
+                  onPressed: _showAccountForm,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.refresh_outlined, size: 16),
+                  label: const Text('Reseed CoA'),
+                  onPressed: _reseedCoA,
+                ),
+              ],
             ],
           ),
         ),
@@ -990,6 +1126,12 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                         ],
                       ),
                     ),
+                    if (canEdit)
+                      IconButton(
+                        tooltip: T.of(ref).x('accounting.edit_account'),
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _showAccountForm(a),
+                      ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -997,7 +1139,7 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        Switch(
+                        if (canEdit) Switch(
                           value: isActive,
                           onChanged: (v) => _toggleAccount(a['id'] as String),
                           activeThumbColor: AppColors.success,

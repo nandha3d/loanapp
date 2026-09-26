@@ -23,6 +23,7 @@ class LoanCalcInstalment {
 
 class LoanCalculation {
   const LoanCalculation({
+    required this.disbursedAmount,
     required this.perInstalment,
     required this.totalRepayable,
     required this.totalInterest,
@@ -31,6 +32,7 @@ class LoanCalculation {
   });
 
   final double perInstalment;
+  final double disbursedAmount;
   final double totalRepayable;
   final double totalInterest;
   final DateTime endDate;
@@ -59,6 +61,7 @@ class LoanCalculation {
         : (instalments.isNotEmpty ? instalments.last.dueDate : DateTime.now());
 
     return LoanCalculation(
+      disbursedAmount: n(json['disbursedAmount']),
       perInstalment: n(json['perInstalment']),
       totalRepayable: totalPayable,
       totalInterest: totalInterest,

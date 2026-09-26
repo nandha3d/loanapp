@@ -20,6 +20,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/services/kyc_service.dart';
 import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/features/location/location_picker_screen.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
@@ -41,6 +42,149 @@ class CustomerDetailScreen extends ConsumerWidget {
         data: (customer) => _DetailBody(
           customer: customer,
           onRefresh: () => ref.invalidate(customerDetailProvider(id)),
+        ),
+      ),
+    );
+  }
+}
+
+class _KycActions extends ConsumerStatefulWidget {
+  const _KycActions({required this.customer, required this.onRefresh});
+
+  final Customer customer;
+  final VoidCallback onRefresh;
+
+  @override
+  ConsumerState<_KycActions> createState() => _KycActionsState();
+}
+
+class _KycActionsState extends ConsumerState<_KycActions> {
+  final _aadhaar = TextEditingController();
+  final _otp = TextEditingController();
+  String? _sessionId;
+  String? _videoUrl;
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _aadhaar.dispose();
+    _otp.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+      widget.onRefresh();
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    final customer = widget.customer;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.x('kyc.verify_identity'), style: AppTypography.sectionTitle),
+            const SizedBox(height: 8),
+            Text('${t.x('kyc.status')}: ${customer.kycStatus ?? ''}'),
+            if (customer.kycMethod != null)
+              Text('${t.x('kyc.method')}: ${customer.kycMethod}'),
+            if (customer.aadhaarName != null)
+              Text('${t.x('kyc.verified_name')}: ${customer.aadhaarName}'),
+            if (customer.aadhaarDob != null)
+              Text('${t.x('kyc.verified_dob')}: ${customer.aadhaarDob}'),
+            if (customer.aadhaarAddress != null)
+              Text(
+                  '${t.x('kyc.verified_address')}: ${customer.aadhaarAddress}'),
+            if (customer.kycStatus != 'verified') ...[
+              const SizedBox(height: 12),
+              if (_sessionId == null) ...[
+                TextField(
+                  controller: _aadhaar,
+                  keyboardType: TextInputType.number,
+                  maxLength: 12,
+                  decoration:
+                      InputDecoration(labelText: t.x('kyc.aadhaar_number')),
+                  onChanged: (_) => setState(() {}),
+                ),
+                OutlinedButton(
+                  onPressed: _busy ||
+                          !RegExp(r'^\d{12}$').hasMatch(_aadhaar.text)
+                      ? null
+                      : () => _run(() async {
+                            _sessionId = await ref
+                                .read(kycServiceProvider)
+                                .startAadhaarOtp(customer.id, _aadhaar.text);
+                            _aadhaar.clear();
+                          }),
+                  child: Text(t.x('kyc.send_otp')),
+                ),
+              ] else ...[
+                TextField(
+                  controller: _otp,
+                  keyboardType: TextInputType.number,
+                  maxLength: 8,
+                  decoration: InputDecoration(labelText: t.x('kyc.enter_otp')),
+                  onChanged: (_) => setState(() {}),
+                ),
+                OutlinedButton(
+                  onPressed: _busy || !RegExp(r'^\d{4,8}$').hasMatch(_otp.text)
+                      ? null
+                      : () => _run(() async {
+                            await ref
+                                .read(kycServiceProvider)
+                                .verifyAadhaarOtp(_sessionId!, _otp.text);
+                            _otp.clear();
+                            _sessionId = null;
+                          }),
+                  child: Text(t.x('kyc.verify_otp')),
+                ),
+              ],
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => _run(() async {
+                          final url = await ref
+                              .read(kycServiceProvider)
+                              .startVideo(customer.id);
+                          final uri = Uri.tryParse(url);
+                          if (uri == null || uri.scheme != 'https')
+                            throw Exception(t.x('kyc.invalid_link'));
+                          _videoUrl = url;
+                          await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
+                        }),
+                child: Text(t.x('kyc.start_video')),
+              ),
+              if (_videoUrl != null)
+                TextButton(
+                  onPressed: () => launchUrl(Uri.parse(_videoUrl!),
+                      mode: LaunchMode.externalApplication),
+                  child: Text(t.x('kyc.open_video')),
+                ),
+            ],
+            TextButton(
+                onPressed: widget.onRefresh,
+                child: Text(t.x('kyc.refresh_status'))),
+            if (_busy) const LinearProgressIndicator(),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: AppColors.danger)),
+          ],
         ),
       ),
     );
@@ -135,7 +279,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               const SizedBox(height: 8),
               Text(
                 'Set the 200m geofence anchor used to verify field collection visits for this borrower.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodySmall
+                    .copyWith(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ListTile(
@@ -147,11 +292,13 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   ),
                   child: Icon(Icons.my_location, color: AppColors.primary),
                 ),
-                title: Text(t.x('btn.use_my_gps'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                title: Text(t.x('btn.use_my_gps'),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text('Capture device GPS location right now'),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
+                  final pos =
+                      await ref.read(gpsServiceProvider).currentOrLastKnown();
                   if (pos == null) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +308,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     return;
                   }
                   try {
-                    await ref.read(customerRepositoryProvider).update(customer.id, {
+                    await ref
+                        .read(customerRepositoryProvider)
+                        .update(customer.id, {
                       'lat': pos.latitude,
                       'lng': pos.longitude,
                     });
@@ -170,7 +319,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('GPS coordinates registered successfully!'),
+                          content:
+                              Text('GPS coordinates registered successfully!'),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -197,11 +347,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   ),
                   child: const Icon(Icons.map_outlined, color: AppColors.info),
                 ),
-                title: Text(t.x('btn.pin_on_map'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Search area or drag marker on map to pinpoint house/shop'),
+                title: Text(t.x('btn.pin_on_map'),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Search area or drag marker on map to pinpoint house/shop'),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  final picked = await Navigator.of(context).push<PickedLocation>(
+                  final picked =
+                      await Navigator.of(context).push<PickedLocation>(
                     MaterialPageRoute(
                       builder: (_) => LocationPickerScreen(
                         initialLat: customer.lat,
@@ -212,7 +365,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   );
                   if (picked == null) return;
                   try {
-                    await ref.read(customerRepositoryProvider).update(customer.id, {
+                    await ref
+                        .read(customerRepositoryProvider)
+                        .update(customer.id, {
                       'lat': picked.lat,
                       'lng': picked.lng,
                     });
@@ -221,7 +376,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('GPS coordinates pinned on map successfully!'),
+                          content: Text(
+                              'GPS coordinates pinned on map successfully!'),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -278,6 +434,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               ],
               _IdentitySection(customer: c, t: t),
               const SizedBox(height: 14),
+              if (ref.watch(authControllerProvider).user?.kycEnabled == true) ...[
+                _KycActions(customer: c, onRefresh: widget.onRefresh),
+                const SizedBox(height: 14),
+              ],
               if (c.companyName != null && c.companyName!.isNotEmpty) ...[
                 _CompanySection(customer: c),
                 const SizedBox(height: 14),
@@ -314,7 +474,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _printingReceipt ? null : _openCollectionReceipt,
+                      onPressed:
+                          _printingReceipt ? null : _openCollectionReceipt,
                       icon: _printingReceipt
                           ? const SizedBox(
                               width: 16,
@@ -437,10 +598,12 @@ class _Header extends ConsumerWidget {
                             const PopupMenuItem(
                               value: 'delete',
                               child: ListTile(
-                                leading:
-                                    Icon(Icons.delete_outline, color: AppColors.danger),
-                                title: Text('Delete Customer',
-                                    style: TextStyle(color: AppColors.danger),),
+                                leading: Icon(Icons.delete_outline,
+                                    color: AppColors.danger),
+                                title: Text(
+                                  'Delete Customer',
+                                  style: TextStyle(color: AppColors.danger),
+                                ),
                                 contentPadding: EdgeInsets.zero,
                               ),
                             ),
@@ -1177,8 +1340,8 @@ class _LoanRow extends StatelessWidget {
 /// fix right now. Prefers the primary collection point, else the first one
 /// with coordinates.
 CustomerCollectionPoint? _primaryGpsPoint(Customer customer) {
-  final withGps =
-      customer.collectionPoints.where((p) => p.latitude != null && p.longitude != null);
+  final withGps = customer.collectionPoints
+      .where((p) => p.latitude != null && p.longitude != null);
   if (withGps.isEmpty) return null;
   return withGps.firstWhere((p) => p.isPrimary, orElse: () => withGps.first);
 }
@@ -1209,7 +1372,8 @@ class _IdentitySection extends StatelessWidget {
             _IdRow(
               icon: Icons.my_location_outlined,
               label: 'GPS location',
-              value: '${customer.lat!.toStringAsFixed(5)}, ${customer.lng!.toStringAsFixed(5)} (View)',
+              value:
+                  '${customer.lat!.toStringAsFixed(5)}, ${customer.lng!.toStringAsFixed(5)} (View)',
               valueColor: AppColors.primary,
               onTap: () => launchUrl(
                 Uri.parse(
@@ -1229,7 +1393,8 @@ class _IdentitySection extends StatelessWidget {
                   valueColor: AppColors.primary,
                   onTap: () => launchUrl(
                     Uri.parse(
-                        'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}',),
+                      'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}',
+                    ),
                     mode: LaunchMode.externalApplication,
                   ),
                 );
@@ -1392,7 +1557,8 @@ class _GuarantorsSection extends ConsumerWidget {
                     onPressed: () async {
                       final uri = Uri(scheme: 'tel', path: g.phone);
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
                       }
                     },
                     icon: const Icon(
@@ -1590,7 +1756,11 @@ class _KycDocsSection extends ConsumerWidget {
   final List<KycDocument> docs;
 
   void _openDoc(
-      BuildContext context, WidgetRef ref, KycDocument d, String url,) {
+    BuildContext context,
+    WidgetRef ref,
+    KycDocument d,
+    String url,
+  ) {
     if (_looksLikeImage(d.url)) {
       showDialog<void>(
         context: context,
@@ -1607,8 +1777,11 @@ class _KycDocsSection extends ConsumerWidget {
                     image: authedImage(ref, d.url),
                     errorBuilder: (_, __, ___) => const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Icon(Icons.broken_image_outlined,
-                          color: Colors.white54, size: 48,),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white54,
+                        size: 48,
+                      ),
                     ),
                   ),
                 ),
@@ -1857,4 +2030,3 @@ class _MissingGpsBanner extends StatelessWidget {
     );
   }
 }
-

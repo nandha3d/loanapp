@@ -5,9 +5,60 @@ import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/penalty.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
+class PenaltyPage {
+  const PenaltyPage({
+    required this.rows,
+    required this.page,
+    required this.pages,
+    required this.totalGross,
+    required this.totalSettled,
+    required this.totalWaived,
+  });
+
+  final List<Penalty> rows;
+  final int page;
+  final int pages;
+  final double totalGross;
+  final double totalSettled;
+  final double totalWaived;
+}
+
 class PenaltyService {
   PenaltyService(this._dio);
   final Dio _dio;
+
+  Future<PenaltyPage> listPage({
+    required int page,
+    String? status,
+    String? routeId,
+    String? query,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.penalties,
+      queryParameters: {
+        'page': page,
+        if (status != null && status != 'all') 'status': status,
+        if (routeId != null) 'routeId': routeId,
+        if (query != null && query.isNotEmpty) 'q': query,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic data) {
+      final d = data as Map<String, dynamic>;
+      final kpis = d['kpis'] as Map<String, dynamic>;
+      double amount(dynamic value) =>
+          value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+      return PenaltyPage(
+        rows: (d['rows'] as List<dynamic>)
+            .map((dynamic item) => Penalty.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+        page: (d['page'] as num).toInt(),
+        pages: (d['pages'] as num).toInt(),
+        totalGross: amount(kpis['totalGross']),
+        totalSettled: amount(kpis['totalSettled']),
+        totalWaived: amount(kpis['totalWaived']),
+      );
+    });
+  }
 
   Future<List<Penalty>> list({String status = 'pending'}) async {
     final res = await _dio.get<Map<String, dynamic>>(

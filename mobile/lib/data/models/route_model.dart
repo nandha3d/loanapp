@@ -6,6 +6,8 @@ class AppRoute {
     required this.customerCount,
     this.agentId,
     this.agentName,
+    this.branchId,
+    this.sharedAgents = const [],
   });
   final String id;
   final String name;
@@ -13,6 +15,8 @@ class AppRoute {
   final int customerCount;
   final String? agentId;
   final String? agentName;
+  final String? branchId;
+  final List<RouteAssignedAgent> sharedAgents;
 
   factory AppRoute.fromJson(Map<String, dynamic> json) {
     final agent = json['assignedAgent'] as Map<String, dynamic>?;
@@ -24,6 +28,24 @@ class AppRoute {
       customerCount: (counts['customers'] as num?)?.toInt() ?? 0,
       agentId: agent?['id'] as String?,
       agentName: agent?['name'] as String?,
+      branchId: json['branchId'] as String?,
+      sharedAgents: (json['routeAgents'] as List<dynamic>? ?? const [])
+          .map((dynamic item) => RouteAssignedAgent.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+}
+
+class RouteAssignedAgent {
+  const RouteAssignedAgent({required this.id, required this.name});
+  final String id;
+  final String name;
+
+  factory RouteAssignedAgent.fromJson(Map<String, dynamic> json) {
+    final agent = json['agent'] as Map<String, dynamic>? ?? const {};
+    return RouteAssignedAgent(
+      id: json['agentId'] as String,
+      name: agent['name'] as String? ?? '',
     );
   }
 }
@@ -37,6 +59,10 @@ class LoanPackage {
     required this.frequency,
     required this.perInstalment,
     required this.penaltyRate,
+    required this.deduction,
+    required this.deductionType,
+    required this.status,
+    this.branchId,
   });
 
   final String id;
@@ -46,6 +72,10 @@ class LoanPackage {
   final String frequency;
   final double perInstalment;
   final double penaltyRate;
+  final double deduction;
+  final String deductionType;
+  final String status;
+  final String? branchId;
 
   factory LoanPackage.fromJson(Map<String, dynamic> json) {
     double n(dynamic v) => v == null
@@ -59,6 +89,10 @@ class LoanPackage {
       frequency: (json['frequency'] as String?) ?? 'daily',
       perInstalment: n(json['perInstalment']),
       penaltyRate: n(json['penaltyRate']),
+      deduction: n(json['deduction']),
+      deductionType: json['deductionType'] as String? ?? 'fixed',
+      status: json['status'] as String? ?? 'active',
+      branchId: json['branchId'] as String?,
     );
   }
 }

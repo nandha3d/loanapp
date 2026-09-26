@@ -2,7 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
+import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
@@ -38,18 +38,7 @@ export default async function PenaltiesPage({
     routeId: routeId || undefined,
   });
 
-  const where: any = { loan: loanBase };
-  if (status) where.status = status;
-  if (q) {
-    where.OR = [
-      { loan: { loanCode: { contains: q } } },
-      { customer: { name: { contains: q } } },
-      { customer: { customerCode: { contains: q } } },
-    ];
-  }
-  if (routeId) {
-    where.customer = { ...where.customer, routeId };
-  }
+  const where = penaltyListWhere({ tenantId, appType, branchId, status, routeId, q });
 
   // Fetch penalties with related data
   const penalties = await prisma.penalty.findMany({

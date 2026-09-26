@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/features/settings/two_factor_screen.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class SettingsDetailScreen extends ConsumerStatefulWidget {
@@ -23,6 +27,148 @@ class SettingsDetailScreen extends ConsumerStatefulWidget {
       _SettingsDetailScreenState();
 }
 
+class _PackageEditor extends ConsumerStatefulWidget {
+  const _PackageEditor({this.package});
+  final LoanPackage? package;
+
+  @override
+  ConsumerState<_PackageEditor> createState() => _PackageEditorState();
+}
+
+class _PackageEditorState extends ConsumerState<_PackageEditor> {
+  late final Map<String, TextEditingController> _fields;
+  late String _deductionType;
+  late String _frequency;
+  late String _status;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.package;
+    _fields = {
+      'name': TextEditingController(text: p?.name ?? ''),
+      'principal': TextEditingController(text: p?.principal.toString() ?? ''),
+      'deduction': TextEditingController(text: p?.deduction.toString() ?? ''),
+      'tenure': TextEditingController(text: p?.tenure.toString() ?? ''),
+      'perInstalment': TextEditingController(text: p?.perInstalment.toString() ?? ''),
+      'penaltyRate': TextEditingController(text: p?.penaltyRate.toString() ?? ''),
+    };
+    _deductionType = p?.deductionType ?? 'fixed';
+    _frequency = p?.frequency ?? 'daily';
+    _status = p?.status ?? 'active';
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _fields.values) { controller.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final t = T.of(ref);
+    final principal = double.tryParse(_fields['principal']!.text);
+    final deduction = double.tryParse(_fields['deduction']!.text);
+    final tenure = int.tryParse(_fields['tenure']!.text);
+    final perInstalment = double.tryParse(_fields['perInstalment']!.text);
+    final penaltyRate = double.tryParse(_fields['penaltyRate']!.text);
+    if (_fields['name']!.text.trim().isEmpty || principal == null || deduction == null ||
+        tenure == null || perInstalment == null || penaltyRate == null) {
+      setState(() => _error = t.x('pkg.valid_terms'));
+      return;
+    }
+    final data = <String, dynamic>{
+      'name': _fields['name']!.text.trim(),
+      'principal': principal,
+      'deduction': deduction,
+      'deductionType': _deductionType,
+      'frequency': _frequency,
+      'tenure': tenure,
+      'perInstalment': perInstalment,
+      'penaltyRate': penaltyRate,
+      if (widget.package != null) 'status': _status,
+    };
+    setState(() { _saving = true; _error = null; });
+    try {
+      final service = ref.read(settingsServiceProvider);
+      if (widget.package == null) await service.createPackage(data);
+      else await service.updatePackage(widget.package!.id, data);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    Widget field(String key, String label) => Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: _fields[key],
+        keyboardType: key == 'name' ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(labelText: label),
+      ),
+    );
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.viewInsetsOf(context).bottom + 16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.package == null ? t.x('pkg.create') : t.x('pkg.edit'), style: AppTypography.sectionTitle),
+              field('name', t.x('pkg.name')),
+              field('principal', t.x('pkg.principal')),
+              if (widget.package == null)
+                DropdownButtonFormField<String>(
+                  initialValue: _deductionType,
+                  decoration: InputDecoration(labelText: t.x('pkg.deduction_type')),
+                  items: [
+                    DropdownMenuItem(value: 'fixed', child: Text(t.x('pkg.fixed'))),
+                    DropdownMenuItem(value: 'percentage', child: Text(t.x('pkg.percentage'))),
+                  ],
+                  onChanged: (value) => setState(() => _deductionType = value ?? _deductionType),
+                ),
+              field('deduction', widget.package != null
+                  ? t.x('pkg.stored_deduction')
+                  : _deductionType == 'percentage' ? t.x('pkg.deduction_percent') : t.x('pkg.deduction_amount')),
+              DropdownButtonFormField<String>(
+                initialValue: _frequency,
+                decoration: InputDecoration(labelText: t.x('pkg.frequency')),
+                items: ['daily', 'weekly', 'biweekly', 'monthly']
+                    .map((value) => DropdownMenuItem(value: value, child: Text(t.x('pkg.$value')))).toList(),
+                onChanged: (value) => setState(() => _frequency = value ?? _frequency),
+              ),
+              field('tenure', t.x('pkg.tenure')),
+              field('perInstalment', t.x('pkg.instalment')),
+              field('penaltyRate', t.x('pkg.penalty')),
+              if (widget.package != null)
+                DropdownButtonFormField<String>(
+                  initialValue: _status,
+                  decoration: InputDecoration(labelText: t.x('pkg.status')),
+                  items: [
+                    DropdownMenuItem(value: 'active', child: Text(t.x('pkg.active'))),
+                    DropdownMenuItem(value: 'inactive', child: Text(t.x('pkg.inactive'))),
+                  ],
+                  onChanged: (value) => setState(() => _status = value ?? _status),
+                ),
+              if (_error != null) Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              if (_saving) const LinearProgressIndicator(),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _saving ? null : _save, child: Text(t.x('common.save'))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   bool _loading = true;
   String _error = '';
@@ -35,6 +181,11 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   bool _boolVal1 = false;
   bool _showSecret = false;
   List<LoanPackage> _packages = [];
+
+  bool get _canManagePackages {
+    final role = ref.read(authControllerProvider).user?.role;
+    return role == UserRole.admin || role == UserRole.superadmin || role == UserRole.developer;
+  }
 
   @override
   void initState() {
@@ -57,7 +208,8 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
     setState(() => _loading = true);
     try {
       if (widget.type == 'packages') {
-        final packages = await ref.read(settingsServiceProvider).packages();
+        final packages = await ref.read(settingsServiceProvider)
+            .packages(includeInactive: _canManagePackages);
         if (!mounted) return;
         setState(() {
           _packages = packages;
@@ -154,6 +306,13 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
       appBar: AppBar(
         title: Text(widget.title),
         centerTitle: true,
+        actions: widget.type == 'packages' && _canManagePackages
+            ? [IconButton(
+                tooltip: T.of(ref).x('pkg.create'),
+                icon: const Icon(Icons.add),
+                onPressed: () => _showPackageEditor(),
+              )]
+            : null,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
@@ -256,6 +415,14 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
           ),
         ],
         if (widget.type == 'security') ...[
+          ListTile(
+            leading: const Icon(Icons.security_outlined),
+            title: Text(T.of(ref).x('2fa.title')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute<void>(
+              builder: (_) => const TwoFactorScreen(),
+            )),
+          ),
           SwitchListTile(
             title: const Text('Require Biometric Unlock'),
             subtitle: const Text(
@@ -354,7 +521,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No active loan packages found.',
+            T.of(ref).x('pkg.empty'),
             style: AppTypography.body.copyWith(color: AppColors.textLight),
             textAlign: TextAlign.center,
           ),
@@ -384,6 +551,19 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
                   color: AppColors.primary,
                 ),
               ),
+              Text('${T.of(ref).x('pkg.status')}: ${T.of(ref).x('pkg.${p.status}')}'),
+              Text('${T.of(ref).x('pkg.deduction_type')}: ${T.of(ref).x('pkg.${p.deductionType}')}'),
+              if (_canManagePackages)
+                Row(children: [
+                  TextButton(
+                    onPressed: () => _showPackageEditor(p),
+                    child: Text(T.of(ref).x('pkg.edit')),
+                  ),
+                  TextButton(
+                    onPressed: () => _deletePackage(p),
+                    child: Text(T.of(ref).x('pkg.delete')),
+                  ),
+                ]),
               const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -408,6 +588,37 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
         );
       },
     );
+  }
+
+  Future<void> _showPackageEditor([LoanPackage? package]) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _PackageEditor(package: package),
+    );
+    if (saved == true) await _fetchSettings();
+  }
+
+  Future<void> _deletePackage(LoanPackage package) async {
+    final t = T.of(ref);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(t.x('pkg.delete')),
+        content: Text(t.x('pkg.delete_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(t.x('common.cancel'))),
+          TextButton(onPressed: () => Navigator.pop(dialog, true), child: Text(t.x('pkg.delete'))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(settingsServiceProvider).deletePackage(package.id);
+      await _fetchSettings();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   String _frequencyUnit(String frequency) {

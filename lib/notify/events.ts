@@ -4,6 +4,7 @@ import { sendSms } from './channels/sms';
 import { sendWhatsApp } from './channels/whatsapp';
 import { sendEmail } from './channels/email';
 import { sendPushToUsers } from './channels/push';
+import { interpolateTemplate, extractPlaceholders } from './templateRenderer';
 
 // ── Message templates (EN / TA / HI) ─────────────────────────────────────────
 
@@ -99,78 +100,6 @@ const WA_TEMPLATES: Record<EventKey, string> = {
   chit_auction_result: 'lt_chit_auction_result',
   chit_dividend_posted: 'lt_chit_dividend_posted',
 };
-
-function interpolateTemplate(template: string, d: Record<string, string>): string {
-  let result = template;
-  const replacements: Record<string, string> = {
-    '{customer}': d.name || '',
-    '{amount}': d.amount || '',
-    '{due_date}': d.date || '',
-    '{loan_code}': d.loanCode || '',
-    '{firstDue}': d.firstDue || '',
-    '{days}': d.days || '',
-    '{penalty}': d.penalty || '',
-    '{balance}': d.balance || '',
-    '{orgName}': d.orgName || '',
-    '{start_date}': d.start_date || d.startDate || '',
-    '{per_instalment}': d.per_instalment || d.perInstalment || '',
-    '{principal}': d.principal || '',
-    '{groupName}': d.groupName || '',
-    '{periodNumber}': d.periodNumber || '',
-    '{scheduledAt}': d.scheduledAt || '',
-    '{chitValue}': d.chitValue || '',
-
-    '{{customer_name}}': d.name || '',
-    '{{amount}}': d.amount || '',
-    '{{due_date}}': d.date || '',
-    '{{loan_code}}': d.loanCode || '',
-    '{{days}}': d.days || '',
-    '{{penalty}}': d.penalty || '',
-    '{{balance}}': d.balance || '',
-    '{{currency_symbol}}': '₹',
-    '{{principal}}': d.principal || '',
-    '{{start_date}}': d.start_date || d.startDate || '',
-    '{{per_instalment}}': d.per_instalment || d.perInstalment || '',
-    '{{groupName}}': d.groupName || '',
-    '{{periodNumber}}': d.periodNumber || '',
-    '{{scheduledAt}}': d.scheduledAt || '',
-    '{{chitValue}}': d.chitValue || '',
-  };
-
-  for (const [key, value] of Object.entries(replacements)) {
-    result = result.replaceAll(key, value);
-  }
-  return result;
-}
-
-function extractPlaceholders(template: string, d: Record<string, string>): string[] {
-  const regex = /\{([^}]+)\}|\{\{([^}]+)\}\}/g;
-  const variables: string[] = [];
-  let match;
-
-  const replacements: Record<string, string> = {
-    'customer': d.name || '',
-    'customer_name': d.name || '',
-    'amount': d.amount || '',
-    'due_date': d.date || '',
-    'loan_code': d.loanCode || '',
-    'firstDue': d.firstDue || '',
-    'days': d.days || '',
-    'penalty': d.penalty || '',
-    'balance': d.balance || '',
-    'orgName': d.orgName || '',
-    'start_date': d.start_date || d.startDate || '',
-    'per_instalment': d.per_instalment || d.perInstalment || '',
-    'principal': d.principal || '',
-    'currency_symbol': '₹',
-  };
-
-  while ((match = regex.exec(template)) !== null) {
-    const key = match[1] || match[2];
-    variables.push(replacements[key] ?? '');
-  }
-  return variables;
-}
 
 // ── Core dispatcher ───────────────────────────────────────────────────────────
 

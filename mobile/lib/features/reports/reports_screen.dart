@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
@@ -567,6 +572,46 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
   Future<Map<String, dynamic>>? _report;
   Customer? _customer;
   Map<String, dynamic>? _account;
+  bool _exporting = false;
+
+  Future<void> _export(String format) async {
+    final selected = _selected;
+    if (selected == null || _exporting) return;
+    final range = ref.read(_dateRangeProvider);
+    final slug = selected['slug'] as String;
+    setState(() => _exporting = true);
+    try {
+      final bytes = await ref.read(reportsServiceProvider).exportReport(
+        slug: slug,
+        format: format,
+        filters: {
+          'from': DateFormat('yyyy-MM-dd').format(range.from),
+          'to': DateFormat('yyyy-MM-dd').format(range.to),
+          'lang': ref.read(languageProvider).name,
+          if (_customer != null) 'customerId': _customer!.id,
+          if (_account != null) 'loanId': _account!['id'],
+        },
+      );
+      if (format == 'pdf') {
+        await Printing.sharePdf(bytes: bytes, filename: '$slug.pdf');
+      } else {
+        final extension = format == 'excel' ? 'xlsx' : 'csv';
+        final safeSlug = slug.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+        final folder = await getTemporaryDirectory();
+        final file = File('${folder.path}/$safeSlug.$extension');
+        await file.writeAsBytes(bytes, flush: true);
+        await Share.shareXFiles([XFile(file.path)]);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   bool _needsCustomer(Map<String, dynamic> item) => const {
         'customer-loan-history',
@@ -685,6 +730,24 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
           ),
           Text(selected['name']?.toString() ?? '',
               style: AppTypography.sectionTitle),
+          if (_report != null) ...[
+            const SizedBox(height: 8),
+            PopupMenuButton<String>(
+              enabled: !_exporting,
+              onSelected: _export,
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'pdf', child: Text(t.x('rep.export_pdf'))),
+                PopupMenuItem(value: 'excel', child: Text(t.x('rep.export_excel'))),
+                PopupMenuItem(value: 'csv', child: Text(t.x('rep.export_csv'))),
+              ],
+              child: ListTile(
+                leading: _exporting
+                    ? const CircularProgressIndicator()
+                    : const Icon(Icons.ios_share_outlined),
+                title: Text(t.x('rep.export')),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (_needsCustomer(selected)) ...[
             OutlinedButton.icon(

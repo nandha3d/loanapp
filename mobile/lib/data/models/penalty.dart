@@ -33,7 +33,8 @@ class Penalty {
     double toDouble(dynamic v) =>
         v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
-    final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
+    final customer = (json['customer'] as Map<String, dynamic>?) ??
+        (loan['customer'] as Map<String, dynamic>?) ?? const {};
     final route = (customer['route'] as Map<String, dynamic>?) ?? const {};
     return Penalty(
       id: json['id'] as String,

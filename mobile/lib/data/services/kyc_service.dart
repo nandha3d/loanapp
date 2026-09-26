@@ -84,6 +84,41 @@ class KycService {
   KycService(this._dio);
   final Dio _dio;
 
+  Future<String> startAadhaarOtp(
+      String customerId, String aadhaarNumber) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.kycAadhaarOtp,
+      data: {
+        'action': 'initiate',
+        'customerId': customerId,
+        'aadhaarNumber': aadhaarNumber,
+      },
+    );
+    return unwrapEnvelope(
+        res,
+        (dynamic data) =>
+            (data as Map<String, dynamic>)['sessionId'] as String);
+  }
+
+  Future<void> verifyAadhaarOtp(String sessionId, String otp) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.kycAadhaarOtp,
+      data: {'action': 'verify', 'sessionId': sessionId, 'otp': otp},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<String> startVideo(String customerId) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.kycVideo,
+      data: {'action': 'start', 'customerId': customerId},
+    );
+    return unwrapEnvelope(
+        res,
+        (dynamic data) =>
+            (data as Map<String, dynamic>)['sessionUrl'] as String);
+  }
+
   Future<List<KycQueueItem>> queue() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.kycQueue);
     return unwrapEnvelope(res, (dynamic d) {
@@ -94,7 +129,8 @@ class KycService {
   }
 
   /// decision: 'verified' | 'rejected'. Reason required when rejecting.
-  Future<void> review(String customerId, String decision, {String? reason}) async {
+  Future<void> review(String customerId, String decision,
+      {String? reason}) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.kycReview(customerId),
       data: {'decision': decision, if (reason != null) 'reason': reason},

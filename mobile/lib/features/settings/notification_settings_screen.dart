@@ -9,6 +9,8 @@ import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/fcm_service.dart';
 import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/features/settings/notification_delivery_log_screen.dart';
+import 'package:zolofund/features/settings/notification_templates_screen.dart';
 
 final _notifSettingsProvider =
     FutureProvider.autoDispose<Map<String, String>>((ref) async {
@@ -285,6 +287,14 @@ class _NotificationSettingsScreenState
         const SizedBox(height: 16),
 
         // View logs link
+        ListTile(
+          leading: const Icon(Icons.edit_note_outlined),
+          title: Text(t.x('tmpl.title')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute<void>(
+            builder: (_) => const NotificationTemplatesScreen(),
+          )),
+        ),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -293,7 +303,9 @@ class _NotificationSettingsScreenState
             border: Border.all(color: AppColors.border),
           ),
           child: InkWell(
-            onTap: () => context.push('/notifications'),
+            onTap: () => Navigator.push(context, MaterialPageRoute<void>(
+              builder: (_) => const NotificationDeliveryLogScreen(),
+            )),
             child: Row(
               children: [
                 Icon(Icons.history, color: AppColors.primary, size: 20),

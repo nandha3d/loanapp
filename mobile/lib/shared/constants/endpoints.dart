@@ -159,7 +159,11 @@ class Endpoints {
   // Tenant colour theme (readable by every role, unlike /settings)
   static const String theme = '/theme';
   static const String routes = '/routes';
+  static String route(String id) => '/routes/$id';
+  static String routeAgents(String id) => '/routes/$id/agents';
+  static String routePrimaryAgent(String id) => '/routes/$id/primary-agent';
   static const String packages = '/packages';
+  static String package(String id) => '/packages/$id';
   static const String agents = '/agents';
 
   // Reports
@@ -168,12 +172,18 @@ class Endpoints {
   static const String reportsOverdue = '/reports/overdue';
   static const String reportsOptions = '/reports/options';
   static String report(String slug) => '/reports/$slug';
+  static String reportExport(String slug) => '/reports/$slug/export';
 
   // Payment
   static const String paymentQr = '/payment/qr';
 
   // Notifications
   static const String notifications = '/notifications';
+  static const String notificationLog = '/notifications/log';
+  static const String notificationTemplates = '/settings/notification-templates';
+  static const String twoFactor = '/settings/2fa';
+  static const String twoFactorSetup = '/settings/2fa/setup';
+  static const String twoFactorVerify = '/settings/2fa/verify';
 
   // Vehicles
   static const String vehicles = '/vehicles';
@@ -185,6 +195,8 @@ class Endpoints {
 
   // KYC review
   static const String kycQueue = '/kyc/queue';
+  static const String kycAadhaarOtp = '/kyc/aadhaar-otp';
+  static const String kycVideo = '/kyc/video';
   static String kycReview(String customerId) => '/kyc/$customerId/review';
 
   // Admin & Developer

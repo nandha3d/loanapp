@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiContext } from '@/lib/apiAuth';
-import { startVideoKyc, reviewVideoKyc } from '@/lib/kyc';
+import { startVideoKyc, reviewVideoKyc, KycNotFoundError } from '@/lib/kyc';
 import prisma from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   const authResult = await requireApiContext();
   if (authResult.response) return authResult.response;
   const { context } = authResult;
-  const { tenantId, userId, role } = context;
+  const { tenantId, role } = context;
 
   // Gating check
   const sub = await prisma.tenantSubscription.findUnique({
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     if (action === 'start') {
       if (!customerId) return NextResponse.json({ error: 'customerId required' }, { status: 400 });
-      const result = await startVideoKyc(customerId, tenantId, userId);
+      const result = await startVideoKyc(customerId, context);
       return NextResponse.json({ success: true, data: result });
     }
 
@@ -35,12 +35,12 @@ export async function POST(req: NextRequest) {
       // Admin only
       if (role === 'agent') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       if (!sessionId || !decision) return NextResponse.json({ error: 'sessionId and decision required' }, { status: 400 });
-      await reviewVideoKyc(sessionId, tenantId, userId, decision, notes);
+      await reviewVideoKyc(sessionId, context, decision, notes);
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    return NextResponse.json({ error: err.message }, { status: err instanceof KycNotFoundError ? 404 : 400 });
   }
 }

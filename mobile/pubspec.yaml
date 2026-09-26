@@ -38,6 +38,7 @@ dependencies:
   # plugin that loaded broken native code at startup (crashing the app before
   # the UI rendered) and forced fragile AGP-9 build patches in CI.
   path_provider: ^2.1.5
+  share_plus: ^10.1.4 # Native CSV/XLSX report sharing
   crypto: ^3.0.3
 
   # Connectivity & auth

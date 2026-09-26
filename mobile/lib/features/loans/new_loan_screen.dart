@@ -17,9 +17,11 @@ import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
 import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/data/services/wallet_service.dart';
 import 'package:zolofund/data/services/gold_service.dart';
 import 'package:zolofund/features/loans/loans_screen.dart' show loansProvider;
@@ -262,6 +264,36 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   int? _dueDay; // day-of-month (monthly) / day-of-week (weekly); null for daily
   DateTime _startDate = DateTime.now();
   final _penaltyRate = TextEditingController(text: '1.5');
+  List<LoanPackage> _packages = [];
+  String? _packageId;
+
+  Future<void> _loadPackages() async {
+    try {
+      final packages = await ref.read(settingsServiceProvider).packages();
+      if (mounted) setState(() => _packages = packages);
+    } catch (_) {
+      // Terms remain editable when package master data is unavailable.
+    }
+  }
+
+  void _applyPackage(String? id) {
+    final matches = _packages.where((p) => p.id == id);
+    setState(() {
+      _packageId = id;
+      if (matches.isEmpty) return;
+      final package = matches.first;
+      _principal.text = package.principal.toString();
+      _deduction.text = package.deduction.toString();
+      // The stored package deduction is always a rupee amount.
+      _deductionType = 'upfront_fixed';
+      _tenure.text = package.tenure.toString();
+      _frequency = package.frequency;
+      _penaltyRate.text = package.penaltyRate.toString();
+      _dueDay = null;
+      _calc = null;
+    });
+    _recalc();
+  }
 
   // Step 3 — guarantor
   final _gName = TextEditingController();
@@ -453,6 +485,12 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPackages();
+    for (final field in [_principal, _deduction, _tenure]) {
+      field.addListener(() {
+        if (mounted && _calc != null) setState(() => _calc = null);
+      });
+    }
     _loanType = _defaultLoanTypeForApp(
       ref.read(authControllerProvider).user?.appType,
     );
@@ -596,16 +634,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         'photoPath': photoPath,
       };
 
-  double _netDisbursed() {
-    switch (_deductionType) {
-      case 'upfront_fixed':
-        return _principalNum - _deductionNum;
-      case 'upfront_percentage':
-        return _principalNum - (_principalNum * _deductionNum / 100);
-      default:
-        return _principalNum;
-    }
-  }
+  double _netDisbursed() => _calc?.disbursedAmount ?? 0;
 
   static const _weekdays = [
     'Monday',
@@ -1346,6 +1375,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         Text(tr.x('sec.principal_repay'), style: AppTypography.sectionTitle),
+        if (_packages.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _packageId,
+            decoration: InputDecoration(labelText: tr.x('pkg.select')),
+            items: [
+              DropdownMenuItem(value: '', child: Text(tr.x('pkg.custom'))),
+              for (final package in _packages)
+                DropdownMenuItem(value: package.id, child: Text(package.name)),
+            ],
+            onChanged: (id) => _applyPackage(id == '' ? null : id),
+          ),
+        ],
         const SizedBox(height: 12),
         AppTextField(
           label: tr.x('fld.principal_amount'),
@@ -1425,7 +1467,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         Text(tr.x('fld.frequency'), style: AppTypography.label),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: _frequency,
+          key: ValueKey(_frequency),
+          initialValue: _frequency,
           isExpanded: true,
           decoration: InputDecoration(
             isDense: true,
@@ -1467,7 +1510,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           Text(tr.x('fld.due_day'), style: AppTypography.label),
           const SizedBox(height: 6),
           DropdownButtonFormField<int>(
-            value: _dueDay,
+            key: ValueKey(_dueDay),
+            initialValue: _dueDay,
             isExpanded: true,
             decoration: InputDecoration(
               isDense: true,
@@ -1614,7 +1658,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             },
           ),
         ],
-        if (_principalNum > 0) ...[
+        if (_calc != null) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(14),
@@ -1639,17 +1683,22 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(tr.x('loan.agent_float'), style: AppTypography.caption),
-                      Text(fmt.format(floatBalance), style: AppTypography.bodyLarge.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: _netDisbursed() > floatBalance ? AppColors.danger : AppColors.success,
-                      )),
+                      Text(
+                        fmt.format(floatBalance),
+                        style: AppTypography.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: _netDisbursed() > floatBalance
+                              ? AppColors.danger
+                              : AppColors.success,
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ],
             ),
           ),
-          if (floatBalance != null && _netDisbursed() > floatBalance) ...[
+              if (floatBalance != null && _netDisbursed() > floatBalance) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1779,6 +1828,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               onPressed: () async {
                 final src = await _showImagePickerSheet();
                 if (src == null) return;
+                if (!context.mounted) return;
                 if (src == ImageSource.camera) {
                   final photo = await captureGuidedFacePhoto(context);
                   if (photo != null) {

@@ -16,6 +16,10 @@ class Customer {
     this.creditScore,
     this.aadharNumberMasked,
     this.kycStatus,
+    this.kycMethod,
+    this.aadhaarName,
+    this.aadhaarDob,
+    this.aadhaarAddress,
     this.routeName,
     this.agentName,
     this.photoUrl,
@@ -54,6 +58,10 @@ class Customer {
   final CreditScore? creditScore;
   final String? aadharNumberMasked;
   final String? kycStatus;
+  final String? kycMethod;
+  final String? aadhaarName;
+  final String? aadhaarDob;
+  final String? aadhaarAddress;
   final String? routeName;
   final String? agentName;
   final String? photoUrl;
@@ -102,6 +110,10 @@ class Customer {
           : null,
       aadharNumberMasked: json['aadharNumber'] as String?,
       kycStatus: json['kycStatus'] as String?,
+      kycMethod: json['kycMethod'] as String?,
+      aadhaarName: json['aadhaarName'] as String?,
+      aadhaarDob: json['aadhaarDob'] as String?,
+      aadhaarAddress: json['aadhaarAddress'] as String?,
       routeName: route?['name'] as String?,
       agentName: agent?['name'] as String?,
       photoUrl: json['profilePhoto'] as String? ?? json['photoUrl'] as String?,
@@ -129,8 +141,10 @@ class Customer {
           .map((dynamic e) => Guarantor.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       collectionPoints: (json['collectionPoints'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              CustomerCollectionPoint.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) =>
+                CustomerCollectionPoint.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
       loans: (json['loans'] as List<dynamic>? ?? const [])
           .map(
@@ -140,8 +154,7 @@ class Customer {
           .toList(growable: false),
       securityCheques: (json['securityCheques'] as List<dynamic>? ?? const [])
           .map(
-            (dynamic e) =>
-                SecurityCheque.fromJson(e as Map<String, dynamic>),
+            (dynamic e) => SecurityCheque.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
     );
@@ -236,8 +249,10 @@ class KycDocument {
   final String? fileName;
 
   factory KycDocument.fromJson(Map<String, dynamic> json) {
-    final typeStr = (json['type'] as String?) ?? (json['docType'] as String?) ?? '';
-    final urlStr = (json['url'] as String?) ?? (json['filePath'] as String?) ?? '';
+    final typeStr =
+        (json['type'] as String?) ?? (json['docType'] as String?) ?? '';
+    final urlStr =
+        (json['url'] as String?) ?? (json['filePath'] as String?) ?? '';
     return KycDocument(
       id: (json['id'] as String?) ?? '',
       type: typeStr,
