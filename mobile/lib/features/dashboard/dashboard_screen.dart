@@ -1707,7 +1707,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             return Column(
               children: [
                 SizedBox(
-                  height: 188,
+                  height: 220,
                   child: PageView.builder(
                     controller: _ctrl,
                     itemCount: pending.length,

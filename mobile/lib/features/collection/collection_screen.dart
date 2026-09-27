@@ -26,6 +26,7 @@ import 'package:zolofund/data/models/collection_entry.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/data/services/collection_service.dart';
+import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/collection/offline_banner.dart';
 import 'package:zolofund/features/collection/gps_enforcement_dialog.dart';
@@ -42,6 +43,27 @@ final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) {
 
 final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {
   return ref.watch(collectionServiceProvider).selfPayQueue();
+});
+
+/// All geotagged customer locations — used by the collection map to show
+/// customers that don't have today's dues (matching the dashboard map).
+final _allGeoCustomersProvider =
+    FutureProvider.autoDispose<List<({String id, LatLng point})>>((ref) async {
+  final customers = await ref.read(customerServiceProvider).list(limit: 100);
+  final results = <({String id, LatLng point})>[];
+  for (final c in customers) {
+    if (c.lat != null && c.lng != null) {
+      results.add((id: c.id, point: LatLng(c.lat!, c.lng!)));
+    } else {
+      for (final cp in c.collectionPoints) {
+        if (cp.latitude != null && cp.longitude != null) {
+          results.add((id: c.id, point: LatLng(cp.latitude!, cp.longitude!)));
+          break;
+        }
+      }
+    }
+  }
+  return results;
 });
 
 final _filterProvider = StateProvider.autoDispose<String>((_) => 'pending');
@@ -953,7 +975,7 @@ class _MiniChip extends StatelessWidget {
   }
 }
 
-class _CollectionMap extends StatelessWidget {
+class _CollectionMap extends ConsumerWidget {
   const _CollectionMap({
     required this.rows,
     required this.fmt,
@@ -979,8 +1001,17 @@ class _CollectionMap extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final pinned = rows.where((r) => r.lat != null && r.lng != null).toList();
+
+    // Augment with remaining geotagged customers (not in today's collection)
+    // so the collection map matches the dashboard map.
+    final seenIds = pinned.map((r) => r.customerId).toSet();
+    final allGeo = ref.watch(_allGeoCustomersProvider).valueOrNull ?? [];
+    final extraPins = allGeo
+        .where((g) => !seenIds.contains(g.id))
+        .map((g) => g.point)
+        .toList();
     final hasAgent = agentLat != null && agentLng != null;
 
     // Centre on agent or centroid of pins, fallback India.
@@ -1036,6 +1067,25 @@ class _CollectionMap extends StatelessWidget {
                       child: _PhotoPin(row: r, color: _pinColor(r)),
                     ),
                   ),
+                // Extra geotagged customers (no dues today) — grey pins
+                for (final pt in extraPins)
+                  Marker(
+                    point: pt,
+                    width: 28,
+                    height: 28,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.textLight.withAlpha(180),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -1064,6 +1114,10 @@ class _CollectionMap extends StatelessWidget {
                 _dot(AppColors.danger),
                 const SizedBox(width: 4),
                 const Text('Overdue', style: TextStyle(fontSize: 11)),
+                const SizedBox(width: 8),
+                _dot(AppColors.textLight),
+                const SizedBox(width: 4),
+                const Text('My customers', style: TextStyle(fontSize: 11)),
               ],
             ),
           ),

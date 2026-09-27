@@ -197,6 +197,66 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       controller: _scrollCtrl,
       padding: const EdgeInsets.all(16),
       children: [
+        // ── Closed-loan banner ───────────────────────────────────────────
+        if (loan.status == 'closed') ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withAlpha(25),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF10B981).withAlpha(60),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Consumer(
+                        builder: (ctx, ref, _) => Text(
+                          T.of(ref).x('loan.closed_banner'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF10B981),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Consumer(
+                        builder: (ctx, ref, _) => Text(
+                          T.of(ref).x('loan.closed_banner_sub'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: const Color(0xFF10B981).withAlpha(200),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         // Auto Finance: instant call / WhatsApp / receipt right at the top,
         // so a field agent never scrolls to take cash. The module comes from
         // the session — Loan itself does not carry appType.
