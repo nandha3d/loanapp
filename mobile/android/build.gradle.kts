@@ -15,17 +15,12 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
-subprojects {
-    project.evaluationDependsOn(":app")
-}
 
 // AGP 8+/9 requires every Android module to declare a `namespace`. Some older
 // Flutter plugins (e.g. isar_flutter_libs 3.1.0+1) predate this and fail to
 // configure. Inject a namespace for any module whose android extension lacks
 // one. Done via plugins.withId (runs as AGP is applied, before the variant
-// builder is created) — afterEvaluate is too late here because another
-// subprojects block forces early evaluation via evaluationDependsOn(":app").
-// Reflection is used so the root script needs no AGP on its classpath.
+// builder is created). Reflection is used so the root script needs no AGP on its classpath.
 fun Project.injectNamespaceIfMissing() {
     val androidExtension = extensions.findByName("android") ?: return
     try {
@@ -67,13 +62,24 @@ fun Project.enforceCompileSdk(minSdkTarget: Int = 36) {
                 val setCompileSdk = androidExtension.javaClass.getMethod("setCompileSdk", Integer::class.java)
                 setCompileSdk.invoke(androidExtension, minSdkTarget)
                 updated = true
-            } catch (_: NoSuchMethodException) {
+            } catch (_: NoSuchMethodException) {}
+
+            if (!updated) {
                 try {
                     val compileSdkVersionMethod = androidExtension.javaClass.getMethod("compileSdkVersion", Integer.TYPE)
                     compileSdkVersionMethod.invoke(androidExtension, minSdkTarget)
                     updated = true
                 } catch (_: Exception) {}
             }
+
+            if (!updated) {
+                try {
+                    val compileSdkVersionMethod = androidExtension.javaClass.getMethod("compileSdkVersion", String::class.java)
+                    compileSdkVersionMethod.invoke(androidExtension, "android-$minSdkTarget")
+                    updated = true
+                } catch (_: Exception) {}
+            }
+
             if (updated) {
                 logger.lifecycle("Enforced compileSdk $minSdkTarget on :$name (was $currentSdk)")
             }
@@ -83,21 +89,23 @@ fun Project.enforceCompileSdk(minSdkTarget: Int = 36) {
     }
 }
 
+// Register namespace injection and compileSdk enforcement BEFORE evaluation begins.
 subprojects {
     plugins.withId("com.android.library") {
         injectNamespaceIfMissing()
-        enforceCompileSdk()
+        enforceCompileSdk(36)
     }
     plugins.withId("com.android.application") {
         injectNamespaceIfMissing()
-        enforceCompileSdk()
+        enforceCompileSdk(36)
     }
-    enforceCompileSdk()
-    tasks.configureEach {
-        if (name.contains("AarMetadata")) {
-            enabled = false
-        }
+    afterEvaluate {
+        enforceCompileSdk(36)
     }
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
