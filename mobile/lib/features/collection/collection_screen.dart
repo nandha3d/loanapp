@@ -17,7 +17,6 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/gps/gps_pinger.dart';
 import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
-import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -28,6 +27,7 @@ import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/data/services/collection_service.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
+import 'package:zolofund/features/collection/widgets/customer_map_pin.dart';
 import 'package:zolofund/features/collection/offline_banner.dart';
 import 'package:zolofund/features/collection/gps_enforcement_dialog.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
@@ -994,19 +994,22 @@ class _CollectionMap extends ConsumerWidget {
   final double? agentLat;
   final double? agentLng;
 
-  Color _pinColor(CollectionRow r) {
-    if (r.isResolved) return AppColors.success;
-    if (r.isOverdueBucket) return AppColors.danger;
-    return AppColors.warning;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pinned = rows.where((r) => r.lat != null && r.lng != null).toList();
 
+    // Group rows by customer so multiple instalments don't create conflicting pins
+    final grouped = <String, List<CollectionRow>>{};
+    for (final r in pinned) {
+      grouped.putIfAbsent(r.customerId, () => []).add(r);
+    }
+    final customerPins = grouped.values
+        .map((rList) => CustomerMapPinData.fromRows(rList))
+        .toList();
+
     // Augment with remaining geotagged customers (not in today's collection)
     // so the collection map matches the dashboard map.
-    final seenIds = pinned.map((r) => r.customerId).toSet();
+    final seenIds = customerPins.map((p) => p.customerId).toSet();
     final allGeo = ref.watch(_allGeoCustomersProvider).valueOrNull ?? [];
     final extraPins = allGeo
         .where((g) => !seenIds.contains(g.id))
@@ -1020,11 +1023,13 @@ class _CollectionMap extends ConsumerWidget {
     if (hasAgent) {
       center = LatLng(agentLat!, agentLng!);
       zoom = 13.0;
-    } else if (pinned.isNotEmpty) {
+    } else if (customerPins.isNotEmpty) {
       final avgLat =
-          pinned.map((r) => r.lat!).reduce((a, b) => a + b) / pinned.length;
+          customerPins.map((p) => p.lat).reduce((a, b) => a + b) /
+              customerPins.length;
       final avgLng =
-          pinned.map((r) => r.lng!).reduce((a, b) => a + b) / pinned.length;
+          customerPins.map((p) => p.lng).reduce((a, b) => a + b) /
+              customerPins.length;
       center = LatLng(avgLat, avgLng);
       zoom = 13.0;
     } else {
@@ -1055,16 +1060,24 @@ class _CollectionMap extends ConsumerWidget {
                       color: AppColors.info,
                     ),
                   ),
-                // Customer collection pins
-                for (final r in pinned)
+                // Customer collection pins (consistent across dashboard and collection screens)
+                for (final pin in customerPins)
                   Marker(
-                    point: LatLng(r.lat!, r.lng!),
-                    width: 46,
-                    height: 54,
+                    point: LatLng(pin.lat, pin.lng),
+                    width: 58,
+                    height: 66,
                     alignment: Alignment.topCenter,
                     child: GestureDetector(
-                      onTap: () => _showPinSheet(context, r),
-                      child: _PhotoPin(row: r, color: _pinColor(r)),
+                      onTap: () => showCustomerMapPinSheet(
+                        context: context,
+                        ref: ref,
+                        pin: pin,
+                        fmt: fmt,
+                        t: t,
+                        onCollectDone: () =>
+                            ref.invalidate(collectionTodayProvider),
+                      ),
+                      child: CustomerPhotoMapPin(pin: pin),
                     ),
                   ),
                 // Extra geotagged customers (no dues today) — grey pins
@@ -1122,7 +1135,7 @@ class _CollectionMap extends ConsumerWidget {
             ),
           ),
         ),
-        if (pinned.isEmpty)
+        if (customerPins.isEmpty)
           Positioned.fill(
             child: Container(
               color: Colors.black12,
@@ -1162,154 +1175,6 @@ class _CollectionMap extends ConsumerWidget {
         height: 10,
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       );
-
-  void _showPinSheet(BuildContext context, CollectionRow row) {
-    final isPaid = row.isResolved;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on_rounded,
-                    color: _pinColor(row),
-                    size: 28,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          row.customerName,
-                          style: AppTypography.sectionTitle,
-                        ),
-                        Text(
-                          fmt.format(row.outstanding),
-                          style: AppTypography.body.copyWith(
-                            color:
-                                isPaid ? AppColors.success : AppColors.danger,
-                          ),
-                        ),
-                        if (showCadenceDate && row.cadence != 'daily')
-                          Text(
-                            '${t.x('coll.due_label')} ${DateFormat('dd/MM/yyyy').format(row.dueDate)}',
-                            style: AppTypography.caption,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (!isPaid)
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      onCollect(row);
-                    },
-                    child: Text(
-                      t.x('btn.collect'),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              if (isPaid)
-                Center(
-                  child: Text(
-                    t.x('coll.status_paid'),
-                    style:
-                        AppTypography.body.copyWith(color: AppColors.success),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Map marker showing the customer's photo (falls back to a coloured dot),
-/// ringed in the status colour, with a little pointer tail.
-class _PhotoPin extends ConsumerWidget {
-  const _PhotoPin({required this.row, required this.color});
-  final CollectionRow row;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final hasPhoto = row.customerPhoto != null && row.customerPhoto!.isNotEmpty;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                  color: Colors.black38, blurRadius: 4, offset: Offset(0, 2),),
-            ],
-            image: hasPhoto
-                ? DecorationImage(
-                    image: authedImage(ref, row.customerPhoto!),
-                    fit: BoxFit.cover,
-                  )
-                : null,
-          ),
-          alignment: Alignment.center,
-          child: hasPhoto
-              ? null
-              : Text(
-                  row.customerName.isEmpty
-                      ? '?'
-                      : row.customerName[0].toUpperCase(),
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold,),
-                ),
-        ),
-        // Small pointer tail under the avatar.
-        Transform.translate(
-          offset: const Offset(0, -3),
-          child: Icon(Icons.arrow_drop_down, color: color, size: 20),
-        ),
-      ],
-    );
-  }
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

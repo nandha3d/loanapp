@@ -1655,9 +1655,17 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               }
             }
             for (final entry in byLoan.values) {
-              // When tenure reached, keep extending days: today's due continues as the normal installment
-              if (entry.todayTotal == 0 && entry.overdueTotal > 0) {
-                entry.todayTotal = math.min(entry.row.dueAmount, entry.overdueTotal);
+              final loanRows =
+                  rows.where((r) => r.loanId == entry.row.loanId).toList();
+              final bool hasPaidToday = loanRows.any((r) => r.isResolved);
+              // When tenure reached, keep extending days only if nothing was collected today yet:
+              // today's due continues as the normal installment carved out of overdue.
+              if (!hasPaidToday &&
+                  entry.todayTotal == 0 &&
+                  entry.overdueTotal > 0) {
+                final daily = math.min(entry.row.dueAmount, entry.overdueTotal);
+                entry.todayTotal = daily;
+                entry.overdueTotal = math.max(0, entry.overdueTotal - daily);
               }
             }
             final pending = byLoan.values.toList(growable: false);

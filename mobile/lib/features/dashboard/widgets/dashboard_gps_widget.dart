@@ -1035,18 +1035,31 @@ class _CustomerPhotoMapMarker extends ConsumerWidget {
         ? const Color(0xFF10B981)
         : (pin.isOverdue
             ? AppColors.danger
-            : (pin.dueAmount > 0 ? const Color(0xFFF59E0B) : AppColors.primary));
+            : (pin.outstanding > 0 || pin.dueAmount > 0
+                ? const Color(0xFFF59E0B)
+                : AppColors.primary));
 
-    final hasPhoto = pin.customerPhoto != null && pin.customerPhoto!.trim().isNotEmpty;
+    final hasPhoto =
+        pin.customerPhoto != null && pin.customerPhoto!.trim().isNotEmpty;
 
     final String amountText;
-    if (pin.dueAmount > 0) {
-      final amt = pin.dueAmount;
-      final k = amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt.toStringAsFixed(0);
+    if (pin.isPaid) {
+      final amt = pin.collectedAmount > 0 ? pin.collectedAmount : pin.dueAmount;
+      final k = amt >= 1000
+          ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k'
+          : amt.toStringAsFixed(0);
+      amountText = amt > 0 ? 'Paid ₹$k' : 'Paid';
+    } else if (pin.outstanding > 0) {
+      final amt = pin.outstanding;
+      final k = amt >= 1000
+          ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k'
+          : amt.toStringAsFixed(0);
       amountText = 'Due ₹$k';
     } else if (pin.collectedAmount > 0) {
       final amt = pin.collectedAmount;
-      final k = amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt.toStringAsFixed(0);
+      final k = amt >= 1000
+          ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k'
+          : amt.toStringAsFixed(0);
       amountText = 'Paid ₹$k';
     } else {
       amountText = '₹0';
@@ -1448,7 +1461,11 @@ void _showPinSheet(
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            fmt.format(pin.dueAmount),
+                            fmt.format(
+                              pin.outstanding > 0
+                                  ? pin.outstanding
+                                  : pin.dueAmount,
+                            ),
                             style: AppTypography.bodyLarge.copyWith(
                               fontWeight: FontWeight.w800,
                               color: pin.isPaid
@@ -1483,13 +1500,13 @@ void _showPinSheet(
                         ],
                       ),
                     ),
-                    if (pin.outstanding > 0)
+                    if (pin.outstanding > 0 && pin.collectedAmount > 0)
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'OUTSTANDING',
+                              'TOTAL DUE',
                               style: AppTypography.extraTiny.copyWith(
                                 color: AppColors.textLight,
                                 fontWeight: FontWeight.w700,
@@ -1497,7 +1514,7 @@ void _showPinSheet(
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              fmt.format(pin.outstanding),
+                              fmt.format(pin.dueAmount),
                               style: AppTypography.bodyLarge.copyWith(
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.textPrimary,
@@ -1576,6 +1593,7 @@ void _showPinSheet(
                           backgroundColor: Colors.transparent,
                           builder: (_) => QuickCollectSheet(
                             row: pin.collectionRow!,
+                            scopeRows: pin.customerRows,
                           ),
                         );
                         ref.invalidate(collectionTodayProvider);

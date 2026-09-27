@@ -52,7 +52,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
   List<CollectionRow> _customerRows = [];
 
   double get _value => double.tryParse(_amount) ?? 0;
-  double get _totalDue => _todayDue + _overdueDue;
+  double get _totalDue =>
+      _customerRows.fold<double>(0.0, (s, r) => s + r.outstanding);
 
   @override
   void initState() {
@@ -67,9 +68,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           const <CollectionRow>[];
       // Scope to the tapped LOAN (not the whole customer) so a payment never
       // bleeds across a customer's separate loans — matches the web popup.
-      _customerRows = rows
-          .where((r) => r.loanId == widget.row.loanId && !r.isResolved)
-          .toList();
+      final allLoanRows =
+          rows.where((r) => r.loanId == widget.row.loanId).toList();
+      _customerRows = allLoanRows.where((r) => !r.isResolved).toList();
 
       final todayRows = _customerRows.where((r) => r.isTodayBucket).toList();
       final overdueRows =
@@ -85,24 +86,28 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         _overdueInstalment = overdueRows.first;
       }
 
-      // When tenure reached, keep extending days: today's due continues as the normal installment
-      if (_todayDue == 0 && _overdueDue > 0 && overdueRows.isNotEmpty) {
+      final bool hasPaidToday = allLoanRows.any((r) => r.isResolved);
+
+      // When tenure reached, keep extending days only if nothing was collected today yet:
+      // today's due continues as the normal installment carved out of overdue.
+      if (!hasPaidToday &&
+          _todayDue == 0 &&
+          _overdueDue > 0 &&
+          overdueRows.isNotEmpty) {
         final perInstalment = overdueRows.first.dueAmount;
         _todayDue = math.min(perInstalment, _overdueDue);
+        _overdueDue = math.max(0, _overdueDue - _todayDue);
         _todayInstalment = overdueRows.first;
       }
     } catch (_) {}
 
-    if (_todayDue == 0 && _overdueDue == 0) {
+    if (_todayDue == 0 && _overdueDue == 0 && _customerRows.isEmpty) {
       if (widget.row.isTodayBucket) {
         _todayDue = widget.row.outstanding;
         _todayInstalment = widget.row;
       } else {
         _overdueDue = widget.row.outstanding;
         _overdueInstalment = widget.row;
-        // Keep extending today's due
-        _todayDue = math.min(widget.row.dueAmount, _overdueDue);
-        _todayInstalment = widget.row;
       }
       _customerRows = [widget.row];
     }

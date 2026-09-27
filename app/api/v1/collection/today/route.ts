@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         loan: loanWhere,
         OR: [
           { dueDate: { gte: today, lt: tomorrow } },
-          { status: { in: ['upcoming', 'missed', 'partial'] }, dueDate: { lt: today } },
+          { NOT: { status: 'paid' }, dueDate: { lt: today } },
           // Past-due instalments cleared TODAY — keep the customer visible
           // (grayed) so the agent sees what's already been collected.
           { dueDate: { lt: today }, receivedAt: { gte: today, lt: tomorrow } },
