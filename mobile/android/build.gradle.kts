@@ -92,9 +92,7 @@ subprojects {
         injectNamespaceIfMissing()
         enforceCompileSdk()
     }
-    afterEvaluate {
-        enforceCompileSdk()
-    }
+    enforceCompileSdk()
     tasks.configureEach {
         if (name.contains("AarMetadata")) {
             enabled = false
