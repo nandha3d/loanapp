@@ -11,19 +11,37 @@ class ExtendedSchedule {
     required this.remainingPayments,
     required this.extraPeriods,
     required this.projectedEndDate,
+    this.projectedDates = const [],
+    this.finalPartial = 0,
   });
 
   final int remainingPayments;
   final int extraPeriods;
   final DateTime? projectedEndDate;
+  final List<DateTime> projectedDates;
+  final double finalPartial;
 
   factory ExtendedSchedule.fromJson(Map<String, dynamic> json) {
+    double num$(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0;
+    }
+
+    final dates = (json['projectedDates'] as List<dynamic>?)
+            ?.map((e) => e == null ? null : DateTime.tryParse(e.toString()))
+            .whereType<DateTime>()
+            .toList() ??
+        const [];
+
     return ExtendedSchedule(
       remainingPayments: (json['remainingPayments'] as num?)?.toInt() ?? 0,
       extraPeriods: (json['extraPeriods'] as num?)?.toInt() ?? 0,
       projectedEndDate: json['projectedEndDate'] == null
           ? null
           : DateTime.tryParse(json['projectedEndDate'] as String),
+      projectedDates: dates,
+      finalPartial: num$(json['finalPartial']),
     );
   }
 }

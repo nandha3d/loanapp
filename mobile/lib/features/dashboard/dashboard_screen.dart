@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
@@ -1620,6 +1621,12 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                 if (r.dueDate.isBefore(existing.row.dueDate)) {
                   existing.row = r;
                 }
+              }
+            }
+            for (final entry in byLoan.values) {
+              // When tenure reached, keep extending days: today's due continues as the normal installment
+              if (entry.todayTotal == 0 && entry.overdueTotal > 0) {
+                entry.todayTotal = math.min(entry.row.dueAmount, entry.overdueTotal);
               }
             }
             final pending = byLoan.values.toList(growable: false);

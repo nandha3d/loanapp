@@ -55,7 +55,12 @@ class _AuthInterceptor extends Interceptor {
   final AuthStorage _storage;
   final Dio _dio;
   final void Function() _on401;
-  bool _refreshing = false;
+
+  /// Guards concurrent 401 handling. When a refresh is in progress, later 401s
+  /// wait on this completer instead of triggering a duplicate refresh or an
+  /// immediate logout (the bug that caused "Could not load" / "Failed to load"
+  /// on pages that fire multiple API calls simultaneously).
+  Completer<String?>? _refreshCompleter;
 
   @override
   Future<void> onRequest(
@@ -78,42 +83,81 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode == 401 && !_refreshing) {
-      final refreshToken = await _storage.readRefreshToken();
-      if (refreshToken != null) {
-        _refreshing = true;
+    if (err.response?.statusCode != 401) {
+      handler.next(err);
+      return;
+    }
+
+    // If another request is already refreshing, wait for it.
+    if (_refreshCompleter != null) {
+      final newToken = await _refreshCompleter!.future;
+      if (newToken != null) {
+        final opts = err.requestOptions;
+        opts.headers['Authorization'] = 'Bearer $newToken';
         try {
-          final res = await _dio.post<Map<String, dynamic>>(
-            '/auth/refresh',
-            data: {'refreshToken': refreshToken},
-            options: Options(headers: {'Authorization': ''}),
-          );
-          final body = res.data;
-          final newToken = body?['data']?['token'] as String?;
-          final newRefresh = body?['data']?['refreshToken'] as String?;
-          if (newToken != null && newRefresh != null) {
-            await _storage.updateTokens(
-              token: newToken,
-              refreshToken: newRefresh,
-            );
-            // Retry original request with new token
-            final opts = err.requestOptions;
-            opts.headers['Authorization'] = 'Bearer $newToken';
-            final retried = await _dio.fetch<dynamic>(opts);
-            handler.resolve(retried);
-            return;
-          }
+          final retried = await _dio.fetch<dynamic>(opts);
+          handler.resolve(retried);
+          return;
         } catch (_) {
-          // Refresh failed — fall through to logout
-        } finally {
-          _refreshing = false;
+          // Retry failed — fall through to next(err).
         }
       }
+      handler.next(err);
+      return;
+    }
+
+    // This request is the first to see 401 — perform the refresh.
+    final refreshToken = await _storage.readRefreshToken();
+    if (refreshToken == null) {
+      _on401();
+      handler.next(err);
+      return;
+    }
+
+    _refreshCompleter = Completer<String?>();
+    String? newToken;
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+        options: Options(headers: {'Authorization': ''}),
+      );
+      final body = res.data;
+      newToken = body?['data']?['token'] as String?;
+      final newRefresh = body?['data']?['refreshToken'] as String?;
+      if (newToken != null && newRefresh != null) {
+        await _storage.updateTokens(
+          token: newToken,
+          refreshToken: newRefresh,
+        );
+      } else {
+        newToken = null;
+      }
+    } catch (_) {
+      newToken = null;
+    } finally {
+      _refreshCompleter!.complete(newToken);
+      _refreshCompleter = null;
+    }
+
+    if (newToken != null) {
+      // Retry the original request with the fresh token.
+      final opts = err.requestOptions;
+      opts.headers['Authorization'] = 'Bearer $newToken';
+      try {
+        final retried = await _dio.fetch<dynamic>(opts);
+        handler.resolve(retried);
+        return;
+      } catch (_) {
+        // Retry failed — fall through.
+      }
+    } else {
       _on401();
     }
     handler.next(err);
   }
 }
+
 
 final dioProvider = Provider<Dio>((ref) {
   final storage = ref.watch(authStorageProvider);

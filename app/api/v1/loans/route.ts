@@ -929,6 +929,11 @@ export async function POST(req: NextRequest) {
         title: 'Loan awaiting approval',
         message: `Loan ${loanCode} (${loan.customer?.name ?? 'customer'}) was submitted and needs review.`,
         link: modulePath(ctx.appType, '/approvals'),
+        data: {
+          approvalId: loan.id,
+          entityType: 'loan',
+          actionable: 'true',
+        },
       });
     }
 

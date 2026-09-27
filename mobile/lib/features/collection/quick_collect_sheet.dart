@@ -1,6 +1,7 @@
 import 'package:zolofund/features/collection/collection_screen.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +84,13 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       if (overdueRows.isNotEmpty) {
         _overdueInstalment = overdueRows.first;
       }
+
+      // When tenure reached, keep extending days: today's due continues as the normal installment
+      if (_todayDue == 0 && _overdueDue > 0 && overdueRows.isNotEmpty) {
+        final perInstalment = overdueRows.first.dueAmount;
+        _todayDue = math.min(perInstalment, _overdueDue);
+        _todayInstalment = overdueRows.first;
+      }
     } catch (_) {}
 
     if (_todayDue == 0 && _overdueDue == 0) {
@@ -92,6 +100,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       } else {
         _overdueDue = widget.row.outstanding;
         _overdueInstalment = widget.row;
+        // Keep extending today's due
+        _todayDue = math.min(widget.row.dueAmount, _overdueDue);
+        _todayInstalment = widget.row;
       }
       _customerRows = [widget.row];
     }

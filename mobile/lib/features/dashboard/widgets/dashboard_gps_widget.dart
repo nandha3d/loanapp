@@ -3,20 +3,24 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/agent_location.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/collection/collection_screen.dart';
+import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 
 // ── Map pin data ──────────────────────────────────────────────────────────────
 
@@ -33,6 +37,19 @@ class MapPin {
     this.phone,
     this.navRoute,
     this.agentLocation,
+    this.customerId,
+    this.customerCode,
+    this.customerPhoto,
+    this.dueAmount = 0,
+    this.collectedAmount = 0,
+    this.outstanding = 0,
+    this.isPaid = false,
+    this.isOverdue = false,
+    this.routeName,
+    this.loanId,
+    this.instalmentId,
+    this.collectionRow,
+    this.customerRows,
   });
 
   final LatLng point;
@@ -44,51 +61,158 @@ class MapPin {
   final String? phone;
   final String? navRoute;
   final AgentLocation? agentLocation;
+  final String? customerId;
+  final String? customerCode;
+  final String? customerPhoto;
+  final double dueAmount;
+  final double collectedAmount;
+  final double outstanding;
+  final bool isPaid;
+  final bool isOverdue;
+  final String? routeName;
+  final String? loanId;
+  final String? instalmentId;
+  final CollectionRow? collectionRow;
+  final List<CollectionRow>? customerRows;
 }
 
 final mapPinsProvider = FutureProvider.autoDispose<List<MapPin>>((ref) async {
   final pins = <MapPin>[];
+  final user = ref.watch(authControllerProvider).user;
+  final isAgent = user?.role == UserRole.agent;
+  final seenCustomerIds = <String>{};
 
-  // Agent live locations
+  // 1. Agent live locations (admin/superadmin only)
+  if (!isAgent) {
+    try {
+      final agents = await ref.read(liveAgentLocationsProvider.future);
+      for (final a in agents) {
+        if (!a.hasLocation) continue;
+        pins.add(
+          MapPin(
+            point: LatLng(a.lat!, a.lng!),
+            label: a.agentName,
+            subtitle: a.online ? 'Online on field' : 'Offline',
+            color: a.online ? const Color(0xFF10B981) : AppColors.textLight,
+            icon: Icons.person_pin_circle_rounded,
+            type: PinType.agent,
+            phone: a.agentPhone,
+            navRoute: '/tracking',
+            agentLocation: a,
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
+  // 2. Load today's collection customers (authoritative real-time dues, collections, photos & GPS)
   try {
-    final agents = await ref.read(liveAgentLocationsProvider.future);
-    for (final a in agents) {
-      if (!a.hasLocation) continue;
+    final rows = await ref.watch(collectionTodayProvider.future);
+    final grouped = <String, List<CollectionRow>>{};
+    for (final r in rows) {
+      if (r.lat != null && r.lng != null) {
+        grouped.putIfAbsent(r.customerId, () => []).add(r);
+      }
+    }
+
+    for (final entry in grouped.entries) {
+      final customerRows = entry.value;
+      final primary = customerRows.first;
+      final totalDue =
+          customerRows.fold<double>(0, (sum, r) => sum + r.dueAmount);
+      final totalCollected =
+          customerRows.fold<double>(0, (sum, r) => sum + r.receivedAmount);
+      final totalOutstanding =
+          customerRows.fold<double>(0, (sum, r) => sum + r.outstanding);
+      final isPaid = customerRows.every((r) => r.isResolved);
+      final isOverdue =
+          customerRows.any((r) => r.isOverdueBucket && !r.isResolved);
+
+      final statusColor = isPaid
+          ? const Color(0xFF10B981)
+          : isOverdue
+              ? const Color(0xFFEF4444)
+              : const Color(0xFFF59E0B);
+
+      seenCustomerIds.add(primary.customerId);
+
       pins.add(
         MapPin(
-          point: LatLng(a.lat!, a.lng!),
-          label: a.agentName,
-          subtitle: a.online ? 'Online on field' : 'Offline',
-          color: a.online ? const Color(0xFF10B981) : AppColors.textLight,
-          icon: Icons.person_pin_circle_rounded,
-          type: PinType.agent,
-          phone: a.agentPhone,
-          navRoute: '/tracking',
-          agentLocation: a,
+          point: LatLng(primary.lat!, primary.lng!),
+          label: primary.customerName,
+          subtitle: isPaid
+              ? 'Paid today'
+              : isOverdue
+                  ? 'Overdue'
+                  : 'Due today',
+          color: statusColor,
+          icon: Icons.location_on_rounded,
+          type: PinType.customer,
+          phone: primary.customerPhone,
+          navRoute: '/customers/${primary.customerId}',
+          customerId: primary.customerId,
+          customerCode: primary.customerCode,
+          customerPhoto: primary.customerPhoto,
+          dueAmount: totalDue,
+          collectedAmount: totalCollected,
+          outstanding: totalOutstanding,
+          isPaid: isPaid,
+          isOverdue: isOverdue,
+          routeName: primary.routeName,
+          loanId: primary.loanId,
+          instalmentId: primary.instalmentId,
+          collectionRow: primary,
+          customerRows: customerRows,
         ),
       );
     }
   } catch (_) {}
 
-  // Customer collection points (lat/lng optional — skip if missing)
+  // 3. Augment with remaining geotagged customers
   try {
-    final customers = await ref.read(customerServiceProvider).list();
+    final customers = await ref.read(customerServiceProvider).list(limit: 100);
     for (final c in customers) {
-      for (final cp in c.collectionPoints) {
-        if (cp.latitude == null || cp.longitude == null) continue;
-        pins.add(
-          MapPin(
-            point: LatLng(cp.latitude!, cp.longitude!),
-            label: c.name,
-            subtitle: cp.isPrimary ? '${cp.name} · Primary' : cp.name,
-            color: AppColors.primary,
-            icon: Icons.location_on_rounded,
-            type: PinType.customer,
-            phone: c.phone,
-            navRoute: '/customers/${c.id}',
-          ),
-        );
+      if (seenCustomerIds.contains(c.id)) continue;
+
+      LatLng? pt;
+      String? pointLabel;
+      if (c.lat != null && c.lng != null) {
+        pt = LatLng(c.lat!, c.lng!);
+        pointLabel = c.address ?? 'Registered address';
+      } else {
+        for (final cp in c.collectionPoints) {
+          if (cp.latitude != null && cp.longitude != null) {
+            pt = LatLng(cp.latitude!, cp.longitude!);
+            pointLabel = cp.isPrimary ? '${cp.name} · Primary' : cp.name;
+            break;
+          }
+        }
       }
+
+      if (pt == null) continue;
+      seenCustomerIds.add(c.id);
+
+      pins.add(
+        MapPin(
+          point: pt,
+          label: c.name,
+          subtitle: pointLabel ?? c.name,
+          color: AppColors.primary,
+          icon: Icons.location_on_rounded,
+          type: PinType.customer,
+          phone: c.phone,
+          navRoute: '/customers/${c.id}',
+          customerId: c.id,
+          customerCode: c.customerCode,
+          customerPhoto: c.photoUrl,
+          dueAmount: 0,
+          collectedAmount: 0,
+          outstanding: 0,
+          isPaid: false,
+          isOverdue: false,
+          routeName: c.routeName,
+        ),
+      );
     }
   } catch (_) {}
 
@@ -97,7 +221,7 @@ final mapPinsProvider = FutureProvider.autoDispose<List<MapPin>>((ref) async {
 
 // ── Header Badge (near Up Next) ───────────────────────────────────────────────
 
-class GpsHeaderBadge extends StatelessWidget {
+class GpsHeaderBadge extends ConsumerWidget {
   const GpsHeaderBadge({
     super.key,
     required this.isSubscribed,
@@ -108,8 +232,48 @@ class GpsHeaderBadge extends StatelessWidget {
   final VoidCallback onTapSubscribe;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAgent = ref.watch(authControllerProvider).user?.role == UserRole.agent;
+
     if (isSubscribed) {
+      if (isAgent) {
+        return GestureDetector(
+          onTap: () => context.push('/tracking'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.successBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.success.withAlpha(80)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: AppColors.success,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.location_on_rounded, size: 12, color: AppColors.success),
+                const SizedBox(width: 4),
+                Text(
+                  'CUSTOMER GPS',
+                  style: AppTypography.extraTiny.copyWith(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       return GestureDetector(
         onTap: () => context.push('/tracking'),
         child: Container(
@@ -146,6 +310,8 @@ class GpsHeaderBadge extends StatelessWidget {
         ),
       );
     }
+
+    if (isAgent) return const SizedBox.shrink();
 
     return GestureDetector(
       onTap: onTapSubscribe,
@@ -205,15 +371,38 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
   // 'all' | 'agents' | 'customers'
   String _pinFilter = 'all';
   final MapController _mapController = MapController();
+  int? _lastPinCount;
+  bool _cameraFitted = false;
+
+  void _checkCameraFit(List<MapPin> pins) {
+    if (pins.isEmpty) return;
+    if (_cameraFitted && _lastPinCount == pins.length) return;
+    _lastPinCount = pins.length;
+    _cameraFitted = true;
+    final center = _calcCenter(pins);
+    final zoom = _calcZoom(pins);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        _mapController.move(center, zoom);
+      } catch (_) {}
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isAgent = ref.watch(authControllerProvider).user?.role == UserRole.agent;
+
     if (!widget.isSubscribed) {
+      if (isAgent) return const SizedBox.shrink();
       return _LockedGpsCard(onTapSubscribe: widget.onTapSubscribe);
     }
 
     final pinsAsync = ref.watch(mapPinsProvider);
-    final agentsAsync = ref.watch(liveAgentLocationsProvider);
+    // Agents must not call /gps/live (server returns 403 for non-admin roles).
+    final agentsAsync = isAgent
+        ? const AsyncValue<List<AgentLocation>>.data([])
+        : ref.watch(liveAgentLocationsProvider);
     final fmt = ref.watch(currencyFmtProvider);
     final t = T.of(ref);
 
@@ -235,16 +424,16 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withAlpha(24),
+                  color: (isAgent ? AppColors.primary : const Color(0xFF10B981)).withAlpha(24),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(0xFF10B981).withAlpha(60),
+                    color: (isAgent ? AppColors.primary : const Color(0xFF10B981)).withAlpha(60),
                   ),
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(
-                    Icons.radar_rounded,
-                    color: Color(0xFF10B981),
+                    isAgent ? Icons.location_on_rounded : Icons.radar_rounded,
+                    color: isAgent ? AppColors.primary : const Color(0xFF10B981),
                     size: 20,
                   ),
                 ),
@@ -257,51 +446,55 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                     Row(
                       children: [
                         Text(
-                          'LIVE AGENT RADAR',
+                          isAgent ? 'CUSTOMER LOCATIONS' : 'LIVE AGENT RADAR',
                           style: AppTypography.caption.copyWith(
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.6,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withAlpha(25),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF10B981),
-                                  shape: BoxShape.circle,
+                        if (!isAgent) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withAlpha(25),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'LIVE',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: const Color(0xFF10B981),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 8.5,
+                                const SizedBox(width: 4),
+                                Text(
+                                  'LIVE',
+                                  style: AppTypography.extraTiny.copyWith(
+                                    color: const Color(0xFF10B981),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 8.5,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Real-time fleet tracking & verified field visits',
+                      isAgent
+                          ? 'Geotagged customer collection points'
+                          : 'Real-time fleet tracking & verified field visits',
                       style: AppTypography.extraTiny.copyWith(
                         color: AppColors.textSecondary,
                         fontSize: 10.5,
@@ -314,37 +507,38 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                 onTap: () => context.push('/tracking'),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Full Map',
-                        style: AppTypography.extraTiny.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Full Map',
+                          style: AppTypography.extraTiny.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.open_in_new_rounded,
-                        size: 11,
-                        color: AppColors.primary,
-                      ),
-                    ],
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 11,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
 
           // ── Real-time Fleet Performance KPI Strip ────────────────────
-          agentsAsync.when(
+          if (!isAgent)
+            agentsAsync.when(
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
             data: (agents) {
@@ -394,41 +588,42 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
           ),
 
           // ── Map Filter Chips (All, Agents, Customers) ────────────────
-          pinsAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (pins) {
-              final agentCount = pins.where((p) => p.type == PinType.agent).length;
-              final custCount = pins.where((p) => p.type == PinType.customer).length;
+          if (!isAgent)
+            pinsAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (pins) {
+                final agentCount = pins.where((p) => p.type == PinType.agent).length;
+                final custCount = pins.where((p) => p.type == PinType.customer).length;
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    _FilterChip(
-                      label: 'All (${pins.length})',
-                      isSelected: _pinFilter == 'all',
-                      onTap: () => setState(() => _pinFilter = 'all'),
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Agents ($agentCount)',
-                      isSelected: _pinFilter == 'agents',
-                      activeColor: const Color(0xFF10B981),
-                      onTap: () => setState(() => _pinFilter = 'agents'),
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Customers ($custCount)',
-                      isSelected: _pinFilter == 'customers',
-                      activeColor: AppColors.primary,
-                      onTap: () => setState(() => _pinFilter = 'customers'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      _FilterChip(
+                        label: 'All (${pins.length})',
+                        isSelected: _pinFilter == 'all',
+                        onTap: () => setState(() => _pinFilter = 'all'),
+                      ),
+                      const SizedBox(width: 6),
+                      _FilterChip(
+                        label: 'Agents ($agentCount)',
+                        isSelected: _pinFilter == 'agents',
+                        activeColor: const Color(0xFF10B981),
+                        onTap: () => setState(() => _pinFilter = 'agents'),
+                      ),
+                      const SizedBox(width: 6),
+                      _FilterChip(
+                        label: 'Customers ($custCount)',
+                        isSelected: _pinFilter == 'customers',
+                        activeColor: AppColors.primary,
+                        onTap: () => setState(() => _pinFilter = 'customers'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
           // ── Interactive Map Section ──────────────────────────────────
           ClipRRect(
@@ -456,10 +651,13 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                 ),
                 data: (allPins) {
                   final filteredPins = allPins.where((p) {
+                    if (isAgent) return p.type == PinType.customer;
                     if (_pinFilter == 'agents') return p.type == PinType.agent;
                     if (_pinFilter == 'customers') return p.type == PinType.customer;
                     return true;
                   }).toList();
+
+                  _checkCameraFit(filteredPins);
 
                   final center = _calcCenter(filteredPins);
                   final zoom = _calcZoom(filteredPins);
@@ -479,16 +677,17 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                           ),
                           MarkerLayer(
                             markers: filteredPins.map((pin) {
-                              final isAgent = pin.type == PinType.agent;
+                              final isAgentPin = pin.type == PinType.agent;
                               return Marker(
                                 point: pin.point,
-                                width: isAgent ? 38 : 32,
-                                height: isAgent ? 38 : 32,
+                                width: isAgentPin ? 38 : 58,
+                                height: isAgentPin ? 38 : 66,
+                                alignment: Alignment.topCenter,
                                 child: GestureDetector(
-                                  onTap: () => _showPinSheet(context, t, pin, fmt),
-                                  child: isAgent
+                                  onTap: () => _showPinSheet(context, ref, t, pin, fmt),
+                                  child: isAgentPin
                                       ? _AgentMapMarker(pin: pin)
-                                      : _CustomerMapMarker(pin: pin),
+                                      : _CustomerPhotoMapMarker(pin: pin, fmt: fmt),
                                 ),
                               );
                             }).toList(),
@@ -568,88 +767,90 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
 
           // ── Live Agents List Strip (Horizontal Scroll) ───────────────
-          agentsAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (agents) {
-              if (agents.isEmpty) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, size: 16, color: AppColors.textLight),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'No agents broadcasting GPS yet. Activity will appear live when visits start.',
-                          style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'FIELD AGENTS STATUS',
-                        style: AppTypography.extraTiny.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => context.push('/tracking'),
-                        child: Text(
-                          'Track routes \u2192',
-                          style: AppTypography.extraTiny.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+          if (!isAgent) ...[
+            const SizedBox(height: 12),
+            agentsAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (agents) {
+                if (agents.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: AppColors.textLight),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No agents broadcasting GPS yet. Activity will appear live when visits start.',
+                            style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 80,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: agents.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (ctx, i) {
-                        final a = agents[i];
-                        return _AgentMiniCard(
-                          agent: a,
-                          fmt: fmt,
-                          onTap: () {
-                            if (a.hasLocation) {
-                              _mapController.move(LatLng(a.lat!, a.lng!), 15);
-                            } else {
-                              context.push('/tracking');
-                            }
-                          },
-                        );
-                      },
+                      ],
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'FIELD AGENTS STATUS',
+                          style: AppTypography.extraTiny.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => context.push('/tracking'),
+                          child: Text(
+                            'Track routes \u2192',
+                            style: AppTypography.extraTiny.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 80,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: agents.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (ctx, i) {
+                          final a = agents[i];
+                          return _AgentMiniCard(
+                            agent: a,
+                            fmt: fmt,
+                            onTap: () {
+                              if (a.hasLocation) {
+                                _mapController.move(LatLng(a.lat!, a.lng!), 15);
+                              } else {
+                                context.push('/tracking');
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -823,25 +1024,138 @@ class _AgentMapMarker extends StatelessWidget {
   }
 }
 
-class _CustomerMapMarker extends StatelessWidget {
-  const _CustomerMapMarker({required this.pin});
+class _CustomerPhotoMapMarker extends ConsumerWidget {
+  const _CustomerPhotoMapMarker({required this.pin, required this.fmt});
   final MapPin pin;
+  final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
-    return Icon(
-      Icons.location_on_rounded,
-      size: 32,
-      color: AppColors.primary,
-      shadows: const [
-        Shadow(
-          color: Colors.black26,
-          blurRadius: 4,
-          offset: Offset(0, 2),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statusColor = pin.isPaid
+        ? const Color(0xFF10B981)
+        : (pin.isOverdue
+            ? AppColors.danger
+            : (pin.dueAmount > 0 ? const Color(0xFFF59E0B) : AppColors.primary));
+
+    final hasPhoto = pin.customerPhoto != null && pin.customerPhoto!.trim().isNotEmpty;
+
+    final String amountText;
+    if (pin.dueAmount > 0) {
+      final amt = pin.dueAmount;
+      final k = amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt.toStringAsFixed(0);
+      amountText = 'Due ₹$k';
+    } else if (pin.collectedAmount > 0) {
+      final amt = pin.collectedAmount;
+      final k = amt >= 1000 ? '${(amt / 1000).toStringAsFixed(amt % 1000 == 0 ? 0 : 1)}k' : amt.toStringAsFixed(0);
+      amountText = 'Paid ₹$k';
+    } else {
+      amountText = '₹0';
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Photo with status ring
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: statusColor, width: 2.5),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: hasPhoto
+                ? Image(
+                    image: authedImage(
+                      ref,
+                      pin.customerPhoto!,
+                    ),
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    color: statusColor.withAlpha(25),
+                    alignment: Alignment.center,
+                    child: Text(
+                      pin.label.isNotEmpty ? pin.label[0].toUpperCase() : '?',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+
+        // Downward pointer
+        CustomPaint(
+          size: const Size(8, 4),
+          painter: _PointerPainter(color: statusColor),
+        ),
+
+        const SizedBox(height: 1),
+
+        // Compact Due/Collected Pill Tag
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: statusColor.withAlpha(150),
+              width: 0.8,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 2,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            amountText,
+            style: TextStyle(
+              color: statusColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 8.5,
+              letterSpacing: 0.1,
+            ),
+          ),
         ),
       ],
     );
   }
+}
+
+class _PointerPainter extends CustomPainter {
+  const _PointerPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_PointerPainter oldDelegate) => oldDelegate.color != color;
 }
 
 // ── Filter Chip ───────────────────────────────────────────────────────────────
@@ -965,10 +1279,20 @@ class _GpsKpiTile extends StatelessWidget {
 
 // ── Pin Bottom Sheet ──────────────────────────────────────────────────────────
 
-void _showPinSheet(BuildContext context, T t, MapPin pin, NumberFormat fmt) {
+void _showPinSheet(
+  BuildContext context,
+  WidgetRef ref,
+  T t,
+  MapPin pin,
+  NumberFormat fmt,
+) {
+  final isAgent = ref.read(authControllerProvider).user?.role == UserRole.agent;
+  final isCustomer = pin.type == PinType.customer;
+
   showModalBottomSheet<void>(
     context: context,
     backgroundColor: AppColors.surface,
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -992,19 +1316,47 @@ void _showPinSheet(BuildContext context, T t, MapPin pin, NumberFormat fmt) {
             const SizedBox(height: 16),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: pin.type == PinType.agent
-                      ? const Color(0xFF10B981).withAlpha(30)
-                      : AppColors.primaryLight,
-                  child: Icon(
-                    pin.icon,
-                    color: pin.type == PinType.agent
-                        ? const Color(0xFF10B981)
-                        : AppColors.primary,
-                    size: 24,
+                if (isCustomer && pin.customerPhoto != null && pin.customerPhoto!.trim().isNotEmpty)
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: pin.isPaid
+                            ? const Color(0xFF10B981)
+                            : (pin.isOverdue
+                                ? AppColors.danger
+                                : (pin.dueAmount > 0
+                                    ? const Color(0xFFF59E0B)
+                                    : AppColors.primary)),
+                        width: 2.5,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: Image(
+                        image: authedImage(
+                          ref,
+                          pin.customerPhoto!,
+                        ),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                else
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: pin.type == PinType.agent
+                        ? const Color(0xFF10B981).withAlpha(30)
+                        : AppColors.primaryLight,
+                    child: Icon(
+                      pin.icon,
+                      color: pin.type == PinType.agent
+                          ? const Color(0xFF10B981)
+                          : AppColors.primary,
+                      size: 26,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1072,38 +1424,171 @@ void _showPinSheet(BuildContext context, T t, MapPin pin, NumberFormat fmt) {
                   ],
                 ),
               ),
+            ] else if (isCustomer) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.x('map.due_label').toUpperCase(),
+                            style: AppTypography.extraTiny.copyWith(
+                              color: AppColors.textLight,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            fmt.format(pin.dueAmount),
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: pin.isPaid
+                                  ? AppColors.textSecondary
+                                  : (pin.isOverdue
+                                      ? AppColors.danger
+                                      : const Color(0xFFF59E0B)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.x('map.collected_label').toUpperCase(),
+                            style: AppTypography.extraTiny.copyWith(
+                              color: AppColors.textLight,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            fmt.format(pin.collectedAmount),
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (pin.outstanding > 0)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'OUTSTANDING',
+                              style: AppTypography.extraTiny.copyWith(
+                                color: AppColors.textLight,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              fmt.format(pin.outstanding),
+                              style: AppTypography.bodyLarge.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
             const SizedBox(height: 18),
             Row(
               children: [
                 if (pin.phone != null && pin.phone!.isNotEmpty) ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.phone_rounded, size: 16),
+                    label: const Text('Call'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final uri = Uri.parse('tel:${pin.phone}');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                // Directions button (Google Maps)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.directions_rounded, size: 16, color: Color(0xFF2563EB)),
+                  label: Text(
+                    t.x('map.directions'),
+                    style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    ),
+                  ),
+                  onPressed: () async {
+                    final url = Uri.parse(
+                      'https://www.google.com/maps/dir/?api=1&destination=${pin.point.latitude},${pin.point.longitude}',
+                    );
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
+                if (isCustomer && isAgent && pin.collectionRow != null) ...[
                   Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.phone_rounded, size: 16),
-                      label: const Text('Call'),
-                      style: OutlinedButton.styleFrom(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.payments_rounded, size: 16),
+                      label: const Text('Collect'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                         ),
                       ),
                       onPressed: () async {
-                        final uri = Uri.parse('tel:${pin.phone}');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        }
+                        Navigator.pop(ctx);
+                        await showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => QuickCollectSheet(
+                            row: pin.collectionRow!,
+                          ),
+                        );
+                        ref.invalidate(collectionTodayProvider);
+                        ref.invalidate(mapPinsProvider);
                       },
                     ),
                   ),
-                  const SizedBox(width: 10),
-                ],
-                if (pin.navRoute != null)
+                ] else if (pin.navRoute != null) ...[
                   Expanded(
-                    flex: 2,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                         ),
@@ -1119,6 +1604,7 @@ void _showPinSheet(BuildContext context, T t, MapPin pin, NumberFormat fmt) {
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           ],

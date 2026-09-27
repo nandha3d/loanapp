@@ -193,7 +193,25 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
       color: const Color(0xFF7D287E),
+      category: isApproval ? AndroidNotificationCategory.reminder : null,
+      actions: isApproval
+          ? const <AndroidNotificationAction>[
+              AndroidNotificationAction(
+                actionApprove,
+                'Approve',
+                showsUserInterface: true,
+                cancelNotification: true,
+              ),
+              AndroidNotificationAction(
+                actionReject,
+                'Reject',
+                showsUserInterface: true,
+                cancelNotification: true,
+              ),
+            ]
+          : null,
     );
 
     await _localNotif.show(
@@ -300,6 +318,7 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
+      largeIcon: DrawableResourceAndroidBitmap('ic_launcher'),
       color: Color(0xFF7D287E), // Brand primary purple
       category: AndroidNotificationCategory.reminder,
       actions: <AndroidNotificationAction>[
@@ -338,7 +357,7 @@ class NotificationActionService {
     );
   }
 
-  /// Displays a notification for payment collection with [Show on Map] and [Mark as read]
+  /// Displays a notification for payment collection with [Show on Map]
   Future<void> showCollectionNotification({
     required int id,
     required String title,
@@ -359,7 +378,9 @@ class NotificationActionService {
       priority: Priority.high,
       icon: 'ic_notification',
       color: const Color(0xFF10B981), // Emerald green
-      largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
+      largeIcon: avatarPath != null
+          ? FilePathAndroidBitmap(avatarPath)
+          : const DrawableResourceAndroidBitmap('ic_launcher'),
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
@@ -370,11 +391,6 @@ class NotificationActionService {
           actionShowOnMap,
           'Show on Map',
           showsUserInterface: true,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          actionMarkRead,
-          'Mark as read',
           cancelNotification: true,
         ),
       ],
@@ -408,6 +424,7 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
       color: const Color(0xFFD97706), // Amber warning
       category: AndroidNotificationCategory.reminder,
       styleInformation: BigTextStyleInformation(
@@ -420,11 +437,6 @@ class NotificationActionService {
           actionTopUpFloat,
           'Top-up Float',
           showsUserInterface: true,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          actionMarkRead,
-          'Dismiss',
           cancelNotification: true,
         ),
       ],
@@ -444,8 +456,7 @@ class NotificationActionService {
     await _localNotif.show(id, title, body, details, payload: payload);
   }
 
-  /// Displays a WhatsApp-style rich notification with app icon, user photo (largeIcon),
-  /// and interactive actions: [Reply], [Mark as read], and [Mute].
+  /// Displays a notification with app icon/logo or user photo without unwanted reply/mark read/mute buttons.
   Future<void> showRichNotification({
     required int id,
     required String title,
@@ -466,34 +477,15 @@ class NotificationActionService {
       priority: Priority.high,
       icon: 'ic_notification',
       color: const Color(0xFF7D287E),
-      largeIcon: avatarPath != null ? FilePathAndroidBitmap(avatarPath) : null,
+      largeIcon: avatarPath != null
+          ? FilePathAndroidBitmap(avatarPath)
+          : const DrawableResourceAndroidBitmap('ic_launcher'),
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
         summaryText: 'ZoloFund',
       ),
-      actions: const <AndroidNotificationAction>[
-        AndroidNotificationAction(
-          actionReply,
-          'Reply',
-          showsUserInterface: true,
-          inputs: <AndroidNotificationActionInput>[
-            AndroidNotificationActionInput(
-              label: 'Type a reply...',
-            ),
-          ],
-        ),
-        AndroidNotificationAction(
-          actionMarkRead,
-          'Mark as read',
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          actionMute,
-          'Mute',
-          cancelNotification: true,
-        ),
-      ],
+      actions: null,
     );
 
     const darwinDetails = DarwinNotificationDetails(

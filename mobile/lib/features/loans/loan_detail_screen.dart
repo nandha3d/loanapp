@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:printing/printing.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
@@ -42,7 +43,7 @@ final _customerLoansProvider = FutureProvider.autoDispose
 double _dueNowForLoan(Loan loan) {
   final today = DateTime.now();
   final todayStart = DateTime(today.year, today.month, today.day);
-  return loan.instalments.where((inst) {
+  final rawDue = loan.instalments.where((inst) {
     final due =
         DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
     return !due.isAfter(todayStart) && inst.dynamicStatus != 'paid';
@@ -50,6 +51,13 @@ double _dueNowForLoan(Loan loan) {
     final outstanding = inst.dueAmount - inst.receivedAmount;
     return sum + (outstanding > 0 ? outstanding : 0);
   });
+  if (rawDue > 0) return rawDue;
+  final totalOutstanding = loan.totalPayable - loan.totalCollected;
+  // If tenure reached, today's due remains active at per-instalment amount until closed
+  if (loan.status != 'closed' && totalOutstanding > 0) {
+    return math.min(loan.perInstalment, totalOutstanding);
+  }
+  return 0;
 }
 
 class LoanDetailScreen extends ConsumerWidget {
@@ -217,6 +225,12 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           extraPeriods: loan.extendedSchedule?.extraPeriods ?? 0,
           projectedEndDate: loan.extendedSchedule?.projectedEndDate,
         ),
+        if (!_showRestructuredRates &&
+            loan.extendedSchedule != null &&
+            loan.extendedSchedule!.extraPeriods > 0) ...[
+          const SizedBox(height: 14),
+          _ExtendedPlanCard(loan: loan, fmt: fmt),
+        ],
         const SizedBox(height: 14),
         _OverdueSummaryCard(loan: loan, fmt: fmt),
         const SizedBox(height: 14),
@@ -361,6 +375,10 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   mobile: compactSchedule,
                 ),
               ),
+              if (!_showRestructuredRates &&
+                  loan.extendedSchedule != null &&
+                  loan.extendedSchedule!.extraPeriods > 0)
+                ..._buildProjectedExtraRows(loan, fmt, compactSchedule),
             ],
           ),
         ),
@@ -581,6 +599,53 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     return dist;
   }
 
+  List<Widget> _buildProjectedExtraRows(
+      Loan loan, NumberFormat fmt, bool compactSchedule) {
+    final ext = loan.extendedSchedule;
+    if (ext == null || ext.extraPeriods <= 0) return const [];
+    final extraPeriods = ext.extraPeriods;
+    List<DateTime> dates;
+    if (ext.projectedDates.isNotEmpty) {
+      dates = ext.projectedDates.length >= extraPeriods
+          ? ext.projectedDates.sublist(ext.projectedDates.length - extraPeriods)
+          : ext.projectedDates;
+    } else {
+      final lastDate = loan.instalments.isNotEmpty
+          ? loan.instalments.last.dueDate
+          : DateTime.now();
+      dates = List.generate(extraPeriods, (idx) {
+        if (loan.frequency == 'weekly') {
+          return lastDate.add(Duration(days: 7 * (idx + 1)));
+        } else if (loan.frequency == 'monthly') {
+          return DateTime(lastDate.year, lastDate.month + idx + 1, lastDate.day);
+        } else {
+          return lastDate.add(Duration(days: idx + 1));
+        }
+      });
+    }
+
+    final startNo = (loan.instalmentCount > 0 ? loan.instalmentCount : loan.instalments.length) + 1;
+    final per = loan.perInstalment;
+
+    final rows = <Widget>[];
+    for (var idx = 0; idx < dates.length; idx++) {
+      final date = dates[idx];
+      final amount = (idx == dates.length - 1 && ext.finalPartial > 0)
+          ? ext.finalPartial
+          : per;
+      rows.add(
+        _ProjectedExtraRow(
+          no: startNo + idx,
+          date: date,
+          amount: amount,
+          fmt: fmt,
+          mobile: compactSchedule,
+        ),
+      );
+    }
+    return rows;
+  }
+
   Widget _buildListControls(WidgetRef ref) {
     final t = T.of(ref);
     final isMicrolending =
@@ -681,7 +746,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     return Column(
       children: [
         SizedBox(
-          height: 230,
+          height: 250,
           child: PageView(
             controller: _pageCtrl,
             onPageChanged: (i) => setState(() => _currentSummaryPage = i),
@@ -1145,6 +1210,11 @@ class _SummaryCardMetrics extends ConsumerWidget {
     final dynamicPaidCount = (loan.instalmentCount - dynamicRemainingCount)
         .clamp(0, loan.instalmentCount);
 
+    final extraPeriods = loan.extendedSchedule?.extraPeriods ?? 0;
+    final tenureDisplay = extraPeriods > 0
+        ? '${loan.instalmentCount} + $extraPeriods (${loan.instalmentCount + extraPeriods}) ${t.x('loan.val_days')}'
+        : '${loan.instalmentCount} ${t.x('loan.val_days')}';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1159,39 +1229,46 @@ class _SummaryCardMetrics extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    _StatBlock(t.x('loan.lbl_principal'),
-                        fmt.format(loan.principalAmount)),
-                    _StatBlock(
-                        t.x('loan.lbl_repayable'), fmt.format(totalRepayable),
-                        valueColor: AppColors.primaryDark),
-                    _StatBlock(t.x('loan.lbl_disbursed'),
-                        fmt.format(loan.disbursedAmount)),
-                    _StatBlock(t.x('loan.lbl_frequency'), loan.frequency),
-                    _StatBlock(t.x('loan.lbl_tenure'),
-                        '${loan.instalmentCount} ${t.x('loan.val_days')}'),
-                    _StatBlock(t.x('loan.lbl_start_date'),
-                        DateFormat('dd MMM yyyy').format(loan.startDate)),
-                    _StatBlock(
-                        t.x('loan.lbl_per_inst'), fmt.format(perInstalment)),
-                    _StatBlock(
-                        t.x('loan.lbl_collected'), fmt.format(totalCollected),
-                        valueColor: AppColors.success),
-                    _StatBlock('Due now', fmt.format(dueNow),
-                        valueColor: AppColors.warning),
-                    _StatBlock(
-                        t.x('loan.lbl_outstanding'), fmt.format(outstanding),
-                        valueColor: AppColors.danger),
-                    _StatBlock(t.x('loan.lbl_paid_period'),
-                        '$dynamicPaidCount ${t.x('loan.val_days')}',
-                        valueColor: AppColors.success),
-                    _StatBlock(t.x('loan.lbl_remaining'),
-                        '$dynamicRemainingCount ${t.x('loan.val_days')}',
-                        valueColor: AppColors.danger),
-                  ],
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 16,
+                    runSpacing: 14,
+                    children: [
+                      _StatBlock(t.x('loan.lbl_principal'),
+                          fmt.format(loan.principalAmount)),
+                      _StatBlock(
+                          t.x('loan.lbl_repayable'), fmt.format(totalRepayable),
+                          valueColor: AppColors.primaryDark),
+                      _StatBlock(t.x('loan.lbl_disbursed'),
+                          fmt.format(loan.disbursedAmount)),
+                      _StatBlock(t.x('loan.lbl_frequency'), loan.frequency),
+                      _StatBlock(t.x('loan.lbl_tenure'), tenureDisplay),
+                      _StatBlock(t.x('loan.lbl_start_date'),
+                          DateFormat('dd MMM yyyy').format(loan.startDate)),
+                      _StatBlock(
+                          t.x('loan.lbl_per_inst'), fmt.format(perInstalment)),
+                      _StatBlock(
+                          t.x('loan.lbl_collected'), fmt.format(totalCollected),
+                          valueColor: AppColors.success),
+                      _StatBlock('Due now', fmt.format(dueNow),
+                          valueColor: AppColors.warning),
+                      _StatBlock(
+                          t.x('loan.lbl_outstanding'), fmt.format(outstanding),
+                          valueColor: AppColors.danger),
+                      _StatBlock(t.x('loan.lbl_paid_period'),
+                          '$dynamicPaidCount ${t.x('loan.val_days')}',
+                          valueColor: AppColors.success),
+                      _StatBlock(t.x('loan.lbl_remaining'),
+                          '$dynamicRemainingCount ${t.x('loan.val_days')}',
+                          valueColor: AppColors.danger),
+                      if (extraPeriods > 0)
+                        _StatBlock(
+                          'Projected Days',
+                          '+$extraPeriods ${t.x('loan.val_days')}',
+                          valueColor: AppColors.primary,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1641,6 +1718,274 @@ class _InstalmentRow extends ConsumerWidget {
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+}
+
+class _ExtendedPlanCard extends StatelessWidget {
+  const _ExtendedPlanCard({required this.loan, required this.fmt});
+  final Loan loan;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final ext = loan.extendedSchedule;
+    if (ext == null || ext.extraPeriods <= 0) return const SizedBox.shrink();
+    final endDateStr = ext.projectedEndDate != null
+        ? DateFormat('dd MMM yyyy').format(ext.projectedEndDate!)
+        : '—';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF2FF), // Indigo-50
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        border: Border.all(color: const Color(0xFFC7D2FE)), // Indigo-200
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withAlpha(30),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.calendar_month_outlined,
+              color: Color(0xFF4F46E5),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Extended Plan (Normal Rate)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF312E81),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '+${ext.extraPeriods} days',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${ext.remainingPayments} more ${loan.frequency == 'daily' ? 'days' : loan.frequency == 'weekly' ? 'weeks' : 'periods'} at ${fmt.format(loan.perInstalment)} · finishes $endDateStr',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF4338CA),
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProjectedExtraRow extends StatelessWidget {
+  const _ProjectedExtraRow({
+    required this.no,
+    required this.date,
+    required this.amount,
+    required this.fmt,
+    required this.mobile,
+  });
+  final int no;
+  final DateTime date;
+  final double amount;
+  final NumberFormat fmt;
+  final bool mobile;
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFmt = DateFormat('dd MMM');
+
+    if (mobile) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF).withAlpha(160),
+          border: Border.all(color: const Color(0xFFC7D2FE)),
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$no  •  ${dateFmt.format(date)}',
+                    style: AppTypography.bodyLarge.copyWith(color: const Color(0xFF3730A3)),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withAlpha(30),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
+                  ),
+                  child: const Text(
+                    'Projected',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4F46E5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('DUE', style: AppTypography.caption),
+                      Text(
+                        fmt.format(amount),
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: const Color(0xFF4F46E5),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('RECEIVED', style: AppTypography.caption),
+                      Text(
+                        '—',
+                        style: AppTypography.bodyLarge.copyWith(color: AppColors.textLight),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 48),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        border: Border(
+          bottom: BorderSide(color: AppColors.border),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Text(
+              '$no',
+              style: AppTypography.caption.copyWith(
+                color: const Color(0xFF6366F1),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              dateFmt.format(date),
+              style: AppTypography.body.copyWith(fontSize: 12.5),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              fmt.format(amount),
+              style: AppTypography.body.copyWith(
+                fontSize: 12,
+                color: const Color(0xFF4F46E5),
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              '—',
+              style: AppTypography.body.copyWith(
+                fontSize: 12,
+                color: AppColors.textLight,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 70,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withAlpha(30),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Projected',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4F46E5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const SizedBox(
+            width: 48,
+            child: Center(
+              child: Text(
+                '—',
+                style: TextStyle(color: AppColors.textLight),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

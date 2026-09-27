@@ -457,6 +457,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/tracking',
         builder: (_, __) => const AgentTrackingScreen(),
       ),
+      GoRoute(
+        path: '/admin/tracking',
+        redirect: (_, __) => '/tracking',
+      ),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
       GoRoute(
         path: '/notifications',

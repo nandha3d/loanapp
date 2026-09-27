@@ -1734,8 +1734,17 @@ class _CustomerGroup {
   List<CollectionRow> get _overdueCollectible =>
       _collectible.where((r) => r.isOverdueBucket).toList();
 
-  double get todayDue =>
-      _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
+  double get todayDue {
+    final sum = _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
+    if (sum > 0) return sum;
+    // When tenure reached and loan is extended, today's due continues as the normal installment amount
+    if (_overdueCollectible.isNotEmpty) {
+      final per = _overdueCollectible.first.dueAmount;
+      return math.min(per, overdueDue);
+    }
+    return 0.0;
+  }
+
   double get overdueDue =>
       _overdueCollectible.fold(0.0, (s, r) => s + r.outstanding);
   double get totalDue => todayDue + overdueDue;
@@ -1749,7 +1758,9 @@ class _CustomerGroup {
   /// Oldest unpaid instalment in each bucket (rows are already dueDate-asc),
   /// so collecting always settles the oldest dues first.
   CollectionRow? get nextToday =>
-      _todayCollectible.isEmpty ? null : _todayCollectible.first;
+      _todayCollectible.isNotEmpty
+          ? _todayCollectible.first
+          : (_overdueCollectible.isNotEmpty ? _overdueCollectible.first : null);
   CollectionRow? get nextOverdue =>
       _overdueCollectible.isEmpty ? null : _overdueCollectible.first;
 

@@ -93,10 +93,17 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
   const messaging = getMessaging();
   for (let i = 0; i < unique.length; i += 500) {
     const batch = unique.slice(i, i + 500);
+    const imgUrl = payload.data?.imageUrl || payload.data?.logoUrl || payload.data?.avatarUrl || undefined;
+    const notifObj: { title: string; body: string; imageUrl?: string } = {
+      title: payload.title,
+      body: payload.body,
+    };
+    if (imgUrl) notifObj.imageUrl = imgUrl;
+
     try {
       const res = await messaging.sendEachForMulticast({
         tokens: batch,
-        notification: { title: payload.title, body: payload.body },
+        notification: notifObj,
         data,
         android: {
           priority: 'high',
@@ -104,6 +111,7 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
             sound: 'default',
             icon: 'ic_notification',
             color: '#7D287E',
+            imageUrl: imgUrl,
             channelId:
               data?.type?.includes('approval') || data?.type === 'float_insufficient'
                 ? 'approvals_channel'

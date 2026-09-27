@@ -433,12 +433,18 @@ export default function LoanDetailClient({
   const todayISO = new Date().toISOString().slice(0, 10);
   // Today's due across this loan = outstanding on the instalment dated today.
   const todayDueForLoan = useMemo(() => {
-    return loan.instalments.reduce((sum: number, inst: any) => {
+    const rawToday = loan.instalments.reduce((sum: number, inst: any) => {
       const due = new Date(inst.dueDate).toISOString().slice(0, 10);
       if (due !== todayISO) return sum;
       return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
     }, 0);
-  }, [loan.instalments, todayISO]);
+    // If loan is active with outstanding balance but tenure is reached (no row dated today),
+    // today's due remains the normal instalment amount (or remaining outstanding if less).
+    if (rawToday === 0 && outstanding > 0 && loan.status !== 'closed') {
+      return Math.min(Number(loan.perInstalment), outstanding);
+    }
+    return rawToday;
+  }, [loan.instalments, todayISO, outstanding, loan.status, loan.perInstalment]);
 
   // "Total Due" = everything payable UP TO today (previous overdue + today's
   // due) — NOT the full loan outstanding, which includes instalments not yet

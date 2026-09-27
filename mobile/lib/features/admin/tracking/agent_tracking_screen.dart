@@ -14,7 +14,10 @@ import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/models/agent_location.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/features/admin/tracking/agent_customer_map_screen.dart';
 import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -107,6 +110,8 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
 
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
+    final user = ref.read(authControllerProvider).user;
+    if (user?.role == UserRole.agent) return;
     final interval = _liveGpsMode ? const Duration(seconds: 5) : const Duration(seconds: 30);
     _refreshTimer = Timer.periodic(interval, (_) {
       ref.invalidate(liveAgentLocationsProvider);
@@ -181,6 +186,11 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authControllerProvider).user;
+    if (user?.role == UserRole.agent) {
+      return const AgentCustomerMapScreen();
+    }
+
     final t = T.of(ref);
     final async = ref.watch(liveAgentLocationsProvider);
 
