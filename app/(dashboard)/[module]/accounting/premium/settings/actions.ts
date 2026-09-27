@@ -7,6 +7,8 @@ import { redirect } from 'next/navigation';
 import { getOrCreateAccountingSettings } from '@/lib/accounting/premium';
 import { writePremiumAuditLog as writeAuditLog } from '../access';
 import { buildDedupKey } from '@/lib/accounting/postingKeys';
+import { updateAccountingSettings } from '@/lib/accounting/settingsUpdate';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function getSettings() {
   const session = await auth();
@@ -65,51 +67,18 @@ export async function updateSettings(input: Partial<{
 }>) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const role = (session.user as any)?.role;
-  if (!['superadmin','developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-
-  // Validate GSTIN if provided
-  if (input.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(input.gstin)) {
-    return { ok: false, error: 'gstinInvalid' };
+  try {
+    await updateAccountingSettings({
+      tenantId: await getDefaultTenantId(),
+      appType: await getUserAppType(),
+      branchId: await getActiveBranchId(),
+      userId: session.user.id!,
+      role: (session.user as { role?: string }).role ?? '',
+    }, input);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Settings update failed' };
   }
-
-  // Validate posting overrides JSON
-  if (input.postingOverrides) {
-    try { JSON.parse(input.postingOverrides); } catch { return { ok: false, error: 'invalid_json' }; }
-  }
-
-  const settings = await getOrCreateAccountingSettings(tenantId);
-  await prisma.accountingSettings.update({
-    where: { id: settings.id },
-    data: {
-      fiscalYearStartMonth: input.fiscalYearStartMonth,
-      gstin: input.gstin,
-      state: input.state,
-      gstScheme: input.gstScheme,
-      baseCurrency: input.baseCurrency,
-      postingOverrides: input.postingOverrides,
-      costCentresEnabled: input.costCentresEnabled,
-      baseAccountingMode: input.baseAccountingMode,
-      showPremiumBannerInBase: input.showPremiumBannerInBase,
-      adminJeCap: input.adminJeCap,
-      adminBillCap: input.adminBillCap,
-      twoLevelApprovalThreshold: input.twoLevelApprovalThreshold,
-      adminCanEditCoA: input.adminCanEditCoA,
-      adminCanLockPeriod: input.adminCanLockPeriod,
-      varianceAlertPct: input.varianceAlertPct,
-      apOverdueAlertDays: input.apOverdueAlertDays,
-      tallyConnectorEnabled: input.tallyConnectorEnabled,
-      tallyConnectorUrl: input.tallyConnectorUrl,
-      tallyCompanyName: input.tallyCompanyName,
-      allowFutureDated: input.allowFutureDated,
-      defaultBankAccountId: input.defaultBankAccountId || null,
-      defaultCashAccountId: input.defaultCashAccountId || null,
-    },
-  });
-
-  await writeAuditLog({ tenantId, userId: session.user?.id, action: 'update', entityType: 'settings', entityId: settings.id });
-  return { ok: true };
 }
 
 /** One-time migration: AccountEntry → JournalEntry (double-entry) */

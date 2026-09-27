@@ -1,6 +1,7 @@
 /// Models for the live chit auction ("poker table"). Parse-only, matching the
 /// null-safe style of the rest of `data/models`. The server is authoritative for
 /// all money math and the countdown clock.
+library;
 
 double _d(dynamic v) =>
     v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);

@@ -1,6 +1,6 @@
 # Role-Based Web-to-Mobile UI Mapping
 
-Date: 2026-06-04
+Date: 2026-09-27
 
 This audit compares the web app against the Flutter mobile app at route/page level for `developer`, `superadmin`, `admin`, and `agent`. The web app remains the source of truth. A missing item means no mobile route exists for a web page available to that role. A partial item means mobile has a related route, but the page-level surface is still narrower than web.
 
@@ -17,8 +17,8 @@ npm run ui-map:roles
 | Role | Seed login | Web landing | Mobile landing | Missing | Partial |
 |---|---|---|---|---:|---:|
 | Developer | `developer / dev123` | `/admin` | `/admin` | 0 | 0 |
-| Superadmin | `superadmin / super123` | `/portal` | `/portal` | 0 | 3 |
-| Admin | `admin / admin123` | `/portal` | `/portal` | 0 | 5 |
+| Superadmin | `superadmin / super123` | `/portal` | `/portal` | 0 | 1 |
+| Admin | `admin / admin123` | `/portal` | `/portal` | 0 | 2 |
 | Agent | `karthik / agent123` | `/microlending/agent-dashboard` | `/dashboard` | 0 | 1 |
 
 ## Developer
@@ -41,9 +41,7 @@ Partial on mobile:
 
 | Priority | Web page | Mobile page | Gap |
 |---|---|---|---|
-| P2 | `/microlending/reports/agents` | `/reports` | Reports route exists, but there is no dedicated agent-reports route. |
-| P3 | `/microlending/notifications/log` | `/notifications` | Mobile has a notifications list, not the full web notification-log page. |
-| P1 | `/microlending/settings` | `/settings` | Mobile covers the major settings pages; remaining route-level gap is deeper web data/settings coverage without a dedicated mobile route. |
+| P1 | `/microlending/settings` | `/settings` | Mobile covers customer JSON import, routes, packages, notification templates/log, 2FA and major settings. Other web tab depth needs action-level audit. |
 
 Mobile-only:
 
@@ -60,10 +58,7 @@ Partial on mobile:
 
 | Priority | Web page | Mobile page | Gap |
 |---|---|---|---|
-| P2 | `/microlending/reports/agents` | `/reports` | Reports route exists, but there is no dedicated agent-reports route. |
-| P1 | `/microlending/settings` | `/settings` | Mobile covers the major settings pages; remaining route-level gap is deeper web data/settings coverage without a dedicated mobile route. |
-| P3 | `/microlending/notifications/log` | `/notifications` | Mobile has a notifications list, not the full web notification-log page. |
-| P1 | `/microlending/penalties` | `/penalties` | Route exists, but existing parity notes still mark some filter/waive UX depth as partial. |
+| P1 | `/microlending/settings` | `/settings` | Mobile covers customer JSON import, routes, packages, notification templates/log, 2FA and major settings. Other web tab depth needs action-level audit. |
 | P1 | `/microlending/approvals` | `/approvals` | Route exists, but existing parity notes still mark some request-type coverage as partial. |
 
 Mobile-only:

@@ -498,6 +498,13 @@ export function getDistributedInstalmentsAndMetrics<
     let remainingYesterday = cYesterday;
     const beforeAmounts = new Map<string, number>();
     for (const inst of chronologicalInsts) {
+      const itemDate = getBusinessDateStr(inst.dueDate);
+      // Historical collections belong strictly to past-due historical periods (itemDate < todayISO).
+      // They MUST NOT spill forward into today's due date or future instalments (MONEY-22).
+      if (itemDate >= todayISO) {
+        beforeAmounts.set(inst.id, 0);
+        continue;
+      }
       const due = asNumber(inst.dueAmount);
       const rec = Math.min(due, remainingYesterday);
       remainingYesterday = Math.max(0, remainingYesterday - rec);

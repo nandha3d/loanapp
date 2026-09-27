@@ -1,11 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
-import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
@@ -65,18 +63,18 @@ class _CollectCashSheetState extends ConsumerState<CollectCashSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16,),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Collect Cash — ${widget.routeName}',
-              style: AppTypography.sectionTitle),
+              style: AppTypography.sectionTitle,),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(_error!,
-                  style: AppTypography.caption.copyWith(color: AppColors.danger)),
+                  style: AppTypography.caption.copyWith(color: AppColors.danger),),
             ),
           const SizedBox(height: 16),
           TextFormField(

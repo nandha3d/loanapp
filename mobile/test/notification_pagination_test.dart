@@ -70,7 +70,7 @@ void main() {
       const totalCount = 125;
       const pageSize = NotificationsService.defaultPageSize;
       expect(pageSize, equals(50),
-          reason: 'Service defaultPageSize must be 50');
+          reason: 'Service defaultPageSize must be 50',);
 
       final adapter = _MockNotificationAdapter(totalItems: totalCount);
       final dio = Dio()..httpClientAdapter = adapter;
@@ -110,7 +110,7 @@ void main() {
       expect(combinedItems.length, equals(125));
       final uniqueIds = combinedItems.map((e) => e.id).toSet();
       expect(uniqueIds.length, equals(125),
-          reason: 'Total items must be 125 with 0 duplicates');
+          reason: 'Total items must be 125 with 0 duplicates',);
 
       // Verify hasMore progression
       bool hasMore = page1Items.length >= pageSize; // true (50 >= 50)
@@ -160,7 +160,7 @@ void main() {
 
       expect(deduplicated.length, equals(100),
           reason:
-              'seen.add must filter out all 50 duplicate items from overlapping page');
+              'seen.add must filter out all 50 duplicate items from overlapping page',);
     });
   });
 }

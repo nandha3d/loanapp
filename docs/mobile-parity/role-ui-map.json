@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "date": "2026-06-03",
+  "date": "2026-09-27",
   "comparisonLevel": "route/page parity",
   "sourceOfTruth": "web",
   "roles": {
@@ -65,9 +65,7 @@
         "primaryRoutes": ["/dashboard", "/portal", "/profile", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
-        { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent reports route." },
-        { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile now covers packages, bulk, bureau, NPA, security, branding/document settings, and core admin settings; remaining route-level gap is the web data/settings depth that is not a dedicated mobile route." }
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile covers customer JSON import, packages, routes, notifications, 2FA, bulk settings, bureau, NPA and branding. Other web tab depth still needs action-level audit." }
       ],
       "mobileOnly": [
         { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
@@ -106,10 +104,7 @@
         "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
-        { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent report route." },
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile now covers packages, bulk, bureau, NPA, security, branding/document settings, penalty, payment, and notifications; remaining route-level gap is web data/settings depth that is not a dedicated mobile route." },
-        { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
-        { "webRoute": "/microlending/penalties", "mobileRoute": "/penalties", "label": "Penalty filters and waive", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/penalties/page.tsx", "notes": "Route exists, but existing parity docs mark waive/filter coverage as missing." },
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile covers customer JSON import, packages, routes, notifications, 2FA, bulk settings, bureau, NPA and branding. Other web tab depth still needs action-level audit." },
         { "webRoute": "/microlending/approvals", "mobileRoute": "/approvals", "label": "All approval request types", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/approvals/page.tsx", "notes": "Route exists, but mobile covers only a subset of web request types." }
       ],
       "mobileOnly": [

@@ -1,5 +1,8 @@
 // ignore_for_file: require_trailing_commas
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -292,6 +295,49 @@ class AccountingService {
     });
   }
 
+  Future<void> createBudget(
+      {required String name, required String fiscalYear}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingBudget,
+      data: {'name': name, 'fiscalYear': fiscalYear},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<Map<String, dynamic>> getBudget(String id, {String? periodKey}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingBudgetDetail(id),
+      queryParameters: {if (periodKey != null) 'periodKey': periodKey},
+    );
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<void> addBudgetLine(String id, String accountId) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingBudgetDetail(id),
+      data: {'action': 'add_line', 'accountId': accountId},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<void> updateBudgetLine(
+      String id, String lineId, String month, double amount) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.accountingBudgetDetail(id),
+      data: {'lineId': lineId, 'field': month, 'value': amount},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<void> setBudgetStatus(String id, String action) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingBudgetDetail(id),
+      data: {'action': action},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
   Future<Map<String, dynamic>> getTaxSummary({String? periodKey}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.accountingTax,
@@ -301,6 +347,40 @@ class AccountingService {
     );
     return unwrapEnvelope(
         res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<void> recomputeGst(String periodKey) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingTax, data: {'action': 'recompute', 'periodKey': periodKey},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<void> markGstFiled(String periodKey, String ackNo) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingTax,
+      data: {'action': 'mark_filed', 'periodKey': periodKey, 'ackNo': ackNo},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<List<Map<String, dynamic>>> getTdsRegister(String quarterKey) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingTax,
+      queryParameters: {'view': 'tds', 'quarterKey': quarterKey},
+    );
+    return unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>)
+        .map((dynamic row) => Map<String, dynamic>.from(row as Map)).toList());
+  }
+
+  Future<void> recordChallan({required String challanNo, required String challanDate,
+    required double amount, required List<String> deductionIds}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingTax,
+      data: {'action': 'record_challan', 'challanNo': challanNo,
+        'challanDate': challanDate, 'amount': amount, 'deductionIds': deductionIds},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
   }
 
   Future<List<Map<String, dynamic>>> listVendors({String? search}) async {
@@ -317,6 +397,84 @@ class AccountingService {
     });
   }
 
+  Future<Map<String, dynamic>> listVendorPage(int page,
+      {String? search}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingVendors,
+      queryParameters: {
+        'page': page,
+        if (search != null && search.isNotEmpty) 'search': search
+      },
+    );
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<Map<String, dynamic>> getVendor(String id) async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingVendor(id));
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<void> saveVendor(Map<String, dynamic> values, {String? id}) async {
+    final res = id == null
+        ? await _dio.post<Map<String, dynamic>>(Endpoints.accountingVendors,
+            data: values)
+        : await _dio.patch<Map<String, dynamic>>(Endpoints.accountingVendor(id),
+            data: values);
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<void> deactivateVendor(String id) async {
+    final res =
+        await _dio.delete<Map<String, dynamic>>(Endpoints.accountingVendor(id));
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<Map<String, dynamic>> listVendorBills(String id, int page) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingVendorBills(id),
+      queryParameters: {'page': page},
+    );
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<Map<String, dynamic>> getBill(String id) async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingBill(id));
+    return unwrapEnvelope(
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<void> createBill(String vendorId, Map<String, dynamic> values) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingVendorBills(vendorId),
+      data: values,
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<void> billAction(String id, String action,
+      [Map<String, dynamic>? values]) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingBill(id),
+      data: {'action': action, ...?values},
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
+  }
+
+  Future<List<Map<String, dynamic>>> getVendorAgeing() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingVendorAgeing);
+    return unwrapEnvelope(
+        res,
+        (dynamic data) => (data as List<dynamic>)
+            .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+            .toList());
+  }
+
   Future<List<Map<String, dynamic>>> listExportRuns() async {
     final res =
         await _dio.get<Map<String, dynamic>>(Endpoints.accountingExport);
@@ -327,11 +485,53 @@ class AccountingService {
     });
   }
 
+  Future<Map<String, dynamic>> listExportPage(int page) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingExport, queryParameters: {'page': page},
+    );
+    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<({Uint8List bytes, String filename})> generateAccountingExport({
+    required String kind, required String periodKey, String? from, String? to,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingExport,
+      data: {'action': 'generate', 'kind': kind, 'periodKey': periodKey,
+        if (from != null) 'from': from, if (to != null) 'to': to},
+    );
+    final data = unwrapEnvelope(res, (dynamic value) => Map<String, dynamic>.from(value as Map));
+    return (bytes: base64Decode(data['base64'] as String), filename: data['filename'] as String);
+  }
+
+  Future<Map<String, dynamic>> testTallyConnector() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingExport, data: {'action': 'test_tally'},
+    );
+    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<Map<String, dynamic>> pushToTally(String periodKey) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingExport,
+      data: {'action': 'push_tally', 'periodKey': periodKey},
+    );
+    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
   Future<Map<String, dynamic>> getPremiumSettings() async {
     final res =
         await _dio.get<Map<String, dynamic>>(Endpoints.accountingSettings);
     return unwrapEnvelope(
         res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<void> updatePremiumSettings(Map<String, dynamic> patch) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.accountingSettings,
+      data: patch,
+    );
+    unwrapEnvelope(res, (dynamic data) => data);
   }
 
   // --- Bank Reconciliation ---

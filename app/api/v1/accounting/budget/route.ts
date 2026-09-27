@@ -5,6 +5,7 @@ import {
   listPremiumBudgets,
   PremiumAccountingServiceError,
 } from '@/lib/accounting/premiumMobileService';
+import { createBudget } from '@/lib/accounting/budgets';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -17,6 +18,20 @@ export async function GET(req: NextRequest) {
     }));
   } catch (error) {
     return fail(message(error, 'Budget failed'), status(error));
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  try {
+    const body = await req.json();
+    return ok(await createBudget(auth.context, {
+      name: body.name,
+      fiscalYear: body.fiscalYear,
+    }));
+  } catch (error) {
+    return fail(message(error, 'Budget creation failed'), status(error));
   }
 }
 

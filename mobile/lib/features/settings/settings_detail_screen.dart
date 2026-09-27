@@ -92,8 +92,11 @@ class _PackageEditorState extends ConsumerState<_PackageEditor> {
     setState(() { _saving = true; _error = null; });
     try {
       final service = ref.read(settingsServiceProvider);
-      if (widget.package == null) await service.createPackage(data);
-      else await service.updatePackage(widget.package!.id, data);
+      if (widget.package == null) {
+        await service.createPackage(data);
+      } else {
+        await service.updatePackage(widget.package!.id, data);
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -136,7 +139,7 @@ class _PackageEditorState extends ConsumerState<_PackageEditor> {
                 ),
               field('deduction', widget.package != null
                   ? t.x('pkg.stored_deduction')
-                  : _deductionType == 'percentage' ? t.x('pkg.deduction_percent') : t.x('pkg.deduction_amount')),
+                  : _deductionType == 'percentage' ? t.x('pkg.deduction_percent') : t.x('pkg.deduction_amount'),),
               DropdownButtonFormField<String>(
                 initialValue: _frequency,
                 decoration: InputDecoration(labelText: t.x('pkg.frequency')),
@@ -311,7 +314,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
                 tooltip: T.of(ref).x('pkg.create'),
                 icon: const Icon(Icons.add),
                 onPressed: () => _showPackageEditor(),
-              )]
+              ),]
             : null,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -421,7 +424,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute<void>(
               builder: (_) => const TwoFactorScreen(),
-            )),
+            ),),
           ),
           SwitchListTile(
             title: const Text('Require Biometric Unlock'),
@@ -563,7 +566,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
                     onPressed: () => _deletePackage(p),
                     child: Text(T.of(ref).x('pkg.delete')),
                   ),
-                ]),
+                ],),
               const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

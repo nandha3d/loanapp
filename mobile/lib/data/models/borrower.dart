@@ -1,4 +1,5 @@
 /// Borrower portal models — mirrors the web BorrowerDashboardClient.tsx types.
+library;
 
 class BorrowerInstalment {
   const BorrowerInstalment({
@@ -34,7 +35,7 @@ class BorrowerInstalment {
           (json['number'] as num?)?.toInt() ??
           0,
       dueDate: DateTime.parse(
-          (json['dueDate'] as String?) ?? DateTime.now().toIso8601String()),
+          (json['dueDate'] as String?) ?? DateTime.now().toIso8601String(),),
       dueAmount: n(json['dueAmount']),
       receivedAmount: n(json['receivedAmount']),
       status: (json['status'] as String?) ?? 'pending',
@@ -110,7 +111,7 @@ class BorrowerLoan {
       collectionPoint: json['collectionPoint'] as String?,
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) =>
-              BorrowerInstalment.fromJson(e as Map<String, dynamic>))
+              BorrowerInstalment.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false),
     );
   }

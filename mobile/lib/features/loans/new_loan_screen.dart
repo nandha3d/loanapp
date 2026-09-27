@@ -1828,7 +1828,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               onPressed: () async {
                 final src = await _showImagePickerSheet();
                 if (src == null) return;
-                if (!context.mounted) return;
+                if (!mounted) return;
                 if (src == ImageSource.camera) {
                   final photo = await captureGuidedFacePhoto(context);
                   if (photo != null) {

@@ -91,7 +91,7 @@ class _NotificationDeliveryLogScreenState extends ConsumerState<NotificationDeli
                     DropdownMenuItem(value: channel, child: Text(channel.toUpperCase())),
                 ],
                 onChanged: (value) { _channel = value == '' ? null : value; _load(); },
-              )),
+              ),),
               const SizedBox(width: 8),
               Expanded(child: DropdownButtonFormField<String>(
                 initialValue: _status,
@@ -102,13 +102,13 @@ class _NotificationDeliveryLogScreenState extends ConsumerState<NotificationDeli
                     DropdownMenuItem(value: status, child: Text(statusLabel(status))),
                 ],
                 onChanged: (value) { _status = value == '' ? null : value; _load(); },
-              )),
-            ]),
+              ),),
+            ],),
             TextButton.icon(
               icon: const Icon(Icons.date_range),
               label: Text(_range == null
                   ? t.x('log.dates')
-                  : '${DateFormat('dd MMM').format(_range!.start)} – ${DateFormat('dd MMM').format(_range!.end)}'),
+                  : '${DateFormat('dd MMM').format(_range!.start)} – ${DateFormat('dd MMM').format(_range!.end)}',),
               onPressed: () async {
                 final now = DateTime.now();
                 final picked = await showDateRangePicker(
@@ -122,7 +122,7 @@ class _NotificationDeliveryLogScreenState extends ConsumerState<NotificationDeli
                 _load();
               },
             ),
-          ]),
+          ],),
         ),
         if (_error != null)
           ListTile(
@@ -137,7 +137,7 @@ class _NotificationDeliveryLogScreenState extends ConsumerState<NotificationDeli
               if (index == _rows.length) {
                 return Center(child: _loading
                     ? const CircularProgressIndicator()
-                    : TextButton(onPressed: () => _load(more: true), child: Text(t.x('log.more'))));
+                    : TextButton(onPressed: () => _load(more: true), child: Text(t.x('log.more'))),);
               }
               final row = _rows[index];
               final date = DateTime.tryParse(row['createdAt']?.toString() ?? '');
@@ -154,8 +154,8 @@ class _NotificationDeliveryLogScreenState extends ConsumerState<NotificationDeli
               );
             },
           ),
-        )),
-      ]),
+        ),),
+      ],),
     );
   }
 }

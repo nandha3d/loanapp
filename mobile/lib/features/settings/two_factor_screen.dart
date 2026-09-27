@@ -137,7 +137,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
               ],
               if (_busy) const LinearProgressIndicator(),
               if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-            ]),
+            ],),
     );
   }
 }

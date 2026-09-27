@@ -218,8 +218,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           final idx = uri.pathSegments.indexOf('approvals');
           if (idx + 1 < uri.pathSegments.length) {
             final seg = uri.pathSegments[idx + 1];
-            if (seg.isNotEmpty && seg != 'approve' && seg != 'reject')
+            if (seg.isNotEmpty && seg != 'approve' && seg != 'reject') {
               return seg;
+            }
           }
         }
       }
@@ -236,7 +237,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radius)),
+              borderRadius: BorderRadius.circular(AppTokens.radius),),
           title: Text(t.x('appr.approve_request')),
           content: Text(item.message),
           actions: [
@@ -249,7 +250,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ElevatedButton.styleFrom(backgroundColor: AppColors.success),
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(t.x('btn.approve'),
-                  style: const TextStyle(color: Colors.white)),
+                  style: const TextStyle(color: Colors.white),),
             ),
           ],
         ),
@@ -295,7 +296,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radius)),
+              borderRadius: BorderRadius.circular(AppTokens.radius),),
           title: Text(t.x('appr.reject_request')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -308,7 +309,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 decoration: InputDecoration(
                   labelText: t.x('notif.confirm_reject_prompt'),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),),
                 ),
                 maxLines: 2,
               ),
@@ -324,7 +325,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(t.x('btn.reject'),
-                  style: const TextStyle(color: Colors.white)),
+                  style: const TextStyle(color: Colors.white),),
             ),
           ],
         ),
@@ -419,10 +420,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.cloud_off,
-                    size: 48, color: AppColors.textLight),
+                    size: 48, color: AppColors.textLight,),
                 const SizedBox(height: 12),
                 Text(t.x('err.failed_to_load'),
-                    style: AppTypography.sectionTitle),
+                    style: AppTypography.sectionTitle,),
                 const SizedBox(height: 6),
                 Text(
                   e.toString(),

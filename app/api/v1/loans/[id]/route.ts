@@ -65,7 +65,20 @@ export async function GET(
       productFinanceItem: true,
       payments: {
         orderBy: { paymentDate: 'asc' }
-      }
+      },
+      collectionEntries: {
+        orderBy: { submittedAt: 'asc' },
+        select: {
+          id: true,
+          dueAmount: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          verificationStatus: true,
+          agentId: true,
+          remarks: true,
+        },
+      },
     },
   });
   if (!loan) return fail('Loan not found', 404);
@@ -136,6 +149,10 @@ export async function GET(
     Number(loan.perInstalment),
     loan.frequency,
     today,
+    ((loan as any).collectionEntries || []).map((c: any) => ({
+      ...c,
+      collectionDate: c.submittedAt,
+    })),
   );
 
   const payableInsts = preMappedInstalments.filter((i) => i.status !== 'waived');

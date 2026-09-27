@@ -70,6 +70,7 @@ export type CollectionPoint = {
   lat: number;
   lng: number;
   customerName: string;
+  customerPhoto?: string | null;
   amount: number;
   time: string | Date;
   locationStatus?: string;
@@ -206,8 +207,11 @@ export default function LiveMapClient({
             <div style="color: #16a34a; font-weight: 800; font-size: 11px; margin-bottom: 2px;">
               ✓ PAYMENT COLLECTED
             </div>
-            <div style="font-weight: 700; color: #111827; font-size: 14px;">
-              Collected ${currencySymbol}${Number(p.amount).toLocaleString('en-IN')} from ${p.customerName}
+            <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;">
+              ${p.customerPhoto ? `<img src="${p.customerPhoto}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1.5px solid #16a34a;" />` : ''}
+              <div style="font-weight: 700; color: #111827; font-size: 14px;">
+                Collected ${currencySymbol}${Number(p.amount).toLocaleString('en-IN')} from ${p.customerName}
+              </div>
             </div>
             <div style="color: #6b7280; font-size: 11px; margin-top: 4px;">
               ⏰ ${timeStr} · ${group.agentName}

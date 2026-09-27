@@ -12,7 +12,7 @@ import { hasFinancialActivity } from '@/lib/repayments';
 import { disburseFromAgent, disburseFromBranch, collectFromAgentInTx } from '@/lib/wallet';
 
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'profilePhoto', 'photoUrl', 'lat', 'lng',
 ]);
 
 const LOAN_EDIT_ALLOW_LIST = new Set([
@@ -86,9 +86,13 @@ export async function PATCH(
           const safeChanges: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(rawChanges)) {
             if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
-              safeChanges[key] = key === 'aadharNumber'
-                ? encryptAadharNumber(String(value || ''))
-                : value;
+              if (key === 'profilePhoto' || key === 'photoUrl' || key === 'photo') {
+                safeChanges.profilePhoto = value;
+              } else {
+                safeChanges[key] = key === 'aadharNumber'
+                  ? encryptAadharNumber(String(value || ''))
+                  : value;
+              }
             }
           }
           if (safeChanges.lat != null && safeChanges.lng != null) {

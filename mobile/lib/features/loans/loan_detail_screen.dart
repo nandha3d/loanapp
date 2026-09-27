@@ -600,9 +600,31 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   }
 
   List<Widget> _buildProjectedExtraRows(
-      Loan loan, NumberFormat fmt, bool compactSchedule) {
+      Loan loan, NumberFormat fmt, bool compactSchedule,) {
     final ext = loan.extendedSchedule;
     if (ext == null || ext.extraPeriods <= 0) return const [];
+
+    if (ext.extendedRows.isNotEmpty) {
+      final rows = <Widget>[];
+      for (final r in ext.extendedRows) {
+        rows.add(
+          _ProjectedExtraRow(
+            no: r.no,
+            date: r.date,
+            amount: r.amount,
+            receivedAmount: r.receivedAmount,
+            status: r.status,
+            receivedAt: r.receivedAt,
+            collectionEntryId: r.collectionEntryId,
+            fmt: fmt,
+            mobile: compactSchedule,
+            loan: loan,
+          ),
+        );
+      }
+      return rows;
+    }
+
     final extraPeriods = ext.extraPeriods;
     List<DateTime> dates;
     if (ext.projectedDates.isNotEmpty) {
@@ -638,8 +660,11 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           no: startNo + idx,
           date: date,
           amount: amount,
+          receivedAmount: 0,
+          status: 'projected',
           fmt: fmt,
           mobile: compactSchedule,
+          loan: loan,
         ),
       );
     }
@@ -1808,31 +1833,95 @@ class _ExtendedPlanCard extends StatelessWidget {
   }
 }
 
-class _ProjectedExtraRow extends StatelessWidget {
+class _ProjectedExtraRow extends ConsumerWidget {
   const _ProjectedExtraRow({
     required this.no,
     required this.date,
     required this.amount,
     required this.fmt,
     required this.mobile,
+    required this.loan,
+    this.receivedAmount = 0,
+    this.status = 'projected',
+    this.receivedAt,
+    this.collectionEntryId,
   });
   final int no;
   final DateTime date;
   final double amount;
   final NumberFormat fmt;
   final bool mobile;
+  final Loan loan;
+  final double receivedAmount;
+  final String status;
+  final DateTime? receivedAt;
+  final String? collectionEntryId;
+
+  BadgeKind _badgeKind(String s) => switch (s) {
+        'paid' => BadgeKind.active,
+        'partial' => BadgeKind.partial,
+        'missed' => BadgeKind.overdue,
+        'due today' || 'due_today' => BadgeKind.pending,
+        _ => BadgeKind.upcoming,
+      };
+
+  String _statusLabel(String s, T t) => switch (s) {
+        'paid' => t.x('coll.filter_paid'),
+        'partial' => t.x('coll.status_partial'),
+        'missed' => t.x('coll.status_overdue_days'),
+        'due today' || 'due_today' => t.x('coll.status_due_today'),
+        _ => 'Projected',
+      };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final dateFmt = DateFormat('dd MMM');
+    final timeFmt = DateFormat('h:mm a');
+    final isPaid = status == 'paid';
+    final isDueToday = status == 'due today';
+    final isMissed = status == 'missed';
+    final isProjected = status == 'projected';
+    final canPay = loan.status != 'closed' && (isDueToday || isMissed);
+    final kind = _badgeKind(status);
+    final collectedTime = receivedAt != null ? timeFmt.format(receivedAt!) : null;
+
+    final inst = Instalment(
+      id: collectionEntryId ?? 'ext-${loan.id}-$no',
+      loanId: loan.id,
+      instalmentNo: no,
+      dueDate: date,
+      dueAmount: amount,
+      receivedAmount: receivedAmount,
+      status: isPaid ? 'paid' : (isDueToday ? 'due today' : (isMissed ? 'missed' : 'upcoming')),
+      receivedAt: receivedAt,
+    );
 
     if (mobile) {
+      Color borderColor = const Color(0xFFC7D2FE);
+      Color bgColor = const Color(0xFFEEF2FF).withAlpha(160);
+      Color numColor = const Color(0xFF3730A3);
+
+      if (isPaid) {
+        borderColor = AppColors.success.withAlpha(90);
+        bgColor = AppColors.success.withAlpha(20);
+        numColor = AppColors.success;
+      } else if (isMissed) {
+        borderColor = AppColors.danger.withAlpha(90);
+        bgColor = AppColors.danger.withAlpha(20);
+        numColor = AppColors.danger;
+      } else if (isDueToday) {
+        borderColor = AppColors.warning.withAlpha(120);
+        bgColor = AppColors.warning.withAlpha(20);
+        numColor = AppColors.warning;
+      }
+
       return Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFEEF2FF).withAlpha(160),
-          border: Border.all(color: const Color(0xFFC7D2FE)),
+          color: bgColor,
+          border: Border.all(color: borderColor),
           borderRadius: BorderRadius.circular(AppTokens.radius),
         ),
         child: Column(
@@ -1843,27 +1932,37 @@ class _ProjectedExtraRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '$no  •  ${dateFmt.format(date)}',
-                    style: AppTypography.bodyLarge.copyWith(color: const Color(0xFF3730A3)),
+                    style: AppTypography.bodyLarge.copyWith(color: numColor),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withAlpha(30),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
-                  ),
-                  child: const Text(
-                    'Projected',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF4F46E5),
+                if (isProjected)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withAlpha(30),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF6366F1).withAlpha(80)),
                     ),
+                    child: const Text(
+                      'Projected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
+                  )
+                else
+                  AppBadge(
+                    label: _statusLabel(status, t),
+                    kind: kind,
                   ),
-                ),
               ],
             ),
+            if (collectedTime != null) ...[
+              const SizedBox(height: 4),
+              Text(collectedTime, style: AppTypography.caption),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1875,7 +1974,7 @@ class _ProjectedExtraRow extends StatelessWidget {
                       Text(
                         fmt.format(amount),
                         style: AppTypography.bodyLarge.copyWith(
-                          color: const Color(0xFF4F46E5),
+                          color: isProjected ? const Color(0xFF4F46E5) : AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -1888,13 +1987,23 @@ class _ProjectedExtraRow extends StatelessWidget {
                     children: [
                       Text('RECEIVED', style: AppTypography.caption),
                       Text(
-                        '—',
-                        style: AppTypography.bodyLarge.copyWith(color: AppColors.textLight),
+                        isPaid ? fmt.format(receivedAmount) : '—',
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: isPaid ? AppColors.success : AppColors.textLight,
+                          fontWeight: isPaid ? FontWeight.w700 : FontWeight.normal,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 48),
+                if (canPay)
+                  _PayButton(
+                    inst: inst,
+                    loan: loan,
+                    mobile: true,
+                  )
+                else
+                  const SizedBox(width: 48),
               ],
             ),
           ],
@@ -1902,11 +2011,18 @@ class _ProjectedExtraRow extends StatelessWidget {
       );
     }
 
+    // Wide / Desktop layout
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        border: Border(
+      decoration: BoxDecoration(
+        color: isPaid
+            ? AppColors.success.withAlpha(15)
+            : isMissed
+                ? AppColors.danger.withAlpha(15)
+                : isDueToday
+                    ? AppColors.warning.withAlpha(15)
+                    : const Color(0xFFF8FAFC),
+        border: const Border(
           bottom: BorderSide(color: AppColors.border),
         ),
       ),
@@ -1917,7 +2033,7 @@ class _ProjectedExtraRow extends StatelessWidget {
             child: Text(
               '$no',
               style: AppTypography.caption.copyWith(
-                color: const Color(0xFF6366F1),
+                color: isProjected ? const Color(0xFF6366F1) : AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1935,7 +2051,7 @@ class _ProjectedExtraRow extends StatelessWidget {
               fmt.format(amount),
               style: AppTypography.body.copyWith(
                 fontSize: 12,
-                color: const Color(0xFF4F46E5),
+                color: isProjected ? const Color(0xFF4F46E5) : AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.right,
@@ -1944,10 +2060,11 @@ class _ProjectedExtraRow extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Text(
-              '—',
+              isPaid ? fmt.format(receivedAmount) : '—',
               style: AppTypography.body.copyWith(
                 fontSize: 12,
-                color: AppColors.textLight,
+                color: isPaid ? AppColors.success : AppColors.textLight,
+                fontWeight: isPaid ? FontWeight.w700 : FontWeight.normal,
               ),
               textAlign: TextAlign.right,
             ),
@@ -1956,32 +2073,42 @@ class _ProjectedExtraRow extends StatelessWidget {
           SizedBox(
             width: 70,
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withAlpha(30),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'Projected',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF4F46E5),
-                  ),
-                ),
-              ),
+              child: isProjected
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withAlpha(30),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Projected',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4F46E5),
+                        ),
+                      ),
+                    )
+                  : AppBadge(
+                      label: _statusLabel(status, t),
+                      kind: kind,
+                    ),
             ),
           ),
           const SizedBox(width: 4),
-          const SizedBox(
+          SizedBox(
             width: 48,
-            child: Center(
-              child: Text(
-                '—',
-                style: TextStyle(color: AppColors.textLight),
-              ),
-            ),
+            child: canPay
+                ? _PayButton(
+                    inst: inst,
+                    loan: loan,
+                  )
+                : const Center(
+                    child: Text(
+                      '—',
+                      style: TextStyle(color: AppColors.textLight),
+                    ),
+                  ),
           ),
         ],
       ),

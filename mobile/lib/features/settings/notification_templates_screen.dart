@@ -49,7 +49,7 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
 
   void _showSelection() {
     final matches = _templates.where((row) =>
-        row['name'] == _event && row['channel'] == _channel && row['lang'] == _lang);
+        row['name'] == _event && row['channel'] == _channel && row['lang'] == _lang,);
     final row = matches.isEmpty ? null : matches.first;
     _body.text = row?['body']?.toString() ?? '';
     _subject.text = row?['subject']?.toString() ?? '';
@@ -86,9 +86,11 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
         'isActive': _active,
       });
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.x('tmpl.saved'))),
       );
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -108,7 +110,7 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
                 initialValue: _event,
                 decoration: InputDecoration(labelText: t.x('tmpl.event')),
                 items: [for (final event in _events)
-                  DropdownMenuItem(value: event.$1, child: Text(t.x(event.$2)))],
+                  DropdownMenuItem(value: event.$1, child: Text(t.x(event.$2))),],
                 onChanged: (value) => setState(() { _event = value ?? _event; _showSelection(); }),
               ),
               const SizedBox(height: 12),
@@ -116,7 +118,7 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
                 initialValue: _lang,
                 decoration: InputDecoration(labelText: t.x('tmpl.language')),
                 items: [for (final lang in _languages)
-                  DropdownMenuItem(value: lang, child: Text(lang.toUpperCase()))],
+                  DropdownMenuItem(value: lang, child: Text(lang.toUpperCase())),],
                 onChanged: (value) => setState(() { _lang = value ?? _lang; _showSelection(); }),
               ),
               const SizedBox(height: 12),
@@ -124,7 +126,7 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
                 initialValue: _channel,
                 decoration: InputDecoration(labelText: t.x('log.channel')),
                 items: [for (final channel in _channels)
-                  DropdownMenuItem(value: channel, child: Text(channel.toUpperCase()))],
+                  DropdownMenuItem(value: channel, child: Text(channel.toUpperCase())),],
                 onChanged: (value) => setState(() { _channel = value ?? _channel; _showSelection(); }),
               ),
               const SizedBox(height: 12),
@@ -145,7 +147,7 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
               if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 12),
               FilledButton(onPressed: _saving ? null : _save, child: Text(t.x('common.save'))),
-            ]),
+            ],),
     );
   }
 }

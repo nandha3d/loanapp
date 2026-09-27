@@ -29,22 +29,22 @@ const _items = <NavItem>[
       icon: Icons.home_outlined,
       label: 'Home',
       route: '/dashboard',
-      labelKey: 'nav.home'),
+      labelKey: 'nav.home',),
   NavItem(
       icon: Icons.account_balance_wallet_outlined,
       label: 'Loans',
       route: '/loans',
-      labelKey: 'nav.loans'),
+      labelKey: 'nav.loans',),
   NavItem(
       icon: Icons.payments_outlined,
       label: 'Collection',
       route: '/collection',
-      labelKey: 'nav.collection'),
+      labelKey: 'nav.collection',),
   NavItem(
       icon: Icons.people_alt_outlined,
       label: 'Customers',
       route: '/customers',
-      labelKey: 'nav.customers'),
+      labelKey: 'nav.customers',),
 ];
 
 const _chitItems = <NavItem>[
@@ -53,7 +53,7 @@ const _chitItems = <NavItem>[
   NavItem(
       icon: Icons.account_balance_outlined,
       label: 'Accounts',
-      route: '/accounting'),
+      route: '/accounting',),
   NavItem(icon: Icons.grid_view_rounded, label: 'More', route: '/more'),
 ];
 
@@ -76,7 +76,7 @@ class AppBottomNav extends ConsumerWidget {
         border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
           BoxShadow(
-              color: Color(0x1A000000), offset: Offset(0, -4), blurRadius: 24),
+              color: Color(0x1A000000), offset: Offset(0, -4), blurRadius: 24,),
         ],
       ),
       child: SafeArea(
@@ -104,7 +104,7 @@ class AppBottomNav extends ConsumerWidget {
                   ],
                 ],
               ),
-              Positioned(
+              const Positioned(
                 top: -20,
                 left: 0,
                 right: 0,
@@ -178,7 +178,7 @@ class _CreateFab extends ConsumerWidget {
           border: Border.all(color: AppColors.surface, width: 3),
           boxShadow: const [
             BoxShadow(
-                color: Color(0x33000000), offset: Offset(0, 3), blurRadius: 10),
+                color: Color(0x33000000), offset: Offset(0, 3), blurRadius: 10,),
           ],
         ),
         child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),

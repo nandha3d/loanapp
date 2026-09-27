@@ -153,6 +153,7 @@ export async function saveCustomer(formData: FormData) {
       lat,
       lng,
       photoUrl: photoUrl || undefined,
+      profilePhoto: photoUrl || undefined,
       companyLogo: companyLogoUrl || undefined,
       kycDocs,
       guarantors,
@@ -306,6 +307,38 @@ export async function resetCustomerPassword(customerId: string) {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to reset customer password' };
+  }
+}
+
+export async function updateCustomerPhotoAction(formData: FormData) {
+  const customerId = formData.get('customerId') as string;
+  const customerCode = formData.get('customerCode') as string;
+  const photoFile = formData.get('photo') as File | null;
+  if (!customerId || !photoFile || photoFile.size === 0) {
+    return { success: false, error: 'Customer ID and photo file are required' };
+  }
+  try {
+    const apiContext = await getApiRequestContext();
+    const photoUrl = await uploadFileHelper(photoFile, apiContext);
+    if (!photoUrl) {
+      return { success: false, error: 'Failed to upload photo' };
+    }
+    const appType = await getUserAppType();
+    const res = await apiFetch<any>(`/customers/${customerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ profilePhoto: photoUrl, photoUrl }),
+      ...apiContext,
+    });
+    if (res.error) {
+      return { success: false, error: res.error };
+    }
+    revalidatePath(modulePath(appType, '/customers'));
+    if (customerCode) {
+      revalidatePath(modulePath(appType, `/customers/${customerCode}`));
+    }
+    return { success: true, photoUrl, message: 'Customer photo updated successfully' };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to update photo' };
   }
 }
 

@@ -146,7 +146,7 @@ class _GroupCard extends ConsumerWidget {
             _PeriodTile(c: group.current!, fmt: fmt, showProofButton: true)
           else if (allCaughtUp)
             Text("You're all caught up.",
-                style: AppTypography.body.copyWith(color: AppColors.success, fontWeight: FontWeight.w700)),
+                style: AppTypography.body.copyWith(color: AppColors.success, fontWeight: FontWeight.w700),),
           if (group.overdue.isNotEmpty)
             _PeriodExpansion(title: 'Overdue', items: group.overdue, fmt: fmt, danger: true, showProofButton: true),
           if (group.upcoming.isNotEmpty)
@@ -192,7 +192,7 @@ class _PeriodExpansion extends StatelessWidget {
               ),
               child: Text('${items.length}',
                   style: AppTypography.tiny.copyWith(
-                      fontWeight: FontWeight.w700, color: danger ? AppColors.danger : AppColors.textSecondary)),
+                      fontWeight: FontWeight.w700, color: danger ? AppColors.danger : AppColors.textSecondary,),),
             ),
           ],
         ),
@@ -235,7 +235,7 @@ class _PeriodTile extends ConsumerWidget {
                 children: [
                   Text('Period ${c.periodNumber}', style: AppTypography.body.copyWith(fontWeight: FontWeight.w700)),
                   Text('Due ${DateFormat('dd MMM yyyy').format(c.dueDate)}',
-                      style: AppTypography.tiny.copyWith(color: AppColors.textSecondary)),
+                      style: AppTypography.tiny.copyWith(color: AppColors.textSecondary),),
                 ],
               ),
               Container(
@@ -316,7 +316,7 @@ class _ProofButtonState extends ConsumerState<_ProofButton> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999)),
         child: Text('Pending review',
-            style: AppTypography.tiny.copyWith(fontWeight: FontWeight.w700, color: AppColors.warning)),
+            style: AppTypography.tiny.copyWith(fontWeight: FontWeight.w700, color: AppColors.warning),),
       );
     }
     return OutlinedButton.icon(

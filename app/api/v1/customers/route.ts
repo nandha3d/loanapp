@@ -338,7 +338,7 @@ export async function POST(req: NextRequest) {
             routeId: resolvedRouteId,
             agentId: resolvedAgentId,
             status: bypassCustomerApproval ? 'active' : 'pending_review',
-            profilePhoto: body.photoUrl ?? null,
+            profilePhoto: (body as any).profilePhoto ?? body.photoUrl ?? null,
             // Extended profile fields (web parity)
             email: body.email ?? null,
             pan: body.pan ?? null,

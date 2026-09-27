@@ -1,4 +1,5 @@
 /// e-NACH mandate models — mirrors the web NachPanel.tsx types.
+library;
 
 class NachPresentation {
   const NachPresentation({

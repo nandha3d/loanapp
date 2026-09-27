@@ -1,11 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
-import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/dashboard_summary.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
@@ -49,7 +47,7 @@ class _VerifyUpiSheetState extends ConsumerState<VerifyUpiSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16,),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,12 +69,12 @@ class _VerifyUpiSheetState extends ConsumerState<VerifyUpiSheet> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(_error!,
-                  style: AppTypography.caption.copyWith(color: AppColors.danger)),
+                  style: AppTypography.caption.copyWith(color: AppColors.danger),),
             ),
           const SizedBox(height: 8),
           ConstrainedBox(
             constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.5),
+                maxHeight: MediaQuery.of(context).size.height * 0.5,),
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: widget.pending.length,
@@ -97,16 +95,16 @@ class _VerifyUpiSheetState extends ConsumerState<VerifyUpiSheet> {
                     });
                   },
                   title: Text('${p.customerName} — ${widget.fmt.format(p.amount)}',
-                      style: AppTypography.body),
+                      style: AppTypography.body,),
                   subtitle: Text('${p.loanCode} · ${p.paymentMode}',
-                      style: AppTypography.caption),
+                      style: AppTypography.caption,),
                   secondary: TextButton(
                     onPressed: _loading
                         ? null
                         : () => _verify([p.id]),
                     style: TextButton.styleFrom(
                         foregroundColor: AppColors.success,
-                        padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),),
                     child: const Text('Verify'),
                   ),
                 );

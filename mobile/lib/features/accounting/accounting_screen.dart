@@ -14,6 +14,12 @@ import 'package:zolofund/data/models/reports.dart';
 import 'package:zolofund/data/services/reports_service.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
 import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/features/accounting/journal_entry_form.dart';
+import 'package:zolofund/features/accounting/budget_detail_screen.dart';
+import 'package:zolofund/features/accounting/premium_settings_form.dart';
+import 'package:zolofund/features/accounting/vendor_bills_view.dart';
+import 'package:zolofund/features/accounting/tax_actions_view.dart';
+import 'package:zolofund/features/accounting/export_actions_view.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
@@ -41,20 +47,6 @@ final _budgetsProvider =
   return ref.watch(accountingServiceProvider).listBudgets();
 });
 
-final _taxProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
-  return ref.watch(accountingServiceProvider).getTaxSummary();
-});
-
-final _vendorsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(accountingServiceProvider).listVendors();
-});
-
-final _exportRunsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(accountingServiceProvider).listExportRuns();
-});
-
 final _premiumSettingsProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ref.watch(accountingServiceProvider).getPremiumSettings();
@@ -75,7 +67,8 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final premiumEnabled =
-        ref.watch(authControllerProvider).user?.premiumAccountingEnabled ?? false;
+        ref.watch(authControllerProvider).user?.premiumAccountingEnabled ??
+            false;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -105,19 +98,19 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
         child: !premiumEnabled && _activeView != 'dashboard'
             ? _buildDashboardView(context, premiumEnabled)
             : switch (_activeView) {
-          'coa' => const _CoAView(),
-          'journal' => const _JournalView(),
-          'periods' => const _PeriodsView(),
-          'statements' => const _StatementsView(),
-          'cashflow' => const _CashflowView(),
-          'approvals' => const _AccountingApprovalsView(),
-          'budget' => const _BudgetView(),
-          'tax' => const _TaxView(),
-          'vendors' => const _VendorsView(),
-          'export' => const _ExportRunsView(),
-          'settings' => const _PremiumSettingsView(),
-          _ => _buildDashboardView(context, premiumEnabled),
-        },
+                'coa' => const _CoAView(),
+                'journal' => const _JournalView(),
+                'periods' => const _PeriodsView(),
+                'statements' => const _StatementsView(),
+                'cashflow' => const _CashflowView(),
+                'approvals' => const _AccountingApprovalsView(),
+                'budget' => const _BudgetView(),
+          'tax' => const TaxActionsView(),
+                'vendors' => const VendorBillsView(),
+          'export' => const ExportActionsView(),
+                'settings' => const _PremiumSettingsView(),
+                _ => _buildDashboardView(context, premiumEnabled),
+              },
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/accounting'),
     );
@@ -173,78 +166,78 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.4,
                 children: [
-              _MenuTile(
-                title: t.x('accounting.chart_of_accounts'),
-                icon: Icons.account_tree_outlined,
-                color: Colors.blue,
-                onTap: () => setState(() => _activeView = 'coa'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.manual_journals'),
-                icon: Icons.edit_note_outlined,
-                color: Colors.amber,
-                onTap: () => setState(() => _activeView = 'journal'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.bank_rec'),
-                icon: Icons.account_balance_outlined,
-                color: Colors.green,
-                onTap: () => context.go('/accounting/bank-rec'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.fiscal_periods'),
-                icon: Icons.lock_clock_outlined,
-                color: Colors.red,
-                onTap: () => setState(() => _activeView = 'periods'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.financial_reports'),
-                icon: Icons.trending_up_outlined,
-                color: Colors.purple,
-                onTap: () => setState(() => _activeView = 'statements'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.cash_flow'),
-                icon: Icons.waterfall_chart_outlined,
-                color: Colors.teal,
-                onTap: () => setState(() => _activeView = 'cashflow'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.approvals'),
-                icon: Icons.task_alt_outlined,
-                color: Colors.indigo,
-                onTap: () => setState(() => _activeView = 'approvals'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.budget'),
-                icon: Icons.savings_outlined,
-                color: Colors.cyan,
-                onTap: () => setState(() => _activeView = 'budget'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.tax_gst'),
-                icon: Icons.receipt_long_outlined,
-                color: Colors.deepOrange,
-                onTap: () => setState(() => _activeView = 'tax'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.vendors'),
-                icon: Icons.store_outlined,
-                color: Colors.brown,
-                onTap: () => setState(() => _activeView = 'vendors'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.export_runs'),
-                icon: Icons.ios_share_outlined,
-                color: Colors.blueGrey,
-                onTap: () => setState(() => _activeView = 'export'),
-              ),
-              _MenuTile(
-                title: t.x('accounting.premium_settings'),
-                icon: Icons.tune_outlined,
-                color: Colors.grey,
-                onTap: () => setState(() => _activeView = 'settings'),
-              ),
+                  _MenuTile(
+                    title: t.x('accounting.chart_of_accounts'),
+                    icon: Icons.account_tree_outlined,
+                    color: Colors.blue,
+                    onTap: () => setState(() => _activeView = 'coa'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.manual_journals'),
+                    icon: Icons.edit_note_outlined,
+                    color: Colors.amber,
+                    onTap: () => setState(() => _activeView = 'journal'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.bank_rec'),
+                    icon: Icons.account_balance_outlined,
+                    color: Colors.green,
+                    onTap: () => context.go('/accounting/bank-rec'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.fiscal_periods'),
+                    icon: Icons.lock_clock_outlined,
+                    color: Colors.red,
+                    onTap: () => setState(() => _activeView = 'periods'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.financial_reports'),
+                    icon: Icons.trending_up_outlined,
+                    color: Colors.purple,
+                    onTap: () => setState(() => _activeView = 'statements'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.cash_flow'),
+                    icon: Icons.waterfall_chart_outlined,
+                    color: Colors.teal,
+                    onTap: () => setState(() => _activeView = 'cashflow'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.approvals'),
+                    icon: Icons.task_alt_outlined,
+                    color: Colors.indigo,
+                    onTap: () => setState(() => _activeView = 'approvals'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.budget'),
+                    icon: Icons.savings_outlined,
+                    color: Colors.cyan,
+                    onTap: () => setState(() => _activeView = 'budget'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.tax_gst'),
+                    icon: Icons.receipt_long_outlined,
+                    color: Colors.deepOrange,
+                    onTap: () => setState(() => _activeView = 'tax'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.vendors'),
+                    icon: Icons.store_outlined,
+                    color: Colors.brown,
+                    onTap: () => setState(() => _activeView = 'vendors'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.export_runs'),
+                    icon: Icons.ios_share_outlined,
+                    color: Colors.blueGrey,
+                    onTap: () => setState(() => _activeView = 'export'),
+                  ),
+                  _MenuTile(
+                    title: t.x('accounting.premium_settings'),
+                    icon: Icons.tune_outlined,
+                    color: Colors.grey,
+                    onTap: () => setState(() => _activeView = 'settings'),
+                  ),
                 ],
               ),
               if (!premiumEnabled)
@@ -255,8 +248,8 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                       button: true,
                       label: t.x('accounting.unlock_premium'),
                       child: InkWell(
-                        onTap: () => showAddonPurchaseSheet(
-                            context, ref, addonKey: 'premium_accounting'),
+                        onTap: () => showAddonPurchaseSheet(context, ref,
+                            addonKey: 'premium_accounting'),
                         child: Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -594,18 +587,124 @@ class _CashflowView extends ConsumerWidget {
 class _AccountingApprovalsView extends ConsumerWidget {
   const _AccountingApprovalsView();
 
+  Future<void> _review(
+      BuildContext context, WidgetRef ref, String id, String action) async {
+    final t = T.of(ref);
+    final noteController = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.x('accounting.review_$action')),
+        content: action == 'cancel'
+            ? null
+            : TextField(
+                controller: noteController,
+                decoration:
+                    InputDecoration(labelText: t.x('accounting.review_note')),
+                maxLines: 3,
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(t.x('common.cancel')),
+          ),
+          TextButton(
+            onPressed: () {
+              if (action == 'reject' && noteController.text.trim().isEmpty) {
+                return;
+              }
+              Navigator.pop(dialogContext, noteController.text.trim());
+            },
+            child: Text(t.x('accounting.review_$action')),
+          ),
+        ],
+      ),
+    );
+    noteController.dispose();
+    if (note == null || !context.mounted) return;
+    try {
+      await ref.read(accountingServiceProvider).reviewAccountingApproval(
+            approvalId: id,
+            action: action,
+            note: note,
+          );
+      ref.invalidate(_accountingApprovalsProvider);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${t.x('common.error')}: $error')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_accountingApprovalsProvider);
-    return _AsyncListView(
-      async: async,
-      title: t.x('accounting.pending_approvals'),
-      emptyTitle: t.x('accounting.no_pending_approvals'),
-      rowBuilder: (row) => _InfoRow(
-        '${row['entityType'] ?? 'approval'} - L${row['level'] ?? 1}',
-        '${fmt.format(_num(row['amount']))} - ${row['status'] ?? ''}',
+    final user = ref.watch(authControllerProvider).user;
+    final reviewer =
+        user?.role == UserRole.superadmin || user?.role == UserRole.developer;
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) =>
+          Center(child: Text('${t.x('common.error')}: $error')),
+      data: (rows) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(_accountingApprovalsProvider);
+          await ref.read(_accountingApprovalsProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(t.x('accounting.pending_approvals'),
+                style: AppTypography.sectionTitle),
+            const SizedBox(height: 12),
+            if (rows.isEmpty) Text(t.x('accounting.no_pending_approvals')),
+            for (final row in rows)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${row['entityType'] ?? ''} · L${row['level'] ?? 1}',
+                          style: AppTypography.bodyLarge),
+                      Text(fmt.format(_num(row['amount']))),
+                      Text(
+                          '${t.x('accounting.requester')}: ${(row['requestedBy'] as Map?)?['name'] ?? ''}'),
+                      Text(
+                          '${t.x('accounting.status')}: ${row['status'] ?? ''}'),
+                      if (row['status'] == 'pending')
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (reviewer) ...[
+                              TextButton(
+                                onPressed: () => _review(context, ref,
+                                    row['id'] as String, 'approve'),
+                                child: Text(t.x('accounting.review_approve')),
+                              ),
+                              TextButton(
+                                onPressed: () => _review(context, ref,
+                                    row['id'] as String, 'reject'),
+                                child: Text(t.x('accounting.review_reject')),
+                              ),
+                            ],
+                            if (row['requestedById'] == user?.id)
+                              TextButton(
+                                onPressed: () => _review(context, ref,
+                                    row['id'] as String, 'cancel'),
+                                child: Text(t.x('accounting.review_cancel')),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -614,91 +713,106 @@ class _AccountingApprovalsView extends ConsumerWidget {
 class _BudgetView extends ConsumerWidget {
   const _BudgetView();
 
+  Future<void> _create(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
+    final name = TextEditingController();
+    final fiscalYear = TextEditingController();
+    final input = await showDialog<(String, String)>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.x('accounting.create_budget')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+                controller: name,
+                decoration:
+                    InputDecoration(labelText: t.x('accounting.budget_name'))),
+            TextField(
+                controller: fiscalYear,
+                decoration:
+                    InputDecoration(labelText: t.x('accounting.fiscal_year'))),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t.x('common.cancel'))),
+          TextButton(
+            onPressed: () {
+              if (name.text.trim().isEmpty ||
+                  !RegExp(r'^\d{4}-\d{2}$').hasMatch(fiscalYear.text.trim())) {
+                return;
+              }
+              Navigator.pop(
+                  dialogContext, (name.text.trim(), fiscalYear.text.trim()));
+            },
+            child: Text(t.x('accounting.create_budget')),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    fiscalYear.dispose();
+    if (input == null || !context.mounted) return;
+    try {
+      await ref
+          .read(accountingServiceProvider)
+          .createBudget(name: input.$1, fiscalYear: input.$2);
+      ref.invalidate(_budgetsProvider);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_budgetsProvider);
-    return _AsyncListView(
-      async: async,
-      title: t.x('accounting.budgets'),
-      emptyTitle: t.x('accounting.no_budgets'),
-      rowBuilder: (row) => _InfoRow(
-        row['name']?.toString() ?? 'Budget',
-        '${row['fiscalYear'] ?? ''} - ${row['status'] ?? ''} - ${fmt.format(_num(row['annualTotal']))}',
-      ),
-    );
-  }
-}
-
-class _TaxView extends ConsumerWidget {
-  const _TaxView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    final fmt = ref.watch(currencyFmtProvider);
-    final async = ref.watch(_taxProvider);
-    return _AsyncMapView(
-      async: async,
-      title: t.x('accounting.tax_gst_summary'),
-      rows: (data) {
-        final gst = Map<String, dynamic>.from((data['gst'] as Map?) ?? {});
-        return [
-          _InfoRow('Period', data['periodKey']?.toString() ?? ''),
-          _InfoRow('GST liability', fmt.format(_num(gst['netLiability']))),
-          _InfoRow('GST status', gst['status']?.toString() ?? ''),
-          _InfoRow(
-              'TDS rows', '${(data['tds'] as List<dynamic>? ?? []).length}'),
-        ];
-      },
-      listTitle: 'Recent TDS',
-      listItems: (data) => (data['tds'] as List<dynamic>? ?? [])
-          .take(10)
-          .map((dynamic row) => Map<String, dynamic>.from(row as Map))
-          .map((row) => _InfoRow(
-                row['vendorName']?.toString() ?? 'Vendor',
-                '${row['section'] ?? ''} - ${fmt.format(_num(row['tdsAmount']))}',
-              ))
-          .toList(),
-    );
-  }
-}
-
-class _VendorsView extends ConsumerWidget {
-  const _VendorsView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    final fmt = ref.watch(currencyFmtProvider);
-    final async = ref.watch(_vendorsProvider);
-    return _AsyncListView(
-      async: async,
-      title: t.x('accounting.vendors'),
-      emptyTitle: t.x('accounting.no_vendors'),
-      rowBuilder: (row) => _InfoRow(
-        row['name']?.toString() ?? 'Vendor',
-        '${row['openBillCount'] ?? 0} open bills - ${fmt.format(_num(row['outstanding']))}',
-      ),
-    );
-  }
-}
-
-class _ExportRunsView extends ConsumerWidget {
-  const _ExportRunsView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    final async = ref.watch(_exportRunsProvider);
-    return _AsyncListView(
-      async: async,
-      title: t.x('accounting.recent_export_runs'),
-      emptyTitle: t.x('accounting.no_export_runs'),
-      rowBuilder: (row) => _InfoRow(
-        row['filename']?.toString() ?? 'Export',
-        '${row['kind'] ?? ''} - ${row['periodKey'] ?? ''}',
+    final role = ref.watch(authControllerProvider).user?.role;
+    final canEdit = role == UserRole.superadmin || role == UserRole.developer;
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) =>
+          Center(child: Text('${t.x('common.error')}: $error')),
+      data: (rows) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(_budgetsProvider);
+          await ref.read(_budgetsProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (canEdit)
+              OutlinedButton.icon(
+                onPressed: () => _create(context, ref),
+                icon: const Icon(Icons.add),
+                label: Text(t.x('accounting.create_budget')),
+              ),
+            if (rows.isEmpty) Text(t.x('accounting.no_budgets')),
+            for (final row in rows)
+              Card(
+                  child: ListTile(
+                title: Text(row['name']?.toString() ?? ''),
+                subtitle: Text(
+                    '${row['fiscalYear'] ?? ''} · ${row['status'] ?? ''} · ${fmt.format(_num(row['annualTotal']))}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            BudgetDetailScreen(id: row['id'] as String),
+                      ));
+                  ref.invalidate(_budgetsProvider);
+                },
+              )),
+          ],
+        ),
       ),
     );
   }
@@ -712,22 +826,44 @@ class _PremiumSettingsView extends ConsumerWidget {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_premiumSettingsProvider);
-    return _AsyncMapView(
-      async: async,
-      title: t.x('accounting.premium_settings'),
-      rows: (data) => [
-        _InfoRow(
-            'Fiscal year start', 'Month ${data['fiscalYearStartMonth'] ?? 4}'),
-        _InfoRow('GSTIN', data['gstin']?.toString() ?? 'Not set'),
-        _InfoRow('GST scheme', data['gstScheme']?.toString() ?? ''),
-        _InfoRow('Admin JE cap', fmt.format(_num(data['adminJeCap']))),
-        _InfoRow('Admin bill cap', fmt.format(_num(data['adminBillCap']))),
-        _InfoRow('Two-level threshold',
-            fmt.format(_num(data['twoLevelApprovalThreshold']))),
-        _InfoRow('Tally connector',
-            data['tallyConnectorEnabled'] == true ? 'Enabled' : 'Disabled'),
-      ],
-    );
+    final role = ref.watch(authControllerProvider).user?.role;
+    final canEdit = role == UserRole.superadmin || role == UserRole.developer;
+    return Column(children: [
+      if (canEdit && async.valueOrNull != null)
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: FilledButton.icon(
+            onPressed: () async {
+              await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PremiumSettingsForm(initial: async.valueOrNull!),
+                  ));
+              ref.invalidate(_premiumSettingsProvider);
+            },
+            icon: const Icon(Icons.edit_outlined),
+            label: Text(t.x('accounting.edit_settings')),
+          ),
+        ),
+      Expanded(
+          child: _AsyncMapView(
+        async: async,
+        title: t.x('accounting.premium_settings'),
+        rows: (data) => [
+          _InfoRow('Fiscal year start',
+              'Month ${data['fiscalYearStartMonth'] ?? 4}'),
+          _InfoRow('GSTIN', data['gstin']?.toString() ?? 'Not set'),
+          _InfoRow('GST scheme', data['gstScheme']?.toString() ?? ''),
+          _InfoRow('Admin JE cap', fmt.format(_num(data['adminJeCap']))),
+          _InfoRow('Admin bill cap', fmt.format(_num(data['adminBillCap']))),
+          _InfoRow('Two-level threshold',
+              fmt.format(_num(data['twoLevelApprovalThreshold']))),
+          _InfoRow('Tally connector',
+              data['tallyConnectorEnabled'] == true ? 'Enabled' : 'Disabled'),
+        ],
+      )),
+    ]);
   }
 }
 
@@ -763,47 +899,6 @@ class _AsyncMapView extends StatelessWidget {
               ],
             ],
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AsyncListView extends StatelessWidget {
-  const _AsyncListView({
-    required this.async,
-    required this.title,
-    required this.emptyTitle,
-    required this.rowBuilder,
-  });
-
-  final AsyncValue<List<Map<String, dynamic>>> async;
-  final String title;
-  final String emptyTitle;
-  final _InfoRow Function(Map<String, dynamic>) rowBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        async.when(
-          loading: () => const Skeleton(height: 220),
-          error: (e, _) => _InlineError(message: e.toString()),
-          data: (items) {
-            if (items.isEmpty) {
-              return SizedBox(
-                height: 220,
-                child: Center(
-                  child: Text(emptyTitle, style: AppTypography.caption),
-                ),
-              );
-            }
-            return _InfoCard(
-              title: title,
-              rows: items.take(50).map(rowBuilder).toList(),
-            );
-          },
         ),
       ],
     );
@@ -929,10 +1024,14 @@ class _CoAViewState extends ConsumerState<_CoAView> {
 
   Future<void> _showAccountForm([Map<String, dynamic>? account]) async {
     final t = T.of(ref);
-    final code = TextEditingController(text: account?['code']?.toString() ?? '');
-    final name = TextEditingController(text: account?['name']?.toString() ?? '');
-    final subType = TextEditingController(text: account?['subType']?.toString() ?? '');
-    final description = TextEditingController(text: account?['description']?.toString() ?? '');
+    final code =
+        TextEditingController(text: account?['code']?.toString() ?? '');
+    final name =
+        TextEditingController(text: account?['name']?.toString() ?? '');
+    final subType =
+        TextEditingController(text: account?['subType']?.toString() ?? '');
+    final description =
+        TextEditingController(text: account?['description']?.toString() ?? '');
     String classType = account?['classType']?.toString() ?? 'asset';
     String? parentId = account?['parentId']?.toString();
     bool isCash = account?['isCash'] == true;
@@ -941,7 +1040,9 @@ class _CoAViewState extends ConsumerState<_CoAView> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: Text(t.x(account == null ? 'accounting.create_account' : 'accounting.edit_account')),
+          title: Text(t.x(account == null
+              ? 'accounting.create_account'
+              : 'accounting.edit_account')),
           content: SizedBox(
             width: 420,
             child: SingleChildScrollView(
@@ -951,39 +1052,57 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                   TextField(
                     controller: code,
                     enabled: account == null,
-                    decoration: InputDecoration(labelText: t.x('accounting.account_code')),
+                    decoration: InputDecoration(
+                        labelText: t.x('accounting.account_code')),
                   ),
                   TextField(
                     controller: name,
-                    decoration: InputDecoration(labelText: t.x('accounting.account_name')),
+                    decoration: InputDecoration(
+                        labelText: t.x('accounting.account_name')),
                   ),
                   if (account == null)
                     DropdownButtonFormField<String>(
-                      value: classType,
-                      decoration: InputDecoration(labelText: t.x('accounting.account_class')),
-                      items: ['asset', 'liability', 'equity', 'income', 'expense']
-                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      initialValue: classType,
+                      decoration: InputDecoration(
+                          labelText: t.x('accounting.account_class')),
+                      items: [
+                        'asset',
+                        'liability',
+                        'equity',
+                        'income',
+                        'expense'
+                      ]
+                          .map((value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(t.x('accounting.class_$value'))))
                           .toList(),
-                      onChanged: (value) => setDialogState(() => classType = value ?? classType),
+                      onChanged: (value) =>
+                          setDialogState(() => classType = value ?? classType),
                     ),
                   TextField(
                     controller: subType,
-                    decoration: InputDecoration(labelText: t.x('accounting.account_subtype')),
+                    decoration: InputDecoration(
+                        labelText: t.x('accounting.account_subtype')),
                   ),
                   DropdownButtonFormField<String?>(
-                    value: parentId,
-                    decoration: InputDecoration(labelText: t.x('accounting.parent_account')),
+                    initialValue: parentId,
+                    decoration: InputDecoration(
+                        labelText: t.x('accounting.parent_account')),
                     isExpanded: true,
                     items: [
-                      DropdownMenuItem<String?>(value: null, child: Text(t.x('accounting.no_parent'))),
+                      DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(t.x('accounting.no_parent'))),
                       ..._accounts
                           .where((item) => item['id'] != account?['id'])
                           .map((item) => DropdownMenuItem<String?>(
                                 value: item['id'] as String,
-                                child: Text('[${item['code']}] ${item['name']}', overflow: TextOverflow.ellipsis),
+                                child: Text('[${item['code']}] ${item['name']}',
+                                    overflow: TextOverflow.ellipsis),
                               )),
                     ],
-                    onChanged: (value) => setDialogState(() => parentId = value),
+                    onChanged: (value) =>
+                        setDialogState(() => parentId = value),
                   ),
                   SwitchListTile(
                     title: Text(t.x('accounting.cash_account')),
@@ -992,7 +1111,8 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                   ),
                   TextField(
                     controller: description,
-                    decoration: InputDecoration(labelText: t.x('accounting.description')),
+                    decoration: InputDecoration(
+                        labelText: t.x('accounting.description')),
                   ),
                 ],
               ),
@@ -1004,41 +1124,48 @@ class _CoAViewState extends ConsumerState<_CoAView> {
               child: Text(t.x('common.cancel')),
             ),
             TextButton(
-              onPressed: saving ? null : () async {
-                if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
-                setDialogState(() => saving = true);
-                try {
-                  final service = ref.read(accountingServiceProvider);
-                  if (account == null) {
-                    await service.createCoAAccount(
-                      code: code.text.trim(),
-                      name: name.text.trim(),
-                      classType: classType,
-                      subType: subType.text.trim(),
-                      parentId: parentId,
-                      isCash: isCash,
-                      description: description.text.trim(),
-                    );
-                  } else {
-                    await service.updateCoAAccount(
-                      account['id'] as String,
-                      name: name.text.trim(),
-                      subType: subType.text.trim(),
-                      parentId: parentId,
-                      clearParent: parentId == null,
-                      isCash: isCash,
-                      description: description.text.trim(),
-                    );
-                  }
-                  if (!dialogContext.mounted) return;
-                  Navigator.pop(dialogContext);
-                  await _fetchAccounts();
-                } catch (error) {
-                  if (!dialogContext.mounted) return;
-                  setDialogState(() => saving = false);
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('$error')));
-                }
-              },
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (code.text.trim().isEmpty || name.text.trim().isEmpty) {
+                        return;
+                      }
+                      setDialogState(() => saving = true);
+                      try {
+                        final service = ref.read(accountingServiceProvider);
+                        if (account == null) {
+                          await service.createCoAAccount(
+                            code: code.text.trim(),
+                            name: name.text.trim(),
+                            classType: classType,
+                            subType: subType.text.trim(),
+                            parentId: parentId,
+                            isCash: isCash,
+                            description: description.text.trim(),
+                          );
+                        } else {
+                          await service.updateCoAAccount(
+                            account['id'] as String,
+                            name: name.text.trim(),
+                            subType: subType.text.trim(),
+                            parentId: parentId,
+                            clearParent: parentId == null,
+                            isCash: isCash,
+                            description: description.text.trim(),
+                          );
+                        }
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                        await _fetchAccounts();
+                      } catch (error) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() => saving = false);
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('${t.x('common.error')}: $error')));
+                      }
+                    },
               child: Text(t.x('common.save')),
             ),
           ],
@@ -1139,11 +1266,12 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
-                        if (canEdit) Switch(
-                          value: isActive,
-                          onChanged: (v) => _toggleAccount(a['id'] as String),
-                          activeThumbColor: AppColors.success,
-                        ),
+                        if (canEdit)
+                          Switch(
+                            value: isActive,
+                            onChanged: (v) => _toggleAccount(a['id'] as String),
+                            activeThumbColor: AppColors.success,
+                          ),
                       ],
                     ),
                   ],
@@ -1170,6 +1298,8 @@ class _JournalViewState extends ConsumerState<_JournalView> {
   bool _loading = true;
   List<dynamic> _journals = [];
   String _error = '';
+  int _page = 1;
+  int _pages = 1;
 
   @override
   void initState() {
@@ -1180,9 +1310,12 @@ class _JournalViewState extends ConsumerState<_JournalView> {
   Future<void> _fetchJournals() async {
     setState(() => _loading = true);
     try {
-      final res = await ref.read(accountingServiceProvider).listJournals();
+      final res =
+          await ref.read(accountingServiceProvider).listJournals(page: _page);
       setState(() {
         _journals = res['rows'] as List<dynamic>? ?? [];
+        _pages = (res['pages'] as num?)?.toInt() ?? 1;
+        _error = '';
         _loading = false;
       });
     } catch (e) {
@@ -1193,14 +1326,29 @@ class _JournalViewState extends ConsumerState<_JournalView> {
     }
   }
 
-  void _showJournalDetails(Map<String, dynamic> je) {
+  Future<void> _showJournalDetails(Map<String, dynamic> summary) async {
+    Map<String, dynamic> je;
+    try {
+      je = await ref
+          .read(accountingServiceProvider)
+          .getJournal(summary['id'] as String);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+      return;
+    }
+    if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Padding(
+        return SingleChildScrollView(
+            child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1217,10 +1365,43 @@ class _JournalViewState extends ConsumerState<_JournalView> {
                   style: AppTypography.caption.copyWith(
                       fontWeight: FontWeight.bold, color: AppColors.primary)),
               const Divider(height: 24),
-              const Text(
-                  'Transaction splits not shown in summary. Use Web for full double-entry details.',
-                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+              for (final dynamic item in je['lines'] as List<dynamic>? ?? [])
+                Builder(builder: (context) {
+                  final line = Map<String, dynamic>.from(item as Map);
+                  final account =
+                      Map<String, dynamic>.from(line['account'] as Map? ?? {});
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                        '[${account['code'] ?? ''}] ${account['name'] ?? ''}'),
+                    subtitle: Text(
+                        '${T.of(ref).x('accounting.debit')}: ${line['debit']} · ${T.of(ref).x('accounting.credit')}: ${line['credit']}'),
+                  );
+                }),
               const SizedBox(height: 16),
+              if (je['status'] == 'draft') ...[
+                Row(children: [
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _runJournalAction(() => ref
+                          .read(accountingServiceProvider)
+                          .deleteDraftJournal(je['id'] as String));
+                    },
+                    child: Text(T.of(ref).x('accounting.delete_draft')),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _runJournalAction(() => ref
+                          .read(accountingServiceProvider)
+                          .postDraftJournal(je['id'] as String));
+                    },
+                    child: Text(T.of(ref).x('accounting.post_draft')),
+                  ),
+                ]),
+              ],
               if (je['status'] == 'pending_approval') ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -1273,9 +1454,22 @@ class _JournalViewState extends ConsumerState<_JournalView> {
               ],
             ],
           ),
-        );
+        ));
       },
     );
+  }
+
+  Future<void> _runJournalAction(Future<void> Function() action) async {
+    setState(() => _loading = true);
+    try {
+      await action();
+      await _fetchJournals();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 
   void _showReversalReasonDialog(String jeId) {
@@ -1336,6 +1530,17 @@ class _JournalViewState extends ConsumerState<_JournalView> {
                   style: AppTypography.caption),
               IconButton(
                   icon: const Icon(Icons.refresh), onPressed: _fetchJournals),
+              IconButton(
+                tooltip: T.of(ref).x('accounting.new_journal'),
+                icon: const Icon(Icons.add),
+                onPressed: () async {
+                  final created = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(builder: (_) => const JournalEntryForm()),
+                  );
+                  if (created == true && mounted) await _fetchJournals();
+                },
+              ),
             ],
           ),
         ),
@@ -1415,6 +1620,33 @@ class _JournalViewState extends ConsumerState<_JournalView> {
             },
           ),
         ),
+        if (_pages > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                tooltip: T.of(ref).x('pen.previous_page'),
+                onPressed: _page > 1
+                    ? () {
+                        _page--;
+                        _fetchJournals();
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Text('$_page / $_pages'),
+              IconButton(
+                tooltip: T.of(ref).x('pen.next_page'),
+                onPressed: _page < _pages
+                    ? () {
+                        _page++;
+                        _fetchJournals();
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
       ],
     );
   }

@@ -206,14 +206,14 @@ class _BorrowerDashboardScreenState
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: DropdownButtonFormField<int>(
-                  value: _selectedLoanIdx,
+                  initialValue: _selectedLoanIdx,
                   decoration: const InputDecoration(
-                      labelText: 'Select Loan', isDense: true),
+                      labelText: 'Select Loan', isDense: true,),
                   items: loanList.asMap().entries.map((e) {
                     return DropdownMenuItem(
                       value: e.key,
                       child: Text(
-                          '${e.value.loanCode} — ${fmt.format(e.value.principalAmount)}'),
+                          '${e.value.loanCode} — ${fmt.format(e.value.principalAmount)}',),
                     );
                   }).toList(),
                   onChanged: (v) => setState(() => _selectedLoanIdx = v ?? 0),
@@ -226,11 +226,11 @@ class _BorrowerDashboardScreenState
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _TabPill('Dashboard', 0),
-                    _TabPill('Schedule', 1),
-                    _TabPill('History', 2),
-                    _TabPill('Details', 3),
-                    _TabPill('Calculator', 4),
+                    _tabPill('Dashboard', 0),
+                    _tabPill('Schedule', 1),
+                    _tabPill('History', 2),
+                    _tabPill('Details', 3),
+                    _tabPill('Calculator', 4),
                   ],
                 ),
               ),
@@ -272,7 +272,7 @@ class _BorrowerDashboardScreenState
     );
   }
 
-  Widget _TabPill(String label, int idx) {
+  Widget _tabPill(String label, int idx) {
     final active = _tabIndex == idx;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -285,11 +285,11 @@ class _BorrowerDashboardScreenState
             color: active ? AppColors.primary : AppColors.surface,
             borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
             border: Border.all(
-                color: active ? AppColors.primary : AppColors.border),
+                color: active ? AppColors.primary : AppColors.border,),
           ),
           child: Text(label,
               style: AppTypography.label.copyWith(
-                  color: active ? Colors.white : AppColors.textSecondary)),
+                  color: active ? Colors.white : AppColors.textSecondary,),),
         ),
       ),
     );
@@ -327,7 +327,7 @@ class _DashboardTab extends StatelessWidget {
                     strokeWidth: 12,
                     backgroundColor: AppColors.border,
                     valueColor: AlwaysStoppedAnimation(
-                        paidPct >= 100 ? AppColors.success : AppColors.primary),
+                        paidPct >= 100 ? AppColors.success : AppColors.primary,),
                   ),
                 ),
                 Column(
@@ -335,7 +335,7 @@ class _DashboardTab extends StatelessWidget {
                   children: [
                     Text('${paidPct.toStringAsFixed(0)}%',
                         style: AppTypography.display
-                            .copyWith(color: AppColors.primary)),
+                            .copyWith(color: AppColors.primary),),
                     Text('Repaid', style: AppTypography.caption),
                   ],
                 ),
@@ -350,12 +350,12 @@ class _DashboardTab extends StatelessWidget {
             Expanded(
               child: _BorrowerKpi(
                   label: 'Outstanding',
-                  value: fmt.format(loan.outstandingBalance)),
+                  value: fmt.format(loan.outstandingBalance),),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _BorrowerKpi(
-                  label: 'Paid', value: fmt.format(loan.totalPaid)),
+                  label: 'Paid', value: fmt.format(loan.totalPaid),),
             ),
           ],
         ),
@@ -438,7 +438,7 @@ class _ScheduleTab extends StatelessWidget {
                               ? AppColors.success
                               : isOverdue
                                   ? AppColors.danger
-                                  : AppColors.textSecondary)),
+                                  : AppColors.textSecondary,),),
                 ),
               ),
               const SizedBox(width: 12),
@@ -448,9 +448,9 @@ class _ScheduleTab extends StatelessWidget {
                   children: [
                     Text(DateFormat('dd MMM yyyy').format(inst.dueDate),
                         style: AppTypography.body
-                            .copyWith(fontWeight: FontWeight.w600)),
+                            .copyWith(fontWeight: FontWeight.w600),),
                     Text(fmt.format(inst.dueAmount),
-                        style: AppTypography.caption),
+                        style: AppTypography.caption,),
                   ],
                 ),
               ),
@@ -499,7 +499,7 @@ class _HistoryTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final paid = loan.instalments.where((i) => i.isPaid).toList()
       ..sort(
-          (a, b) => (b.paidAt ?? b.dueDate).compareTo(a.paidAt ?? a.dueDate));
+          (a, b) => (b.paidAt ?? b.dueDate).compareTo(a.paidAt ?? a.dueDate),);
 
     if (paid.isEmpty) {
       return const Center(
@@ -517,7 +517,7 @@ class _HistoryTab extends StatelessWidget {
           leading: const Icon(Icons.check_circle, color: AppColors.success),
           title: Text(
               'EMI #${inst.instNo} — ${fmt.format(inst.receivedAmount)}',
-              style: AppTypography.body),
+              style: AppTypography.body,),
           subtitle: Text(
             inst.paidAt != null
                 ? DateFormat('dd MMM yyyy').format(inst.paidAt!)
@@ -564,18 +564,18 @@ class _DetailsTab extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          _Row('Loan Code', loan.loanCode),
-          _Row('Principal', fmt.format(loan.principalAmount)),
-          _Row('Interest Rate', '${loan.interestRate}%'),
-          _Row('Tenure', '${loan.tenure} ${loan.frequency}'),
-          _Row('Total Payable', fmt.format(loan.totalPayable)),
-          _Row('Frequency', loan.frequency),
-          _Row('Status', loan.status),
+          _row('Loan Code', loan.loanCode),
+          _row('Principal', fmt.format(loan.principalAmount)),
+          _row('Interest Rate', '${loan.interestRate}%'),
+          _row('Tenure', '${loan.tenure} ${loan.frequency}'),
+          _row('Total Payable', fmt.format(loan.totalPayable)),
+          _row('Frequency', loan.frequency),
+          _row('Status', loan.status),
           if (loan.disbursedAt != null)
-            _Row('Disbursed',
-                DateFormat('dd MMM yyyy').format(loan.disbursedAt!)),
+            _row('Disbursed',
+                DateFormat('dd MMM yyyy').format(loan.disbursedAt!),),
           if (loan.collectionPoint != null)
-            _Row('Collection Point', loan.collectionPoint!),
+            _row('Collection Point', loan.collectionPoint!),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -590,7 +590,7 @@ class _DetailsTab extends ConsumerWidget {
     );
   }
 
-  Widget _Row(String label, String value) {
+  Widget _row(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -598,9 +598,9 @@ class _DetailsTab extends ConsumerWidget {
         children: [
           Text(label,
               style: AppTypography.caption
-                  .copyWith(color: AppColors.textSecondary)),
+                  .copyWith(color: AppColors.textSecondary),),
           Text(value,
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),),
         ],
       ),
     );
@@ -648,7 +648,7 @@ class _CalculatorTab extends StatelessWidget {
           Text('EMI Calculator', style: AppTypography.sectionTitle),
           const SizedBox(height: 16),
           Text('Principal: ${fmt.format(principal)}',
-              style: AppTypography.body),
+              style: AppTypography.body,),
           Slider(
             value: principal,
             min: 5000,
@@ -667,7 +667,7 @@ class _CalculatorTab extends StatelessWidget {
             onChanged: (v) => onChanged(principal, v.round(), rate, freq),
           ),
           Text('Interest Rate: ${rate.toStringAsFixed(1)}%',
-              style: AppTypography.body),
+              style: AppTypography.body,),
           Slider(
             value: rate,
             min: 1,
@@ -693,15 +693,15 @@ class _CalculatorTab extends StatelessWidget {
             ],
           ),
           const Divider(height: 24),
-          _ResultRow('Total Interest', fmt.format(totalInterest)),
-          _ResultRow('Total Payable', fmt.format(totalPayable)),
-          _ResultRow('EMI ($freq)', fmt.format(emi)),
+          _resultRow('Total Interest', fmt.format(totalInterest)),
+          _resultRow('Total Payable', fmt.format(totalPayable)),
+          _resultRow('EMI ($freq)', fmt.format(emi)),
         ],
       ),
     );
   }
 
-  Widget _ResultRow(String label, String value) {
+  Widget _resultRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
@@ -710,7 +710,7 @@ class _CalculatorTab extends StatelessWidget {
           Text(label, style: AppTypography.body),
           Text(value,
               style: AppTypography.body.copyWith(
-                  fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  fontWeight: FontWeight.w700, color: AppColors.primary,),),
         ],
       ),
     );
@@ -772,7 +772,7 @@ class _ChitMembershipCard extends StatelessWidget {
                     Text(m.groupName,
                         style: AppTypography.sectionTitle,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                        overflow: TextOverflow.ellipsis,),
                     Text(
                       '${m.groupCode != null ? '${m.groupCode} · ' : ''}'
                       'Ticket ${m.ticketNo ?? '—'}',
@@ -804,12 +804,12 @@ class _ChitMembershipCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _BorrowerKpi(
-                    label: 'Chit Value', value: fmt.format(m.chitValue)),
+                    label: 'Chit Value', value: fmt.format(m.chitValue),),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _BorrowerKpi(
-                    label: 'Monthly', value: fmt.format(m.monthlyContrib)),
+                    label: 'Monthly', value: fmt.format(m.monthlyContrib),),
               ),
             ],
           ),
@@ -890,7 +890,7 @@ class _ChitMembershipCard extends StatelessWidget {
 
 class _BorrowerKpi extends StatelessWidget {
   const _BorrowerKpi(
-      {required this.label, required this.value, this.isAlert = false});
+      {required this.label, required this.value, this.isAlert = false,});
   final String label, value;
   final bool isAlert;
 
@@ -915,7 +915,7 @@ class _BorrowerKpi extends StatelessWidget {
               style: AppTypography.body.copyWith(
                 fontWeight: FontWeight.w700,
                 color: isAlert ? AppColors.danger : AppColors.textPrimary,
-              )),
+              ),),
         ],
       ),
     );

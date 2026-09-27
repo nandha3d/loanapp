@@ -92,7 +92,7 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
             _kpi('Active pledges', '${s['activePledges'] ?? 0}'),
             _kpi('Total loan', _fmt.format(s['totalLoanAmount'] ?? 0)),
             _kpi('Pending interest',
-                _fmt.format(s['totalPendingInterest'] ?? 0)),
+                _fmt.format(s['totalPendingInterest'] ?? 0),),
             _kpi(
               'Active net wt',
               '${((s['activeOrnamentWeight'] as Map?)?['net'] ?? 0)} g',
@@ -107,7 +107,7 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
         const SizedBox(height: 8),
         if (rows.isEmpty)
           Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Center(child: Text(t.x('gold.no_active_pledges'))),
           )
         else

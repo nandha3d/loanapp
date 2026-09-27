@@ -66,7 +66,7 @@ class _ChitPaymentIntentsScreenState
   void _openProof(String url) {
     if (url.toLowerCase().endsWith('.pdf')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('PDF proof — open the web dashboard to view it')));
+          content: Text('PDF proof — open the web dashboard to view it'),),);
       return;
     }
     showDialog<void>(
@@ -225,7 +225,7 @@ class _IntentCard extends StatelessWidget {
                 child: Text(
                   intent.status,
                   style: AppTypography.tiny.copyWith(
-                      fontWeight: FontWeight.w700, color: _statusColor),
+                      fontWeight: FontWeight.w700, color: _statusColor,),
                 ),
               ),
             ],
@@ -236,7 +236,7 @@ class _IntentCard extends StatelessWidget {
             runSpacing: 4,
             children: [
               _stat('Claimed',
-                  intent.amount != null ? fmt.format(intent.amount) : '—'),
+                  intent.amount != null ? fmt.format(intent.amount) : '—',),
               _stat('Mode', intent.paymentMode),
               _stat('Ref', intent.referenceNo ?? '—'),
               if (intent.periodOutstanding != null)
@@ -254,7 +254,7 @@ class _IntentCard extends StatelessWidget {
               child: Text(
                 '⚠ Reference number seen before — check for duplicate',
                 style: AppTypography.tiny.copyWith(
-                    fontWeight: FontWeight.w700, color: AppColors.warning),
+                    fontWeight: FontWeight.w700, color: AppColors.warning,),
               ),
             ),
           ],
@@ -262,13 +262,13 @@ class _IntentCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Reason: ${intent.rejectionReason}',
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.danger)),
+                    AppTypography.caption.copyWith(color: AppColors.danger),),
           ],
           if (intent.status == 'approved' && intent.receiptNo != null) ...[
             const SizedBox(height: 6),
             Text('Receipt: ${intent.receiptNo}',
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.success)),
+                    AppTypography.caption.copyWith(color: AppColors.success),),
           ],
           const SizedBox(height: 10),
           Row(
@@ -279,14 +279,14 @@ class _IntentCard extends StatelessWidget {
                   icon: const Icon(Icons.image_outlined, size: 16),
                   label: const Text('View proof'),
                   style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact),
+                      visualDensity: VisualDensity.compact,),
                 ),
               const Spacer(),
               if (intent.status == 'pending')
                 FilledButton(
                   onPressed: () => onReview(intent),
                   style: FilledButton.styleFrom(
-                      visualDensity: VisualDensity.compact),
+                      visualDensity: VisualDensity.compact,),
                   child: const Text('Review'),
                 ),
             ],
@@ -301,9 +301,9 @@ class _IntentCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: AppTypography.tiny.copyWith(color: AppColors.textSecondary)),
+            style: AppTypography.tiny.copyWith(color: AppColors.textSecondary),),
         Text(value,
-            style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600)),
+            style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),),
       ],
     );
   }
@@ -408,7 +408,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
           if (intent.periodOutstanding != null)
             Text('Outstanding this period: ${fmt.format(intent.periodOutstanding)}',
                 style: AppTypography.caption
-                    .copyWith(color: AppColors.textSecondary)),
+                    .copyWith(color: AppColors.textSecondary),),
           const SizedBox(height: 14),
           TextField(
             controller: _amountCtrl,
@@ -429,7 +429,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(_error!,
-                style: AppTypography.caption.copyWith(color: AppColors.danger)),
+                style: AppTypography.caption.copyWith(color: AppColors.danger),),
           ],
           const SizedBox(height: 16),
           Row(
@@ -438,7 +438,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
                 child: OutlinedButton(
                   onPressed: _busy ? null : _reject,
                   style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger),
+                      foregroundColor: AppColors.danger,),
                   child: const Text('Reject'),
                 ),
               ),
@@ -450,7 +450,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),)
                       : const Text('Approve'),
                 ),
               ),

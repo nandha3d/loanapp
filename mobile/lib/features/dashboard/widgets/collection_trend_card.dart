@@ -42,7 +42,7 @@ class CollectionTrendCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(t.x('an.collection_trend'),
-                    style: AppTypography.sectionTitle),
+                    style: AppTypography.sectionTitle,),
                 const SizedBox(height: 8),
                 _RangePicker(),
               ],
@@ -51,7 +51,7 @@ class CollectionTrendCard extends ConsumerWidget {
             Row(
               children: [
                 Text(t.x('an.collection_trend'),
-                    style: AppTypography.sectionTitle),
+                    style: AppTypography.sectionTitle,),
                 const Spacer(),
                 _RangePicker(),
               ],
@@ -60,7 +60,7 @@ class CollectionTrendCard extends ConsumerWidget {
           Row(
             children: [
               _Legend(
-                  color: const Color(0xFFCBD5E1), label: t.x('an.expected')),
+                  color: const Color(0xFFCBD5E1), label: t.x('an.expected'),),
               const SizedBox(width: 12),
               _Legend(color: AppColors.primary, label: t.x('an.collected')),
             ],
@@ -74,7 +74,7 @@ class CollectionTrendCard extends ConsumerWidget {
               error: (e, _) => Center(
                 child: Text(e.toString(),
                     style: AppTypography.caption
-                        .copyWith(color: AppColors.danger)),
+                        .copyWith(color: AppColors.danger),),
               ),
               data: (points) => _Chart(points: points, t: t),
             ),
@@ -142,7 +142,7 @@ class _Chart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (points.isEmpty) {
       return EmptyState(
-          icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'));
+          icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'),);
     }
 
     double maxY = 100;

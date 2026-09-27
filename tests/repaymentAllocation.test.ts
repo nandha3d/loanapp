@@ -110,4 +110,19 @@ const metrics500 = resWith500Payment.metricsByLoan.get('L1')!;
 assert.equal(metrics500.overdueCollectedToday, 200, 'Overdue collected today is ₹200');
 assert.equal(metrics500.overdueOutstanding, 100, 'Overdue outstanding is remaining ₹100');
 
+// Scenario 4: Borrower has lifetime collections exceeding all past arrears, but cToday == 0.
+// Under MONEY-22, historical collections must NEVER spill over into today's due date when cToday == 0.
+const testInstalmentsWithExcessHistorical = [
+  { id: 'i1', loanId: 'L2', instalmentNo: 1, dueDate: '2026-09-21T00:00:00.000Z', dueAmount: 300, receivedAmount: 300, status: 'paid' },
+  { id: 'i2', loanId: 'L2', instalmentNo: 2, dueDate: '2026-09-22T00:00:00.000Z', dueAmount: 300, receivedAmount: 300, status: 'paid' },
+  { id: 'i3', loanId: 'L2', instalmentNo: 3, dueDate: '2026-09-23T00:00:00.000Z', dueAmount: 300, receivedAmount: 300, status: 'paid' },
+  { id: 'i4', loanId: 'L2', instalmentNo: 4, dueDate: '2026-09-24T00:00:00.000Z', dueAmount: 300, receivedAmount: 300, status: 'paid' }, // today
+];
+// cTotal is 1200 across the loan, but 0 was collected today.
+const resExcessNoPaymentToday = getDistributedInstalmentsAndMetrics(testInstalmentsWithExcessHistorical, todayDate, []);
+const todayRowExcess = resExcessNoPaymentToday.distributedInstalments.find((i) => i.id === 'i4')!;
+assert.equal(todayRowExcess.receivedAmount, 0, 'Today receivedAmount must strictly be 0 when cToday is 0 even with historical surplus');
+assert.equal(todayRowExcess.outstandingAmount, 300, 'Today outstanding must be full due amount 300');
+assert.notEqual(todayRowExcess.status, 'paid', 'Today status must NOT be paid when cToday is 0');
+
 console.log('repayment allocation tests passed');

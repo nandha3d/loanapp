@@ -283,20 +283,37 @@ export default function LoanDetailClient({
   // DEFAULT "extend days" projection: keep paying the normal per-instalment, slide
   // the finish out one period per unpaid due. Recomputed live from outstanding.
   const extended = useMemo(
-    () => computeExtendedSchedule(loan.instalments || [], Number(loan.perInstalment), loan.frequency, new Date()),
-    [loan.instalments, loan.perInstalment, loan.frequency],
+    () => computeExtendedSchedule(
+      loan.instalments || [],
+      Number(loan.perInstalment),
+      loan.frequency,
+      new Date(),
+      ((loan as any).collectionEntries || []).map((c: any) => ({
+        ...c,
+        collectionDate: c.submittedAt,
+      })),
+    ),
+    [loan.instalments, loan.perInstalment, loan.frequency, (loan as any).collectionEntries],
   );
-  // Projected rows BEYOND the original schedule's last date — appended (muted) to
-  // the schedule in extend mode so the extra days are visible.
+  // Projected rows BEYOND the original schedule's last date — appended
+  // to the schedule in extend mode so the extra days are visible.
   const projectedExtraRows = useMemo(() => {
-    if (extended.extraPeriods <= 0) return [] as { no: number; date: Date; amount: number }[];
+    if (extended.extendedRows && extended.extendedRows.length > 0) {
+      return extended.extendedRows;
+    }
+    if (extended.extraPeriods <= 0) return [];
     const per = Number(loan.perInstalment) || 0;
     const startNo = loan.totalInstalments + 1;
     const dates = extended.projectedDates.slice(-extended.extraPeriods);
     return dates.map((date, idx) => ({
       no: startNo + idx,
       date,
-      amount: idx === dates.length - 1 ? extended.finalPartial : per,
+      amount: idx === dates.length - 1 && extended.finalPartial > 0 ? extended.finalPartial : per,
+      receivedAmount: 0,
+      status: 'projected' as const,
+      receivedAt: null,
+      collectionEntryId: null,
+      paymentMode: null,
     }));
   }, [extended, loan.perInstalment, loan.totalInstalments]);
 
@@ -429,6 +446,7 @@ export default function LoanDetailClient({
   const [collectCard, setCollectCard] = useState<'today' | 'total'>('today');
   const [collectMode, setCollectMode] = useState('cash');
   const [collectRemarks, setCollectRemarks] = useState('');
+  const [collectDate, setCollectDate] = useState<string | null>(null);
 
   const todayISO = new Date().toISOString().slice(0, 10);
   // Today's due across this loan = outstanding on the instalment dated today.
@@ -457,12 +475,15 @@ export default function LoanDetailClient({
     }, 0);
   }, [loan.instalments, todayISO]);
 
-  const openCollectModal = () => {
-    const defaultAmt = todayDueForLoan > 0 ? todayDueForLoan : dueTillTodayForLoan;
+  const openCollectModal = (overrideAmt?: number, targetDate?: Date | string) => {
+    const defaultAmt = (typeof overrideAmt === 'number' && overrideAmt > 0)
+      ? overrideAmt
+      : (todayDueForLoan > 0 ? todayDueForLoan : (dueTillTodayForLoan > 0 ? dueTillTodayForLoan : (Number(loan.perInstalment) || 0)));
     setCollectCard(todayDueForLoan > 0 ? 'today' : 'total');
     setCollectAmount(defaultAmt);
     setCollectMode('cash');
     setCollectRemarks('');
+    setCollectDate(targetDate ? new Date(targetDate).toISOString().slice(0, 10) : null);
     setCollectOpen(true);
   };
 
@@ -474,6 +495,9 @@ export default function LoanDetailClient({
     fd.set('amount', String(collectAmount));
     fd.set('paymentMode', collectMode);
     fd.set('remarks', collectRemarks);
+    if (collectDate) {
+      fd.set('collectionDate', collectDate);
+    }
     try {
       const result = await markLoanCollection(fd);
       setLoading(false);
@@ -1123,7 +1147,7 @@ export default function LoanDetailClient({
                 </label>
               )}
               {loan.status !== 'closed' && outstanding > 0 && (
-                <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => openCollectModal()} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
                   {d.recordPayment}
                 </button>
@@ -1209,7 +1233,7 @@ export default function LoanDetailClient({
                           {loan.status !== 'closed' && !isPaid && !isOverdue && (
                             // Today / upcoming → collect via the loan-wide popup.
                             <>
-                              <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                              <button className="btn btn-primary btn-sm" onClick={() => openCollectModal()} style={{ padding: '8px 12px', minHeight: '36px' }}>
                                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>{' '}
                                 {d.pay}
                               </button>
@@ -1243,19 +1267,72 @@ export default function LoanDetailClient({
                     </tr>
                   );
                 })}
-                {/* Projected extra days (extend mode only) — the term sliding out
-                    past the original schedule. Display-only, non-actionable. */}
-                {!showRestructuredRates && projectedExtraRows.map((r) => (
-                  <tr key={`proj-${r.no}`} style={{ background: 'rgba(99,102,241,0.05)', color: 'var(--text-light)' }}>
-                    <td>{r.no}</td>
-                    <td>{formatDate(r.date)}</td>
-                    <td>—</td>
-                    <td>{formatCurrency(r.amount, currencySymbol)}</td>
-                    <td>—</td>
-                    <td><span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1' }}>{d.projected}</span></td>
-                    <td>—</td>
-                  </tr>
-                ))}
+                {/* Projected / Extended extra days (extend mode only) — the term sliding out
+                    past the original schedule. If elapsed or due today, actionable like normal days. */}
+                {!showRestructuredRates && projectedExtraRows.map((r) => {
+                  const isPaid = r.status === 'paid';
+                  const isMissed = r.status === 'missed';
+                  const isDueToday = r.status === 'due today';
+                  const isProjected = r.status === 'projected';
+                  const rowBg = isPaid
+                    ? 'rgba(16,185,129,0.06)'
+                    : isMissed
+                    ? 'rgba(239,68,68,0.06)'
+                    : isDueToday
+                    ? 'rgba(245,158,11,0.06)'
+                    : 'rgba(99,102,241,0.05)';
+
+                  return (
+                    <tr key={`proj-${r.no}`} style={{ background: rowBg }}>
+                      <td style={{ fontWeight: 600 }}>#{r.no}</td>
+                      <td>{formatDate(r.date)}</td>
+                      <td>{isPaid && r.receivedAt ? formatDate(r.receivedAt) : '—'}</td>
+                      <td style={{ fontWeight: 600 }}>{formatCurrency(r.amount, currencySymbol)}</td>
+                      <td style={{ color: isPaid ? 'var(--success)' : 'inherit', fontWeight: isPaid ? 600 : 'normal' }}>
+                        {isPaid ? formatCurrency(r.receivedAmount, currencySymbol) : '—'}
+                      </td>
+                      <td>
+                        {isProjected ? (
+                          <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1' }}>
+                            {d.projected}
+                          </span>
+                        ) : (
+                          <span className={getBadgeClass(r.status)} style={{ textTransform: 'capitalize' }}>
+                            {r.status}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {loan.status !== 'closed' && (isDueToday || isMissed) && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => openCollectModal(r.amount, r.date)}
+                              style={{ padding: '6px 12px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '15px' }}>payments</span>
+                              {d.pay}
+                            </button>
+                          )}
+                          {receiptPdfEnabled && r.collectionEntryId && (
+                            <a
+                              href={`/api/receipts/${r.collectionEntryId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                              title={d.downloadReceiptTitle}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                              Receipt
+                            </a>
+                          )}
+                          {isProjected && '—'}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1306,7 +1383,7 @@ export default function LoanDetailClient({
                           </button>
                         ) : null
                       ) : (
-                        <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ minHeight: 36 }}>
+                        <button className="btn btn-primary btn-sm" onClick={() => openCollectModal()} style={{ minHeight: 36 }}>
                           <span className="material-icons-outlined" style={{ fontSize: 14 }}>payments</span> {d.pay}
                         </button>
                       )
@@ -1315,16 +1392,70 @@ export default function LoanDetailClient({
                 </div>
               );
             })}
-            {!showRestructuredRates && projectedExtraRows.map((r) => (
-              <div key={`proj-m-${r.no}`} className="sched-row" style={{ borderLeft: '3px solid #6366F1', background: 'rgba(99,102,241,0.05)' }}>
-                <div className="sched-main">
-                  <span className="sched-no">#{r.no}</span>
-                  <span className="sched-date">{formatDate(r.date)}</span>
-                  <span className="sched-amt">{formatCurrency(r.amount, currencySymbol)}</span>
-                  <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1', marginLeft: 'auto' }}>{d.projected}</span>
+            {!showRestructuredRates && projectedExtraRows.map((r) => {
+              const isPaid = r.status === 'paid';
+              const isMissed = r.status === 'missed';
+              const isDueToday = r.status === 'due today';
+              const isProjected = r.status === 'projected';
+              const collectedTime = r.receivedAt ? new Date(r.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+              const accent = isPaid ? 'var(--success)' : isMissed ? 'var(--danger)' : isDueToday ? 'var(--warning, #f59e0b)' : '#6366F1';
+              const bg = isPaid
+                ? 'rgba(16,185,129,0.05)'
+                : isMissed
+                ? 'rgba(239,68,68,0.05)'
+                : isDueToday
+                ? 'rgba(245,158,11,0.05)'
+                : 'rgba(99,102,241,0.05)';
+
+              return (
+                <div
+                  key={`proj-m-${r.no}`}
+                  className="sched-row"
+                  style={{ borderLeft: `3px solid ${accent}`, background: bg }}
+                >
+                  <div className="sched-main">
+                    <span className="sched-no">#{r.no}</span>
+                    <span className="sched-date">{formatDate(r.date)}</span>
+                    <span className="sched-amt">{formatCurrency(r.amount, currencySymbol)}</span>
+                    {isProjected ? (
+                      <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1', marginLeft: 'auto' }}>
+                        {d.projected}
+                      </span>
+                    ) : (
+                      <span className={getBadgeClass(r.status)} style={{ textTransform: 'capitalize', marginLeft: 'auto' }}>
+                        {r.status}
+                      </span>
+                    )}
+                  </div>
+                  <div className="sched-sub">
+                    <span style={{ color: 'var(--text-light)' }}>
+                      {isPaid ? `${d.received}: ${formatCurrency(r.receivedAmount, currencySymbol)}${collectedTime ? ` · ${collectedTime}` : ''}` : ''}
+                    </span>
+                    {loan.status !== 'closed' && (isDueToday || isMissed) && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => openCollectModal(r.amount, r.date)}
+                        style={{ minHeight: 36 }}
+                      >
+                        <span className="material-icons-outlined" style={{ fontSize: 14 }}>payments</span> {d.pay}
+                      </button>
+                    )}
+                    {receiptPdfEnabled && r.collectionEntryId && (
+                      <a
+                        href={`/api/receipts/${r.collectionEntryId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-ghost btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', marginLeft: 'auto' }}
+                      >
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+                        Receipt
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

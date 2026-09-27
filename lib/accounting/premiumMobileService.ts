@@ -266,7 +266,7 @@ export async function getPremiumTaxSummary(actor: PremiumAccountingActor, input:
   await assertPremiumAccountingAccess(actor);
   const periodKey = input.periodKey ?? getPeriodKey(new Date());
   const [gst, tds] = await Promise.all([
-    prisma.gstSummary.findUnique({
+    actor.branchId ? Promise.resolve(null) : prisma.gstSummary.findUnique({
       where: { tenantId_appType_periodKey_gstType: { tenantId: actor.tenantId, appType: actor.appType, periodKey, gstType: 'GSTR3B' } },
     }),
     prisma.tdsDeduction.findMany({
@@ -286,6 +286,7 @@ export async function getPremiumTaxSummary(actor: PremiumAccountingActor, input:
 
   return {
     periodKey,
+    gstScope: actor.branchId ? 'all_branches_required' : 'all_branches',
     gst: {
       outputCGST,
       outputSGST,
@@ -310,53 +311,6 @@ export async function getPremiumTaxSummary(actor: PremiumAccountingActor, input:
   };
 }
 
-export async function listPremiumVendors(actor: PremiumAccountingActor, input: { search?: string | null }) {
-  await assertPremiumAccountingAccess(actor);
-  const search = input.search?.trim();
-  const vendors = await prisma.vendor.findMany({
-    where: {
-      tenantId: actor.tenantId,
-      appType: actor.appType,
-      ...(actor.branchId ? { branchId: actor.branchId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search } },
-              { phone: { contains: search } },
-              { email: { contains: search } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      bills: {
-        where: { appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) },
-        select: { totalAmount: true, paidAmount: true, status: true, dueDate: true },
-      },
-    },
-    orderBy: { name: 'asc' },
-    take: 100,
-  });
-
-  return vendors.map((vendor) => {
-    const openBills = vendor.bills.filter((bill) => ['unpaid', 'partial'].includes(bill.status));
-    return {
-      id: vendor.id,
-      name: vendor.name,
-      phone: vendor.phone,
-      email: vendor.email,
-      pan: vendor.pan,
-      gstin: vendor.gstin,
-      isActive: vendor.isActive,
-      openBillCount: openBills.length,
-      outstanding: openBills.reduce(
-        (sum, bill) => sum + Number(bill.totalAmount) - Number(bill.paidAmount),
-        0,
-      ),
-    };
-  });
-}
-
 export async function getPremiumAccountingSettings(actor: PremiumAccountingActor) {
   await assertPremiumAccountingAccess(actor);
   const settings = await getOrCreateAccountingSettings(actor.tenantId);
@@ -366,26 +320,24 @@ export async function getPremiumAccountingSettings(actor: PremiumAccountingActor
     state: settings.state,
     gstScheme: settings.gstScheme,
     baseCurrency: settings.baseCurrency,
+    postingOverrides: settings.postingOverrides,
     costCentresEnabled: settings.costCentresEnabled,
+    baseAccountingMode: settings.baseAccountingMode,
+    showPremiumBannerInBase: settings.showPremiumBannerInBase,
     adminJeCap: Number(settings.adminJeCap),
     adminBillCap: Number(settings.adminBillCap),
     twoLevelApprovalThreshold: Number(settings.twoLevelApprovalThreshold),
+    adminCanEditCoA: settings.adminCanEditCoA,
+    adminCanLockPeriod: settings.adminCanLockPeriod,
     varianceAlertPct: Number(settings.varianceAlertPct),
     apOverdueAlertDays: settings.apOverdueAlertDays,
     tallyConnectorEnabled: settings.tallyConnectorEnabled,
     tallyConnectorUrl: settings.tallyConnectorUrl,
     tallyCompanyName: settings.tallyCompanyName,
     allowFutureDated: settings.allowFutureDated,
+    defaultBankAccountId: settings.defaultBankAccountId,
+    defaultCashAccountId: settings.defaultCashAccountId,
   };
-}
-
-export async function listPremiumExportRuns(actor: PremiumAccountingActor) {
-  await assertPremiumAccountingAccess(actor);
-  return prisma.accountingExportRun.findMany({
-    where: { tenantId: actor.tenantId, appType: actor.appType, ...(actor.branchId ? { branchId: actor.branchId } : {}) },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
 }
 
 function annualBudgetTotal(line: {

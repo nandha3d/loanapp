@@ -187,7 +187,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         if (res.hasAmount) {
           final modeSpoken = res.mode != null ? ', ${res.mode}' : '';
           ref.speak(
-              '${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}');
+              '${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}',);
         } else {
           ref.speak(t.x('voice.entry.notUnderstood'));
           ScaffoldMessenger.of(context).showSnackBar(
@@ -333,7 +333,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}'),
+              '${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}',),
           backgroundColor: AppColors.success,
         ),
       );
@@ -410,7 +410,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(t.x('proof.photo_sent')),
-            backgroundColor: AppColors.success),
+            backgroundColor: AppColors.success,),
       );
       refreshCollectionViews(ref);
       Navigator.of(context).pop(true);
@@ -432,7 +432,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(t.x('proof.qr_done')),
-            backgroundColor: AppColors.success),
+            backgroundColor: AppColors.success,),
       );
       refreshCollectionViews(ref);
       Navigator.of(context).pop(true);
@@ -1082,8 +1082,9 @@ class _UpiQrSection extends ConsumerWidget {
       ),
       error: (_, __) => const SizedBox.shrink(),
       data: (qr) {
-        if (qr.qrUrl == null && qr.upiId == null)
+        if (qr.qrUrl == null && qr.upiId == null) {
           return const SizedBox.shrink();
+        }
         // mediaBaseUrlProvider respects the runtime server-URL override;
         // kDefaultBaseUrl is only the compile-time fallback.
         final imageUrl = qr.qrUrl != null

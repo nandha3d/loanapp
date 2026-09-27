@@ -533,13 +533,13 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                           InputDecoration(labelText: t.x('ch.payment_mode')),
                       items: [
                         DropdownMenuItem(
-                            value: 'cash', child: Text(t.x('coll.cash'))),
+                            value: 'cash', child: Text(t.x('coll.cash')),),
                         DropdownMenuItem(
-                            value: 'upi', child: Text(t.x('coll.upi'))),
+                            value: 'upi', child: Text(t.x('coll.upi')),),
                         DropdownMenuItem(
-                            value: 'bank', child: Text(t.x('coll.bank'))),
+                            value: 'bank', child: Text(t.x('coll.bank')),),
                         const DropdownMenuItem(
-                            value: 'cheque', child: Text('Cheque')),
+                            value: 'cheque', child: Text('Cheque'),),
                       ],
                       onChanged: (v) {
                         if (v != null) paymentMode = v;

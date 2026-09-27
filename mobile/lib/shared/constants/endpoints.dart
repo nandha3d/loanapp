@@ -155,6 +155,7 @@ class Endpoints {
 
   // Settings
   static const String settings = '/settings';
+  static const String importCustomers = '/import/customers';
   static const String integrations = '/settings/integrations';
   // Tenant colour theme (readable by every role, unlike /settings)
   static const String theme = '/theme';
@@ -180,7 +181,8 @@ class Endpoints {
   // Notifications
   static const String notifications = '/notifications';
   static const String notificationLog = '/notifications/log';
-  static const String notificationTemplates = '/settings/notification-templates';
+  static const String notificationTemplates =
+      '/settings/notification-templates';
   static const String twoFactor = '/settings/2fa';
   static const String twoFactorSetup = '/settings/2fa/setup';
   static const String twoFactorVerify = '/settings/2fa/verify';
@@ -222,8 +224,14 @@ class Endpoints {
   static const String accountingCashflow = '/accounting/cashflow';
   static const String accountingApprovals = '/accounting/approvals';
   static const String accountingBudget = '/accounting/budget';
+  static String accountingBudgetDetail(String id) => '/accounting/budget/$id';
   static const String accountingTax = '/accounting/tax';
   static const String accountingVendors = '/accounting/vendors';
+  static String accountingVendor(String id) => '/accounting/vendors/$id';
+  static String accountingVendorBills(String id) =>
+      '/accounting/vendors/$id/bills';
+  static String accountingBill(String id) => '/accounting/bills/$id';
+  static const String accountingVendorAgeing = '/accounting/vendors/ageing';
   static const String accountingExport = '/accounting/export';
   static const String accountingSettings = '/accounting/settings';
 

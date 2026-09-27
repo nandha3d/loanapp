@@ -18,7 +18,7 @@ class CustomerService {
   final Dio _dio;
 
   Future<List<Customer>> list(
-      {String? query, String? cursor, int? limit}) async {
+      {String? query, String? cursor, int? limit,}) async {
     // If a specific cursor is requested, fetch just that single page
     if (cursor != null && cursor.isNotEmpty) {
       final queryParams = <String, dynamic>{

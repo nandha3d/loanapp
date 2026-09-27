@@ -91,10 +91,12 @@ class _NachPanelState extends ConsumerState<NachPanel> {
     try {
       final mandate =
           await ref.read(nachServiceProvider).getMandate(widget.loanId);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _mandate = mandate;
         _loaded = true;
       });
+      }
     } catch (_) {
       if (mounted) setState(() => _loaded = true);
     }
@@ -155,7 +157,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
     // For now, we show a dialog with instructions — the actual Razorpay
     // integration requires the razorpay_flutter package to be wired up
     // in the platform-specific config.
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Mandate Authorisation'),
@@ -247,7 +249,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Back')),
+                child: const Text('Back'),),
             TextButton(
               onPressed: () => Navigator.pop(context, r),
               style: TextButton.styleFrom(foregroundColor: AppColors.danger),
@@ -309,12 +311,12 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('e-NACH Auto-Debit',
-                        style: AppTypography.sectionTitle),
+                        style: AppTypography.sectionTitle,),
                   ),
                   if (_mandate != null && style != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                          horizontal: 8, vertical: 3,),
                       decoration: BoxDecoration(
                         color: style.$1,
                         borderRadius:
@@ -322,7 +324,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                       ),
                       child: Text(style.$3,
                           style: AppTypography.caption.copyWith(
-                              color: style.$2, fontWeight: FontWeight.w700)),
+                              color: style.$2, fontWeight: FontWeight.w700,),),
                     ),
                   const SizedBox(width: 8),
                   Icon(
@@ -346,7 +348,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                   ),
                   child: Text(_error!,
                       style: AppTypography.caption
-                          .copyWith(color: AppColors.danger)),
+                          .copyWith(color: AppColors.danger),),
                 ),
               ),
             // No mandate — show prompt
@@ -380,18 +382,18 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                     _DetailRow('Account holder', _mandate!.accountHolderName),
                     _DetailRow('Account', _mandate!.maskedAccount),
                     _DetailRow('Bank / IFSC',
-                        '${_mandate!.bankName ?? "—"} · ${_mandate!.ifscCode}'),
+                        '${_mandate!.bankName ?? "—"} · ${_mandate!.ifscCode}',),
                     _DetailRow('Max debit', fmt.format(_mandate!.maxAmount)),
                     if (_mandate!.activatedAt != null)
                       _DetailRow('Active since',
-                          DateFormat('dd MMM yyyy').format(_mandate!.activatedAt!)),
+                          DateFormat('dd MMM yyyy').format(_mandate!.activatedAt!),),
                     // Presentations
                     if (_mandate!.presentations.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text('RECENT DEBITS',
                           style: AppTypography.caption.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary)),
+                              color: AppColors.textSecondary,),),
                       const SizedBox(height: 6),
                       ...(_mandate!.presentations.take(5).map((p) {
                         final isOk = p.status == 'success';
@@ -429,7 +431,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                         child: TextButton(
                           onPressed: _busy ? null : _cancelMandate,
                           style: TextButton.styleFrom(
-                              foregroundColor: AppColors.danger),
+                              foregroundColor: AppColors.danger,),
                           child: const Text('Cancel Mandate'),
                         ),
                       ),
@@ -445,48 +447,48 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                     TextField(
                       controller: _holderCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Account holder name', isDense: true),
+                          labelText: 'Account holder name', isDense: true,),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _accountCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Account number', isDense: true),
+                          labelText: 'Account number', isDense: true,),
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _confirmCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Confirm account number', isDense: true),
+                          labelText: 'Confirm account number', isDense: true,),
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _ifscCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'IFSC code', isDense: true),
+                          labelText: 'IFSC code', isDense: true,),
                       textCapitalization: TextCapitalization.characters,
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _bankCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Bank name (optional)', isDense: true),
+                          labelText: 'Bank name (optional)', isDense: true,),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _accountType,
+                            initialValue: _accountType,
                             decoration: const InputDecoration(
-                                labelText: 'Account type', isDense: true),
+                                labelText: 'Account type', isDense: true,),
                             items: const [
                               DropdownMenuItem(
-                                  value: 'savings', child: Text('Savings')),
+                                  value: 'savings', child: Text('Savings'),),
                               DropdownMenuItem(
-                                  value: 'current', child: Text('Current')),
+                                  value: 'current', child: Text('Current'),),
                             ],
                             onChanged: (v) =>
                                 setState(() => _accountType = v ?? 'savings'),
@@ -497,7 +499,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                           child: TextField(
                             controller: _maxAmountCtrl,
                             decoration: const InputDecoration(
-                                labelText: 'Max debit (₹)', isDense: true),
+                                labelText: 'Max debit (₹)', isDense: true,),
                             keyboardType: TextInputType.number,
                           ),
                         ),
@@ -505,16 +507,16 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
-                      value: _authType,
+                      initialValue: _authType,
                       decoration: const InputDecoration(
-                          labelText: 'Authorisation method', isDense: true),
+                          labelText: 'Authorisation method', isDense: true,),
                       items: const [
                         DropdownMenuItem(
-                            value: 'netbanking', child: Text('Net Banking')),
+                            value: 'netbanking', child: Text('Net Banking'),),
                         DropdownMenuItem(
-                            value: 'debitcard', child: Text('Debit Card')),
+                            value: 'debitcard', child: Text('Debit Card'),),
                         DropdownMenuItem(
-                            value: 'aadhaar', child: Text('Aadhaar')),
+                            value: 'aadhaar', child: Text('Aadhaar'),),
                       ],
                       onChanged: (v) =>
                           setState(() => _authType = v ?? 'netbanking'),
@@ -530,7 +532,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                               foregroundColor: Colors.white,
                             ),
                             child: Text(
-                                _busy ? 'Creating…' : 'Create & Authorise'),
+                                _busy ? 'Creating…' : 'Create & Authorise',),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -569,12 +571,12 @@ class _DetailRow extends StatelessWidget {
             width: 100,
             child: Text(label,
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+                    AppTypography.caption.copyWith(color: AppColors.textSecondary),),
           ),
           Expanded(
             child: Text(value,
                 style:
-                    AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                    AppTypography.body.copyWith(fontWeight: FontWeight.w600),),
           ),
         ],
       ),

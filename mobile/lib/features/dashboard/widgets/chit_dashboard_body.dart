@@ -271,7 +271,7 @@ class _ChitHeroCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.bolt_rounded,
-                        color: AppColors.primary, size: 14),
+                        color: AppColors.primary, size: 14,),
                     const SizedBox(width: 4),
                     Text(
                       t.x('dash.live'),
@@ -368,7 +368,7 @@ class _ChitHeroCard extends StatelessWidget {
             Row(
               children: [
                 const Icon(Icons.warning_amber_rounded,
-                    color: Color(0xFFFF8674), size: 16),
+                    color: Color(0xFFFF8674), size: 16,),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -601,7 +601,7 @@ class _UpcomingAuctionsCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(Icons.gavel_outlined,
-                                color: AppColors.purple, size: 20),
+                                color: AppColors.purple, size: 20,),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -611,7 +611,7 @@ class _UpcomingAuctionsCard extends StatelessWidget {
                                 Text(
                                   a.chitGroupName,
                                   style: AppTypography.bodyLarge.copyWith(
-                                      fontWeight: FontWeight.w600),
+                                      fontWeight: FontWeight.w600,),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -697,7 +697,7 @@ class _OverdueMembersCard extends ConsumerWidget {
                                 Text(
                                   s.customerName,
                                   style: AppTypography.bodyLarge.copyWith(
-                                      fontWeight: FontWeight.w600),
+                                      fontWeight: FontWeight.w600,),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -783,7 +783,7 @@ class _GroupsTableCard extends StatelessWidget {
                                 child: Text(
                                   g.name,
                                   style: AppTypography.bodyLarge.copyWith(
-                                      fontWeight: FontWeight.w600),
+                                      fontWeight: FontWeight.w600,),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -799,16 +799,16 @@ class _GroupsTableCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.people_alt_outlined,
-                                  size: 14, color: AppColors.textLight),
+                              const Icon(Icons.people_alt_outlined,
+                                  size: 14, color: AppColors.textLight,),
                               const SizedBox(width: 4),
                               Text(
                                 '${g.membersCount}/${g.totalMembers}',
                                 style: AppTypography.caption,
                               ),
                               const SizedBox(width: 12),
-                              Icon(Icons.event_repeat_outlined,
-                                  size: 14, color: AppColors.textLight),
+                              const Icon(Icons.event_repeat_outlined,
+                                  size: 14, color: AppColors.textLight,),
                               const SizedBox(width: 4),
                               Text(
                                 '${t.x('chit.live.period')} '

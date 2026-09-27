@@ -457,7 +457,7 @@ class _LoginCard extends ConsumerWidget {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          'Password',
+                          t.x('login.password'),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -487,12 +487,17 @@ class _LoginCard extends ConsumerWidget {
                               color: useWhatsApp ? Colors.white : AppColors.textSecondary,
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              'WhatsApp OTP',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: useWhatsApp ? Colors.white : AppColors.textSecondary,
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  t.x('login.whatsapp_otp'),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: useWhatsApp ? Colors.white : AppColors.textSecondary,
+                                  ),
+                                ),
                               ),
                             ),
                           ],

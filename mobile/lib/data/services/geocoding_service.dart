@@ -57,7 +57,7 @@ class GeocodingService {
                 displayName: (m['display_name'] as String?) ?? 'Unknown place',
                 lat: double.tryParse('${m['lat']}') ?? 0,
                 lng: double.tryParse('${m['lon']}') ?? 0,
-              ))
+              ),)
           .where((p) => p.lat != 0 || p.lng != 0)
           .toList(growable: false);
     } catch (_) {

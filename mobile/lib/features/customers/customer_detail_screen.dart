@@ -109,7 +109,7 @@ class _KycActionsState extends ConsumerState<_KycActions> {
               Text('${t.x('kyc.verified_dob')}: ${customer.aadhaarDob}'),
             if (customer.aadhaarAddress != null)
               Text(
-                  '${t.x('kyc.verified_address')}: ${customer.aadhaarAddress}'),
+                  '${t.x('kyc.verified_address')}: ${customer.aadhaarAddress}',),
             if (customer.kycStatus != 'verified') ...[
               const SizedBox(height: 12),
               if (_sessionId == null) ...[
@@ -163,24 +163,25 @@ class _KycActionsState extends ConsumerState<_KycActions> {
                               .read(kycServiceProvider)
                               .startVideo(customer.id);
                           final uri = Uri.tryParse(url);
-                          if (uri == null || uri.scheme != 'https')
+                          if (uri == null || uri.scheme != 'https') {
                             throw Exception(t.x('kyc.invalid_link'));
+                          }
                           _videoUrl = url;
                           await launchUrl(uri,
-                              mode: LaunchMode.externalApplication);
+                              mode: LaunchMode.externalApplication,);
                         }),
                 child: Text(t.x('kyc.start_video')),
               ),
               if (_videoUrl != null)
                 TextButton(
                   onPressed: () => launchUrl(Uri.parse(_videoUrl!),
-                      mode: LaunchMode.externalApplication),
+                      mode: LaunchMode.externalApplication,),
                   child: Text(t.x('kyc.open_video')),
                 ),
             ],
             TextButton(
                 onPressed: widget.onRefresh,
-                child: Text(t.x('kyc.refresh_status'))),
+                child: Text(t.x('kyc.refresh_status')),),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: AppColors.danger)),
@@ -293,7 +294,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   child: Icon(Icons.my_location, color: AppColors.primary),
                 ),
                 title: Text(t.x('btn.use_my_gps'),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                    style: const TextStyle(fontWeight: FontWeight.w600),),
                 subtitle: const Text('Capture device GPS location right now'),
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -348,9 +349,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   child: const Icon(Icons.map_outlined, color: AppColors.info),
                 ),
                 title: Text(t.x('btn.pin_on_map'),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                    style: const TextStyle(fontWeight: FontWeight.w600),),
                 subtitle: const Text(
-                    'Search area or drag marker on map to pinpoint house/shop'),
+                    'Search area or drag marker on map to pinpoint house/shop',),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final picked =
@@ -377,7 +378,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                              'GPS coordinates pinned on map successfully!'),
+                              'GPS coordinates pinned on map successfully!',),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -599,7 +600,7 @@ class _Header extends ConsumerWidget {
                               value: 'delete',
                               child: ListTile(
                                 leading: Icon(Icons.delete_outline,
-                                    color: AppColors.danger),
+                                    color: AppColors.danger,),
                                 title: Text(
                                   'Delete Customer',
                                   style: TextStyle(color: AppColors.danger),
@@ -946,7 +947,7 @@ class _RiskCard extends StatelessWidget {
             children: [
               Text(t.x('cust.risk_score'), style: AppTypography.sectionTitle),
               const Icon(Icons.info_outline,
-                  color: AppColors.textLight, size: 18),
+                  color: AppColors.textLight, size: 18,),
             ],
           ),
           const SizedBox(height: 32),
@@ -998,7 +999,7 @@ class _ScoreMeter extends StatelessWidget {
           Text(
             grade.toUpperCase(),
             style: AppTypography.caption.copyWith(
-                color: AppColors.textLight, fontWeight: FontWeight.w800),
+                color: AppColors.textLight, fontWeight: FontWeight.w800,),
           ),
         ],
       );
@@ -1042,11 +1043,11 @@ class _ScoreMeterPainter extends CustomPainter {
 
     paint.color = AppColors.warning;
     canvas.drawArc(
-        rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
+        rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint,);
 
     paint.color = AppColors.success;
     canvas.drawArc(
-        rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
+        rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint,);
 
     // Calc pct for indicator
     final double pct = ((score - 300) / (850 - 300)).clamp(0.0, 1.0);
@@ -1079,7 +1080,7 @@ class _ScoreMeterPainter extends CustomPainter {
           style: TextStyle(
               color: AppColors.textLight,
               fontSize: 11,
-              fontWeight: FontWeight.bold)),
+              fontWeight: FontWeight.bold,),),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     textPainter300.paint(canvas, Offset(0, size.height + 8));
@@ -1090,11 +1091,11 @@ class _ScoreMeterPainter extends CustomPainter {
           style: TextStyle(
               color: AppColors.textLight,
               fontSize: 11,
-              fontWeight: FontWeight.bold)),
+              fontWeight: FontWeight.bold,),),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     textPainter850.paint(
-        canvas, Offset(size.width - textPainter850.width, size.height + 8));
+        canvas, Offset(size.width - textPainter850.width, size.height + 8),);
 
     // Main Score
     final scorePainter = TextPainter(
@@ -1103,13 +1104,13 @@ class _ScoreMeterPainter extends CustomPainter {
           style: const TextStyle(
               color: Color(0xFF111827),
               fontSize: 36,
-              fontWeight: FontWeight.w900)),
+              fontWeight: FontWeight.w900,),),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     scorePainter.paint(
         canvas,
         Offset(center.dx - scorePainter.width / 2,
-            size.height - scorePainter.height + 6));
+            size.height - scorePainter.height + 6,),);
   }
 
   @override
@@ -1232,7 +1233,7 @@ class _LoansSection extends ConsumerWidget {
           child: Row(
             children: [
               const Icon(Icons.info_outline,
-                  color: AppColors.textLight, size: 18),
+                  color: AppColors.textLight, size: 18,),
               const SizedBox(width: 8),
               Text(
                 t.x('cust.no_loans_yet'),
@@ -1546,7 +1547,7 @@ class _GuarantorsSection extends ConsumerWidget {
                           [
                             g.phone,
                             if (g.relation != null && g.relation!.isNotEmpty)
-                              g.relation
+                              g.relation,
                           ].join(' · '),
                           style: AppTypography.caption,
                         ),
@@ -1558,7 +1559,7 @@ class _GuarantorsSection extends ConsumerWidget {
                       final uri = Uri(scheme: 'tel', path: g.phone);
                       if (await canLaunchUrl(uri)) {
                         await launchUrl(uri,
-                            mode: LaunchMode.externalApplication);
+                            mode: LaunchMode.externalApplication,);
                       }
                     },
                     icon: const Icon(
@@ -1700,12 +1701,12 @@ class _SecurityChequesSection extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Cheque #${c.chequeNumber}',
-                            style: AppTypography.bodyLarge),
+                            style: AppTypography.bodyLarge,),
                         Text(
                           [
                             c.bankName,
                             if (c.amount != null)
-                              '₹${c.amount!.toStringAsFixed(0)}'
+                              '₹${c.amount!.toStringAsFixed(0)}',
                           ].join(' · '),
                           style: AppTypography.caption,
                         ),
@@ -1954,7 +1955,7 @@ class _ErrorDetail extends ConsumerWidget {
               const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
               const SizedBox(height: 12),
               Text(t.x('err.could_not_load_customer'),
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
               const SizedBox(height: 6),
               Text(
                 message,
@@ -1993,11 +1994,11 @@ class _MissingGpsBanner extends StatelessWidget {
         children: [
           const Icon(Icons.location_off, color: Color(0xFFD97706), size: 24),
           const SizedBox(width: 12),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'No GPS Registered',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -2005,8 +2006,8 @@ class _MissingGpsBanner extends StatelessWidget {
                     color: Color(0xFF92400E),
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
+                SizedBox(height: 2),
+                Text(
                   'Field collection verification requires registered coordinates.',
                   style: TextStyle(fontSize: 11, color: Color(0xFFB45309)),
                 ),

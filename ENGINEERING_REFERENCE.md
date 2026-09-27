@@ -362,7 +362,11 @@ Order of operations, all inside one Serializable transaction:
 ### 10.3 Repayment allocation — `lib/repayments.ts`
 
 - **MONEY-10** — Loan-level fill order is **today's due first, then overdue oldest-first, then future soonest-first** (`orderInstalmentsForCollectionFill`). Paying today's amount keeps today clean even when a backlog exists. This applies exclusively to collections received on the current business date (`cToday`). Prior historical collections (`cYesterday`) strictly settle past dues chronologically.
-- **MONEY-22** — **No Historical Spillover to Today's Due**: In-memory payment distribution algorithms (`getDistributedInstalmentsAndMetrics`) MUST NOT allocate historical collections (`cYesterday`) to today's instalment before satisfying past arrears chronologically. Today's due date can receive priority fill ahead of arrears ONLY from collections actually received on today's business date (`cToday`). When `cToday == 0`, today's instalment remains unpaid (`receivedAmount: 0`, `status: 'due today'` / `'upcoming'`) regardless of the loan's lifetime cumulative collections.
+- **MONEY-22** — **No Historical Spillover to Today's Due or Future Instalments**: In-memory payment distribution (`getDistributedInstalmentsAndMetrics`) strictly partitions lifetime collections into historical collections (`cYesterday = cTotal - cToday`) and collections received on today's business date (`cToday`).
+  1. `cYesterday` belongs exclusively to past-due instalments (`dueDate < today`). It MUST NOT spill forward into today's due date (`dueDate === today`) or future instalments (`dueDate > today`), even if lifetime collections exceed all past arrears.
+  2. Today's instalment (`dueDate === today`) can ONLY receive allocations from collections actually received on today's business date (`cToday`).
+  3. When `cToday == 0`, today's instalment MUST strictly remain unpaid (`receivedAmount: 0`, `outstandingAmount: dueAmount`, `status: 'due today'` / `'upcoming'`) on Collection Entry, Collection Worklists, and Dashboards.
+  4. Only actual collections recorded on today's business date (`cToday > 0`) can populate today's `receivedAmount` (via priority fill per MONEY-10).
 - **MONEY-11** — Instalment status is derived, never hand-set: `paid` / `partial` / `missed` / `upcoming` / `waived`. Loan status is derived by `resolveLoanStatus()`.
 - **MONEY-12** — Schedules MUST NOT be modified once `hasFinancialActivity(loanId)` is true.
 - **MONEY-13** — Collection writes are idempotent through `buildCollectionIdempotencyKey()` — `(tenantId, agentId, instalmentId, amount, mode, date)`. A retried mobile submission must not double-post. Never bypass it.
@@ -370,6 +374,8 @@ Order of operations, all inside one Serializable transaction:
 - **MONEY-23** — Mobile Micro Lending collection cards group dues by `loanId`, because `QuickCollectSheet` submits against one loan. The card amount must match the dues preloaded by that sheet; never add two loans under one customer card. Cadence labels use `Loan.frequency`, and dates beside collection actions use the persisted `Instalment.dueDate`. The existing `/api/v1/collection/today` cadence-day worklist remains unchanged.
 - **MONEY-24** — **Collection Idempotency at Payment Request Level**: Replayed collection submissions with the same client `idempotencyKey` and `tenantId` return the existing recorded payment and instalment details immediately, preventing duplicate money movement or re-targeting subsequent instalments.
 - **MONEY-25** — **Cash Handover Atomic Settlement**: Approval of a `cash_handover` request executes `collectFromAgentInTx` inside the approval transaction, atomically debiting the agent's cash float with a hard block, crediting the branch pool, locking `DailyCollection` as `settled`, and approving the request. If the agent float is insufficient, the transaction fails completely.
+- **MONEY-26** — The dashboard's `todayCollected` measures money applied to today's scheduled instalments, capped by each instalment's due amount. Collections received today against overdue or future instalments are included separately in `cashCollectedToday` (all payment modes despite its legacy name). Web and v1 use `getTodayDueMetrics` after repayment distribution and the same `businessTime` day boundary; that total must not replace the due-progress KPI.
+- **MONEY-27** — Staff web and v1 dashboards derive `currentCapital` and lifetime collections from the same tenant/module/active-branch cash-book entries, and `totalDisbursed` from gross loan principal. Net cash disbursed and `Loan.totalCollected` are different measures and must not replace those headline KPIs on one surface.
 
 #### Micro Lending agent preclose requests
 
@@ -383,6 +389,10 @@ Order of operations, all inside one Serializable transaction:
   - `Paid Period` reflects the actual active loan duration prior to closure. When instalments are waived due to preclosure/early settlement, Paid Period is computed from the instalments up to the preclosure anchor (`firstWaivedNo - 1`, or `totalInstalments - waivedCount`), never blindly displaying full tenure (`totalInstalments`) upon closure.
   - When a loan is closed or has zero outstanding (`outstanding <= 0`), remaining counts (`Remaining Actual` and `Remaining Extended`) and missed counts MUST clamp to 0 across both web (`LoanDetailClient.tsx`) and mobile (`loan_detail_screen.dart`).
   - Dynamic status mappers across web and mobile MUST honour `status: 'waived'` and never override past-due waived rows to `missed`.
+- **EXT-1** — **Extended Term Schedule & Collection Parity (Web & Mobile)**:
+  - When an active loan has an outstanding balance that extends beyond its original scheduled end date (`lastScheduledDate < today`), continuous calendar periods are generated past the end date up to today and into future projection until the balance is settled.
+  - Elapsed periods without collections are marked `missed` (Overdue); today's period is marked `due today` with an active Pay button; future periods are marked `projected`.
+  - When a payment is collected on an extended date (via Web or Mobile QuickCollectSheet), the entry is recorded with full GPS and accounting ledger linkage, and the date row becomes `paid`. No phantom `Instalment` DB rows are created (preserving `MONEY-12` and loan closure invariants).
 
 ### 10.4 Penalties — `lib/penalties.ts`
 
@@ -418,6 +428,7 @@ Double-entry general ledger: `Account` (4-digit codes) → `JournalEntry` → `J
 - **ACC-7** — `autoPost*` functions are fire-and-forget and swallow their own errors by design — a GL failure must never roll back the operational record. That is precisely why they cannot be the *only* place a money event is recorded (ACC-6).
 - **ACC-8** — `AccountBalance` is a consolidated tenant-wide cache. Module and branch financial views derive balances from posted `JournalLine` rows filtered by tenant, module, and active branch. Never display `AccountBalance` as a module balance.
 - **ACC-9** — Premium approval review changes the approval, underlying journal or bill, account balance and audit in one transaction. A bill becomes unpaid only after its GL journal posts. Level-2 approvals require the configured developer approver role.
+- **ACC-10** — Tally voucher exports must fail when the configured `tally_export_max_vouchers` limit is exceeded. Truncating a valid date range silently produces incomplete books.
 
 ### 10.7 Auto Finance (hire purchase) — `lib/autofinance/`
 
@@ -832,7 +843,7 @@ Each of these has shipped a bug in this repository.
 - **X-25** — Allowing agents to directly edit or modify collection payments without admin/superadmin approval (`edit_collection`), or calling `submitCollectionEntry` inside a transaction or for a payment correction (ROLE-7, MONEY-21).
 - **X-26** — Unbounded bar charts or graph heights that scale solely off expected amount without tracking collections, or lacking overflow protection on bar containers (UI-1).
 - **X-27** — Inflating subscription plan pricing cards with per-module multipliers or tenant add-ons instead of showing the authoritative developer subscription plan catalog price (PLAN-1).
-- **X-28** — Sorting today's instalment to index 0 and allocating cumulative lifetime loan collections (`cTotal`) against it in payment distribution helpers, which causes unpaid today instalments to appear 'paid' on Collection Entry and the Dashboard when zero payment was collected today (MONEY-22).
+- **X-28** — Allowing historical collections (`cYesterday`) or cumulative lifetime collections (`cTotal`) to spill over into today's instalment (`dueDate === today`) or future instalments in payment distribution helpers (`getDistributedInstalmentsAndMetrics`), which falsely causes unpaid today instalments to appear 'paid' and inflates 'collected today' metrics on Collection Entry and the Dashboard when zero payment was collected today (MONEY-22).
 
 ---
 

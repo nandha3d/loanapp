@@ -19,6 +19,8 @@ import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCar
 import TodaysActivityCard from './TodaysActivityCard';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
+import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
 
 type DashboardInstalment = {
   id: string;
@@ -94,7 +96,6 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     weekInstalments,
     pendingPenalties,
     recentActivity,
-    accountEntries,
     todayCollectionEntries,
     highestBorrowerResult,
     bestPayer,
@@ -105,6 +106,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayClosedLoans,
     todayApprovals,
     paymentsToday,
+    bookTotals,
   ] = await Promise.all([
     prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     prisma.loan.count({
@@ -220,11 +222,6 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       orderBy: { createdAt: 'desc' },
       take: 8,
       include: { user: true },
-    }),
-    // Capital KPI
-    prisma.accountEntry.findMany({
-      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
-      select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
     // Scope by loan.appType so a chitfunds collection never bleeds into the
@@ -406,6 +403,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       },
       select: { loanId: true, amount: true },
     }),
+    getDashboardBookTotals(tenantId, appType, branchId),
   ]);
 
   // Combine all loan IDs from today's instalments and overdue instalments to compute distributed metrics
@@ -453,19 +451,8 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     return i;
   });
 
-  const todayExpected = mappedTodayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
-  // Today's Collected = money applied to TODAY's instalments only. Overdue recovery
-  // collected today is reported separately on the Overdue card — the two are NEVER
-  // merged. This keeps the card internally consistent (collected + remaining =
-  // expected) and matches the mobile app, which sums today's instalment receipts.
-  const todayCollected = mappedTodayInstalments.reduce(
-    (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
-    0,
-  );
-  // Today's Outstanding = remaining due on today's instalments only. Even if the
-  // agent collected more than today's expected (because money also went toward
-  // overdue), today's specific instalment can still be unpaid.
-  const todayGap = mappedTodayInstalments.reduce((sum, item) => sum + outstanding(item), 0);
+  const { expected: todayExpected, collected: todayCollected, remaining: todayGap } =
+    getTodayDueMetrics(mappedTodayInstalments);
 
   const overdueInstalments = overdueInstalmentsRaw
     .map((item) => {
@@ -886,17 +873,6 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     };
   });
 
-  // Capital calculation from accounting entries
-  let currentCapital = 0;
-  for (const entry of accountEntries) {
-    const amt = Number(entry.amount);
-    if (entry.type === 'capital_add') currentCapital += amt;
-    else if (entry.type === 'capital_withdraw') currentCapital -= amt;
-    else if (entry.type === 'loan_disburse') currentCapital -= amt;
-    else if (entry.type === 'collection') currentCapital += amt;
-    else if (entry.type === 'expense') currentCapital -= amt;
-  }
-
   let highestBorrower = null;
   if (highestBorrowerResult.length > 0) {
     highestBorrower = await prisma.customer.findUnique({
@@ -904,15 +880,6 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       include: { loans: true }
     });
   }
-
-  // Total Disbursed KPI = GROSS loan book (principal), not the net cash that left
-  // (principal − upfront fee). The `loan_disburse` AccountEntry stays net for the
-  // capital balance; this is a separate, gross figure for the headline KPI.
-  const grossDisbursedAgg = await prisma.loan.aggregate({
-    where: loanWhere,
-    _sum: { principal: true },
-  });
-  const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
 
   // Today's Activity structures
   const todayPendingDues = mappedTodayInstalments
@@ -1041,7 +1008,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       newCustomerItems: todayNewCustomerItems,
       otherItems: todayOtherItems,
     },
-    currentCapital,
+    currentCapital: bookTotals.currentCapital,
     todayCashCollected: todayCollectionEntries
       .filter((e: any) => e.paymentMode === 'cash')
       .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0),
@@ -1071,10 +1038,8 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
-    totalDisbursed: grossDisbursed,
-    totalCollectedAllTime: accountEntries
-      .filter((e) => e.type === 'collection')
-      .reduce((sum, e) => sum + Number(e.amount), 0),
+    totalDisbursed: bookTotals.totalDisbursed,
+    totalCollectedAllTime: bookTotals.totalCollectedAllTime,
     todayByMode: (() => {
       const modes: Record<string, number> = {};
       for (const e of todayCollectionEntries) {

@@ -148,6 +148,18 @@ export function validateFileBytes(buffer: Buffer, mimeType: string): boolean {
   }
 }
 
+export function detectMimeTypeFromBytes(buffer: Buffer): string | null {
+  const hex = buffer.subarray(0, 12).toString('hex').toUpperCase();
+  if (hex.startsWith('FFD8FF')) return 'image/jpeg';
+  if (hex.startsWith('89504E47')) return 'image/png';
+  if (hex.startsWith('25504446')) return 'application/pdf';
+  if (hex.startsWith('52494646') && hex.substring(16, 24) === '57454250') return 'image/webp';
+  if (hex.substring(8, 16) === '66747970' || hex.startsWith('FFF1') || hex.startsWith('FFF9')) return 'audio/mp4';
+  if (hex.startsWith('1A45DFA3')) return 'audio/webm';
+  if (hex.startsWith('494433') || hex.startsWith('FFF') || hex.startsWith('FFE')) return 'audio/mpeg';
+  return null;
+}
+
 export async function storeTenantUpload(input: {
   tenantId: string;
   mimeType: string;
@@ -155,22 +167,30 @@ export async function storeTenantUpload(input: {
   scopes?: string[];
   prefix?: string;
 }): Promise<{ fileName: string; url: string }> {
-  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(input.mimeType)) {
+  let effectiveMime = input.mimeType;
+
+  if (!validateFileBytes(input.buffer, effectiveMime)) {
+    const detected = detectMimeTypeFromBytes(input.buffer);
+    if (detected && ALLOWED_UPLOAD_MIME_TYPES.includes(detected)) {
+      effectiveMime = detected;
+    } else {
+      throw new UploadValidationError('Invalid file signature');
+    }
+  }
+
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(effectiveMime)) {
     throw new UploadValidationError('File type not allowed');
   }
-  if (input.buffer.byteLength > maxUploadSizeFor(input.mimeType)) {
+  if (input.buffer.byteLength > maxUploadSizeFor(effectiveMime)) {
     throw new UploadValidationError(
-      isAudioMime(input.mimeType)
+      isAudioMime(effectiveMime)
         ? 'Audio clip exceeds the 1 MB limit'
         : 'File exceeds the 5 MB limit',
     );
   }
-  if (!validateFileBytes(input.buffer, input.mimeType)) {
-    throw new UploadValidationError('Invalid file signature');
-  }
 
   const scopes = input.scopes ?? [];
-  const fileName = buildUploadFileName(input.mimeType, { prefix: input.prefix });
+  const fileName = buildUploadFileName(effectiveMime, { prefix: input.prefix });
   const target = resolveTenantUploadPath({
     baseDir: uploadBaseDir(),
     tenantId: input.tenantId,

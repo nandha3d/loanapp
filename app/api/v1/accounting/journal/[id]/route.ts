@@ -5,6 +5,7 @@ import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { writeAuditLog, getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
+import { validateManualJournalLines } from '@/lib/accounting/journalInput';
 
 async function accountsBelongToTenant(tenantId: string, accountIds: string[]): Promise<boolean> {
   const uniqueIds = [...new Set(accountIds)];
@@ -252,6 +253,12 @@ export async function POST(
       if (!(await accountsBelongToTenant(ctx.tenantId, draft.lines.map((line) => line.accountId)))) {
         return fail('Draft journal entry not found', 404);
       }
+      const inputError = validateManualJournalLines(draft.lines.map((line) => ({
+        accountId: line.accountId,
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+      })), true);
+      if (inputError) return fail(inputError, 400);
 
       const totalDr = draft.lines.reduce((s, l) => s + Number(l.debit), 0);
       const totalCr = draft.lines.reduce((s, l) => s + Number(l.credit), 0);

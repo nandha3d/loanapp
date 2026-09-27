@@ -9,6 +9,15 @@
  */
 import prisma from '@/lib/db';
 import { getOrCreateAccountingSettings } from './premium';
+import { getSetting } from '@/lib/tenant';
+
+export class TallyExportLimitError extends RangeError {}
+
+export function assertTallyVoucherLimit(count: number, maxVouchers: number) {
+  if (count > maxVouchers) {
+    throw new TallyExportLimitError(`Export exceeds ${maxVouchers} vouchers; narrow the date range`);
+  }
+}
 
 function formatTallyDate(date: Date): string {
   const y = date.getFullYear();
@@ -38,6 +47,8 @@ export async function generateTallyXml(params: {
 }): Promise<{ xml: string; voucherCount: number }> {
   const settings = await getOrCreateAccountingSettings(params.tenantId);
   const companyName = settings.tallyCompanyName?.trim() || '##SVCurrentCompany';
+  const configuredLimit = Number(await getSetting(params.tenantId, 'tally_export_max_vouchers', '50000'));
+  const maxVouchers = Number.isSafeInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 50000;
 
   const entries = await prisma.journalEntry.findMany({
     where: {
@@ -54,8 +65,9 @@ export async function generateTallyXml(params: {
       },
     },
     orderBy: { entryDate: 'asc' },
-    take: 50_000, // hard safety cap for export size
+    take: maxVouchers + 1,
   });
+  assertTallyVoucherLimit(entries.length, maxVouchers);
 
   const vouchers = entries.map((je) => {
     const vchType = VALID_VOUCHER_TYPES.has(je.voucherType) ? je.voucherType : 'Journal';

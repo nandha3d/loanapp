@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from '@/components/layout/DashboardLink';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions';
-import { resetCustomerPassword, updateCustomerGpsAction } from '@/app/(dashboard)/[module]/customers/actions';
+import { resetCustomerPassword, updateCustomerGpsAction, updateCustomerPhotoAction } from '@/app/(dashboard)/[module]/customers/actions';
 import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
@@ -86,6 +86,31 @@ export default function CustomerProfileClient({
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState<string | null>(customer.profilePhoto || null);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('customerId', customer.id);
+      fd.append('customerCode', customer.customerCode);
+      fd.append('photo', file);
+      const res = await updateCustomerPhotoAction(fd);
+      if (res.success && (res as any).photoUrl) {
+        setCurrentPhoto((res as any).photoUrl);
+        router.refresh();
+      } else {
+        alert(res?.error || 'Failed to upload photo');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Failed to upload photo');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const [gpsModalOpen, setGpsModalOpen] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
@@ -298,10 +323,10 @@ export default function CustomerProfileClient({
       {/* Profile Header */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="profile-header">
-          <div className="profile-avatar" style={{ width: '140px', height: '140px', borderRadius: '16px', overflow: 'hidden', border: '3px solid var(--border)', flexShrink: 0 }}>
-            {customer.profilePhoto ? (
+          <div className="profile-avatar" style={{ position: 'relative', width: '140px', height: '140px', borderRadius: '16px', overflow: 'hidden', border: '3px solid var(--border)', flexShrink: 0 }}>
+            {currentPhoto ? (
               <img 
-                src={customer.profilePhoto} 
+                src={currentPhoto} 
                 alt={customer.name} 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
               />
@@ -310,6 +335,40 @@ export default function CustomerProfileClient({
                 {getInitials(customer.name)}
               </div>
             )}
+            <label
+              title="Upload / Change Photo"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background: 'rgba(0, 0, 0, 0.65)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '6px 0',
+                cursor: 'pointer',
+                fontSize: '.75rem',
+                fontWeight: 600,
+                backdropFilter: 'blur(2px)',
+                transition: 'opacity 0.2s',
+              }}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoUpload}
+                disabled={photoUploading}
+                style={{ display: 'none' }}
+              />
+              <span className="material-icons-outlined" style={{ fontSize: '15px' }}>
+                {photoUploading ? 'sync' : 'photo_camera'}
+              </span>
+              <span>{photoUploading ? 'Uploading...' : (currentPhoto ? 'Change' : 'Upload')}</span>
+            </label>
           </div>
           <div className="profile-info">
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>

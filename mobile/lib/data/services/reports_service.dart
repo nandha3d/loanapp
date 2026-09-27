@@ -58,7 +58,7 @@ class ReportsService {
 
   Future<Map<String, dynamic>> fetchReport(
       String slug, DateTime from, DateTime to,
-      [String? language, String? customerId, String? accountId]) async {
+      [String? language, String? customerId, String? accountId,]) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.report(slug),
       queryParameters: {
@@ -71,7 +71,7 @@ class ReportsService {
       },
     );
     return unwrapEnvelope(
-        res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+        res, (dynamic data) => Map<String, dynamic>.from(data as Map),);
   }
 
   /// Fetch accounting capital summary.

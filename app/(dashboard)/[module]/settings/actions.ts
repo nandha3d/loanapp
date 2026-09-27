@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
 import { startTwoFactorSetup, verifyTwoFactorSetup, disableTwoFactor, TwoFactorError } from '@/lib/twoFactor';
-import { encryptAadharNumber, encryptField } from '@/lib/pii';
+import { encryptField } from '@/lib/pii';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 import { storeTenantUpload } from '@/lib/fileUpload';
@@ -23,6 +23,7 @@ import {
 } from '@/lib/routes/service';
 import { createPackage, deletePackage, PackageError } from '@/lib/packages/service';
 import { saveManagedNotificationTemplate, TemplateError } from '@/lib/notify/templates';
+import { importCustomers as importCustomerRows } from '@/lib/imports/customers';
 
 async function settingsManagerActor() {
   const session = await auth();
@@ -397,34 +398,10 @@ export async function disable2fa() {
   return { success: true };
 }
 
-export async function importCustomers(data: any[]) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-
-  const results = { success: 0, failed: 0 };
-
-  for (const item of data) {
-    try {
-      await prisma.customer.create({
-        data: {
-          tenantId,
-          appType,
-          customerCode: item.customerCode || `CUST-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          name: item.name,
-          phone: item.phone,
-          aadharNumber: encryptAadharNumber(item.aadhaar || item.aadharNumber || null),
-          pan: item.pan || null,
-          status: 'active',
-        }
-      });
-      results.success++;
-    } catch {
-      results.failed++;
-    }
-  }
-
+export async function importCustomers(data: unknown) {
+  const actor = await settingsManagerActor();
+  if (!actor) throw new Error('Unauthorized');
+  const results = await importCustomerRows(actor, data);
   revalidatePath('/customers');
   return results;
 }

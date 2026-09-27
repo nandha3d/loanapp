@@ -51,19 +51,19 @@ class ChitDashboardSummary {
       overdueSubscriptions:
           (json['overdueSubscriptions'] as List<dynamic>? ?? const [])
               .map((dynamic e) =>
-                  ChitOverdueSubscription.fromJson(e as Map<String, dynamic>))
+                  ChitOverdueSubscription.fromJson(e as Map<String, dynamic>),)
               .toList(growable: false),
       liveAuctions: (json['liveAuctions'] as List<dynamic>? ?? const [])
           .map((dynamic e) =>
-              ChitAuctionBrief.fromJson(e as Map<String, dynamic>))
+              ChitAuctionBrief.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false),
       upcomingAuctions: (json['upcomingAuctions'] as List<dynamic>? ?? const [])
           .map((dynamic e) =>
-              ChitAuctionBrief.fromJson(e as Map<String, dynamic>))
+              ChitAuctionBrief.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false),
       groups: (json['groups'] as List<dynamic>? ?? const [])
           .map(
-              (dynamic e) => ChitGroupBrief.fromJson(e as Map<String, dynamic>))
+              (dynamic e) => ChitGroupBrief.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false),
     );
   }

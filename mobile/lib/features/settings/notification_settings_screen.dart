@@ -293,7 +293,7 @@ class _NotificationSettingsScreenState
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.push(context, MaterialPageRoute<void>(
             builder: (_) => const NotificationTemplatesScreen(),
-          )),
+          ),),
         ),
         Container(
           padding: const EdgeInsets.all(16),
@@ -305,7 +305,7 @@ class _NotificationSettingsScreenState
           child: InkWell(
             onTap: () => Navigator.push(context, MaterialPageRoute<void>(
               builder: (_) => const NotificationDeliveryLogScreen(),
-            )),
+            ),),
             child: Row(
               children: [
                 Icon(Icons.history, color: AppColors.primary, size: 20),

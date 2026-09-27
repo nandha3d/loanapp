@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { fail } from '@/lib/api/v1-envelope';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
-import { generateTallyXml, generateTallyLedgersXml } from '@/lib/accounting/tallyExport';
+import { generateTallyXml, generateTallyLedgersXml, TallyExportLimitError } from '@/lib/accounting/tallyExport';
 
 const ALLOWED_ROLES = new Set(['admin', 'superadmin', 'developer', 'accountant']);
 
@@ -42,14 +42,21 @@ export async function GET(req: NextRequest) {
     return fail('Invalid from/to date', 400);
   }
 
-  const { xml, voucherCount } = await generateTallyXml({
-    tenantId: actor.tenantId,
-    appType: actor.appType,
-    branchId: actor.branchId,
-    fromDate: from,
-    toDate: to,
-    status: searchParams.get('status') ?? 'posted',
-  });
+  let xml: string;
+  let voucherCount: number;
+  try {
+    ({ xml, voucherCount } = await generateTallyXml({
+      tenantId: actor.tenantId,
+      appType: actor.appType,
+      branchId: actor.branchId,
+      fromDate: from,
+      toDate: to,
+      status: searchParams.get('status') ?? 'posted',
+    }));
+  } catch (error) {
+    return error instanceof TallyExportLimitError
+      ? fail(error.message, 413) : fail('Tally export failed', 500);
+  }
 
   const filename = `tally-vouchers-${from.toISOString().slice(0, 10)}-to-${to.toISOString().slice(0, 10)}.xml`;
   return new NextResponse(xml, {

@@ -149,7 +149,7 @@ class _GoldServicingSheetState extends ConsumerState<GoldServicingSheet> {
         Row(
           children: [
             Text('${t.x('gold.pledge_title')} · ${s.loanCode}',
-                style: AppTypography.nameLg),
+                style: AppTypography.nameLg,),
             const Spacer(),
             if (s.isClosed)
               Container(
@@ -175,7 +175,7 @@ class _GoldServicingSheetState extends ConsumerState<GoldServicingSheet> {
             _kpi(t.x('gold.outstanding'), _fmt.format(s.outstandingPrincipal)),
             _kpi(t.x('gold.monthly_interest'), _fmt.format(s.monthlyInterest)),
             _kpi('${t.x('gold.interest_due')} (${s.monthsDue} mo)',
-                _fmt.format(s.interestDue)),
+                _fmt.format(s.interestDue),),
             _kpi(t.x('gold.redemption'), _fmt.format(s.redemptionAmount)),
           ],
         ),

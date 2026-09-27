@@ -51,7 +51,7 @@ class NachService {
       },
     );
     return unwrapEnvelope(
-        res, (dynamic d) => NachMandate.fromJson(d as Map<String, dynamic>));
+        res, (dynamic d) => NachMandate.fromJson(d as Map<String, dynamic>),);
   }
 
   /// Cancel an existing mandate.

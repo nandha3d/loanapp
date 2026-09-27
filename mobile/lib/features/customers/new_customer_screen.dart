@@ -350,6 +350,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       ),
     );
     if (source == null) return;
+    if (!mounted) return;
     if (source == ImageSource.camera) {
       final photo = await captureGuidedFacePhoto(context);
       if (photo != null) {
@@ -485,7 +486,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         if (g.name.text.trim().isEmpty || g.phone.text.trim().isEmpty) continue;
         String? gPhotoUrl;
         if (g.photo != null) {
-          final r = await uploader.uploadFile(g.photo!, contentType: 'image/jpeg');
+          final r = await uploader.uploadFile(g.photo!);
           gPhotoUrl = r.url;
         }
         guarantorPayloads.add({
@@ -501,12 +502,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       if (_isEdit) {
         String? logoUrl;
         if (_companyLogo != null) {
-          final r = await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
+          final r = await uploader.uploadFile(_companyLogo!);
           logoUrl = r.url;
         }
         String? editedPhotoUrl;
         if (_photo != null) {
-          final r = await uploader.uploadFile(_photo!, contentType: 'image/jpeg');
+          final r = await uploader.uploadFile(_photo!);
           editedPhotoUrl = r.url;
         }
         final patch = <String, dynamic>{
@@ -544,18 +545,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
       String? photoUrl;
       if (_photo != null) {
-        final r = await uploader.uploadFile(_photo!, contentType: 'image/jpeg');
+        final r = await uploader.uploadFile(_photo!);
         photoUrl = r.url;
       }
       final kycInputs = <KycDocInput>[];
       for (final d in _docs) {
-        final r = await uploader.uploadFile(d.file, contentType: 'image/jpeg');
+        final r = await uploader.uploadFile(d.file);
         kycInputs.add(KycDocInput(type: d.type, url: r.url));
       }
       String? logoUrl;
       if (_companyLogo != null) {
         final r =
-            await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
+            await uploader.uploadFile(_companyLogo!);
         logoUrl = r.url;
       }
       final created = await ref.read(customerRepositoryProvider).create(

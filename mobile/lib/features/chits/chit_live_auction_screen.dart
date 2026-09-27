@@ -159,7 +159,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     HapticFeedback.mediumImpact();
     await _run(() => _svc
         .roomAction(widget.groupId, widget.auctionId, action: 'ring')
-        .then((_) {}));
+        .then((_) {}),);
   }
 
   void _showTimelineSheet() {
@@ -248,10 +248,10 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
+                child: const Text('Cancel'),),
             ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Open')),
+                child: const Text('Open'),),
           ],
         ),
       ),
@@ -261,8 +261,8 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         .roomAction(widget.groupId, widget.auctionId,
             action: 'open',
             durationMinutes: durationMinutes.clamp(1, 120),
-            autoExtendSeconds: antiSnipe)
-        .then((_) {}));
+            autoExtendSeconds: antiSnipe,)
+        .then((_) {}),);
     ref.speak('Bidding open. Period ${widget.periodNumber}.');
   }
 
@@ -275,17 +275,17 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: const Text('Cancel'),),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Close room')),
+              child: const Text('Close room'),),
         ],
       ),
     );
     if (confirm != true) return;
     await _run(() => _svc
         .roomAction(widget.groupId, widget.auctionId, action: 'close')
-        .then((_) {}));
+        .then((_) {}),);
   }
 
   Future<void> _confirmWinner() async {
@@ -304,16 +304,16 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: const Text('Cancel'),),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirm')),
+              child: const Text('Confirm'),),
         ],
       ),
     );
     if (confirm != true) return;
     await _run(() => _svc.confirmAuction(widget.groupId, widget.auctionId,
-        winningBidId: bidId));
+        winningBidId: bidId,),);
     ref.speak('Winner $name');
   }
 
@@ -353,7 +353,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
           memberId: member.id,
           status: status,
           proxyName: proxyName,
-        ));
+        ),);
   }
 
   void _showAttendanceSheet() {
@@ -453,7 +453,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
           widget.auctionId,
           memberId: memberId,
           decision: decision,
-        ));
+        ),);
   }
 
   void _showWaitingRoomSheet() {
@@ -625,7 +625,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
 
   // ── Bidding ──────────────────────────────────────────────────────────────
   Future<void> _placeBid(ChitMember m, double prize,
-      {String? source, String? transcript}) async {
+      {String? source, String? transcript,}) async {
     HapticFeedback.mediumImpact();
     await _run(() => _svc.addBid(
           widget.groupId,
@@ -634,7 +634,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
           bidAmount: prize,
           source: source ?? 'tap',
           transcript: transcript,
-        ));
+        ),);
     ref.speak('${m.customerName.split(' ').first} ${_speakAmount(prize)}');
   }
 
@@ -649,14 +649,14 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Quick bid — ${m.customerName.split(' ').first}'),
         content: Text(
-            'Bid ${fmt.format(prize)} (discount ${fmt.format(_chitValue - prize)})?'),
+            'Bid ${fmt.format(prize)} (discount ${fmt.format(_chitValue - prize)})?',),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: const Text('Cancel'),),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Bid')),
+              child: const Text('Bid'),),
         ],
       ),
     );
@@ -698,7 +698,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
               const SizedBox(height: 4),
               Text('Tap the member raising their hand — bid lands instantly.',
                   style: AppTypography.caption
-                      .copyWith(color: AppColors.textSecondary)),
+                      .copyWith(color: AppColors.textSecondary),),
               const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
@@ -774,7 +774,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                             : authedImage(ref, m.profilePhoto!),
                         child: Text('${m.memberNumber}',
                             style: AppTypography.tiny
-                                .copyWith(fontWeight: FontWeight.w800)),
+                                .copyWith(fontWeight: FontWeight.w800),),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -784,7 +784,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                             Text('Bid for ${m.customerName}',
                                 style: AppTypography.sectionTitle,
                                 maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
+                                overflow: TextOverflow.ellipsis,),
                             Text(
                               'Prize accepted — lower prize = bigger discount',
                               style: AppTypography.tiny
@@ -825,10 +825,10 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                         children: [
                           Text(fmt.format(amount),
                               style: AppTypography.heroNumber
-                                  .copyWith(color: AppColors.textPrimary)),
+                                  .copyWith(color: AppColors.textPrimary),),
                           Text('Discount ${fmt.format(discount)}',
                               style: AppTypography.caption
-                                  .copyWith(color: AppColors.success)),
+                                  .copyWith(color: AppColors.success),),
                         ],
                       ),
                       IconButton.filledTonal(
@@ -858,7 +858,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                       style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),),
                       onPressed: amount > 0
                           ? () {
                               Navigator.pop(ctx);
@@ -895,7 +895,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         final amount = res.amount!;
         if (res.isConfident) {
           _placeBid(res.best!.member, amount,
-              source: 'voice', transcript: res.raw);
+              source: 'voice', transcript: res.raw,);
         } else {
           _chooseCandidate(res, amount);
         }
@@ -916,7 +916,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Did you mean?  •  ${fmt.format(amount)}',
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -927,7 +927,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                     onPressed: () {
                       Navigator.pop(context);
                       _placeBid(c.member, amount,
-                          source: 'voice', transcript: res.raw);
+                          source: 'voice', transcript: res.raw,);
                     },
                   );
                 }).toList(),
@@ -1010,7 +1010,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                     padding: const EdgeInsets.all(10),
                     child: Text(_error!,
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.danger)),
+                            .copyWith(color: AppColors.danger),),
                   ),
                 if (_bellToast != null)
                   Container(
@@ -1020,7 +1020,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                     child: Text('🔔 $_bellToast',
                         textAlign: TextAlign.center,
                         style: AppTypography.body.copyWith(
-                            color: Colors.white, fontWeight: FontWeight.w800)),
+                            color: Colors.white, fontWeight: FontWeight.w800,),),
                   ),
                 _InfoStrip(
                   presentCount: _presentCount,
@@ -1200,7 +1200,7 @@ class _InfoStrip extends StatelessWidget {
   }
 
   Widget _chip(
-      {required IconData icon, required String label, VoidCallback? onTap}) {
+      {required IconData icon, required String label, VoidCallback? onTap,}) {
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -1218,7 +1218,7 @@ class _InfoStrip extends StatelessWidget {
             const SizedBox(width: 5),
             Text(label,
                 style: AppTypography.tiny.copyWith(
-                    color: AppColors.onInk, fontWeight: FontWeight.w700)),
+                    color: AppColors.onInk, fontWeight: FontWeight.w700,),),
           ],
         ),
       ),
@@ -1294,7 +1294,7 @@ class _PokerTable extends StatelessWidget {
                       quarterTurns: 1,
                       child: ColorFiltered(
                         colorFilter: const ColorFilter.mode(
-                            Color(0x14000000), BlendMode.darken),
+                            Color(0x14000000), BlendMode.darken,),
                         child: Image.asset(
                           'assets/images/poker_table.webp',
                           fit: BoxFit.cover,
@@ -1344,7 +1344,7 @@ class _PokerTable extends StatelessWidget {
                       ry,
                       -math.pi / 2 + (2 * math.pi * i / members.length),
                       members[i],
-                      seatRadius),
+                      seatRadius,),
               ],
             );
           },
@@ -1354,7 +1354,7 @@ class _PokerTable extends StatelessWidget {
   }
 
   Widget _seat(double cx, double cy, double rx, double ry, double angle,
-      ChitMember m, double radius) {
+      ChitMember m, double radius,) {
     final x = cx + rx * math.cos(angle);
     final y = cy + ry * math.sin(angle);
     return Positioned(
@@ -1419,11 +1419,11 @@ class _SeatChip extends ConsumerWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: border, width: leader || winner ? 3 : 1.5),
+                      color: border, width: leader || winner ? 3 : 1.5,),
                   boxShadow: leader || winner
                       ? [
                           BoxShadow(
-                              color: border.withAlpha(120), blurRadius: 12)
+                              color: border.withAlpha(120), blurRadius: 12,),
                         ]
                       : null,
                 ),
@@ -1441,7 +1441,7 @@ class _SeatChip extends ConsumerWidget {
                         ? '?'
                         : member.customerName[0].toUpperCase(),
                     style: AppTypography.body.copyWith(
-                        color: won ? AppColors.onInkMuted : AppColors.onInk),
+                        color: won ? AppColors.onInkMuted : AppColors.onInk,),
                   ),
                 ),
               ),
@@ -1462,10 +1462,10 @@ class _SeatChip extends ConsumerWidget {
                 ),
               // Winner crown.
               if (winner)
-                Positioned(
+                const Positioned(
                   top: -14,
                   child: Icon(Icons.emoji_events_rounded,
-                      size: 18, color: AppColors.warning),
+                      size: 18, color: AppColors.warning,),
                 ),
               // Leader chip: floats above whoever holds the current best bid,
               // moves automatically as the leader changes each poll.
@@ -1481,13 +1481,13 @@ class _SeatChip extends ConsumerWidget {
                       boxShadow: [
                         BoxShadow(
                             color: AppColors.primary.withAlpha(140),
-                            blurRadius: 8)
+                            blurRadius: 8,),
                       ],
                     ),
                     child: Text('₹${_short(prize!)}',
                         style: AppTypography.tiny.copyWith(
                             color: AppColors.onPrimary,
-                            fontWeight: FontWeight.w800)),
+                            fontWeight: FontWeight.w800,),),
                   ),
                 ),
             ],
@@ -1501,7 +1501,7 @@ class _SeatChip extends ConsumerWidget {
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                   color: leader || winner ? border : AppColors.inkBorder,
-                  width: 1),
+                  width: 1,),
             ),
             child: Text(
               '${member.memberNumber}. ${member.customerName.split(' ').first}',
@@ -1510,14 +1510,14 @@ class _SeatChip extends ConsumerWidget {
               style: AppTypography.tiny.copyWith(
                   fontSize: 10,
                   color: won ? AppColors.onInkMuted : AppColors.onInk,
-                  fontWeight: FontWeight.w700),
+                  fontWeight: FontWeight.w700,),
             ),
           ),
           if (prize != null)
             Text('₹${_short(prize!)}',
                 style: AppTypography.tiny.copyWith(
                     color: leader ? AppColors.primary : AppColors.onInkMuted,
-                    fontWeight: FontWeight.w700)),
+                    fontWeight: FontWeight.w700,),),
         ],
       ),
     );
@@ -1548,10 +1548,10 @@ class _CornerClock extends StatelessWidget {
               style: AppTypography.tiny.copyWith(
                   color: AppColors.onInk,
                   fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
+                  fontFeatures: const [FontFeature.tabularFigures()],),),
           Text(DateFormat('EEE, d MMM y').format(now),
               style: AppTypography.tiny
-                  .copyWith(color: AppColors.onInkMuted, fontSize: 9)),
+                  .copyWith(color: AppColors.onInkMuted, fontSize: 9),),
         ],
       ),
     );
@@ -1622,7 +1622,7 @@ class _CenterHub extends StatelessWidget {
               style: AppTypography.tiny.copyWith(
                   color: AppColors.onInkMuted,
                   letterSpacing: 2,
-                  fontWeight: FontWeight.w800)),
+                  fontWeight: FontWeight.w800,),),
           const SizedBox(height: 6),
           if (connecting) ...[
             const SizedBox(
@@ -1633,10 +1633,10 @@ class _CenterHub extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Connecting…',
                 style:
-                    AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
+                    AppTypography.tiny.copyWith(color: AppColors.onInkMuted),),
           ] else if (winner != null) ...[
-            Icon(Icons.emoji_events_rounded,
-                color: AppColors.warning, size: 30),
+            const Icon(Icons.emoji_events_rounded,
+                color: AppColors.warning, size: 30,),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -1649,11 +1649,11 @@ class _CenterHub extends StatelessWidget {
                 style: AppTypography.tiny.copyWith(
                     color: AppColors.warning,
                     letterSpacing: 2,
-                    fontWeight: FontWeight.w800)),
+                    fontWeight: FontWeight.w800,),),
             if (discount > 0)
               Text('Prize ₹${_short(prize)} · Discount ₹${_short(discount)}',
                   style: AppTypography.tiny
-                      .copyWith(color: AppColors.onInkMuted)),
+                      .copyWith(color: AppColors.onInkMuted),),
           ] else if (open) ...[
             // Digital countdown with a soft glow, web-style.
             Row(
@@ -1685,21 +1685,21 @@ class _CenterHub extends StatelessWidget {
               style: AppTypography.tiny.copyWith(
                   color: timerColor,
                   letterSpacing: 2,
-                  fontWeight: FontWeight.w800),
+                  fontWeight: FontWeight.w800,),
             ),
             const SizedBox(height: 6),
             if (sealed)
               Text('Sealed · $bidCount bids in',
                   style:
-                      AppTypography.tiny.copyWith(color: AppColors.onInkMuted))
+                      AppTypography.tiny.copyWith(color: AppColors.onInkMuted),)
             else ...[
               Text('Current prize ₹${_short(prize)}',
                   style: AppTypography.body.copyWith(
-                      color: AppColors.onInk, fontWeight: FontWeight.w700)),
+                      color: AppColors.onInk, fontWeight: FontWeight.w700,),),
               if (discount > 0)
                 Text('Discount ₹${_short(discount)}',
                     style:
-                        AppTypography.tiny.copyWith(color: AppColors.success)),
+                        AppTypography.tiny.copyWith(color: AppColors.success),),
             ],
           ] else ...[
             FittedBox(
@@ -1709,7 +1709,7 @@ class _CenterHub extends StatelessWidget {
                 style: AppTypography.sectionTitle.copyWith(
                     color: AppColors.onInkMuted,
                     fontSize: 24,
-                    letterSpacing: 3),
+                    letterSpacing: 3,),
               ),
             ),
             Text(
@@ -1722,12 +1722,12 @@ class _CenterHub extends StatelessWidget {
             if (!sealed && discount > 0) ...[
               const SizedBox(height: 4),
               Text('Best ₹${_short(prize)} · Discount ₹${_short(discount)}',
-                  style: AppTypography.tiny.copyWith(color: AppColors.primary)),
+                  style: AppTypography.tiny.copyWith(color: AppColors.primary),),
             ],
           ],
           const SizedBox(height: 8),
           Text('Chit Value: ₹${NumberFormat('#,##,###').format(chitValue)}',
-              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
+              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted),),
         ],
       ),
     );
@@ -1791,7 +1791,7 @@ class _BottomBar extends StatelessWidget {
                       label: Text(listening ? 'Listening…' : 'Voice Raise',
                           style: AppTypography.bodyLarge.copyWith(
                               color: AppColors.onPrimary,
-                              fontWeight: FontWeight.w700)),
+                              fontWeight: FontWeight.w700,),),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1999,19 +1999,19 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(_error!,
                       style: AppTypography.tiny
-                          .copyWith(color: AppColors.danger)),
+                          .copyWith(color: AppColors.danger),),
                 ),
               Expanded(
                 child: _messages.isEmpty
                     ? Center(
                         child: Text('No messages yet.',
                             style: AppTypography.caption
-                                .copyWith(color: AppColors.textSecondary)),
+                                .copyWith(color: AppColors.textSecondary),),
                       )
                     : ListView.builder(
                         controller: _scroll,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
+                            horizontal: 16, vertical: 4,),
                         itemCount: _messages.length,
                         itemBuilder: (_, i) {
                           final msg = _messages[i];
@@ -2024,19 +2024,19 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                                   const Padding(
                                     padding: EdgeInsets.only(right: 4, top: 2),
                                     child: Icon(Icons.lock_rounded,
-                                        size: 12, color: AppColors.warning),
+                                        size: 12, color: AppColors.warning,),
                                   ),
                                 Expanded(
                                   child: RichText(
                                     text: TextSpan(
                                       style: AppTypography.body.copyWith(
-                                          color: AppColors.textPrimary),
+                                          color: AppColors.textPrimary,),
                                       children: [
                                         TextSpan(
                                           text: '${msg.senderName}  ',
                                           style: AppTypography.caption
                                               .copyWith(
-                                                  fontWeight: FontWeight.w700),
+                                                  fontWeight: FontWeight.w700,),
                                         ),
                                         TextSpan(text: msg.body),
                                       ],
@@ -2046,7 +2046,7 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                                 const SizedBox(width: 8),
                                 Text(tf.format(msg.createdAt),
                                     style: AppTypography.tiny.copyWith(
-                                        color: AppColors.textLight)),
+                                        color: AppColors.textLight,),),
                               ],
                             ),
                           );
@@ -2099,7 +2099,7 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                                   setState(() => _toOrganizer = v ?? false),
                             ),
                             Text('Organizer-only',
-                                style: AppTypography.caption),
+                                style: AppTypography.caption,),
                           ],
                         ),
                       ),
@@ -2374,7 +2374,7 @@ class _StaffSummarySheetState extends ConsumerState<_StaffSummarySheet> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text('${m['name']} (Ticket ${m['ticketNo'] ?? '—'})',
-                                      style: AppTypography.caption),
+                                      style: AppTypography.caption,),
                                   Text(fmt.format(m['dividend']), style: AppTypography.caption),
                                 ],
                               ),
@@ -2411,7 +2411,7 @@ class _MinutesPanel extends ConsumerWidget {
           ? Center(
               child: Text('No bids yet',
                   style:
-                      AppTypography.body.copyWith(color: AppColors.onInkMuted)))
+                      AppTypography.body.copyWith(color: AppColors.onInkMuted),),)
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: rows.length,
@@ -2432,7 +2432,7 @@ class _MinutesPanel extends ConsumerWidget {
                     children: [
                       Text(tf.format(t),
                           style: AppTypography.tiny
-                              .copyWith(color: AppColors.onInkMuted)),
+                              .copyWith(color: AppColors.onInkMuted),),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -2441,7 +2441,7 @@ class _MinutesPanel extends ConsumerWidget {
                             style: AppTypography.body.copyWith(
                                 color: leading
                                     ? AppColors.primary
-                                    : AppColors.onInk)),
+                                    : AppColors.onInk,),),
                       ),
                     ],
                   ),
@@ -2456,7 +2456,7 @@ class _MinutesPanel extends ConsumerWidget {
 
 class _NumberField extends StatelessWidget {
   const _NumberField(
-      {required this.label, required this.value, required this.onChanged});
+      {required this.label, required this.value, required this.onChanged,});
   final String label;
   final int value;
   final ValueChanged<int> onChanged;

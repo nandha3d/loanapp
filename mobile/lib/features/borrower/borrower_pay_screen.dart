@@ -1,8 +1,6 @@
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -111,7 +109,7 @@ class _BorrowerPayScreenState extends ConsumerState<BorrowerPayScreen> {
                     ),
                     child: Text(_error!,
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.danger)),
+                            .copyWith(color: AppColors.danger),),
                   ),
                 if (_success != null)
                   Container(
@@ -124,19 +122,19 @@ class _BorrowerPayScreenState extends ConsumerState<BorrowerPayScreen> {
                     ),
                     child: Text(_success!,
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.success)),
+                            .copyWith(color: AppColors.success),),
                   ),
                 // Loan selector
                 if (loanList.length > 1)
                   DropdownButtonFormField<String>(
-                    value: _selectedLoanId,
+                    initialValue: _selectedLoanId,
                     decoration:
                         const InputDecoration(labelText: 'Select Loan'),
                     items: loanList
                         .map((l) => DropdownMenuItem(
                             value: l.id,
                             child: Text(
-                                '${l.loanCode} — ${fmt.format(l.principalAmount)}')))
+                                '${l.loanCode} — ${fmt.format(l.principalAmount)}',),),)
                         .toList(),
                     onChanged: (v) => setState(() => _selectedLoanId = v),
                   ),
@@ -174,7 +172,7 @@ class _BorrowerPayScreenState extends ConsumerState<BorrowerPayScreen> {
                   child: Text(
                     'Amount to pay: ${fmt.format(amount)}',
                     style: AppTypography.body.copyWith(
-                        fontWeight: FontWeight.w700, color: AppColors.primary),
+                        fontWeight: FontWeight.w700, color: AppColors.primary,),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -216,7 +214,7 @@ class _BorrowerPayScreenState extends ConsumerState<BorrowerPayScreen> {
                       ),
                     ),
                     child: Text(
-                        _loading ? 'Submitting…' : 'Submit Payment'),
+                        _loading ? 'Submitting…' : 'Submit Payment',),
                   ),
                 ),
               ],
@@ -254,11 +252,11 @@ class _ChoiceChips extends StatelessWidget {
               color: active ? AppColors.primary : AppColors.surface,
               borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
               border: Border.all(
-                  color: active ? AppColors.primary : AppColors.border),
+                  color: active ? AppColors.primary : AppColors.border,),
             ),
             child: Text(e.value,
                 style: AppTypography.label.copyWith(
-                    color: active ? Colors.white : AppColors.textSecondary)),
+                    color: active ? Colors.white : AppColors.textSecondary,),),
           ),
         );
       }).toList(),

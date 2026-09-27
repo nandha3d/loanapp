@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
 import { writePremiumAuditLog as writeAuditLog } from '../access';
+import { validateManualJournalLines } from '@/lib/accounting/journalInput';
 
 function requireRole(role: string, allowed: string[]) {
   if (!allowed.includes(role)) throw new Error('Unauthorized');
@@ -76,6 +77,8 @@ export async function getJournalEntry(id: string) {
 }
 
 export async function postEntry(input: { entryDate: string; narration?: string; branchId?: string; lines: Array<{ accountId: string; debit: number; credit: number; description?: string; lineNo: number }> }) {
+  const inputError = validateManualJournalLines(input.lines, true);
+  if (inputError) return { error: inputError };
   const session = await auth();
   const role = (session?.user as any)?.role;
   const userId = session?.user?.id!;
@@ -119,6 +122,8 @@ export async function postEntry(input: { entryDate: string; narration?: string; 
 }
 
 export async function saveDraftEntry(input: { entryDate: string; narration?: string; lines: Array<{ accountId: string; debit: number; credit: number; description?: string; lineNo: number }> }) {
+  const inputError = validateManualJournalLines(input.lines, false);
+  if (inputError) return { error: inputError };
   const session = await auth();
   const role = (session?.user as any)?.role;
   const userId = session?.user?.id!;
@@ -147,6 +152,12 @@ export async function postDraftEntry(id: string) {
   const branchId = await getActiveBranchId();
   const draft = await prisma.journalEntry.findFirst({ where: { id, tenantId, appType, ...(branchId ? { branchId } : {}), status: 'draft' }, include: { lines: true } });
   if (!draft) return { error: 'not_found' };
+  const inputError = validateManualJournalLines(draft.lines.map((line) => ({
+    accountId: line.accountId,
+    debit: Number(line.debit),
+    credit: Number(line.credit),
+  })), true);
+  if (inputError) return { error: inputError };
   const totalDr = draft.lines.reduce((s, l) => s + Number(l.debit), 0);
   const totalCr = draft.lines.reduce((s, l) => s + Number(l.credit), 0);
   if (Math.abs(totalDr - totalCr) > 0.01) return { error: 'not_balanced' };

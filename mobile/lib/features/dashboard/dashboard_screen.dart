@@ -156,7 +156,11 @@ class _DashboardBody extends ConsumerWidget {
           _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
         else
           _MoneyFlowRow(
-              summary: summary, fmt: fmt, t: t, responsive: responsive),
+            summary: summary,
+            fmt: fmt,
+            t: t,
+            responsive: responsive,
+          ),
         const SizedBox(height: 14),
         _AlertsRow(summary: summary, t: t),
         const SizedBox(height: 18),
@@ -240,7 +244,6 @@ class _GreetingRow extends StatelessWidget {
 /// touch targets, FittedBox for currency, responsive wrap for small screens.
 class _CollectionBreakdownSection extends ConsumerStatefulWidget {
   const _CollectionBreakdownSection({
-    super.key,
     required this.summary,
     required this.fmt,
     required this.t,
@@ -391,9 +394,8 @@ class _CollectionBreakdownSectionState
               width: isSel ? 20 : 6,
               height: 5,
               decoration: BoxDecoration(
-                color: isSel
-                    ? AppColors.primary
-                    : AppColors.border.withAlpha(140),
+                color:
+                    isSel ? AppColors.primary : AppColors.border.withAlpha(140),
                 borderRadius: BorderRadius.circular(3),
               ),
             );
@@ -453,7 +455,7 @@ class _CollectionBreakdownSectionState
               'Daily',
               'Weekly',
               'Monthly',
-              'Custom'
+              'Custom',
             ],
             values: const [
               'all',
@@ -483,10 +485,16 @@ class _CollectionBreakdownSectionState
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color.lerp(const Color(0xFFB91C1C), const Color(0xFF15803D),
-                _overdueRecoveryPct())!,
-            Color.lerp(const Color(0xFF7F1D1D), const Color(0xFF14532D),
-                _overdueRecoveryPct())!,
+            Color.lerp(
+              const Color(0xFFB91C1C),
+              const Color(0xFF15803D),
+              _overdueRecoveryPct(),
+            )!,
+            Color.lerp(
+              const Color(0xFF7F1D1D),
+              const Color(0xFF14532D),
+              _overdueRecoveryPct(),
+            )!,
           ],
         ),
         boxShadow: AppTokens.shadowLg,
@@ -526,7 +534,7 @@ class _CollectionBreakdownSectionState
               'Daily',
               'Weekly',
               'Monthly',
-              'Custom'
+              'Custom',
             ],
             values: const [
               'all',
@@ -642,8 +650,11 @@ class _CollectionBreakdownSectionState
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('₹0',
-                style: AppTypography.extraTiny.copyWith(color: Colors.white38, fontSize: 8.5)),
+            Text(
+              '₹0',
+              style: AppTypography.extraTiny
+                  .copyWith(color: Colors.white38, fontSize: 8.5),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
               decoration: BoxDecoration(
@@ -662,7 +673,8 @@ class _CollectionBreakdownSectionState
             ),
             Text(
               tabIndex == 0 ? 'Expected' : 'Total due',
-              style: AppTypography.extraTiny.copyWith(color: Colors.white38, fontSize: 8.5),
+              style: AppTypography.extraTiny
+                  .copyWith(color: Colors.white38, fontSize: 8.5),
             ),
           ],
         ),
@@ -1170,9 +1182,9 @@ class _MoneyFlowRow extends StatelessWidget {
                 icon: Icons.trending_up,
                 iconColor: AppColors.primary,
                 iconBg: AppColors.primaryLight,
-                label: 'Disbursed',
+                label: t.x('dash.total_disbursed'),
                 value: fmt.format(summary.totalDisbursed),
-                sub: 'Total value',
+                sub: t.x('dash.total_value'),
                 responsive: responsive,
               ),
             ),
@@ -1182,14 +1194,26 @@ class _MoneyFlowRow extends StatelessWidget {
                 icon: Icons.assignment_turned_in_outlined,
                 iconColor: AppColors.warning,
                 iconBg: AppColors.warningBg,
-                label: 'Recovered',
+                label: t.x('dash.total_recovered'),
                 value: fmt.format(summary.totalCollectedAllTime),
-                sub: 'All-time total',
+                sub: t.x('dash.all_time_total'),
                 responsive: responsive,
               ),
             ),
           ],
         ),
+        if (summary.currentCapital != null) ...[
+          const SizedBox(height: 12),
+          _StatTile(
+            icon: Icons.savings_outlined,
+            iconColor: AppColors.success,
+            iconBg: AppColors.successBg,
+            label: t.x('analytics.capitalBalance'),
+            value: fmt.format(summary.currentCapital),
+            sub: t.x('dash.cash_book'),
+            responsive: responsive,
+          ),
+        ],
       ],
     );
   }
@@ -1270,10 +1294,12 @@ class _StatTile extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
-          Text(sub,
-              style: AppTypography.caption,
-              maxLines: responsive ? 2 : null,
-              overflow: responsive ? TextOverflow.ellipsis : null),
+          Text(
+            sub,
+            style: AppTypography.caption,
+            maxLines: responsive ? 2 : null,
+            overflow: responsive ? TextOverflow.ellipsis : null,
+          ),
         ],
       ),
     );
@@ -1477,21 +1503,26 @@ class _ActionBtn extends StatelessWidget {
             boxShadow: AppTokens.shadow,
           ),
           child: horizontal
-              ? Row(children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: color.withAlpha(36),
-                      borderRadius: BorderRadius.circular(12),
+              ? Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(36),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: color, size: 22),
                     ),
-                    child: Icon(icon, color: color, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(label, style: AppTypography.bodyLarge)),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: AppColors.textLight),
-                ])
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: Text(label, style: AppTypography.bodyLarge),),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textLight,
+                    ),
+                  ],
+                )
               : Column(
                   children: [
                     Container(
@@ -2086,7 +2117,6 @@ class _UnifiedActivityItem {
 
 class _RecentActivitiesSection extends ConsumerStatefulWidget {
   const _RecentActivitiesSection({
-    super.key,
     required this.summary,
     required this.fmt,
     required this.t,
@@ -2461,12 +2491,18 @@ class _RecentActivitiesSectionState
                 hintText: t.x('dash.search_activity'),
                 hintStyle:
                     AppTypography.caption.copyWith(color: AppColors.textLight),
-                prefixIcon: const Icon(Icons.search,
-                    size: 20, color: AppColors.textLight),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  size: 20,
+                  color: AppColors.textLight,
+                ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear,
-                            size: 18, color: AppColors.textLight),
+                        icon: const Icon(
+                          Icons.clear,
+                          size: 18,
+                          color: AppColors.textLight,
+                        ),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _searchQuery = '');
@@ -2495,7 +2531,8 @@ class _RecentActivitiesSectionState
                   value: fmt.format(totalPaidAmount),
                   subtitle: '${bundle.paidItems.length} records',
                   isSelected: _activeTab == _ActivityCategoryTab.paid,
-                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.paid),
+                  onTap: () =>
+                      setState(() => _activeTab = _ActivityCategoryTab.paid),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2506,7 +2543,8 @@ class _RecentActivitiesSectionState
                   value: fmt.format(totalPendingAmount),
                   subtitle: '${bundle.pendingItems.length} records',
                   isSelected: _activeTab == _ActivityCategoryTab.pending,
-                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.pending),
+                  onTap: () =>
+                      setState(() => _activeTab = _ActivityCategoryTab.pending),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2517,7 +2555,8 @@ class _RecentActivitiesSectionState
                   value: fmt.format(totalDisbursedAmount),
                   subtitle: '${bundle.newLoanItems.length} loans',
                   isSelected: _activeTab == _ActivityCategoryTab.newLoans,
-                  onTap: () => setState(() => _activeTab = _ActivityCategoryTab.newLoans),
+                  onTap: () => setState(
+                      () => _activeTab = _ActivityCategoryTab.newLoans,),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2528,8 +2567,8 @@ class _RecentActivitiesSectionState
                   value: '${bundle.newCustomerItems.length}',
                   subtitle: 'registered',
                   isSelected: _activeTab == _ActivityCategoryTab.newCustomers,
-                  onTap: () =>
-                      setState(() => _activeTab = _ActivityCategoryTab.newCustomers),
+                  onTap: () => setState(
+                      () => _activeTab = _ActivityCategoryTab.newCustomers,),
                 ),
               ],
             ),
@@ -2541,23 +2580,35 @@ class _RecentActivitiesSectionState
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildTabPill(_ActivityCategoryTab.all,
-                    '${t.x('dash.all_activity')} (${allItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.all,
+                  '${t.x('dash.all_activity')} (${allItems.length})',
+                ),
                 const SizedBox(width: 8),
-                _buildTabPill(_ActivityCategoryTab.paid,
-                    '${t.x('dash.paid_today')} (${bundle.paidItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.paid,
+                  '${t.x('dash.paid_today')} (${bundle.paidItems.length})',
+                ),
                 const SizedBox(width: 8),
-                _buildTabPill(_ActivityCategoryTab.pending,
-                    '${t.x('dash.pending_today')} (${bundle.pendingItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.pending,
+                  '${t.x('dash.pending_today')} (${bundle.pendingItems.length})',
+                ),
                 const SizedBox(width: 8),
-                _buildTabPill(_ActivityCategoryTab.newLoans,
-                    '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.newLoans,
+                  '${t.x('dash.new_loans')} (${bundle.newLoanItems.length})',
+                ),
                 const SizedBox(width: 8),
-                _buildTabPill(_ActivityCategoryTab.newCustomers,
-                    '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.newCustomers,
+                  '${t.x('dash.new_customers')} (${bundle.newCustomerItems.length})',
+                ),
                 const SizedBox(width: 8),
-                _buildTabPill(_ActivityCategoryTab.other,
-                    '${t.x('dash.other_activity')} (${bundle.otherItems.length})'),
+                _buildTabPill(
+                  _ActivityCategoryTab.other,
+                  '${t.x('dash.other_activity')} (${bundle.otherItems.length})',
+                ),
               ],
             ),
           ),
@@ -2580,8 +2631,11 @@ class _RecentActivitiesSectionState
               child: Center(
                 child: Column(
                   children: [
-                    const Icon(Icons.cloud_off_rounded,
-                        color: AppColors.danger, size: 32),
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      color: AppColors.danger,
+                      size: 32,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Failed to load activities',
@@ -2786,7 +2840,8 @@ class _RecentActivitiesSectionState
       badgeColor = const Color(0xFF065F46);
       title = p.customerName;
       final timeStr = _formatItemTime(p.submittedAt);
-      subtitle = '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
+      subtitle =
+          '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
       amountText = '+${fmt.format(p.receivedAmount)}';
       amountColor = const Color(0xFF059669);
     } else if (item.pending != null) {
@@ -2801,7 +2856,8 @@ class _RecentActivitiesSectionState
       badgeColor = isMissed ? const Color(0xFF991B1B) : const Color(0xFF92400E);
       title = p.customerName;
       final timeStr = _formatItemTime(p.dueDate);
-      subtitle = '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
+      subtitle =
+          '${p.customerCode.isNotEmpty ? '${p.customerCode} · ' : ''}${p.routeName != null ? '${p.routeName} · ' : ''}$timeStr';
       amountText = fmt.format(p.remainingAmount);
       amountColor = isMissed ? AppColors.danger : const Color(0xFFD97706);
     } else if (item.newLoan != null) {
@@ -2827,7 +2883,8 @@ class _RecentActivitiesSectionState
       badgeColor = const Color(0xFF6B21A8);
       title = c.name;
       final timeStr = _formatItemTime(c.createdAt);
-      subtitle = '${c.customerCode.isNotEmpty ? '${c.customerCode} · ' : ''}${c.routeName != null ? '${c.routeName} · ' : ''}$timeStr';
+      subtitle =
+          '${c.customerCode.isNotEmpty ? '${c.customerCode} · ' : ''}${c.routeName != null ? '${c.routeName} · ' : ''}$timeStr';
       amountText = '';
       amountColor = AppColors.textPrimary;
     } else {
@@ -2898,7 +2955,9 @@ class _RecentActivitiesSectionState
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: badgeBg,
                               borderRadius: BorderRadius.circular(5),
@@ -2954,9 +3013,8 @@ class _RecentActivitiesSectionState
 
   String _formatItemTime(DateTime time) {
     final now = DateTime.now();
-    final isSameDay = time.year == now.year &&
-        time.month == now.month &&
-        time.day == now.day;
+    final isSameDay =
+        time.year == now.year && time.month == now.month && time.day == now.day;
     if (isSameDay) {
       return DateFormat('h:mm a').format(time);
     }
@@ -3062,8 +3120,11 @@ class _Avatar extends StatelessWidget {
 }
 
 class _AgentMetricsRow extends StatelessWidget {
-  const _AgentMetricsRow(
-      {required this.summary, required this.fmt, required this.t});
+  const _AgentMetricsRow({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -3099,8 +3160,11 @@ class _AgentMetricsRow extends StatelessWidget {
 }
 
 class _DefaulterAlerts extends ConsumerWidget {
-  const _DefaulterAlerts(
-      {required this.summary, required this.fmt, required this.t});
+  const _DefaulterAlerts({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -3170,8 +3234,11 @@ class _DefaulterAlerts extends ConsumerWidget {
 }
 
 class _RoutePerformanceList extends ConsumerWidget {
-  const _RoutePerformanceList(
-      {required this.summary, required this.fmt, required this.t});
+  const _RoutePerformanceList({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -3201,8 +3268,11 @@ class _RoutePerformanceList extends ConsumerWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.route,
-                        color: AppColors.primaryDark, size: 20),
+                    child: Icon(
+                      Icons.route,
+                      color: AppColors.primaryDark,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -3255,7 +3325,7 @@ class _RoutePerformanceList extends ConsumerWidget {
                                 ),
                               ).then((success) {
                                 if (success == true) {
-                                  ref.refresh(dashboardSummaryProvider.future);
+                                  ref.invalidate(dashboardSummaryProvider);
                                 }
                               });
                             },
@@ -3338,8 +3408,11 @@ class _SpotlightCards extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.trending_up_rounded,
-                      color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.trending_up_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     summary.highestBorrower!,
@@ -3405,8 +3478,10 @@ class _ModeSplitCard extends StatelessWidget {
                         style: AppTypography.body
                             .copyWith(fontWeight: FontWeight.bold),
                       ),
-                      Text(fmt.format(entry.value),
-                          style: AppTypography.caption),
+                      Text(
+                        fmt.format(entry.value),
+                        style: AppTypography.caption,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -3477,7 +3552,7 @@ class _PendingUpiList extends ConsumerWidget {
                     builder: (_) => VerifyUpiSheet(pending: pending, fmt: fmt),
                   ).then((success) {
                     if (success == true) {
-                      ref.refresh(dashboardSummaryProvider.future);
+                      ref.invalidate(dashboardSummaryProvider);
                     }
                   });
                 },
@@ -3509,7 +3584,7 @@ class _PendingUpiList extends ConsumerWidget {
                       builder: (_) => VerifyUpiSheet(pending: [p], fmt: fmt),
                     ).then((success) {
                       if (success == true) {
-                        ref.refresh(dashboardSummaryProvider.future);
+                        ref.invalidate(dashboardSummaryProvider);
                       }
                     });
                   },
@@ -3591,7 +3666,8 @@ class _ErrorState extends ConsumerWidget {
                   foregroundColor: Colors.white,
                 ),
               ),
-              if (message.contains('401') || message.toLowerCase().contains('unauthorized'))
+              if (message.contains('401') ||
+                  message.toLowerCase().contains('unauthorized'))
                 OutlinedButton.icon(
                   onPressed: () {
                     ref.read(authControllerProvider.notifier).logout();

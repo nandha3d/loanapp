@@ -48,7 +48,7 @@ const _kWhite50 = Color(0x80FFFFFF);
 
 class _VerticalDef {
   const _VerticalDef(
-      this.key, this.title, this.description, this.icon, this.color);
+      this.key, this.title, this.description, this.icon, this.color,);
   final String key;
   final String title;
   final String description;
@@ -112,7 +112,7 @@ class PortalScreen extends ConsumerWidget {
     final cachedVerticals = (user?.verticals.isNotEmpty == true)
         ? user!.verticals
         : (user?.appType != null && user!.appType.isNotEmpty
-            ? [user!.appType]
+            ? [user.appType]
             : const [AppType.microlending]);
 
     final role = user?.role;
@@ -139,7 +139,7 @@ class PortalScreen extends ConsumerWidget {
                 slivers: [
                   SliverToBoxAdapter(child: _TopBar(ref: ref)),
                   SliverToBoxAdapter(
-                      child: _Header(userName: user?.name ?? 'Admin')),
+                      child: _Header(userName: user?.name ?? 'Admin'),),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                     sliver: verticalsAsync.when(
@@ -218,7 +218,7 @@ class PortalScreen extends ConsumerWidget {
                             onTap: () => context.push(
                                 role == UserRole.developer || role == UserRole.superadmin
                                     ? '/admin/users'
-                                    : '/admin/team'),
+                                    : '/admin/team',),
                           ),
                           if (role == UserRole.developer ||
                               role == UserRole.superadmin)
@@ -241,7 +241,7 @@ class PortalScreen extends ConsumerWidget {
                             onTap: () => context.push(
                                 role == UserRole.developer
                                     ? '/admin/billing'
-                                    : '/portal/billing'),
+                                    : '/portal/billing',),
                           ),
                         ],
                       ),
@@ -452,7 +452,7 @@ class _AppCard extends StatelessWidget {
                           children: [
                             Text(def.title,
                                 style: AppTypography.sectionTitle
-                                    .copyWith(color: Colors.white)),
+                                    .copyWith(color: Colors.white),),
                             const SizedBox(height: 4),
                             Text(
                               def.description,
@@ -465,7 +465,7 @@ class _AppCard extends StatelessWidget {
                         ),
                       ),
                       const Icon(Icons.chevron_right_rounded,
-                          color: _kWhite50),
+                          color: _kWhite50,),
                     ],
                   )
                 : Column(
@@ -477,7 +477,7 @@ class _AppCard extends StatelessWidget {
                       Text(def.title,
                           textAlign: TextAlign.center,
                           style: AppTypography.sectionTitle
-                              .copyWith(color: Colors.white)),
+                              .copyWith(color: Colors.white),),
                       const SizedBox(height: 8),
                       Text(
                         def.description,
@@ -512,7 +512,7 @@ class _EmptyApps extends StatelessWidget {
           const SizedBox(height: 10),
           Text('No application access assigned',
               textAlign: TextAlign.center,
-              style: AppTypography.sectionTitle.copyWith(color: Colors.white)),
+              style: AppTypography.sectionTitle.copyWith(color: Colors.white),),
           const SizedBox(height: 8),
           Text(
             'Ask an administrator to assign this user to an active branch and module.',
@@ -608,10 +608,10 @@ class _ActionTile extends StatelessWidget {
                       Text(title,
                           style: AppTypography.bodyLarge.copyWith(
                               color: Colors.white,
-                              fontWeight: FontWeight.w600)),
+                              fontWeight: FontWeight.w600,),),
                       Text(subtitle,
                           style:
-                              AppTypography.caption.copyWith(color: _kWhite50)),
+                              AppTypography.caption.copyWith(color: _kWhite50),),
                     ],
                   ),
                 ),

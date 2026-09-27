@@ -13,8 +13,13 @@ export const POSTING_DEFAULTS = {
   other_expenses: '5900',
   owners_capital: '3100',
   vendor_payable: '2110',
+  tds_payable: '2210',
   input_cgst: '1410',
   input_sgst: '1420',
+  input_igst: '1430',
+  output_cgst: '2310',
+  output_sgst: '2320',
+  output_igst: '2330',
 } as const;
 
 export type PostingKey = keyof typeof POSTING_DEFAULTS;

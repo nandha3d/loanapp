@@ -19,10 +19,31 @@ class UploadService {
 
   Future<UploadResult> uploadFile(File file, {String? contentType}) async {
     MediaType? mediaType;
+    final pathLower = file.path.toLowerCase();
     if (contentType != null) {
-      mediaType = MediaType.parse(contentType);
-    } else if (file.path.toLowerCase().endsWith('.webp')) {
-      mediaType = MediaType('image', 'webp');
+      if (pathLower.endsWith('.webp')) {
+        mediaType = MediaType('image', 'webp');
+      } else {
+        mediaType = MediaType.parse(contentType);
+      }
+    } else {
+      if (pathLower.endsWith('.webp')) {
+        mediaType = MediaType('image', 'webp');
+      } else if (pathLower.endsWith('.jpg') || pathLower.endsWith('.jpeg')) {
+        mediaType = MediaType('image', 'jpeg');
+      } else if (pathLower.endsWith('.png')) {
+        mediaType = MediaType('image', 'png');
+      } else if (pathLower.endsWith('.pdf')) {
+        mediaType = MediaType('application', 'pdf');
+      } else if (pathLower.endsWith('.m4a')) {
+        mediaType = MediaType('audio', 'm4a');
+      } else if (pathLower.endsWith('.aac')) {
+        mediaType = MediaType('audio', 'aac');
+      } else if (pathLower.endsWith('.mp3')) {
+        mediaType = MediaType('audio', 'mpeg');
+      } else if (pathLower.endsWith('.webm')) {
+        mediaType = MediaType('audio', 'webm');
+      }
     }
 
     final form = FormData.fromMap({

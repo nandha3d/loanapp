@@ -62,7 +62,7 @@ class DividendBreakdown extends StatelessWidget {
         _row('− Prize amount', fmt.format(prizeAmount)),
         _totalRow('= Bid discount', fmt.format(bidDiscount)),
         _row('− Commission ($commissionPct% of $commissionBaseLabel)',
-            fmt.format(commission)),
+            fmt.format(commission),),
         if (gstPct != null && gstPct! > 0)
           _row('+ GST ($gstPct% of commission)', fmt.format(gstAmount)),
         _totalRow('= Distributable dividend', fmt.format(distributableDividend)),
@@ -73,15 +73,15 @@ class DividendBreakdown extends StatelessWidget {
               : '(all members)',
         ),
         _totalRow('= Dividend per ticket', fmt.format(dividend),
-            color: AppColors.success),
+            color: AppColors.success,),
         if (roundingIncome > 0)
           _row('Rounding income (booked as foreman income)',
               fmt.format(roundingIncome),
-              small: true),
+              small: true,),
         const SizedBox(height: 10),
         Text('$_distributionCopy.',
             style: AppTypography.caption
-                .copyWith(color: AppColors.textSecondary)),
+                .copyWith(color: AppColors.textSecondary),),
       ],
     );
   }
@@ -99,7 +99,7 @@ class DividendBreakdown extends StatelessWidget {
               child: Text(label,
                   style: small
                       ? style
-                      : style.copyWith(color: AppColors.textSecondary))),
+                      : style.copyWith(color: AppColors.textSecondary),),),
           Text(value, style: style.copyWith(fontWeight: FontWeight.w600)),
         ],
       ),
@@ -118,10 +118,10 @@ class DividendBreakdown extends StatelessWidget {
         children: [
           Text(label,
               style: AppTypography.body.copyWith(
-                  fontWeight: FontWeight.w800, color: color)),
+                  fontWeight: FontWeight.w800, color: color,),),
           Text(value,
               style: AppTypography.body.copyWith(
-                  fontWeight: FontWeight.w800, color: color)),
+                  fontWeight: FontWeight.w800, color: color,),),
         ],
       ),
     );

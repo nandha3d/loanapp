@@ -5,6 +5,7 @@ import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
+import { validateManualJournalLines } from '@/lib/accounting/journalInput';
 
 async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
   const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
@@ -105,9 +106,11 @@ export async function POST(req: NextRequest) {
     if (body.branchId && body.branchId !== ctx.branchId) return fail('Branch mismatch', 403);
     if (!ctx.branchId) return fail('An active branch is required', 400);
 
-    if (!entryDateStr || !lines || !Array.isArray(lines) || lines.length < 2) {
+    if (!entryDateStr || !Array.isArray(lines)) {
       return fail('Invalid journal entries data', 400);
     }
+    const inputError = validateManualJournalLines(lines, action !== 'draft');
+    if (inputError) return fail(inputError, 400);
     const accountIds = [...new Set(lines.map((line) => line.accountId))];
     if (accountIds.some((id) => typeof id !== 'string' || !id) ||
         await prisma.account.count({ where: { tenantId: ctx.tenantId, id: { in: accountIds } } }) !== accountIds.length) {
@@ -115,6 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     const entryDate = new Date(entryDateStr);
+    if (Number.isNaN(entryDate.getTime())) return fail('Invalid entry date', 400);
     const totalDr = lines.reduce((s, l) => s + (l.debit || 0), 0);
     const totalCr = lines.reduce((s, l) => s + (l.credit || 0), 0);
 

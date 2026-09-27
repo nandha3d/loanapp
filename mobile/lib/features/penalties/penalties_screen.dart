@@ -229,12 +229,12 @@ class _PenaltiesBody extends ConsumerWidget {
                   hint: Text(T.of(ref).x('pen.filter_route')),
                   isExpanded: true,
                   icon: const Icon(Icons.keyboard_arrow_down,
-                      color: AppColors.textLight),
+                      color: AppColors.textLight,),
                   items: [
                     DropdownMenuItem(
                         value: null,
                         child: Text(t.x('coll.filter_all'),
-                            style: AppTypography.body)),
+                            style: AppTypography.body,),),
                     ...routes.where((route) => route.status == 'active').map(
                       (e) => DropdownMenuItem(
                         value: e.id,
@@ -432,7 +432,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                   Row(
                     children: [
                       const Icon(Icons.swipe,
-                          size: 14, color: AppColors.textLight),
+                          size: 14, color: AppColors.textLight,),
                       const SizedBox(width: 4),
                       Text(
                         '${_page + 1}/${loans.length} ${t.x('pen.loans')}',
@@ -517,19 +517,19 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                 _AmountCol(
                     label: t.x('pen.gross'),
                     value: fmt.format(g.gross),
-                    color: AppColors.danger),
+                    color: AppColors.danger,),
                 _AmountCol(
                     label: t.x('pen.settled'),
                     value: fmt.format(g.settled),
-                    color: AppColors.success),
+                    color: AppColors.success,),
                 _AmountCol(
                     label: t.x('pen.waived'),
                     value: fmt.format(g.waived),
-                    color: AppColors.purple),
+                    color: AppColors.purple,),
                 _AmountCol(
                     label: t.x('pen.net_due'),
                     value: fmt.format(g.net),
-                    color: AppColors.warning),
+                    color: AppColors.warning,),
               ],
             ),
             const Spacer(),
@@ -618,7 +618,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
               Text(
                 '${g.skippedDays} ${t.x('pen.days_skipped')}',
                 style: AppTypography.caption.copyWith(
-                    color: AppColors.danger, fontWeight: FontWeight.w700),
+                    color: AppColors.danger, fontWeight: FontWeight.w700,),
               ),
               const SizedBox(height: 16),
               FutureBuilder<Loan>(
@@ -847,7 +847,7 @@ class _ErrorState extends ConsumerWidget {
               const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
               const SizedBox(height: 12),
               Text(T.of(ref).x('pen.failed_to_load'),
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
               const SizedBox(height: 6),
               Text(
                 message,
@@ -893,7 +893,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(t.x('pen.reason_required')),
-            backgroundColor: AppColors.warning),
+            backgroundColor: AppColors.warning,),
       );
       return;
     }
@@ -908,7 +908,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(t.x('pen.waived')),
-              backgroundColor: AppColors.success),
+              backgroundColor: AppColors.success,),
         );
         Navigator.pop(context, true);
       }
@@ -923,7 +923,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
     final fmt = ref.watch(currencyFmtProvider);
     return AlertDialog(
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radius)),
+          borderRadius: BorderRadius.circular(AppTokens.radius),),
       title: Text('Waive Penalty - ${widget.customerName}'),
       content: SingleChildScrollView(
         child: Column(
@@ -956,7 +956,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
             backgroundColor: AppColors.ink,
             foregroundColor: AppColors.onInk,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),),
           ),
           onPressed: _submitting ? null : _submit,
           child: _submitting
@@ -964,9 +964,9 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2, color: Colors.white,),)
               : Text(t.x('btn.waive'),
-                  style: const TextStyle(color: AppColors.onInk)),
+                  style: const TextStyle(color: AppColors.onInk),),
         ),
       ],
     );

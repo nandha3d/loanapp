@@ -444,7 +444,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                   color: AppColors.primary,
                   onRefresh: () async {
                     refreshCollectionViews(ref);
-                    await ref.refresh(collectionTodayProvider.future);
+                    ref.invalidate(collectionTodayProvider);
+                    await ref.read(collectionTodayProvider.future);
                   },
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -488,14 +489,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                         ).entries.expand(
                               (e) => [
                                 _RouteHeader(
-                                    routeName: e.key, count: e.value.length),
+                                    routeName: e.key, count: e.value.length,),
                                 const SizedBox(height: 8),
                                 for (final g in e.value) ...[
                                   _CollectionCard(
                                       group: g,
                                       fmt: fmt,
                                       filter: filter,
-                                      responsive: isMicrolending),
+                                      responsive: isMicrolending,),
                                   const SizedBox(height: 10),
                                 ],
                                 const SizedBox(height: 6),
@@ -1227,7 +1228,7 @@ class _PhotoPin extends ConsumerWidget {
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: const [
               BoxShadow(
-                  color: Colors.black38, blurRadius: 4, offset: Offset(0, 2)),
+                  color: Colors.black38, blurRadius: 4, offset: Offset(0, 2),),
             ],
             image: hasPhoto
                 ? DecorationImage(
@@ -1244,7 +1245,7 @@ class _PhotoPin extends ConsumerWidget {
                       ? '?'
                       : row.customerName[0].toUpperCase(),
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
+                      color: Colors.white, fontWeight: FontWeight.bold,),
                 ),
         ),
         // Small pointer tail under the avatar.
@@ -1323,11 +1324,11 @@ class _CollectionSummaryHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.savings_outlined,
-                        color: AppColors.primary, size: 18),
+                        color: AppColors.primary, size: 18,),
                     const SizedBox(width: 6),
                     Text(t.x('coll.today_scheduled'),
                         style: AppTypography.heroLabel
-                            .copyWith(color: Colors.white)),
+                            .copyWith(color: Colors.white),),
                   ],
                 ),
                 Container(
@@ -1338,7 +1339,7 @@ class _CollectionSummaryHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text('$pendingCount ${t.x('coll.pending_suffix')}',
-                      style: AppTypography.tiny.copyWith(color: Colors.white)),
+                      style: AppTypography.tiny.copyWith(color: Colors.white),),
                 ),
               ],
             )
@@ -1381,7 +1382,7 @@ class _CollectionSummaryHeader extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(fmt.format(totalDue),
                     style:
-                        AppTypography.heroNumber.copyWith(color: Colors.white)),
+                        AppTypography.heroNumber.copyWith(color: Colors.white),),
               ),
             )
           else
@@ -1435,17 +1436,17 @@ class _CollectionSummaryHeader extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Icon(Icons.history_rounded,
-                          color: AppColors.danger, size: 18),
+                          color: AppColors.danger, size: 18,),
                       Text(t.x('coll.still_overdue'),
                           style:
-                              AppTypography.body.copyWith(color: Colors.white)),
+                              AppTypography.body.copyWith(color: Colors.white),),
                       Text(fmt.format(overdueOutstanding),
                           style: AppTypography.bodyLarge.copyWith(
                               color: Colors.white,
-                              fontWeight: FontWeight.w800)),
+                              fontWeight: FontWeight.w800,),),
                       Text('$overdueCount ${t.x('coll.pending_suffix')}',
                           style: AppTypography.tiny
-                              .copyWith(color: Colors.white70)),
+                              .copyWith(color: Colors.white70),),
                     ],
                   )
                 : Row(
@@ -1793,7 +1794,7 @@ class _CollectionCard extends ConsumerWidget {
   final bool responsive;
 
   Future<void> _collect(
-      BuildContext context, WidgetRef ref, CollectionRow row) async {
+      BuildContext context, WidgetRef ref, CollectionRow row,) async {
     final user = ref.read(authControllerProvider).user;
     if (user?.role == UserRole.agent && user?.gpsTrackingEnabled == true) {
       final status = await ref.read(gpsServiceProvider).checkGpsStatus();
@@ -2062,7 +2063,7 @@ class _CollectionCard extends ConsumerWidget {
                       final uri = Uri(scheme: 'tel', path: p.customerPhone);
                       if (await canLaunchUrl(uri)) {
                         await launchUrl(uri,
-                            mode: LaunchMode.externalApplication);
+                            mode: LaunchMode.externalApplication,);
                       }
                     },
                   ),
@@ -2133,7 +2134,7 @@ class _CollectionCard extends ConsumerWidget {
                                 onTap: today != null
                                     ? () => _collect(context, ref, today)
                                     : null,
-                              )),
+                              ),),
                           const SizedBox(height: 8),
                           SizedBox(
                               width: double.infinity,
@@ -2150,8 +2151,8 @@ class _CollectionCard extends ConsumerWidget {
                                 onTap: overdue != null
                                     ? () => _showOverdueDetails(context, ref)
                                     : null,
-                              )),
-                        ])
+                              ),),
+                        ],)
                       : Row(
                           children: [
                             Expanded(
@@ -2187,7 +2188,7 @@ class _CollectionCard extends ConsumerWidget {
                               ),
                             ),
                           ],
-                        )),
+                        ),),
               if (rrow != null) ...[
                 const SizedBox(height: 8),
                 Row(

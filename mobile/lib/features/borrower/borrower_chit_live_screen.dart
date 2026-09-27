@@ -292,7 +292,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
       if (s != null) {
         _confirmAndBid(s.chitValue - parsed.amount!, source: 'voice', transcript: text);
       }
-    });
+    },);
   }
 
   Future<void> _sendMessage() async {
@@ -332,7 +332,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
                       child: Text('🔔 $_bellToast',
                           textAlign: TextAlign.center,
                           style: AppTypography.body.copyWith(
-                              color: Colors.white, fontWeight: FontWeight.w800)),
+                              color: Colors.white, fontWeight: FontWeight.w800,),),
                     ),
                   _RoomStatusCard(state: s, displaySeconds: _displaySeconds, fmt: fmt),
                   const SizedBox(height: 12),
@@ -506,7 +506,7 @@ class _RoomStatusCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
                 ),
                 child: Text(_badgeLabel,
-                    style: AppTypography.caption.copyWith(color: _badgeColor, fontWeight: FontWeight.w800)),
+                    style: AppTypography.caption.copyWith(color: _badgeColor, fontWeight: FontWeight.w800),),
               ),
               Text('Your ticket: ${state.membership.ticketNo ?? '—'}', style: AppTypography.caption),
             ],
@@ -515,7 +515,7 @@ class _RoomStatusCard extends StatelessWidget {
             const SizedBox(height: 10),
             Center(
               child: Text('$mins:$secs',
-                  style: AppTypography.sectionTitle.copyWith(fontSize: 32, fontWeight: FontWeight.w800)),
+                  style: AppTypography.sectionTitle.copyWith(fontSize: 32, fontWeight: FontWeight.w800),),
             ),
           ],
           const SizedBox(height: 8),
@@ -724,7 +724,7 @@ class _CustomerCenterHub extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text('Your ticket ${state.membership.ticketNo ?? '—'}',
-              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
+              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted),),
         ],
       ),
     );
@@ -877,11 +877,11 @@ class _BidEntryCard extends StatelessWidget {
           if (voiceListening) ...[
             const SizedBox(height: 8),
             Text(voiceTranscript.isEmpty ? 'Listening…' : voiceTranscript,
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),),
           ],
           const SizedBox(height: 4),
           Text('Hold the mic and speak your discount, e.g. "fifty thousand"',
-              style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+              style: AppTypography.caption.copyWith(color: AppColors.textSecondary),),
         ],
       ),
     );
@@ -1146,7 +1146,7 @@ class _SummarySheetState extends ConsumerState<_SummarySheet> {
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(_error!,
-                            textAlign: TextAlign.center, style: AppTypography.body),
+                            textAlign: TextAlign.center, style: AppTypography.body,),
                       ),
                     )
                   : ListView(
@@ -1183,7 +1183,7 @@ class _SummarySheetState extends ConsumerState<_SummarySheet> {
                               style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
                             ),
                           );
-                        }),
+                        },),
                         DividendBreakdown(
                           chitValue: (_summary!['chitValue'] as num).toDouble(),
                           prizeAmount: (_summary!['prizeAmount'] as num).toDouble(),

@@ -15,6 +15,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/features/settings/customer_import_screen.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
@@ -33,7 +34,8 @@ class SettingsScreen extends ConsumerWidget {
     final lang = ref.watch(languageProvider);
     final voiceOn = ref.watch(voiceAssistProvider);
     final canManageRoutes = user?.role == UserRole.admin ||
-        user?.role == UserRole.superadmin || user?.role == UserRole.developer;
+        user?.role == UserRole.superadmin ||
+        user?.role == UserRole.developer;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -194,11 +196,13 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           _Section(
             title: t.x('set.routes'),
-            trailing: canManageRoutes ? TextButton.icon(
-              icon: const Icon(Icons.add, size: 16),
-              label: Text(t.x('set.add_route')),
-              onPressed: () => _showAddRoute(context, ref),
-            ) : null,
+            trailing: canManageRoutes
+                ? TextButton.icon(
+                    icon: const Icon(Icons.add, size: 16),
+                    label: Text(t.x('set.add_route')),
+                    onPressed: () => _showAddRoute(context, ref),
+                  )
+                : null,
             child: ref.watch(_routesProvider).when(
                   loading: () => const Skeleton(
                     height: 80,
@@ -219,13 +223,15 @@ class SettingsScreen extends ConsumerWidget {
                         )
                       : Column(
                           children: routes
-                              .map((r) => _RouteRow(
-                                route: r,
-                                t: t,
-                                onTap: canManageRoutes
-                                    ? () => _showManageRoute(context, ref, r)
-                                    : null,
-                              ))
+                              .map(
+                                (r) => _RouteRow(
+                                  route: r,
+                                  t: t,
+                                  onTap: canManageRoutes
+                                      ? () => _showManageRoute(context, ref, r)
+                                      : null,
+                                ),
+                              )
                               .toList(),
                         ),
                 ),
@@ -431,6 +437,21 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     onTap: () => context.push('/settings/bulk'),
                   ),
+                  if (user?.appType == AppType.microlending) ...[
+                    const Divider(height: 1, color: AppColors.border),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.upload_file_outlined),
+                      title: Text(t.x('set.import_customers')),
+                      subtitle: Text(t.x('set.import_instructions')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const CustomerImportScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
                   const Divider(height: 1, color: AppColors.border),
                   () {
                     final isBureauSubscribed =
@@ -465,9 +486,9 @@ class SettingsScreen extends ConsumerWidget {
                                   color: AppColors.warning.withAlpha(120),
                                 ),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: const [
+                                children: [
                                   Icon(
                                     Icons.lock_rounded,
                                     size: 10,
@@ -566,9 +587,9 @@ class SettingsScreen extends ConsumerWidget {
                                   color: AppColors.warning.withAlpha(120),
                                 ),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: const [
+                                children: [
                                   Icon(
                                     Icons.lock_rounded,
                                     size: 10,
@@ -762,7 +783,11 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _showManageRoute(BuildContext context, WidgetRef ref, AppRoute route) {
+  Future<void> _showManageRoute(
+    BuildContext context,
+    WidgetRef ref,
+    AppRoute route,
+  ) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -983,75 +1008,79 @@ class _ProfileCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppTokens.radius),
       onTap: () => context.push('/profile'),
       child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadowPrimaryHover,
         ),
-        borderRadius: BorderRadius.circular(AppTokens.radius),
-        boxShadow: AppTokens.shadowPrimaryHover,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white24,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.white24,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: AppTypography.sectionTitle
-                            .copyWith(color: Colors.white),
-                        overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: AppTypography.sectionTitle
+                              .copyWith(color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.edit_outlined,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                  if (email.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      style: AppTypography.body.copyWith(color: Colors.white70),
                     ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.edit_outlined,
-                        color: Colors.white70, size: 16,),
                   ],
-                ),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    email,
-                    style: AppTypography.body.copyWith(color: Colors.white70),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius:
+                          BorderRadius.circular(AppTokens.radiusBadge),
+                    ),
+                    child: Text(
+                      role.toUpperCase(),
+                      style: AppTypography.tiny.copyWith(color: Colors.white),
+                    ),
                   ),
                 ],
-                const SizedBox(height: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
-                  ),
-                  child: Text(
-                    role.toUpperCase(),
-                    style: AppTypography.tiny.copyWith(color: Colors.white),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -1068,39 +1097,39 @@ class _RouteRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.infoBg,
-              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.infoBg,
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              child: const Icon(
+                Icons.route_outlined,
+                color: AppColors.info,
+                size: 18,
+              ),
             ),
-            child: const Icon(
-              Icons.route_outlined,
-              color: AppColors.info,
-              size: 18,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(route.name, style: AppTypography.bodyLarge),
+                  if (route.agentName != null)
+                    Text(route.agentName!, style: AppTypography.caption),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(route.name, style: AppTypography.bodyLarge),
-                if (route.agentName != null)
-                  Text(route.agentName!, style: AppTypography.caption),
-              ],
+            Text(
+              '${route.customerCount} ${t.x('set.customers_suffix')}',
+              style: AppTypography.caption,
             ),
-          ),
-          Text(
-            '${route.customerCount} ${t.x('set.customers_suffix')}',
-            style: AppTypography.caption,
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -1127,7 +1156,10 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
     _agents = ref.read(settingsServiceProvider).agents();
   }
 
-  Future<void> _apply(Future<void> Function() action, {bool close = false}) async {
+  Future<void> _apply(
+    Future<void> Function() action, {
+    bool close = false,
+  }) async {
     setState(() => _busy = true);
     try {
       await action();
@@ -1137,10 +1169,15 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
         Navigator.pop(context);
       } else {
         final routes = await ref.read(settingsServiceProvider).routes();
-        if (mounted) setState(() => _route = routes.firstWhere((r) => r.id == _route.id));
+        if (mounted) {
+          setState(() => _route = routes.firstWhere((r) => r.id == _route.id));
+        }
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1159,14 +1196,22 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
           decoration: InputDecoration(labelText: t.x('set.route_name')),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog), child: Text(t.x('common.cancel'))),
-          TextButton(onPressed: () => Navigator.pop(dialog, controller.text.trim()), child: Text(t.x('common.save'))),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: Text(t.x('common.cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
+            child: Text(t.x('common.save')),
+          ),
         ],
       ),
     );
     controller.dispose();
     if (name != null && name.isNotEmpty && name != _route.name) {
-      await _apply(() => ref.read(settingsServiceProvider).updateRoute(_route.id, name));
+      await _apply(
+        () => ref.read(settingsServiceProvider).updateRoute(_route.id, name),
+      );
     }
   }
 
@@ -1178,12 +1223,23 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
         title: Text(t.x('set.delete_route')),
         content: Text(t.x('set.delete_route_confirm')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(t.x('common.cancel'))),
-          TextButton(onPressed: () => Navigator.pop(dialog, true), child: Text(t.x('set.delete_route'))),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: Text(t.x('common.cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(t.x('set.delete_route')),
+          ),
         ],
       ),
     );
-    if (confirmed == true) await _apply(() => ref.read(settingsServiceProvider).deleteRoute(_route.id), close: true);
+    if (confirmed == true) {
+      await _apply(
+        () => ref.read(settingsServiceProvider).deleteRoute(_route.id),
+        close: true,
+      );
+    }
   }
 
   @override
@@ -1191,7 +1247,12 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
     final t = T.of(ref);
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.viewInsetsOf(context).bottom + 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1209,7 +1270,9 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: _agents,
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const CircularProgressIndicator();
+                  if (!snapshot.hasData) {
+                    return const CircularProgressIndicator();
+                  }
                   final agents = snapshot.data!
                       .where((agent) => agent['branchId'] == _route.branchId)
                       .toList(growable: false);
@@ -1218,41 +1281,86 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
                       DropdownButtonFormField<String>(
                         key: ValueKey('primary-${_route.agentId}'),
                         initialValue: _route.agentId ?? '',
-                        decoration: InputDecoration(labelText: t.x('set.primary_agent')),
-                        items: [
-                          DropdownMenuItem(value: '', child: Text(t.x('set.clear_primary'))),
-                          ...agents.map((agent) => DropdownMenuItem(
-                            value: agent['id'] as String,
-                            child: Text(agent['name'] as String? ?? ''),
-                          )),
-                        ],
-                        onChanged: _busy ? null : (id) => _apply(() => ref.read(settingsServiceProvider)
-                            .setPrimaryRouteAgent(_route.id, id?.isEmpty == true ? null : id)),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(t.x('set.shared_agents'), style: AppTypography.bodyLarge),
-                      ..._route.sharedAgents.map((agent) => ListTile(
-                        title: Text(agent.name),
-                        trailing: IconButton(
-                          tooltip: t.x('set.remove_agent'),
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: _busy ? null : () => _apply(() => ref.read(settingsServiceProvider)
-                              .removeRouteAgent(_route.id, agent.id)),
+                        decoration: InputDecoration(
+                          labelText: t.x('set.primary_agent'),
                         ),
-                      )),
-                      DropdownButtonFormField<String>(
-                        key: ValueKey('shared-${_route.sharedAgents.length}'),
-                        decoration: InputDecoration(labelText: t.x('set.assign_agent')),
-                        items: agents
-                            .where((agent) => agent['id'] != _route.agentId &&
-                                !_route.sharedAgents.any((assigned) => assigned.id == agent['id']))
-                            .map((agent) => DropdownMenuItem(
+                        items: [
+                          DropdownMenuItem(
+                            value: '',
+                            child: Text(t.x('set.clear_primary')),
+                          ),
+                          ...agents.map(
+                            (agent) => DropdownMenuItem(
                               value: agent['id'] as String,
                               child: Text(agent['name'] as String? ?? ''),
-                            )).toList(),
-                        onChanged: _busy ? null : (id) {
-                          if (id != null) _apply(() => ref.read(settingsServiceProvider).assignRouteAgent(_route.id, id));
-                        },
+                            ),
+                          ),
+                        ],
+                        onChanged: _busy
+                            ? null
+                            : (id) => _apply(
+                                  () => ref
+                                      .read(settingsServiceProvider)
+                                      .setPrimaryRouteAgent(
+                                        _route.id,
+                                        id?.isEmpty == true ? null : id,
+                                      ),
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        t.x('set.shared_agents'),
+                        style: AppTypography.bodyLarge,
+                      ),
+                      ..._route.sharedAgents.map(
+                        (agent) => ListTile(
+                          title: Text(agent.name),
+                          trailing: IconButton(
+                            tooltip: t.x('set.remove_agent'),
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: _busy
+                                ? null
+                                : () => _apply(
+                                      () => ref
+                                          .read(settingsServiceProvider)
+                                          .removeRouteAgent(
+                                            _route.id,
+                                            agent.id,
+                                          ),
+                                    ),
+                          ),
+                        ),
+                      ),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('shared-${_route.sharedAgents.length}'),
+                        decoration:
+                            InputDecoration(labelText: t.x('set.assign_agent')),
+                        items: agents
+                            .where(
+                              (agent) =>
+                                  agent['id'] != _route.agentId &&
+                                  !_route.sharedAgents.any(
+                                    (assigned) => assigned.id == agent['id'],
+                                  ),
+                            )
+                            .map(
+                              (agent) => DropdownMenuItem(
+                                value: agent['id'] as String,
+                                child: Text(agent['name'] as String? ?? ''),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _busy
+                            ? null
+                            : (id) {
+                                if (id != null) {
+                                  _apply(
+                                    () => ref
+                                        .read(settingsServiceProvider)
+                                        .assignRouteAgent(_route.id, id),
+                                  );
+                                }
+                              },
                       ),
                     ],
                   );

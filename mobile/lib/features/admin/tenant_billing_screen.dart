@@ -8,7 +8,6 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/admin_service.dart';
 import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
-import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class TenantBillingScreen extends ConsumerStatefulWidget {

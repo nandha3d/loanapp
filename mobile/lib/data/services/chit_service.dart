@@ -176,14 +176,14 @@ class ChitService {
   /// Live bidding room state — poll every 2-3 seconds while the room is open.
   /// Countdown must use the returned secondsRemaining, never the device clock.
   Future<List<ChitSecurityDocument>> securityDocuments(
-      String groupId, String auctionId) async {
+      String groupId, String auctionId,) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.chitAuctionSecurityDocuments(groupId, auctionId),
     );
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
           .map((dynamic e) =>
-              ChitSecurityDocument.fromJson(e as Map<String, dynamic>))
+              ChitSecurityDocument.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false);
     });
   }
@@ -231,7 +231,7 @@ class ChitService {
   }
 
   Future<Map<String, dynamic>> liveState(
-      String groupId, String auctionId) async {
+      String groupId, String auctionId,) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.chitAuctionLive(groupId, auctionId),
     );
@@ -292,7 +292,7 @@ class ChitService {
 
   /// Resolve a lottery/fixed_rotation period via the audited draw.
   Future<Map<String, dynamic>> drawWinner(
-      String groupId, String auctionId) async {
+      String groupId, String auctionId,) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitAuctionDraw(groupId, auctionId),
     );
@@ -614,7 +614,7 @@ class ChitService {
 
   // ── Live auction ─────────────────────────────────────────────────────────
   LiveAuctionState _state(Response<Map<String, dynamic>> res) => unwrapEnvelope(
-      res, (dynamic d) => LiveAuctionState.fromJson(d as Map<String, dynamic>));
+      res, (dynamic d) => LiveAuctionState.fromJson(d as Map<String, dynamic>),);
 
   /// Start a live auction for a period. Optionally override the clock/step.
   Future<LiveAuctionState> openAuction(
@@ -697,7 +697,7 @@ class ChitService {
       },
     );
     return unwrapEnvelope(
-        res, (dynamic d) => RoomMessage.fromJson(d as Map<String, dynamic>));
+        res, (dynamic d) => RoomMessage.fromJson(d as Map<String, dynamic>),);
   }
 
   /// Enter the live room. Staff may pass [memberId] to seat a subscriber who is

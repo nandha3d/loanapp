@@ -114,7 +114,7 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
         width: (intrinsicW * scale).round(),
         height: (intrinsicH * scale).round(),
       );
-    });
+    },);
   }
 
   @override

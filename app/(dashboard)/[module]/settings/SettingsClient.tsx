@@ -1476,12 +1476,18 @@ export default function SettingsClient({
               const file = e.target.files?.[0];
               if (!file) return;
               const text = await file.text();
+              let data: unknown;
               try {
-                const data = JSON.parse(text);
-                const res = await importCustomers(data);
-                alert(`${d.importComplete}: ${res.success} ${d.succeeded}, ${res.failed} ${d.failedCount}.`);
+                data = JSON.parse(text);
               } catch {
                 alert(d.invalidJson);
+                return;
+              }
+              try {
+                const res = await importCustomers(data);
+                alert(`${d.importComplete}: ${res.success} ${d.succeeded}, ${res.failed} ${d.failedCount}.`);
+              } catch (error) {
+                alert(error instanceof Error ? error.message : d.invalidJson);
               }
             }} />
           </div>

@@ -1,266 +1,82 @@
 'use server';
-import { prisma } from '@/lib/db';
+
 import { auth } from '@/lib/auth';
 import { getUserAppType } from '@/lib/tenant';
-import { getPremiumTenantId as getDefaultTenantId } from '../access';
+import { getPremiumTenantId } from '../access';
 import { getActiveBranchId } from '@/lib/branch';
 import { redirect } from 'next/navigation';
-import { getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
-import { writePremiumAuditLog as writeAuditLog } from '../access';
+import type { PremiumAccountingActor } from '@/lib/accounting/premiumMobileService';
+import {
+  addBudgetLine as addLine,
+  createBudget as create,
+  getBudget,
+  getBudgetAccounts,
+  getBudgetVariance,
+  listBudgets as list,
+  setBudgetStatus,
+  updateBudgetLine as updateLine,
+} from '@/lib/accounting/budgets';
 
-// BudgetLine fields in calendar order
-const MONTH_FIELDS = [
-  'jan', 'feb', 'mar', 'apr', 'may', 'jun',
-  'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
-] as const;
-type MonthField = typeof MONTH_FIELDS[number];
+async function actor(): Promise<PremiumAccountingActor> {
+  const session = await auth();
+  if (!session) redirect('/login');
+  return {
+    tenantId: await getPremiumTenantId(),
+    appType: await getUserAppType(),
+    branchId: await getActiveBranchId(),
+    userId: session.user.id!,
+    role: (session.user as { role?: string }).role ?? '',
+  };
+}
 
-// Map calendar month (1-based) to BudgetLine field
-function monthToField(calMonth: number): MonthField {
-  return MONTH_FIELDS[calMonth - 1];
+function plain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function result<T>(operation: Promise<T>) {
+  try {
+    return { ok: true as const, data: plain(await operation) };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : 'Budget failed' };
+  }
 }
 
 export async function listBudgets() {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-
-  const rows = await prisma.budget.findMany({
-    where: { tenantId, appType },
-    orderBy: { createdAt: 'desc' },
-  });
-  return JSON.parse(JSON.stringify(rows));
+  return plain(await list(await actor()));
 }
 
-export async function createBudget(input: {
-  name: string;
-  fiscalYear: string;
-}) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const role = (session.user as any)?.role;
-  if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-
-  const budget = await prisma.budget.create({
-    data: {
-      tenantId,
-      appType,
-      name: input.name,
-      fiscalYear: input.fiscalYear,
-    },
-  });
-
-  await writeAuditLog({
-    tenantId,
-    userId: session.user?.id,
-    action: 'create',
-    entityType: 'budget',
-    entityId: budget.id,
-  });
-  return { ok: true, data: JSON.parse(JSON.stringify(budget)) };
+export async function createBudget(input: { name: string; fiscalYear: string }) {
+  return result(create(await actor(), input));
 }
 
 export async function getBudgetWithLines(budgetId: string) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-
-  const budget = await prisma.budget.findFirst({
-    where: { id: budgetId, tenantId, appType },
-    include: { lines: { orderBy: { accountId: 'asc' } } },
-  });
-  if (!budget) return null;
-
-  // Fetch account details separately (BudgetLine has no declared account relation)
-  const accountIds = budget.lines.map((l) => l.accountId);
-  const accounts = await prisma.account.findMany({
-    where: { id: { in: accountIds } },
-    select: { id: true, code: true, name: true, classType: true },
-  });
-  const accountMap = new Map(accounts.map((a) => [a.id, a]));
-
-  // Compute annual total per line
-  const linesWithAccount = budget.lines.map((line) => {
-    const annual = MONTH_FIELDS.reduce((sum, f) => sum + Number((line as any)[f] ?? 0), 0);
-    return { ...line, account: accountMap.get(line.accountId) ?? null, annual };
-  });
-
-  return JSON.parse(JSON.stringify({ ...budget, lines: linesWithAccount }));
+  try {
+    return plain(await getBudget(await actor(), budgetId));
+  } catch {
+    return null;
+  }
 }
 
 export async function updateBudgetLine(lineId: string, field: string, value: number) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const role = (session.user as any)?.role;
-  if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-
-  if (!(MONTH_FIELDS as readonly string[]).includes(field))
-    return { ok: false, error: 'Invalid field' };
-
-  // Verify line belongs to this tenant's budget
-  const line = await prisma.budgetLine.findFirst({
-    where: { id: lineId, budget: { tenantId, appType } },
-    include: { budget: { select: { status: true } } },
-  });
-  if (!line) return { ok: false, error: 'Not found' };
-  if (line.budget.status === 'approved') return { ok: false, error: 'Approved budget is locked' };
-
-  await prisma.budgetLine.update({
-    where: { id: lineId },
-    data: { [field]: value },
-  });
-
-  return { ok: true };
+  return result(updateLine(await actor(), lineId, field, value));
 }
 
 export async function addBudgetLine(budgetId: string, accountId: string) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const role = (session.user as any)?.role;
-  if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-  if (!await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType }, select: { id: true } })) return { ok: false, error: 'Not found' };
-  if (!await prisma.account.findFirst({ where: { id: accountId, tenantId }, select: { id: true } })) return { ok: false, error: 'Not found' };
-
-  const existing = await prisma.budgetLine.findFirst({ where: { budgetId, accountId } });
-  if (existing) return { ok: false, error: 'Account already in budget' };
-
-  await prisma.budgetLine.create({ data: { budgetId, accountId } });
-  return { ok: true };
+  return result(addLine(await actor(), budgetId, accountId));
 }
 
 export async function approveBudget(budgetId: string) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const role = (session.user as any)?.role;
-  if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-
-  const budget = await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType } });
-  if (!budget) return { ok: false, error: 'Not found' };
-
-  await prisma.budget.update({
-    where: { id: budgetId },
-    data: { status: 'approved', approvedById: session.user?.id ?? null, approvedAt: new Date() },
-  });
-
-  await writeAuditLog({
-    tenantId,
-    userId: session.user?.id,
-    action: 'approve',
-    entityType: 'budget',
-    entityId: budgetId,
-  });
-  return { ok: true };
+  return result(setBudgetStatus(await actor(), budgetId, 'approve'));
 }
 
 export async function archiveBudget(budgetId: string) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const role = (session.user as any)?.role;
-  if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
-  if (!await prisma.budget.findFirst({ where: { id: budgetId, tenantId, appType }, select: { id: true } })) return { ok: false, error: 'Not found' };
-
-  await prisma.budget.update({ where: { id: budgetId }, data: { status: 'archived' } });
-  await writeAuditLog({
-    tenantId,
-    userId: session.user?.id,
-    action: 'update',
-    entityType: 'budget',
-    entityId: budgetId,
-    after: { status: 'archived' },
-  });
-  return { ok: true };
+  return result(setBudgetStatus(await actor(), budgetId, 'archive'));
 }
 
 export async function getVarianceForPeriod(budgetId: string, periodKey: string) {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const branchId = await getActiveBranchId();
-
-  const budget = await prisma.budget.findFirst({
-    where: { id: budgetId, tenantId, appType },
-    include: { lines: true },
-  });
-  if (!budget) return [];
-
-  // Fetch account details
-  const accountIds = budget.lines.map((l) => l.accountId);
-  const accounts = await prisma.account.findMany({
-    where: { id: { in: accountIds } },
-    select: { id: true, code: true, name: true, classType: true },
-  });
-  const accountMap = new Map(accounts.map((a) => [a.id, a]));
-
-  // periodKey = 'YYYY-MM', extract calendar month
-  const [yr, mo] = periodKey.split('-').map(Number);
-  const mField = monthToField(mo);
-
-  const from = new Date(yr, mo - 1, 1);
-  const to = new Date(yr, mo, 0);
-
-  // Get actuals per account
-  const actuals = await prisma.journalLine.groupBy({
-    by: ['accountId'],
-    _sum: { debit: true, credit: true },
-    where: {
-      accountId: { in: accountIds },
-      entry: { tenantId, appType, ...(branchId ? { branchId } : {}), status: 'posted', entryDate: { gte: from, lte: to } },
-    },
-  });
-
-  const actualMap: Record<string, { debit: number; credit: number }> = {};
-  for (const a of actuals) {
-    actualMap[a.accountId] = {
-      debit: Number(a._sum.debit ?? 0),
-      credit: Number(a._sum.credit ?? 0),
-    };
-  }
-
-  return budget.lines.map((line) => {
-    const budgetAmt = Number((line as any)[mField] ?? 0);
-    const act = actualMap[line.accountId] ?? { debit: 0, credit: 0 };
-    const account = accountMap.get(line.accountId);
-    const isIncome = account?.classType === 'income';
-    // Income: net = credit - debit; Expense: net = debit - credit
-    const actualAmt = isIncome ? act.credit - act.debit : act.debit - act.credit;
-    const varAmt = actualAmt - budgetAmt;
-    const varPct = budgetAmt !== 0 ? (varAmt / budgetAmt) * 100 : 0;
-
-    return {
-      accountId: line.accountId,
-      code: account?.code ?? '',
-      name: account?.name ?? '',
-      classType: account?.classType ?? '',
-      budgetAmt,
-      actualAmt,
-      varAmt,
-      varPct,
-    };
-  });
+  return plain(await getBudgetVariance(await actor(), budgetId, periodKey));
 }
 
 export async function getActiveAccounts() {
-  const session = await auth();
-  if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
-
-  const rows = await prisma.account.findMany({
-    where: { tenantId, isActive: true, classType: { in: ['income', 'expense'] } },
-    select: { id: true, code: true, name: true, classType: true },
-    orderBy: { code: 'asc' },
-  });
-  return JSON.parse(JSON.stringify(rows));
+  return plain(await getBudgetAccounts(await actor()));
 }

@@ -38,13 +38,13 @@ class AnalyticsScreen extends ConsumerWidget {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text('ZoloFund Analytics Report',
-                    style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                    style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),),
                 pw.SizedBox(height: 8),
                 pw.Text('Generated on ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
-                    style: const pw.TextStyle(fontSize: 10)),
+                    style: const pw.TextStyle(fontSize: 10),),
                 pw.Divider(height: 20),
                 pw.Text('Portfolio Summary',
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),),
                 pw.SizedBox(height: 8),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -65,7 +65,7 @@ class AnalyticsScreen extends ConsumerWidget {
                 pw.Text('Risk Score: ${data.riskScore.label} (${data.riskScore.score}/100)'),
                 pw.Divider(height: 20),
                 pw.Text('Smart Insights',
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),),
                 ...data.insights.map((ins) => pw.Bullet(text: ins.text)),
               ],
             ),
@@ -647,7 +647,7 @@ class _AgentLeaderboard extends StatelessWidget {
               leading: CircleAvatar(
                 backgroundColor: AppColors.primaryLight,
                 child: Text(a.name.isNotEmpty ? a.name[0].toUpperCase() : 'A',
-                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),),
               ),
               title: Text(a.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
               subtitle: Text('Collected: ${fmt.format(a.collected)}', style: AppTypography.caption),
@@ -658,7 +658,7 @@ class _AgentLeaderboard extends StatelessWidget {
                           : a.hitRate >= 75
                               ? AppColors.warning
                               : AppColors.danger,
-                      fontWeight: FontWeight.bold)),
+                      fontWeight: FontWeight.bold,),),
             );
           }),
         ],
@@ -751,7 +751,7 @@ class _AdditionalAnalytics extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${loan.customerName} · ${loan.customerCode}',
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       Text('${t.x('analytics.loan')}: ${loan.loanCode}', style: AppTypography.caption),
                       _row(t.x('analytics.dueToday'), fmt.format(loan.dueToday)),
                       _row(t.x('analytics.overdueDays'), loan.overdueDays.toString()),
@@ -786,9 +786,9 @@ class _AdditionalAnalytics extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${borrower.name} · ${borrower.customerCode}',
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       _row(t.x('analytics.activePrincipal'),
-                          fmt.format(borrower.totalActivePrincipal)),
+                          fmt.format(borrower.totalActivePrincipal),),
                       _row(t.x('rep.outstanding'), fmt.format(borrower.overdueAmount)),
                       _row(t.x('analytics.missedPayments'), borrower.missedCount.toString()),
                     ],
@@ -809,7 +809,7 @@ class _AdditionalAnalytics extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(route.name,
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       _row(t.x('dash.customers'), route.customers.toString()),
                       _row(t.x('rep.overdueTab'), route.overdue.toString()),
                       _row(t.x('rep.collected'), fmt.format(route.collected)),
@@ -831,11 +831,11 @@ class _AdditionalAnalytics extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${event.user} · ${event.action}',
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       Text(event.entity, style: AppTypography.caption),
                       if (event.time != null)
                         Text(DateFormat('dd MMM HH:mm').format(event.time!.toLocal()),
-                            style: AppTypography.caption),
+                            style: AppTypography.caption,),
                     ],
                   ),
                 ),

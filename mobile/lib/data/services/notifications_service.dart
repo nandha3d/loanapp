@@ -33,7 +33,7 @@ class NotificationsService {
     );
     final rows = unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>)
         .map((dynamic row) => Map<String, dynamic>.from(row as Map))
-        .toList(growable: false));
+        .toList(growable: false),);
     final next = (res.data?['pagination'] as Map<String, dynamic>?)?['nextCursor'] as String?;
     return (rows: rows, nextCursor: next);
   }

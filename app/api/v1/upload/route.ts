@@ -12,6 +12,7 @@ import {
   maxUploadSizeFor,
   storeTenantUpload,
   validateFileBytes,
+  detectMimeTypeFromBytes,
 } from '@/lib/fileUpload';
 
 export async function POST(req: NextRequest) {
@@ -54,16 +55,22 @@ export async function POST(req: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (!validateFileBytes(buffer, file.type)) {
-    return fail(
-      'Invalid file signature. File may be corrupted or spoofed.',
-      400,
-    );
+  let effectiveMime = file.type;
+  if (!validateFileBytes(buffer, effectiveMime)) {
+    const detected = detectMimeTypeFromBytes(buffer);
+    if (detected && ALLOWED_UPLOAD_MIME_TYPES.includes(detected)) {
+      effectiveMime = detected;
+    } else {
+      return fail(
+        'Invalid file signature. File may be corrupted or spoofed.',
+        400,
+      );
+    }
   }
 
   const stored = await storeTenantUpload({
     tenantId: ctx.tenantId,
-    mimeType: file.type,
+    mimeType: effectiveMime,
     buffer,
   });
   return ok({ url: stored.url, filename: stored.fileName, size: file.size });

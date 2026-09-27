@@ -140,6 +140,12 @@ export async function PATCH(
     for (const field of CUSTOMER_UPDATE_FIELDS) {
       if (body[field] !== undefined) data[field] = body[field];
     }
+    if (data.profilePhoto === undefined && body.photoUrl !== undefined) {
+      data.profilePhoto = body.photoUrl;
+    }
+    if (data.profilePhoto === '') {
+      data.profilePhoto = null;
+    }
     if (data.aadharNumber !== undefined) {
       data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
     }

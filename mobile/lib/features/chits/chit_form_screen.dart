@@ -1,4 +1,3 @@
-import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -183,7 +182,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                   ),
                   child: Text(_error!,
                       style: AppTypography.caption
-                          .copyWith(color: AppColors.danger)),
+                          .copyWith(color: AppColors.danger),),
                 ),
               // Group Name
               TextFormField(
@@ -215,7 +214,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                     child: TextFormField(
                       controller: _monthlyCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Monthly Contribution *'),
+                          labelText: 'Monthly Contribution *',),
                       keyboardType: TextInputType.number,
                       validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0
                           ? 'Required'
@@ -279,10 +278,10 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                   items: const [
                     DropdownMenuItem(
                         value: 'unregistered',
-                        child: Text('Unregistered (private chit)')),
+                        child: Text('Unregistered (private chit)'),),
                     DropdownMenuItem(
                         value: 'registered',
-                        child: Text('Registered (registrar-approved)')),
+                        child: Text('Registered (registrar-approved)'),),
                   ],
                   onChanged: (v) =>
                       setState(() => _chitType = v ?? 'unregistered'),
@@ -294,16 +293,16 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                   items: const [
                     DropdownMenuItem(
                         value: 'open_manual',
-                        child: Text('Open auction — staff entry')),
+                        child: Text('Open auction — staff entry'),),
                     DropdownMenuItem(
                         value: 'open_live',
-                        child: Text('Open live — bidding room')),
+                        child: Text('Open live — bidding room'),),
                     DropdownMenuItem(
-                        value: 'sealed', child: Text('Sealed tender')),
+                        value: 'sealed', child: Text('Sealed tender'),),
                     DropdownMenuItem(
-                        value: 'lottery', child: Text('Lottery draw')),
+                        value: 'lottery', child: Text('Lottery draw'),),
                     DropdownMenuItem(
-                        value: 'fixed_rotation', child: Text('Fixed rotation')),
+                        value: 'fixed_rotation', child: Text('Fixed rotation'),),
                   ],
                   onChanged: (v) =>
                       setState(() => _auctionType = v ?? 'open_manual'),
@@ -318,13 +317,13 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                             const InputDecoration(labelText: 'Frequency'),
                         items: const [
                           DropdownMenuItem(
-                              value: 'monthly', child: Text('Monthly')),
+                              value: 'monthly', child: Text('Monthly'),),
                           DropdownMenuItem(
-                              value: 'fortnightly', child: Text('Fortnightly')),
+                              value: 'fortnightly', child: Text('Fortnightly'),),
                           DropdownMenuItem(
-                              value: 'weekly', child: Text('Weekly')),
+                              value: 'weekly', child: Text('Weekly'),),
                           DropdownMenuItem(
-                              value: 'daily', child: Text('Daily')),
+                              value: 'daily', child: Text('Daily'),),
                         ],
                         onChanged: (v) =>
                             setState(() => _auctionFrequency = v ?? 'monthly'),
@@ -335,17 +334,17 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                       child: DropdownButtonFormField<String>(
                         initialValue: _commissionBasis,
                         decoration: const InputDecoration(
-                            labelText: 'Commission basis'),
+                            labelText: 'Commission basis',),
                         items: const [
                           DropdownMenuItem(
                               value: 'BID_DISCOUNT',
-                              child: Text('% of discount')),
+                              child: Text('% of discount'),),
                           DropdownMenuItem(
                               value: 'CHIT_VALUE',
-                              child: Text('% of chit value')),
+                              child: Text('% of chit value'),),
                         ],
                         onChanged: (v) => setState(
-                            () => _commissionBasis = v ?? 'BID_DISCOUNT'),
+                            () => _commissionBasis = v ?? 'BID_DISCOUNT',),
                       ),
                     ),
                   ],
@@ -360,13 +359,13 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                             const InputDecoration(labelText: 'Dividend to'),
                         items: const [
                           DropdownMenuItem(
-                              value: 'ALL_MEMBERS', child: Text('All members')),
+                              value: 'ALL_MEMBERS', child: Text('All members'),),
                           DropdownMenuItem(
                               value: 'NON_WINNERS_ONLY',
-                              child: Text('Non-winners only')),
+                              child: Text('Non-winners only'),),
                         ],
                         onChanged: (v) => setState(
-                            () => _dividendPolicy = v ?? 'ALL_MEMBERS'),
+                            () => _dividendPolicy = v ?? 'ALL_MEMBERS',),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -378,15 +377,15 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                         items: const [
                           DropdownMenuItem(
                               value: 'ADJUST_NEXT_DUE',
-                              child: Text('Reduce next due')),
+                              child: Text('Reduce next due'),),
                           DropdownMenuItem(
                               value: 'CASH_PAYOUT',
-                              child: Text('Cash each period')),
+                              child: Text('Cash each period'),),
                           DropdownMenuItem(
-                              value: 'ACCUMULATE', child: Text('Accumulate')),
+                              value: 'ACCUMULATE', child: Text('Accumulate'),),
                         ],
                         onChanged: (v) => setState(() =>
-                            _dividendDistribution = v ?? 'ADJUST_NEXT_DUE'),
+                            _dividendDistribution = v ?? 'ADJUST_NEXT_DUE',),
                       ),
                     ),
                   ],
@@ -396,14 +395,14 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _tieBreakRule,
                     decoration: const InputDecoration(
-                        labelText: 'Tie break at max discount'),
+                        labelText: 'Tie break at max discount',),
                     items: const [
                       DropdownMenuItem(
                           value: 'EARLIEST_BID',
-                          child: Text('Earliest bid wins')),
+                          child: Text('Earliest bid wins'),),
                       DropdownMenuItem(
                           value: 'LOTTERY_AMONG_TIED',
-                          child: Text('Lottery among tied')),
+                          child: Text('Lottery among tied'),),
                     ],
                     onChanged: (v) =>
                         setState(() => _tieBreakRule = v ?? 'EARLIEST_BID'),
@@ -415,7 +414,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Members (${_members.length}/$maxMembers)',
-                        style: AppTypography.sectionTitle),
+                        style: AppTypography.sectionTitle,),
                     TextButton.icon(
                       onPressed:
                           _members.length >= maxMembers ? null : _addMember,
@@ -427,7 +426,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                 const SizedBox(height: 8),
                 if (_members.isEmpty)
                   Text('Click Add to select members',
-                      style: AppTypography.caption),
+                      style: AppTypography.caption,),
                 ..._members.asMap().entries.map((e) {
                   final idx = e.key;
                   final m = e.value;
@@ -439,13 +438,13 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                       backgroundColor: AppColors.primaryLight,
                       child: Text('${idx + 1}',
                           style: AppTypography.caption
-                              .copyWith(color: AppColors.primary)),
+                              .copyWith(color: AppColors.primary),),
                     ),
                     title: Text(m.name, style: AppTypography.body),
                     subtitle: Text(m.code, style: AppTypography.caption),
                     trailing: IconButton(
                       icon: const Icon(Icons.close,
-                          size: 16, color: AppColors.danger),
+                          size: 16, color: AppColors.danger,),
                       onPressed: () => _removeMember(idx),
                     ),
                   );
@@ -468,7 +467,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
                       ? 'Saving…'
                       : _isEdit
                           ? 'Update Group'
-                          : t.x('ch.create_group')),
+                          : t.x('ch.create_group'),),
                 ),
               ),
             ],
@@ -481,7 +480,7 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
 
 class _SelectedMember {
   const _SelectedMember(
-      {required this.id, required this.name, required this.code});
+      {required this.id, required this.name, required this.code,});
   final String id, name, code;
 }
 
@@ -569,7 +568,7 @@ class _CustomerPickerDialogState extends ConsumerState<_CustomerPickerDialog> {
                 'id': c.id,
                 'name': c.name,
                 'customerCode': c.customerCode,
-              })
+              },)
           .toList();
     } catch (_) {
       return [];

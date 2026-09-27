@@ -5,6 +5,7 @@ import {
   getPremiumAccountingSettings,
   PremiumAccountingServiceError,
 } from '@/lib/accounting/premiumMobileService';
+import { updateAccountingSettings } from '@/lib/accounting/settingsUpdate';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -14,6 +15,16 @@ export async function GET(req: NextRequest) {
     return ok(await getPremiumAccountingSettings(auth.context));
   } catch (error) {
     return fail(message(error, 'Accounting settings failed'), status(error));
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  try {
+    return ok(await updateAccountingSettings(auth.context, await req.json()));
+  } catch (error) {
+    return fail(message(error, 'Accounting settings update failed'), status(error));
   }
 }
 

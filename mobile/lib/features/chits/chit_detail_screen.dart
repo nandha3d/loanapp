@@ -74,15 +74,15 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Cancel Chit Group?'),
         content: const Text(
-            'All pending auctions will be cancelled. This action cannot be undone.'),
+            'All pending auctions will be cancelled. This action cannot be undone.',),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('No')),
+              child: const Text('No'),),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
               style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-              child: const Text('Cancel Group')),
+              child: const Text('Cancel Group'),),
         ],
       ),
     );
@@ -112,17 +112,17 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         return StatefulBuilder(builder: (ctx, setLocal) {
           return Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20,),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                     'Record Payment — ${sub.memberName} · Period ${sub.periodNumber}',
-                    style: AppTypography.sectionTitle),
+                    style: AppTypography.sectionTitle,),
                 const SizedBox(height: 8),
                 Text('Due: ${fmt.format(sub.dueAmount)}',
-                    style: AppTypography.caption),
+                    style: AppTypography.caption,),
                 const SizedBox(height: 8),
                 _ContributionBreakdown(sub: sub, fmt: fmt),
                 const SizedBox(height: 12),
@@ -161,7 +161,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   children: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancel')),
+                        child: const Text('Cancel'),),
                     const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: amount <= 0
@@ -232,7 +232,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               ],
             ),
           );
-        });
+        },);
       },
     );
   }
@@ -310,13 +310,13 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
         return Padding(
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20,),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Add Bid — Period ${auction.periodNumber}',
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Ticket'),
@@ -324,7 +324,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                     .map((m) => DropdownMenuItem(
                         value: m.id,
                         child: Text(
-                            '${m.ticketNo ?? m.memberNumber}. ${m.customerName}')))
+                            '${m.ticketNo ?? m.memberNumber}. ${m.customerName}',),),)
                     .toList(),
                 onChanged: (v) => setLocal(() => memberId = v),
               ),
@@ -342,7 +342,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 children: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Cancel')),
+                      child: const Text('Cancel'),),
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: memberId == null || prize <= 0
@@ -352,7 +352,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                             _runAction(() => ref
                                 .read(chitServiceProvider)
                                 .addBid(widget.id, auction.id,
-                                    memberId: memberId!, bidAmount: prize));
+                                    memberId: memberId!, bidAmount: prize,),);
                           },
                     child: const Text('Add Bid'),
                   ),
@@ -361,7 +361,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
             ],
           ),
         );
-      }),
+      },),
     );
   }
 
@@ -409,7 +409,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         }
 
         Future<void> reviewDocument(
-            ChitSecurityDocument document, String action) async {
+            ChitSecurityDocument document, String action,) async {
           await ref.read(chitServiceProvider).reviewSecurityDocument(
                 widget.id,
                 auction.id,
@@ -425,23 +425,23 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
 
         return Padding(
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20,),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Security — Period ${auction.periodNumber}',
-                    style: AppTypography.sectionTitle),
+                    style: AppTypography.sectionTitle,),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: securityType,
                   decoration: const InputDecoration(labelText: 'Security type'),
                   items: const [
                     DropdownMenuItem(
-                        value: 'guarantor', child: Text('Guarantor')),
+                        value: 'guarantor', child: Text('Guarantor'),),
                     DropdownMenuItem(
-                        value: 'property', child: Text('Property')),
+                        value: 'property', child: Text('Property'),),
                     DropdownMenuItem(value: 'gold', child: Text('Gold')),
                     DropdownMenuItem(value: 'fd', child: Text('Fixed deposit')),
                     DropdownMenuItem(value: 'salary', child: Text('Salary')),
@@ -517,14 +517,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                               subtitle: Text('${doc.fileName} · ${doc.status}'),
                               trailing: PopupMenuButton<String>(
                                 onSelected: (action) => _runAction(
-                                    () => reviewDocument(doc, action)),
+                                    () => reviewDocument(doc, action),),
                                 itemBuilder: (_) => const [
                                   PopupMenuItem(
-                                      value: 'verify', child: Text('Verify')),
+                                      value: 'verify', child: Text('Verify'),),
                                   PopupMenuItem(
-                                      value: 'approve', child: Text('Approve')),
+                                      value: 'approve', child: Text('Approve'),),
                                   PopupMenuItem(
-                                      value: 'reject', child: Text('Reject')),
+                                      value: 'reject', child: Text('Reject'),),
                                 ],
                               ),
                             ),
@@ -540,7 +540,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   children: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancel')),
+                        child: const Text('Cancel'),),
                     OutlinedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
@@ -550,7 +550,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                 securityType: securityType,
                                 securityValue: value,
                                 guarantorName: guarantorName,
-                                guarantorPhone: guarantorPhone));
+                                guarantorPhone: guarantorPhone,),);
                       },
                       child: const Text('Submit'),
                     ),
@@ -560,7 +560,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         _runAction(() => ref
                             .read(chitServiceProvider)
                             .reviewSecurity(widget.id, auction.id,
-                                action: 'verify'));
+                                action: 'verify',),);
                       },
                       child: const Text('Verify'),
                     ),
@@ -570,7 +570,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         _runAction(() => ref
                             .read(chitServiceProvider)
                             .reviewSecurity(widget.id, auction.id,
-                                action: 'approve'));
+                                action: 'approve',),);
                       },
                       child: const Text('Approve'),
                     ),
@@ -580,7 +580,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
             ),
           ),
         );
-      }),
+      },),
     );
   }
 
@@ -600,31 +600,31 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
-            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20,),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Edit member — ${member.customerName}',
-                style: AppTypography.sectionTitle),
+                style: AppTypography.sectionTitle,),
             const SizedBox(height: 14),
             TextField(
               controller: ticketCtrl,
               decoration: const InputDecoration(
-                  labelText: 'Ticket no', border: OutlineInputBorder()),
+                  labelText: 'Ticket no', border: OutlineInputBorder(),),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: nomineeCtrl,
               decoration: const InputDecoration(
-                  labelText: 'Nominee name', border: OutlineInputBorder()),
+                  labelText: 'Nominee name', border: OutlineInputBorder(),),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: nomineePhoneCtrl,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
-                  labelText: 'Nominee phone', border: OutlineInputBorder()),
+                  labelText: 'Nominee phone', border: OutlineInputBorder(),),
             ),
             const SizedBox(height: 16),
             Row(
@@ -632,7 +632,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               children: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel')),
+                    child: const Text('Cancel'),),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () async {
@@ -690,7 +690,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
   }
 
   void _showAuctionManageSheet(ChitAuction auction, Map<String, dynamic> group,
-      List<ChitMember> members) {
+      List<ChitMember> members,) {
     final auctionType = (group['auctionType'] as String?) ?? 'open_manual';
     final isDrawType =
         auctionType == 'lottery' || auctionType == 'fixed_rotation';
@@ -708,7 +708,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text('Period ${auction.periodNumber} · ${auction.status}',
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
             ),
             if (auctionType == 'open_live' && !locked)
               ListTile(
@@ -754,7 +754,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 leading: Icon(Icons.casino, color: AppColors.primary),
                 title: Text(auctionType == 'lottery'
                     ? 'Draw winner (audited lottery)'
-                    : 'Resolve next in rotation'),
+                    : 'Resolve next in rotation',),
                 onTap: () {
                   Navigator.pop(ctx);
                   _runAction(() async {
@@ -774,7 +774,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   Navigator.pop(ctx);
                   _runAction(() => ref
                       .read(chitServiceProvider)
-                      .confirmAuction(widget.id, auction.id));
+                      .confirmAuction(widget.id, auction.id),);
                 },
               ),
             if (auction.status == 'confirmed')
@@ -795,7 +795,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   Navigator.pop(ctx);
                   _runAction(() => ref
                       .read(chitServiceProvider)
-                      .releasePayout(widget.id, auction.id));
+                      .releasePayout(widget.id, auction.id),);
                 },
               ),
             const SizedBox(height: 8),
@@ -830,7 +830,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               onSelected: (v) {
                 if (v == 'edit') {
                   context.push('/chits/${widget.id}/edit',
-                      extra: detail.valueOrNull);
+                      extra: detail.valueOrNull,);
                 } else if (v == 'payment_proofs') {
                   Navigator.push(
                     context,
@@ -848,14 +848,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit')),
                 const PopupMenuItem(
-                    value: 'payment_proofs', child: Text('Payment proofs')),
+                    value: 'payment_proofs', child: Text('Payment proofs'),),
                 if ((detail.valueOrNull?['status'] as String?) == 'draft')
                   const PopupMenuItem(
-                      value: 'activate', child: Text('Activate Group')),
+                      value: 'activate', child: Text('Activate Group'),),
                 const PopupMenuItem(
                     value: 'cancel',
                     child: Text('Cancel Group',
-                        style: TextStyle(color: AppColors.danger))),
+                        style: TextStyle(color: AppColors.danger),),),
               ],
             ),
         ],
@@ -884,7 +884,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                           ),
                           child: Text(_error!,
                               style: AppTypography.caption
-                                  .copyWith(color: AppColors.danger)),
+                                  .copyWith(color: AppColors.danger),),
                         ),
                       // KPI Row
                       _KpiRow(group: group, fmt: fmt),
@@ -894,14 +894,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         title: '🔨 Auction History',
                         child: auctions.when(
                           loading: () => const Skeleton(
-                              height: 100, borderRadius: AppTokens.radius),
+                              height: 100, borderRadius: AppTokens.radius,),
                           error: (e, _) => Text(e.toString()),
                           data: (list) {
                             if (list.isEmpty) {
                               return Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Text('No auctions yet',
-                                    style: AppTypography.caption),
+                                    style: AppTypography.caption,),
                               );
                             }
                             return Column(
@@ -942,14 +942,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         title: '👥 Members',
                         child: members.when(
                           loading: () => const Skeleton(
-                              height: 80, borderRadius: AppTokens.radius),
+                              height: 80, borderRadius: AppTokens.radius,),
                           error: (e, _) => Text(e.toString()),
                           data: (list) {
                             if (list.isEmpty) {
                               return Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Text('No members',
-                                    style: AppTypography.caption),
+                                    style: AppTypography.caption,),
                               );
                             }
                             return Column(
@@ -966,7 +966,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                         onReject: () =>
                                             _setAgreement(m.id, 'rejected'),
                                         onEdit: () => _showEditMemberSheet(m),
-                                      ))
+                                      ),)
                                   .toList(),
                             );
                           },
@@ -978,14 +978,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         title: '💳 Member Payments',
                         child: subscriptions.when(
                           loading: () => const Skeleton(
-                              height: 120, borderRadius: AppTokens.radius),
+                              height: 120, borderRadius: AppTokens.radius,),
                           error: (e, _) => Text(e.toString()),
                           data: (list) {
                             if (list.isEmpty) {
                               return Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Text('No payments yet',
-                                    style: AppTypography.caption),
+                                    style: AppTypography.caption,),
                               );
                             }
                             return Column(
@@ -1064,7 +1064,7 @@ class _KpiRow extends StatelessWidget {
 
 class _KpiChip extends StatelessWidget {
   const _KpiChip(
-      {required this.label, required this.value, required this.color});
+      {required this.label, required this.value, required this.color,});
   final String label, value;
   final Color color;
 
@@ -1139,9 +1139,9 @@ class _AuctionTile extends StatelessWidget {
       dense: true,
       onTap: onManage,
       title: Text('Period ${auction.periodNumber}',
-          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),),
       subtitle: Text('${auction.winnerName ?? "—"} · $dateStr',
-          style: AppTypography.caption),
+          style: AppTypography.caption,),
       trailing: isPending
           ? Row(
               mainAxisSize: MainAxisSize.min,
@@ -1261,7 +1261,7 @@ class _MemberTile extends StatelessWidget {
         backgroundColor: AppColors.primaryLight,
         child: Text('${member.memberNumber}',
             style: AppTypography.caption.copyWith(
-                color: AppColors.primary, fontWeight: FontWeight.w700)),
+                color: AppColors.primary, fontWeight: FontWeight.w700,),),
       ),
       title: Text(member.customerName, style: AppTypography.body),
       subtitle: Text(member.customerCode, style: AppTypography.caption),
@@ -1287,7 +1287,7 @@ class _MemberTile extends StatelessWidget {
               enabled: !busy,
               padding: EdgeInsets.zero,
               icon: const Icon(Icons.more_vert,
-                  size: 18, color: AppColors.textSecondary),
+                  size: 18, color: AppColors.textSecondary,),
               onSelected: (v) {
                 if (v == 'sign') onSign();
                 if (v == 'verify') onVerify();
@@ -1297,18 +1297,18 @@ class _MemberTile extends StatelessWidget {
               itemBuilder: (_) => [
                 if (isAdmin)
                   const PopupMenuItem(
-                      value: 'edit', child: Text('Edit member')),
+                      value: 'edit', child: Text('Edit member'),),
                 if (canSign)
                   const PopupMenuItem(
-                      value: 'sign', child: Text('Mark Agreement Signed')),
+                      value: 'sign', child: Text('Mark Agreement Signed'),),
                 if (canVerify)
                   const PopupMenuItem(
-                      value: 'verify', child: Text('Verify Agreement')),
+                      value: 'verify', child: Text('Verify Agreement'),),
                 if (canReject)
                   const PopupMenuItem(
                     value: 'reject',
                     child: Text('Reject Agreement',
-                        style: TextStyle(color: AppColors.danger)),
+                        style: TextStyle(color: AppColors.danger),),
                   ),
               ],
             ),
@@ -1374,7 +1374,7 @@ class _SubscriptionTile extends StatelessWidget {
     return ListTile(
       dense: true,
       title: Text('${sub.memberName} · Period ${sub.periodNumber}',
-          style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
+          style: AppTypography.body.copyWith(fontWeight: FontWeight.w500),),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
         child: _ContributionBreakdown(sub: sub, fmt: fmt),
@@ -1388,7 +1388,7 @@ class _SubscriptionTile extends StatelessWidget {
               ),
               child: Text('Paid',
                   style: AppTypography.caption.copyWith(
-                      color: AppColors.success, fontWeight: FontWeight.w700)),
+                      color: AppColors.success, fontWeight: FontWeight.w700,),),
             )
           : Row(
               mainAxisSize: MainAxisSize.min,
@@ -1410,7 +1410,7 @@ class _SubscriptionTile extends StatelessWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.danger,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                          horizontal: 8, vertical: 4,),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),

@@ -85,7 +85,7 @@ class KycService {
   final Dio _dio;
 
   Future<String> startAadhaarOtp(
-      String customerId, String aadhaarNumber) async {
+      String customerId, String aadhaarNumber,) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.kycAadhaarOtp,
       data: {
@@ -97,7 +97,7 @@ class KycService {
     return unwrapEnvelope(
         res,
         (dynamic data) =>
-            (data as Map<String, dynamic>)['sessionId'] as String);
+            (data as Map<String, dynamic>)['sessionId'] as String,);
   }
 
   Future<void> verifyAadhaarOtp(String sessionId, String otp) async {
@@ -116,7 +116,7 @@ class KycService {
     return unwrapEnvelope(
         res,
         (dynamic data) =>
-            (data as Map<String, dynamic>)['sessionUrl'] as String);
+            (data as Map<String, dynamic>)['sessionUrl'] as String,);
   }
 
   Future<List<KycQueueItem>> queue() async {
@@ -130,7 +130,7 @@ class KycService {
 
   /// decision: 'verified' | 'rejected'. Reason required when rejecting.
   Future<void> review(String customerId, String decision,
-      {String? reason}) async {
+      {String? reason,}) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.kycReview(customerId),
       data: {'decision': decision, if (reason != null) 'reason': reason},

@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-27",
+  "scope": "Micro Lending staff/admin, same tenant, module, active branch, and role",
+  "features": [
+    { "feature": "dashboard.coreDueMetrics", "web": true, "mobile": true, "sharedService": "lib/dashboard/todayMetrics.ts and lib/dashboard/bookTotals.ts", "api": "/api/v1/dashboard", "status": "partial", "reason": "Daily due and staff book KPIs now share server logic. Other dashboard queries and derived values remain separate; live equivalence is unverified." },
+    { "feature": "customers.management", "web": true, "mobile": true, "api": "/api/v1/customers", "status": "full" },
+    { "feature": "customers.jsonImport", "web": true, "mobile": true, "sharedService": "lib/imports/customers.ts", "api": "/api/v1/import/customers", "status": "full" },
+    { "feature": "loans.management", "web": true, "mobile": true, "api": "/api/v1/loans", "status": "full" },
+    { "feature": "collection.andOffline", "web": true, "mobile": true, "sharedService": "lib/collectionWrite.ts", "api": "/api/v1/collection", "status": "full" },
+    { "feature": "kyc.aadhaarOtp", "web": true, "mobile": true, "api": "/api/v1/kyc/aadhaar-otp", "status": "full" },
+    { "feature": "kyc.video", "web": true, "mobile": true, "api": "/api/v1/kyc/video", "status": "full" },
+    { "feature": "routes.management", "web": true, "mobile": true, "sharedService": "lib/routes/service.ts", "api": "/api/v1/routes", "status": "full" },
+    { "feature": "loanPackages.management", "web": true, "mobile": true, "sharedService": "lib/packages/service.ts", "api": "/api/v1/packages", "status": "full" },
+    { "feature": "notifications.templatesAndLog", "web": true, "mobile": true, "api": "/api/v1/notifications/log", "status": "full" },
+    { "feature": "security.twoFactor", "web": true, "mobile": true, "api": "/api/v1/settings/2fa", "status": "full" },
+    { "feature": "reports.catalogAndExport", "web": true, "mobile": true, "api": "/api/v1/reports", "status": "partial", "reason": "Screen and exports exist; report payload equivalence has no live cross-surface test." },
+    { "feature": "penalties.searchSettleWaive", "web": true, "mobile": true, "api": "/api/v1/penalties", "status": "full" },
+    { "feature": "accounting.journalsAndApprovals", "web": true, "mobile": true, "api": "/api/v1/accounting/journal", "status": "partial", "reason": "Mobile controls exist, but some web and v1 read calculations remain separate." },
+    { "feature": "accounting.budgets", "web": true, "mobile": true, "sharedService": "lib/accounting/budgets.ts", "api": "/api/v1/accounting/budget", "status": "full" },
+    { "feature": "accounting.vendorsAndBills", "web": true, "mobile": true, "sharedService": "lib/accounting/vendors.ts", "api": "/api/v1/accounting/vendors", "status": "full" },
+    { "feature": "accounting.tax", "web": true, "mobile": true, "sharedService": "lib/accounting/tax.ts", "api": "/api/v1/accounting/tax", "status": "full" },
+    { "feature": "accounting.exportAndTally", "web": true, "mobile": true, "sharedService": "lib/accounting/exportService.ts", "api": "/api/v1/accounting/export", "status": "full" },
+    { "feature": "accounting.settings", "web": true, "mobile": true, "sharedService": "lib/accounting/settingsUpdate.ts", "api": "/api/v1/accounting/settings", "status": "full" },
+    { "feature": "system.cronWebhooksBackup", "web": false, "mobile": false, "status": "system-only" },
+    { "feature": "mobile.biometricOfflineQrVoiceGps", "web": false, "mobile": true, "status": "mobile-only" }
+  ],
+  "notes": [
+    "Web collection import is disabled and its server action is a placeholder, so it is not a shipped feature.",
+    "Full status denotes an implemented surface and endpoint, not live data-equivalence certification."
+  ]
+}

@@ -7,22 +7,17 @@ import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import type { Prisma } from '@prisma/client';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
+import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  // Anchor "today" to IST (UTC+5:30) so the business day boundary is correct
-  // regardless of the server's timezone (VPS often runs UTC). Without this, a
-  // collection made in the evening IST could fall on the wrong calendar day.
-  const IST_OFFSET_MS = 330 * 60 * 1000;
-  const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  const istMidnightUtcMs =
-    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) -
-    IST_OFFSET_MS;
-  const today = new Date(istMidnightUtcMs);
-  const tomorrow = new Date(istMidnightUtcMs + 24 * 60 * 60 * 1000);
+  const today = startOfBusinessToday();
+  const tomorrow = startOfBusinessTomorrow();
 
   // Agent scoping — restrict to the agent's OWN customers via linkage (direct
   // agentId or route assignment), NOT by branch. A branch pin falsely excluded
@@ -251,11 +246,12 @@ export async function GET(req: NextRequest) {
       todayNewCustomers,
       todayClosedLoans,
       todayApprovals,
+      staffBookTotals,
     ] = await Promise.all([
-      prisma.loan.aggregate({
+      isAgent ? prisma.loan.aggregate({
         where: { ...baseLoan, status: { in: ['active', 'overdue', 'closed', 'settled'] } },
         _sum: { principal: true, disbursed: true, totalCollected: true },
-      }),
+      }) : Promise.resolve(null),
       prisma.collectionEntry.groupBy({
         by: ['customerId'],
         where: { tenantId: ctx.tenantId, loan: baseLoan },
@@ -393,10 +389,11 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 15,
       }),
+      isAgent ? Promise.resolve(null) : getDashboardBookTotals(ctx.tenantId, ctx.appType, ctx.branchId),
     ]);
 
-    const totalDisbursed = Number(totalLoansAgg._sum.disbursed ?? 0);
-    const totalCollectedAllTime = Number(totalLoansAgg._sum.totalCollected ?? 0);
+    const totalDisbursed = staffBookTotals?.totalDisbursed ?? Number(totalLoansAgg?._sum.disbursed ?? 0);
+    const totalCollectedAllTime = staffBookTotals?.totalCollectedAllTime ?? Number(totalLoansAgg?._sum.totalCollected ?? 0);
 
     let bestPayer = '—';
     if (topRepayer.length > 0 && topRepayer[0].customerId) {
@@ -413,31 +410,29 @@ export async function GET(req: NextRequest) {
       todayByMode[c.paymentMode] = Number(c._sum.receivedAmount ?? 0);
     }
 
-    const todayExpected = todayInstalments.reduce(
-      (sum, item) => sum + Number(item.dueAmount),
-      0,
-    );
-    // Scheduled-row progress stays available for detailed due-state views.
-    // The dashboard hero's "Collected today" is actual cash submitted today.
-    const todayScheduledCollected = todayInstalments.reduce(
-      (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
-      0,
-    );
-    // Actual cash taken today across all instalments (see query note above).
-    const cashCollectedToday = Number(cashCollectedAgg._sum.receivedAmount ?? 0);
-    const todayCollected = cashCollectedToday;
-    const todayProgressCollected = Math.min(cashCollectedToday, todayExpected);
-    const todayGap = Math.max(0, todayExpected - todayProgressCollected);
-    const hitRate = todayExpected > 0 ? Math.round((todayProgressCollected / todayExpected) * 100) : 0;
-    const todayPending = todayGap;
-
-    const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
-
-    const { metricsByLoan } = getDistributedInstalmentsAndMetrics(
+    const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
       allInstalmentsForTotals,
       today,
       paymentsToday,
     );
+    const distributedById = new Map(distributedInstalments.map((item) => [item.id, item]));
+    const mappedTodayInstalments = todayInstalments.map((item) => {
+      const distributed = distributedById.get(item.id);
+      return distributed ? { ...item, receivedAmount: distributed.receivedAmount,
+        status: distributed.status } : item;
+    });
+    const todayDue = getTodayDueMetrics(mappedTodayInstalments);
+    const todayExpected = todayDue.expected;
+    const todayScheduledCollected = todayDue.collected;
+    // Actual cash taken today across all instalments (see query note above).
+    const cashCollectedToday = Number(cashCollectedAgg._sum.receivedAmount ?? 0);
+    const todayCollected = todayDue.collected;
+    const todayProgressCollected = todayCollected;
+    const todayGap = todayDue.remaining;
+    const hitRate = todayDue.pct;
+    const todayPending = todayGap;
+
+    const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
 
     let overdueOutstanding = 0;
     let overdueCollectedToday = 0;
@@ -469,7 +464,7 @@ export async function GET(req: NextRequest) {
     const allTodayLoans = new Set<string>();
     const allTodayCustomers = new Set<string>();
 
-    for (const item of todayInstalments) {
+    for (const item of mappedTodayInstalments) {
       const rawFreq = ((item as any).loan?.frequency || '').toLowerCase().trim();
       let freq: FrequencyKey = 'daily';
       if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
@@ -790,7 +785,7 @@ export async function GET(req: NextRequest) {
       pendingPenalties,
       activeAgents,
       recentLoans,
-      todayInstalments,
+      todayInstalments: mappedTodayInstalments,
       defaulterAlerts,
       routePerformance,
       recentActivity,
@@ -835,6 +830,7 @@ export async function GET(req: NextRequest) {
       })(),
       totalDisbursed,
       totalCollectedAllTime,
+      currentCapital: staffBookTotals?.currentCapital ?? null,
       bestPayer,
       highestBorrower,
       pendingUpiCollections: pendingUpiCollections.map((e) => ({

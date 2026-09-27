@@ -12,12 +12,18 @@ class SettingsService {
 
   Future<bool> twoFactorEnabled() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.twoFactor);
-    return unwrapEnvelope(res, (dynamic data) => (data as Map<String, dynamic>)['enabled'] == true);
+    return unwrapEnvelope(
+      res,
+      (dynamic data) => (data as Map<String, dynamic>)['enabled'] == true,
+    );
   }
 
   Future<Map<String, dynamic>> startTwoFactorSetup() async {
     final res = await _dio.post<Map<String, dynamic>>(Endpoints.twoFactorSetup);
-    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+    return unwrapEnvelope(
+      res,
+      (dynamic data) => Map<String, dynamic>.from(data as Map),
+    );
   }
 
   Future<void> verifyTwoFactorSetup(String setupToken, String code) async {
@@ -34,15 +40,20 @@ class SettingsService {
   }
 
   Future<List<Map<String, dynamic>>> notificationTemplates() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.notificationTemplates);
-    return unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>)
-        .map((dynamic row) => Map<String, dynamic>.from(row as Map))
-        .toList(growable: false));
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.notificationTemplates);
+    return unwrapEnvelope(
+      res,
+      (dynamic data) => (data as List<dynamic>)
+          .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+          .toList(growable: false),
+    );
   }
 
   Future<void> saveNotificationTemplate(Map<String, dynamic> data) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.notificationTemplates, data: data,
+      Endpoints.notificationTemplates,
+      data: data,
     );
     unwrapEnvelope(res, (_) => null);
   }
@@ -58,6 +69,17 @@ class SettingsService {
 
   Future<void> save(Map<String, dynamic> patch) async {
     await _dio.post<Map<String, dynamic>>(Endpoints.settings, data: patch);
+  }
+
+  Future<Map<String, dynamic>> importCustomers(List<dynamic> rows) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.importCustomers,
+      data: rows,
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic data) => Map<String, dynamic>.from(data as Map),
+    );
   }
 
   Future<List<AppRoute>> routes() async {
@@ -126,17 +148,23 @@ class SettingsService {
   }
 
   Future<void> saveGateway(Map<String, dynamic> patch) async {
-    await _dio.post<Map<String, dynamic>>(Endpoints.paymentGateway,
-        data: patch,);
+    await _dio.post<Map<String, dynamic>>(
+      Endpoints.paymentGateway,
+      data: patch,
+    );
   }
 
   Future<void> createPackage(Map<String, dynamic> data) async {
-    final res = await _dio.post<Map<String, dynamic>>(Endpoints.packages, data: data);
+    final res =
+        await _dio.post<Map<String, dynamic>>(Endpoints.packages, data: data);
     unwrapEnvelope(res, (_) => null);
   }
 
   Future<void> updatePackage(String id, Map<String, dynamic> data) async {
-    final res = await _dio.patch<Map<String, dynamic>>(Endpoints.package(id), data: data);
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.package(id),
+      data: data,
+    );
     unwrapEnvelope(res, (_) => null);
   }
 
@@ -147,13 +175,17 @@ class SettingsService {
 
   Future<List<Map<String, dynamic>>> agents() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.agents);
-    return unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>)
-        .map((dynamic item) => item as Map<String, dynamic>)
-        .toList(growable: false));
+    return unwrapEnvelope(
+      res,
+      (dynamic data) => (data as List<dynamic>)
+          .map((dynamic item) => item as Map<String, dynamic>)
+          .toList(growable: false),
+    );
   }
 
   Future<void> updateRoute(String id, String name) async {
-    final res = await _dio.patch<Map<String, dynamic>>(Endpoints.route(id), data: {'name': name});
+    final res = await _dio
+        .patch<Map<String, dynamic>>(Endpoints.route(id), data: {'name': name});
     unwrapEnvelope(res, (_) => null);
   }
 
@@ -164,19 +196,25 @@ class SettingsService {
 
   Future<void> assignRouteAgent(String id, String agentId) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.routeAgents(id), data: {'agentId': agentId});
+      Endpoints.routeAgents(id),
+      data: {'agentId': agentId},
+    );
     unwrapEnvelope(res, (_) => null);
   }
 
   Future<void> removeRouteAgent(String id, String agentId) async {
     final res = await _dio.delete<Map<String, dynamic>>(
-      Endpoints.routeAgents(id), data: {'agentId': agentId});
+      Endpoints.routeAgents(id),
+      data: {'agentId': agentId},
+    );
     unwrapEnvelope(res, (_) => null);
   }
 
   Future<void> setPrimaryRouteAgent(String id, String? agentId) async {
     final res = await _dio.patch<Map<String, dynamic>>(
-      Endpoints.routePrimaryAgent(id), data: {'agentId': agentId});
+      Endpoints.routePrimaryAgent(id),
+      data: {'agentId': agentId},
+    );
     unwrapEnvelope(res, (_) => null);
   }
 

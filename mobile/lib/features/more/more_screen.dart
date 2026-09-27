@@ -47,7 +47,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.primary,
     bgColor: AppColors.primaryLight,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.payments_outlined,
     label: 'Collection',
     subtitle: 'Daily dues, route work, and chit contributions',
@@ -55,7 +55,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.success,
     bgColor: AppColors.successBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
     subtitle: 'Manage & settle overdue fines',
@@ -102,7 +102,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.receipt_long_outlined,
     label: 'Reports',
     subtitle: 'Daily, agent, and overdue reports',
@@ -111,7 +111,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.workspace_premium_outlined,
     label: 'Gold Pledge Report',
     subtitle: 'Pending interests & pledged weight',
@@ -120,7 +120,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.warning,
     bgColor: AppColors.warningBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.account_balance_outlined,
     label: 'Accounting & P&L',
     subtitle: 'Daily financials, capital & overdue',
@@ -287,7 +287,7 @@ class MoreScreen extends ConsumerWidget {
           // sign-out path for agents since Settings hides it from them and
           // Portal is admin/superadmin-only.
           _ModuleTile(
-            item: _ModuleItem(
+            item: const _ModuleItem(
               icon: Icons.logout_outlined,
               label: 'Log out',
               subtitle: 'Sign out of this account',
@@ -556,9 +556,9 @@ class _ModuleTile extends StatelessWidget {
                                   color: AppColors.warning.withAlpha(120),
                                 ),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: const [
+                                children: [
                                   Icon(
                                     Icons.lock_rounded,
                                     size: 10,

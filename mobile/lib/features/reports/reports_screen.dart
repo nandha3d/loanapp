@@ -729,7 +729,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             label: Text(t.x('rep.title')),
           ),
           Text(selected['name']?.toString() ?? '',
-              style: AppTypography.sectionTitle),
+              style: AppTypography.sectionTitle,),
           if (_report != null) ...[
             const SizedBox(height: 8),
             PopupMenuButton<String>(
@@ -755,7 +755,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
               icon: const Icon(Icons.person_search_outlined),
               label: Text(_customer == null
                   ? t.x('rep.customer')
-                  : '${_customer!.name} (${_customer!.customerCode})'),
+                  : '${_customer!.name} (${_customer!.customerCode})',),
             ),
             const SizedBox(height: 12),
           ],
@@ -765,7 +765,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
               icon: const Icon(Icons.account_tree_outlined),
               label: Text(_account == null
                   ? t.x('accounting.chart_of_accounts')
-                  : '${_account!['code']} ${_account!['name']}'),
+                  : '${_account!['code']} ${_account!['name']}',),
             ),
             const SizedBox(height: 12),
           ],
@@ -782,7 +782,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
               child: Text(
                 t.x(_needsAccount(selected)
                     ? 'accounting.chart_of_accounts'
-                    : 'rep.customer'),
+                    : 'rep.customer',),
                 textAlign: TextAlign.center,
               ),
             )
@@ -815,8 +815,8 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             return ListView(children: [
               const SizedBox(height: 80),
               EmptyState(
-                  icon: Icons.description_outlined, title: t.x('rep.noData')),
-            ]);
+                  icon: Icons.description_outlined, title: t.x('rep.noData'),),
+            ],);
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -919,7 +919,7 @@ class _ReportData extends ConsumerWidget {
       final translated = t.x(key);
       if (translated != key) return translated;
       final plain = key.split('.').last.replaceAllMapped(
-          RegExp(r'([a-z])([A-Z])'), (match) => '${match[1]} ${match[2]}');
+          RegExp(r'([a-z])([A-Z])'), (match) => '${match[1]} ${match[2]}',);
       return plain.replaceAll(RegExp(r'[-_]'), ' ');
     }
 
@@ -937,7 +937,7 @@ class _ReportData extends ConsumerWidget {
               title: Text(label(kpi['label'])),
               trailing:
                   Text(display(kpi['value'], null), style: AppTypography.label),
-            ))),
+            ),),),
         if (rows.isEmpty)
           Padding(
             padding: const EdgeInsets.all(24),
@@ -953,16 +953,16 @@ class _ReportData extends ConsumerWidget {
                     child: Row(children: [
                       Expanded(
                           child: Text(label(column['label'] ?? column['key']),
-                              style: AppTypography.caption)),
+                              style: AppTypography.caption,),),
                       Flexible(
                           child: Text(
                               display(row[column['key']],
-                                  column['type'] as String?),
-                              textAlign: TextAlign.right)),
-                    ]),
+                                  column['type'] as String?,),
+                              textAlign: TextAlign.right,),),
+                    ],),
                   ),
-              ]),
-            ))),
+              ],),
+            ),),),
         if (totals.isNotEmpty)
           Card(
               child: Padding(
@@ -973,15 +973,15 @@ class _ReportData extends ConsumerWidget {
                   Row(children: [
                     Expanded(
                         child: Text(label(column['label'] ?? column['key']),
-                            style: AppTypography.label)),
+                            style: AppTypography.label,),),
                     Flexible(
                         child: Text(
                             display(totals[column['key']],
-                                column['type'] as String?),
-                            textAlign: TextAlign.right)),
-                  ]),
-            ]),
-          )),
+                                column['type'] as String?,),
+                            textAlign: TextAlign.right,),),
+                  ],),
+            ],),
+          ),),
       ],
     );
   }

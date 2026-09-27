@@ -2,6 +2,52 @@ import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/instalment.dart';
 import 'package:zolofund/data/models/penalty.dart';
 
+class ExtendedScheduleRow {
+  const ExtendedScheduleRow({
+    required this.no,
+    required this.date,
+    required this.amount,
+    required this.receivedAmount,
+    required this.status,
+    this.receivedAt,
+    this.collectionEntryId,
+    this.paymentMode,
+  });
+
+  final int no;
+  final DateTime date;
+  final double amount;
+  final double receivedAmount;
+  final String status;
+  final DateTime? receivedAt;
+  final String? collectionEntryId;
+  final String? paymentMode;
+
+  factory ExtendedScheduleRow.fromJson(Map<String, dynamic> json) {
+    double num$(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0;
+    }
+
+    final dateStr = json['date'];
+    final date = dateStr != null ? DateTime.tryParse(dateStr.toString()) ?? DateTime.now() : DateTime.now();
+    final recAtStr = json['receivedAt'];
+    final recAt = recAtStr != null ? DateTime.tryParse(recAtStr.toString()) : null;
+
+    return ExtendedScheduleRow(
+      no: (json['no'] as num?)?.toInt() ?? 0,
+      date: date,
+      amount: num$(json['amount']),
+      receivedAmount: num$(json['receivedAmount']),
+      status: (json['status'] as String?) ?? 'projected',
+      receivedAt: recAt,
+      collectionEntryId: json['collectionEntryId'] as String?,
+      paymentMode: json['paymentMode'] as String?,
+    );
+  }
+}
+
 /// "Extend term" default projection — same server-side calc the web page's
 /// heatmap tail cells use (see lib/restructure.ts#computeExtendedSchedule):
 /// keep paying the normal per-instalment amount and let the finish date
@@ -13,6 +59,7 @@ class ExtendedSchedule {
     required this.projectedEndDate,
     this.projectedDates = const [],
     this.finalPartial = 0,
+    this.extendedRows = const [],
   });
 
   final int remainingPayments;
@@ -20,6 +67,7 @@ class ExtendedSchedule {
   final DateTime? projectedEndDate;
   final List<DateTime> projectedDates;
   final double finalPartial;
+  final List<ExtendedScheduleRow> extendedRows;
 
   factory ExtendedSchedule.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -34,6 +82,12 @@ class ExtendedSchedule {
             .toList() ??
         const [];
 
+    final rows = (json['extendedRows'] as List<dynamic>?)
+            ?.map((e) => e is Map<String, dynamic> ? ExtendedScheduleRow.fromJson(e) : null)
+            .whereType<ExtendedScheduleRow>()
+            .toList() ??
+        const [];
+
     return ExtendedSchedule(
       remainingPayments: (json['remainingPayments'] as num?)?.toInt() ?? 0,
       extraPeriods: (json['extraPeriods'] as num?)?.toInt() ?? 0,
@@ -42,6 +96,7 @@ class ExtendedSchedule {
           : DateTime.tryParse(json['projectedEndDate'] as String),
       projectedDates: dates,
       finalPartial: num$(json['finalPartial']),
+      extendedRows: rows,
     );
   }
 }
