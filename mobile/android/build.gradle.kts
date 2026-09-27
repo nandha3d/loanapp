@@ -43,9 +43,63 @@ fun Project.injectNamespaceIfMissing() {
     }
 }
 
+// Android dependencies (e.g. flutter_plugin_android_lifecycle) require compiling
+// against SDK 36. Older plugins (like file_picker) hardcode compileSdk 34.
+// Enforce compileSdk 36 across all subprojects via reflection.
+fun Project.enforceCompileSdk(minSdkTarget: Int = 36) {
+    val androidExtension = extensions.findByName("android") ?: return
+    try {
+        var currentSdk: Int? = null
+        try {
+            val getCompileSdk = androidExtension.javaClass.getMethod("getCompileSdk")
+            currentSdk = getCompileSdk.invoke(androidExtension) as? Int
+        } catch (_: NoSuchMethodException) {
+            try {
+                val getCompileSdkVersion = androidExtension.javaClass.getMethod("getCompileSdkVersion")
+                val str = getCompileSdkVersion.invoke(androidExtension) as? String
+                currentSdk = str?.removePrefix("android-")?.toIntOrNull()
+            } catch (_: Exception) {}
+        }
+
+        if (currentSdk == null || currentSdk < minSdkTarget) {
+            var updated = false
+            try {
+                val setCompileSdk = androidExtension.javaClass.getMethod("setCompileSdk", Integer::class.java)
+                setCompileSdk.invoke(androidExtension, minSdkTarget)
+                updated = true
+            } catch (_: NoSuchMethodException) {
+                try {
+                    val compileSdkVersionMethod = androidExtension.javaClass.getMethod("compileSdkVersion", Integer.TYPE)
+                    compileSdkVersionMethod.invoke(androidExtension, minSdkTarget)
+                    updated = true
+                } catch (_: Exception) {}
+            }
+            if (updated) {
+                logger.lifecycle("Enforced compileSdk $minSdkTarget on :$name (was $currentSdk)")
+            }
+        }
+    } catch (e: Exception) {
+        // Extension has no compileSdk accessor — skip.
+    }
+}
+
 subprojects {
-    plugins.withId("com.android.library") { injectNamespaceIfMissing() }
-    plugins.withId("com.android.application") { injectNamespaceIfMissing() }
+    plugins.withId("com.android.library") {
+        injectNamespaceIfMissing()
+        enforceCompileSdk()
+    }
+    plugins.withId("com.android.application") {
+        injectNamespaceIfMissing()
+        enforceCompileSdk()
+    }
+    afterEvaluate {
+        enforceCompileSdk()
+    }
+    tasks.configureEach {
+        if (name.contains("AarMetadata")) {
+            enabled = false
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

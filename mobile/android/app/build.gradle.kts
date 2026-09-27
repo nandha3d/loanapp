@@ -21,7 +21,7 @@ if (hasReleaseKeystore) {
 
 android {
     namespace = "com.zolofund.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
