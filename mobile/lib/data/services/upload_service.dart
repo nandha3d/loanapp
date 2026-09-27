@@ -20,24 +20,31 @@ class UploadService {
   Future<UploadResult> uploadFile(File file, {String? contentType}) async {
     MediaType? mediaType;
     final pathLower = file.path.toLowerCase();
+
+    // Always honour the actual file extension for WebP — cropSquarePhoto()
+    // compresses to WebP but many call-sites still pass contentType 'image/jpeg'.
+    // The server validates magic bytes against the declared MIME and would reject
+    // the mismatch.
     if (pathLower.endsWith('.webp')) {
       mediaType = MediaType('image', 'webp');
     } else if (contentType != null) {
       mediaType = MediaType.parse(contentType);
-    } else if (pathLower.endsWith('.jpg') || pathLower.endsWith('.jpeg')) {
-      mediaType = MediaType('image', 'jpeg');
-    } else if (pathLower.endsWith('.png')) {
-      mediaType = MediaType('image', 'png');
-    } else if (pathLower.endsWith('.pdf')) {
-      mediaType = MediaType('application', 'pdf');
-    } else if (pathLower.endsWith('.m4a')) {
-      mediaType = MediaType('audio', 'm4a');
-    } else if (pathLower.endsWith('.aac')) {
-      mediaType = MediaType('audio', 'aac');
-    } else if (pathLower.endsWith('.mp3')) {
-      mediaType = MediaType('audio', 'mpeg');
-    } else if (pathLower.endsWith('.webm')) {
-      mediaType = MediaType('audio', 'webm');
+    } else {
+      if (pathLower.endsWith('.jpg') || pathLower.endsWith('.jpeg')) {
+        mediaType = MediaType('image', 'jpeg');
+      } else if (pathLower.endsWith('.png')) {
+        mediaType = MediaType('image', 'png');
+      } else if (pathLower.endsWith('.pdf')) {
+        mediaType = MediaType('application', 'pdf');
+      } else if (pathLower.endsWith('.m4a')) {
+        mediaType = MediaType('audio', 'm4a');
+      } else if (pathLower.endsWith('.aac')) {
+        mediaType = MediaType('audio', 'aac');
+      } else if (pathLower.endsWith('.mp3')) {
+        mediaType = MediaType('audio', 'mpeg');
+      } else if (pathLower.endsWith('.webm')) {
+        mediaType = MediaType('audio', 'webm');
+      }
     }
 
     final form = FormData.fromMap({
