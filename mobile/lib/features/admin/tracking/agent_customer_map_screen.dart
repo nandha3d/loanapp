@@ -132,11 +132,16 @@ final agentCustomerPinsProvider =
     }
   } catch (_) {}
 
-  // 2. Fetch remaining geotagged customers belonging to the agent
+  // 2. Fetch remaining geotagged customers belonging to the agent who borrowed and currently have an active loan
   try {
-    final customers = await ref.read(customerServiceProvider).list(limit: 100);
+    final customers = await ref.read(customerServiceProvider).list(
+      limit: 100,
+      hasActiveLoan: true,
+    );
     for (final c in customers) {
       if (seenCustomerIds.contains(c.id)) continue;
+      // Strictly filter: only include customers who borrowed and currently have an active loan. Never show closed loan customers.
+      if (!c.hasActiveLoan) continue;
 
       LatLng? pt;
       if (c.lat != null && c.lng != null) {
@@ -162,7 +167,7 @@ final agentCustomerPinsProvider =
           status: 'none',
           dueAmount: 0,
           collectedAmount: 0,
-          outstanding: 0,
+          outstanding: c.activeLoanPrincipal,
           isPaid: false,
           isOverdue: false,
           customerPhoto: c.photoUrl,

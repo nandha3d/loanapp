@@ -49,9 +49,13 @@ final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {
 /// customers that don't have today's dues (matching the dashboard map).
 final _allGeoCustomersProvider =
     FutureProvider.autoDispose<List<({String id, LatLng point})>>((ref) async {
-  final customers = await ref.read(customerServiceProvider).list(limit: 100);
+  final customers = await ref.read(customerServiceProvider).list(
+    limit: 100,
+    hasActiveLoan: true,
+  );
   final results = <({String id, LatLng point})>[];
   for (final c in customers) {
+    if (!c.hasActiveLoan) continue;
     if (c.lat != null && c.lng != null) {
       results.add((id: c.id, point: LatLng(c.lat!, c.lng!)));
     } else {

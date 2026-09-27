@@ -43,6 +43,8 @@ class Customer {
     this.lng,
     this.collectionPoints = const [],
     this.securityCheques = const [],
+    this.activeLoanCount = 0,
+    this.activeLoanPrincipal = 0.0,
   });
 
   final String id;
@@ -85,6 +87,12 @@ class Customer {
   final List<Guarantor> guarantors;
   final List<CustomerLoanSummary> loans;
   final List<SecurityCheque> securityCheques;
+  final int activeLoanCount;
+  final double activeLoanPrincipal;
+
+  bool get hasActiveLoan =>
+      activeLoanCount > 0 ||
+      loans.any((l) => l.status == 'active' || l.status == 'overdue');
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -94,6 +102,16 @@ class Customer {
   factory Customer.fromJson(Map<String, dynamic> json) {
     final route = json['route'] as Map<String, dynamic>?;
     final agent = json['agent'] as Map<String, dynamic>?;
+    final activeCount = (json['activeLoanCount'] as num?)?.toInt() ??
+        (json['_count']?['loans'] as num?)?.toInt() ??
+        (json['loans'] as List<dynamic>?)
+            ?.where((dynamic l) =>
+                l is Map &&
+                (l['status'] == 'active' || l['status'] == 'overdue'))
+            .length ??
+        0;
+    final activePrincipal =
+        (json['activeLoanPrincipal'] as num?)?.toDouble() ?? 0.0;
     return Customer(
       id: json['id'] as String,
       customerCode: json['customerCode'] as String,
@@ -134,6 +152,8 @@ class Customer {
       companyEmail: json['companyEmail'] as String?,
       companyLogo: json['companyLogo'] as String?,
       designation: json['designation'] as String?,
+      activeLoanCount: activeCount,
+      activeLoanPrincipal: activePrincipal,
       kycDocuments: (json['kycDocuments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => KycDocument.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),

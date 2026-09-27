@@ -10,6 +10,7 @@ import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { notifyApprovers } from '@/lib/notify/approvers';
 import { modulePath } from '@/types/modules';
+import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -54,6 +55,13 @@ export async function GET(req: NextRequest) {
 
   if (routeId) where.routeId = routeId;
   if (status) where.status = status;
+
+  const hasActiveLoan = searchParams.get('hasActiveLoan');
+  if (hasActiveLoan === 'true' || hasActiveLoan === '1') {
+    where.AND.push({ loans: { some: { status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } } });
+  } else if (hasActiveLoan === 'false' || hasActiveLoan === '0') {
+    where.AND.push({ NOT: { loans: { some: { status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } } } });
+  }
 
   if (where.AND.length === 0) delete where.AND;
 
@@ -103,7 +111,7 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           route: { select: { id: true, name: true } },
-          _count: { select: { loans: { where: { status: 'active' } } } },
+          _count: { select: { loans: { where: { status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } } } },
           collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
         },
         orderBy: { id: 'desc' },
@@ -121,7 +129,7 @@ export async function GET(req: NextRequest) {
             by: ['customerId'],
             where: {
               customerId: { in: customerIds },
-              status: 'active',
+              status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
               tenantId: ctx.tenantId,
               appType: ctx.appType,
             },

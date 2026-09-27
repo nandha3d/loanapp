@@ -17,7 +17,7 @@ import { collectFromAgentInTx } from '@/lib/wallet';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'profilePhoto', 'photoUrl', 'lat', 'lng',
 ]);
 
 // Fields allowed for loan edit requests
@@ -97,6 +97,7 @@ export async function reviewRequest(formData: FormData) {
 
           const staleApprovedRequest = await tx.approvalRequest.findFirst({
             where: {
+              id: { not: request.id },
               tenantId,
               appType,
               requestType: 'customer_edit',
@@ -123,9 +124,13 @@ export async function reviewRequest(formData: FormData) {
           const safeChanges: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(rawChanges)) {
             if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
-              safeChanges[key] = key === 'aadharNumber'
-                ? encryptAadharNumber(String(value || ''))
-                : value;
+              if (key === 'profilePhoto' || key === 'photoUrl' || key === 'photo') {
+                safeChanges.profilePhoto = value;
+              } else {
+                safeChanges[key] = key === 'aadharNumber'
+                  ? encryptAadharNumber(String(value || ''))
+                  : value;
+              }
             }
           }
 
@@ -359,7 +364,7 @@ export async function reviewRequest(formData: FormData) {
     });
 
     if ((result as any)?.isStale) {
-      revalidatePath('/approvals');
+      revalidatePath(modulePath(appType, '/approvals'));
       return { success: false, error: 'This customer edit request is stale after another queued edit was approved.' };
     }
 
@@ -380,7 +385,8 @@ export async function reviewRequest(formData: FormData) {
       });
     }
 
-    revalidatePath('/approvals');
+    revalidatePath(modulePath(appType, '/approvals'));
+    revalidatePath(modulePath(appType, '/customers'), 'layout');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Transaction failed' };

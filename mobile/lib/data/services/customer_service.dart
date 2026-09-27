@@ -17,14 +17,20 @@ class CustomerService {
   CustomerService(this._dio);
   final Dio _dio;
 
-  Future<List<Customer>> list(
-      {String? query, String? cursor, int? limit,}) async {
+  Future<List<Customer>> list({
+    String? query,
+    String? cursor,
+    int? limit,
+    bool? hasActiveLoan,
+  }) async {
     // If a specific cursor is requested, fetch just that single page
     if (cursor != null && cursor.isNotEmpty) {
       final queryParams = <String, dynamic>{
         if (query != null && query.isNotEmpty) 'q': query,
         'cursor': cursor,
         if (limit != null) 'limit': limit,
+        if (hasActiveLoan != null)
+          'hasActiveLoan': hasActiveLoan ? 'true' : 'false',
       };
       final res = await _dio.get<Map<String, dynamic>>(
         Endpoints.customers,
@@ -46,6 +52,8 @@ class CustomerService {
         if (query != null && query.isNotEmpty) 'q': query,
         'limit': limit ?? 100,
         if (currentCursor != null) 'cursor': currentCursor,
+        if (hasActiveLoan != null)
+          'hasActiveLoan': hasActiveLoan ? 'true' : 'false',
       };
       final res = await _dio.get<Map<String, dynamic>>(
         Endpoints.customers,

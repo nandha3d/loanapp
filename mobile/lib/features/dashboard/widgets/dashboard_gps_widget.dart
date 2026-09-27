@@ -168,11 +168,15 @@ final mapPinsProvider = FutureProvider.autoDispose<List<MapPin>>((ref) async {
     }
   } catch (_) {}
 
-  // 3. Augment with remaining geotagged customers
+  // 3. Augment with remaining geotagged customers who have active loans
   try {
-    final customers = await ref.read(customerServiceProvider).list(limit: 100);
+    final customers = await ref.read(customerServiceProvider).list(
+      limit: 100,
+      hasActiveLoan: true,
+    );
     for (final c in customers) {
       if (seenCustomerIds.contains(c.id)) continue;
+      if (!c.hasActiveLoan) continue;
 
       LatLng? pt;
       String? pointLabel;
@@ -207,7 +211,7 @@ final mapPinsProvider = FutureProvider.autoDispose<List<MapPin>>((ref) async {
           customerPhoto: c.photoUrl,
           dueAmount: 0,
           collectedAmount: 0,
-          outstanding: 0,
+          outstanding: c.activeLoanPrincipal,
           isPaid: false,
           isOverdue: false,
           routeName: c.routeName,

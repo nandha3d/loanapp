@@ -5,7 +5,7 @@ import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
 import { encryptAadharNumber } from '@/lib/pii';
 
-const CUSTOMER_EDIT_ALLOW_LIST = new Set(['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng']);
+const CUSTOMER_EDIT_ALLOW_LIST = new Set(['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'profilePhoto', 'photoUrl', 'lat', 'lng']);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -35,9 +35,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const safeChanges: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(requested)) {
         if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
-          safeChanges[key] = key === 'aadharNumber'
-            ? encryptAadharNumber(String(value || ''))
-            : value;
+          if (key === 'profilePhoto' || key === 'photoUrl' || key === 'photo') {
+            safeChanges.profilePhoto = value;
+          } else {
+            safeChanges[key] = key === 'aadharNumber'
+              ? encryptAadharNumber(String(value || ''))
+              : value;
+          }
         }
       }
       if (safeChanges.lat != null && safeChanges.lng != null) {
