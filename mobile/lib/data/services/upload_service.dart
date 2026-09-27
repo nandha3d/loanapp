@@ -19,10 +19,14 @@ class UploadService {
 
   Future<UploadResult> uploadFile(File file, {String? contentType}) async {
     MediaType? mediaType;
-    if (contentType != null) {
-      mediaType = MediaType.parse(contentType);
-    } else if (file.path.toLowerCase().endsWith('.webp')) {
+    // Always honour the actual file extension for WebP — cropSquarePhoto()
+    // compresses to WebP but many call-sites still pass contentType 'image/jpeg'.
+    // The server validates magic bytes against the declared MIME and would reject
+    // the mismatch.
+    if (file.path.toLowerCase().endsWith('.webp')) {
       mediaType = MediaType('image', 'webp');
+    } else if (contentType != null) {
+      mediaType = MediaType.parse(contentType);
     }
 
     final form = FormData.fromMap({
