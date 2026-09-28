@@ -80,10 +80,23 @@ class CollectionTrendCard extends ConsumerWidget {
               loading: () =>
                   const Skeleton(height: 190, borderRadius: AppTokens.radius),
               error: (e, _) => Center(
-                child: Text(
-                  e.toString(),
-                  style: AppTypography.caption
-                      .copyWith(color: AppColors.danger),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Could not load collection trend',
+                      style: AppTypography.caption
+                          .copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: () => ref.invalidate(_trendProvider),
+                      icon: Icon(Icons.refresh,
+                          size: 16, color: AppColors.primary),
+                      label: Text('Retry',
+                          style: TextStyle(color: AppColors.primary)),
+                    ),
+                  ],
                 ),
               ),
               data: (points) => _InteractiveChart(points: points, t: t),

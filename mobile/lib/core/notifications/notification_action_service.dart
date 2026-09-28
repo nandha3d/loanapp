@@ -99,7 +99,7 @@ class NotificationActionService {
           channelGeneral,
           'General Notifications',
           description: 'General system, collection, and account alerts',
-          importance: Importance.defaultImportance,
+          importance: Importance.high,
           enableVibration: true,
           playSound: true,
         ),
@@ -165,6 +165,17 @@ class NotificationActionService {
     final body = (notification?.body ?? data['body'] ?? data['message'] ?? '').toString();
     if (title.isEmpty && body.isEmpty) return;
 
+    if (!_initialized) {
+      const androidSettings = AndroidInitializationSettings('ic_notification');
+      const darwinSettings = DarwinInitializationSettings();
+      await _localNotif.initialize(
+        const InitializationSettings(android: androidSettings, iOS: darwinSettings),
+        onDidReceiveNotificationResponse: _onNotificationResponse,
+        onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
+      );
+      _initialized = true;
+    }
+
     final type = data['type']?.toString() ?? '';
     final isApproval = type.contains('approval') ||
         data['actionable'] == 'true' ||
@@ -189,7 +200,7 @@ class NotificationActionService {
           channelGeneral,
           'General Notifications',
           description: 'General system, collection, and account alerts',
-          importance: Importance.defaultImportance,
+          importance: Importance.high,
           enableVibration: true,
           playSound: true,
         ),

@@ -1647,14 +1647,63 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             if (cached != null && cached.isNotEmpty) {
               return _buildRowsContent(cached, t);
             }
-            return SizedBox(
-              height: 130,
-              child: GestureDetector(
-                onTap: () => ref.invalidate(collectionTodayProvider),
-                child: EmptyState(
-                  icon: Icons.cloud_off,
-                  title: t.x('err.failed_to_load'),
-                ),
+            return Container(
+              height: 110,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border.withAlpha(90)),
+                boxShadow: AppTokens.shadow,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(20),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.refresh_rounded,
+                        color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Queue loading',
+                          style: AppTypography.bodySmall
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tap reload to view today\'s visits',
+                          style: AppTypography.caption
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => ref.invalidate(collectionTodayProvider),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      elevation: 0,
+                    ),
+                    child: const Text('Reload',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ),
             );
           },

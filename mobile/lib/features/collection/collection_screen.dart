@@ -49,7 +49,18 @@ final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) async 
     if (_cachedCollectionToday != null && _cachedCollectionToday!.isNotEmpty) {
       return _cachedCollectionToday!;
     }
-    rethrow;
+    // Retry once after a brief delay if initial fetch fails on startup
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      final rows = await ref.watch(collectionServiceProvider).today();
+      _cachedCollectionToday = rows;
+      return rows;
+    } catch (_) {
+      if (_cachedCollectionToday != null && _cachedCollectionToday!.isNotEmpty) {
+        return _cachedCollectionToday!;
+      }
+      rethrow;
+    }
   }
 });
 

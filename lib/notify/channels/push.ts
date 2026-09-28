@@ -87,13 +87,21 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
   const unique = [...new Set(tokens)].filter(Boolean);
   if (!unique.length) return;
 
-  const data: Record<string, string> = { ...(payload.data || {}) };
-  if (payload.title && !data.title) data.title = payload.title;
-  if (payload.body && !data.body) data.body = payload.body;
-  if (payload.body && !data.message) data.message = payload.body;
-  if (payload.link && !data.link) data.link = payload.link;
+  const data: Record<string, string> = {};
+  if (payload.data) {
+    for (const [k, v] of Object.entries(payload.data)) {
+      if (v != null) {
+        data[k] = typeof v === 'string' ? v : String(v);
+      }
+    }
+  }
+  if (payload.title && !data.title) data.title = String(payload.title);
+  if (payload.body && !data.body) data.body = String(payload.body);
+  if (payload.body && !data.message) data.message = String(payload.body);
+  if (payload.link && !data.link) data.link = String(payload.link);
   if (!data.largeIcon) data.largeIcon = 'app_logo';
   if (!data.icon) data.icon = 'ic_notification';
+  if (!data.click_action) data.click_action = 'FLUTTER_NOTIFICATION_CLICK';
 
   const messaging = getMessaging();
   for (let i = 0; i < unique.length; i += 500) {
@@ -121,6 +129,8 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
               data?.type?.includes('approval') || data?.type === 'float_insufficient'
                 ? 'approvals_channel'
                 : 'general_channel',
+            defaultSound: true,
+            defaultVibrateTimings: true,
           },
         },
         apns: {

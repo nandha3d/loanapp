@@ -238,7 +238,43 @@ class _DailyCollectionHeatMapCardState
   @override
   Widget build(BuildContext context) {
     final asyncPoints = ref.watch(_heatMapPointsProvider);
-    final points = asyncPoints.value ?? const <CollectionPoint>[];
+    final points = asyncPoints.valueOrNull ?? const <CollectionPoint>[];
+
+    if (asyncPoints.hasError && points.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF18181B),
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+        ),
+        child: Column(
+          children: [
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Overall Collection Heat Map',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Collection heat map temporarily unavailable',
+              style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => ref.invalidate(_heatMapPointsProvider),
+              icon: const Icon(Icons.refresh, size: 16, color: Color(0xFFA855F7)),
+              label: const Text('Retry', style: TextStyle(color: Color(0xFFA855F7))),
+            ),
+          ],
+        ),
+      );
+    }
 
     // Build the 4-5 weeks grid for Mon-Sun
     final daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
