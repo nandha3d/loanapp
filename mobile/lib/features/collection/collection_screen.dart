@@ -34,6 +34,7 @@ import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/help_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 List<CollectionRow>? _cachedCollectionToday;
 
