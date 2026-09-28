@@ -354,6 +354,8 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                           ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.zolofund.app',
+                      panBuffer: 2,
+                      keepBuffer: 3,
                     ),
                     // Route the agent actually travelled (ping trail).
                     if (_showTrail && trail.length >= 2)

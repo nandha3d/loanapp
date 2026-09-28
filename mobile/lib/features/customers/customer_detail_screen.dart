@@ -472,20 +472,37 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!isChit) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          _printingReceipt ? null : _openCollectionReceipt,
-                      icon: _printingReceipt
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.picture_as_pdf_outlined),
-                      label: const Text('Collection passbook'),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              _printingReceipt ? null : _openCollectionReceipt,
+                          icon: _printingReceipt
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.picture_as_pdf_outlined),
+                          label: const Text('Passbook'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                          ),
+                          onPressed: () => context.push(
+                            '/loans/new',
+                            extra: c,
+                          ),
+                          icon: const Icon(Icons.add_card_rounded, size: 18),
+                          label: const Text('New Loan'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                 ],

@@ -56,7 +56,8 @@ const _relations = [
 ];
 
 class NewLoanScreen extends ConsumerStatefulWidget {
-  const NewLoanScreen({super.key});
+  const NewLoanScreen({super.key, this.initialCustomer});
+  final Customer? initialCustomer;
 
   @override
   ConsumerState<NewLoanScreen> createState() => _NewLoanScreenState();
@@ -485,6 +486,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialCustomer != null) {
+      _customer = widget.initialCustomer;
+    }
     _loadPackages();
     for (final field in [_principal, _deduction, _tenure]) {
       field.addListener(() {

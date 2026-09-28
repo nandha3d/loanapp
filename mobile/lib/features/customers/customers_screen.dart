@@ -160,6 +160,12 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                         itemCount: customers.length,
+                        cacheExtent: 1500,
+                        addAutomaticKeepAlives: true,
+                        addRepaintBoundaries: true,
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 8),
                         itemBuilder: (_, i) => CustomerTile(

@@ -543,6 +543,8 @@ class _AgentCustomerMapScreenState extends ConsumerState<AgentCustomerMapScreen>
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.zolofund.app',
+                    panBuffer: 2,
+                    keepBuffer: 3,
                   ),
 
                   // Route Polyline

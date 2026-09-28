@@ -45,6 +45,8 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
   // Uploaded files have unique generated names and never change, so cached
   // bytes stay valid forever — no expiry needed.
   static Directory? _diskCacheDir;
+  static final Map<String, Uint8List> _memByteCache = <String, Uint8List>{};
+  static const int _maxMemByteCacheEntries = 120;
 
   static Future<File?> _diskCacheFileFor(String url) async {
     try {
@@ -66,18 +68,26 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
     AuthedImageProvider key,
     ImageDecoderCallback decode,
   ) async {
-    Uint8List? bytes;
-    final cacheFile = await _diskCacheFileFor(key.url);
-    if (cacheFile != null) {
-      try {
-        if (await cacheFile.exists()) {
-          bytes = await cacheFile.readAsBytes();
-          if (bytes.isEmpty) bytes = null;
+    // 1. Fast in-memory cache check (0ms, zero disk I/O)
+    var bytes = _memByteCache[key.url];
+
+    // 2. Fall back to persistent disk cache
+    File? cacheFile;
+    if (bytes == null) {
+      cacheFile = await _diskCacheFileFor(key.url);
+      if (cacheFile != null) {
+        try {
+          if (await cacheFile.exists()) {
+            bytes = await cacheFile.readAsBytes();
+            if (bytes.isEmpty) bytes = null;
+          }
+        } catch (_) {
+          bytes = null;
         }
-      } catch (_) {
-        bytes = null;
       }
     }
+
+    // 3. Fall back to authenticated network fetch
     if (bytes == null) {
       final res = await _dio.get<List<int>>(
         key.url,
@@ -97,6 +107,12 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
         }
       }
     }
+
+    // Store in memory LRU cache for instant future hits
+    if (_memByteCache.length >= _maxMemByteCacheEntries) {
+      _memByteCache.remove(_memByteCache.keys.first);
+    }
+    _memByteCache[key.url] = bytes;
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     // Cap the decoded bitmap at 800px on the longest side. Uploaded photos are
     // 1200-1600px+; decoding them full-size costs 8-16 MB of RAM *each* while

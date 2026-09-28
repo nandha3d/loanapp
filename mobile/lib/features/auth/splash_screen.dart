@@ -8,6 +8,8 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/router/app_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/repositories/dashboard_repository.dart';
 
 /// Shown while the auth stage is bootstrapping, playing the official
 /// ZoloFund animated splash video with seamless transition into the app.
@@ -30,6 +32,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   void initState() {
     super.initState();
     _initVideo();
+    _prefetchDashboard();
 
     // Fallback escape hatch if server auth check takes too long (> 12s)
     _fallbackTimer = Timer(const Duration(seconds: 12), () {
@@ -39,6 +42,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     // Initial safe fallback timer in case video fails to initialize
     _autoTransitionTimer = Timer(const Duration(milliseconds: 6500), () {
       _finishSplash();
+    });
+  }
+
+  /// Kick off the dashboard API call in parallel with the splash video so
+  /// data is already cached by the time the user reaches the dashboard.
+  void _prefetchDashboard() {
+    void warm(AuthState state) {
+      if (state.stage == AuthStage.authenticated && state.user != null) {
+        if (AppType.userIsChit(state.user)) {
+          ref.read(chitDashboardSummaryProvider);
+        } else {
+          ref.read(dashboardSummaryProvider);
+        }
+      }
+    }
+
+    warm(ref.read(authControllerProvider));
+    ref.listenManual(authControllerProvider, (prev, next) {
+      warm(next);
     });
   }
 

@@ -1049,6 +1049,8 @@ class _CollectionMap extends ConsumerWidget {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.zolofund.app',
+              panBuffer: 2,
+              keepBuffer: 3,
             ),
             MarkerLayer(
               markers: [

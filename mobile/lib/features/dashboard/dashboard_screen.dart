@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:fl_chart/fl_chart.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
@@ -141,6 +142,10 @@ class _DashboardBody extends ConsumerWidget {
         ref.read(authControllerProvider).user?.role == UserRole.agent;
 
     return ListView(
+      cacheExtent: 1500,
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         _GreetingRow(name: userName, t: t),
@@ -166,6 +171,8 @@ class _DashboardBody extends ConsumerWidget {
         const SizedBox(height: 18),
         if (!isAgent) ...[
           _SpotlightCards(summary: summary, fmt: fmt),
+          const SizedBox(height: 18),
+          _PortfolioPieChart(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
           _ModeSplitCard(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
@@ -1412,57 +1419,28 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (responsive && MediaQuery.sizeOf(context).width < 400) {
-      return Column(
-        children: [
-          _ActionBtn(
-            icon: Icons.payments_rounded,
-            label: t.x('coll.title'),
-            color: AppColors.primary,
-            horizontal: true,
-            onTap: () => context.go('/collection'),
-          ),
-          const SizedBox(height: 10),
-          _ActionBtn(
-            icon: Icons.person_add_alt_1_rounded,
-            label: t.x('dash.new_customer'),
-            color: AppColors.info,
-            horizontal: true,
-            onTap: () => context.go('/customers/new'),
-          ),
-          const SizedBox(height: 10),
-          _ActionBtn(
-            icon: Icons.add_card_rounded,
-            label: t.x('dash.new_loan'),
-            color: AppColors.success,
-            horizontal: true,
-            onTap: () => context.go('/loans/new'),
-          ),
-        ],
-      );
-    }
     return Row(
       children: [
         Expanded(
-          child: _ActionBtn(
+          child: _CompactActionChip(
             icon: Icons.payments_rounded,
             label: t.x('coll.title'),
             color: AppColors.primary,
             onTap: () => context.go('/collection'),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
-          child: _ActionBtn(
+          child: _CompactActionChip(
             icon: Icons.person_add_alt_1_rounded,
             label: t.x('dash.new_customer'),
             color: AppColors.info,
             onTap: () => context.go('/customers/new'),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
-          child: _ActionBtn(
+          child: _CompactActionChip(
             icon: Icons.add_card_rounded,
             label: t.x('dash.new_loan'),
             color: AppColors.success,
@@ -1474,77 +1452,46 @@ class _QuickActions extends StatelessWidget {
   }
 }
 
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
+class _CompactActionChip extends StatelessWidget {
+  const _CompactActionChip({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
-    this.horizontal = false,
   });
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
-  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppTokens.radius),
+      color: color.withAlpha(20),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTokens.radius),
-            boxShadow: AppTokens.shadow,
-          ),
-          child: horizontal
-              ? Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color.withAlpha(36),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: color, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: Text(label, style: AppTypography.bodyLarge),),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.textLight,
-                    ),
-                  ],
-                )
-              : Column(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color.withAlpha(36),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: color, size: 22),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodyLarge.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: AppTypography.caption.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3447,6 +3394,181 @@ class _SpotlightCards extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Donut pie chart showing collection progress and loan status at a glance.
+class _PortfolioPieChart extends StatelessWidget {
+  const _PortfolioPieChart({required this.summary, required this.fmt});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    // Collection progress slice data
+    final paid = summary.todayCollected;
+    final pending = math.max(0.0, summary.todayExpected - summary.todayCollected);
+    final overdue = summary.overdueOutstanding;
+    final totalCollection = paid + pending + overdue;
+
+    // Loan status slice data
+    final active = summary.activeLoans;
+    final overdueLoan = summary.overdueLoans;
+    final totalLoans = active + overdueLoan;
+
+    if (totalCollection <= 0 && totalLoans <= 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Portfolio Overview', style: AppTypography.sectionTitle),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Collection progress donut
+              if (totalCollection > 0)
+                Expanded(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 120,
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 28,
+                            startDegreeOffset: -90,
+                            sections: [
+                              PieChartSectionData(
+                                value: paid,
+                                color: AppColors.success,
+                                radius: 20,
+                                title: '',
+                              ),
+                              PieChartSectionData(
+                                value: pending > 0 ? pending : 0.001,
+                                color: const Color(0xFFF59E0B),
+                                radius: 20,
+                                title: '',
+                              ),
+                              PieChartSectionData(
+                                value: overdue > 0 ? overdue : 0.001,
+                                color: AppColors.danger,
+                                radius: 20,
+                                title: '',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Collection',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // Loan status donut
+              if (totalLoans > 0)
+                Expanded(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 120,
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 28,
+                            startDegreeOffset: -90,
+                            sections: [
+                              PieChartSectionData(
+                                value: active.toDouble(),
+                                color: AppColors.primary,
+                                radius: 20,
+                                title: '',
+                              ),
+                              PieChartSectionData(
+                                value: overdueLoan > 0
+                                    ? overdueLoan.toDouble()
+                                    : 0.001,
+                                color: AppColors.danger,
+                                radius: 20,
+                                title: '',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Loans',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Legend
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            children: [
+              _PieLegend(color: AppColors.success, label: 'Paid', value: fmt.format(paid)),
+              _PieLegend(color: const Color(0xFFF59E0B), label: 'Pending', value: fmt.format(pending)),
+              _PieLegend(color: AppColors.danger, label: 'Overdue', value: fmt.format(overdue)),
+              _PieLegend(color: AppColors.primary, label: 'Active', value: '$active'),
+              _PieLegend(color: AppColors.danger, label: 'Overdue Loans', value: '$overdueLoan'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PieLegend extends StatelessWidget {
+  const _PieLegend({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+  final Color color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$label: $value',
+          style: AppTypography.caption.copyWith(fontSize: 10),
+        ),
       ],
     );
   }

@@ -174,6 +174,43 @@ class _Chart extends StatelessWidget {
               const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 1),
         ),
         borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((spot) {
+              final isExpected = spot.barIndex == 0;
+              String fmtVal(double v) {
+                if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+                if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+                return v.toStringAsFixed(0);
+              }
+              return LineTooltipItem(
+                '${isExpected ? t.x('an.expected') : t.x('an.collected')}\n${fmtVal(spot.y)}',
+                TextStyle(
+                  color: isExpected
+                      ? const Color(0xFFCBD5E1)
+                      : AppColors.primary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              );
+            }).toList(),
+          ),
+          getTouchedSpotIndicator: (data, spots) => spots.map((_) {
+            return TouchedSpotIndicatorData(
+              const FlLine(color: Color(0x30000000), strokeWidth: 1),
+              FlDotData(
+                show: true,
+                getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                  radius: 4,
+                  color: bar.color ?? AppColors.primary,
+                  strokeWidth: 2,
+                  strokeColor: Colors.white,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
         titlesData: FlTitlesData(
           leftTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -203,6 +240,8 @@ class _Chart extends StatelessWidget {
           LineChartBarData(
             spots: expectedSpots,
             isCurved: true,
+            curveSmoothness: 0.4,
+            preventCurveOverShooting: true,
             color: const Color(0xFFCBD5E1),
             barWidth: 2,
             dotData: const FlDotData(show: false),
@@ -211,12 +250,28 @@ class _Chart extends StatelessWidget {
           LineChartBarData(
             spots: collectedSpots,
             isCurved: true,
+            curveSmoothness: 0.4,
+            preventCurveOverShooting: true,
             color: AppColors.primary,
             barWidth: 2.5,
-            dotData: const FlDotData(show: false),
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                radius: 2.5,
+                color: AppColors.primary,
+                strokeWidth: 0,
+              ),
+            ),
             belowBarData: BarAreaData(
               show: true,
-              color: const Color(0x14F5A623),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primary.withAlpha(40),
+                  AppColors.primary.withAlpha(5),
+                ],
+              ),
             ),
           ),
         ],

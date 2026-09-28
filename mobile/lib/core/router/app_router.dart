@@ -293,7 +293,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/loans',
         builder: (_, __) => const LoansScreen(),
         routes: [
-          GoRoute(path: 'new', builder: (_, __) => const NewLoanScreen()),
+          GoRoute(
+            path: 'new',
+            builder: (_, state) => NewLoanScreen(
+              initialCustomer:
+                  state.extra is Customer ? state.extra as Customer : null,
+            ),
+          ),
           // Auto Finance route/area manager — accounts grouped by beat.
           GoRoute(
             path: 'routes',

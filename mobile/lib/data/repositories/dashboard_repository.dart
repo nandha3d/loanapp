@@ -20,10 +20,12 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
   (ref) => DashboardRepository(ref.watch(dashboardServiceProvider)),
 );
 
-/// FutureProvider consumed by dashboard screen. `autoDispose` so the dashboard
-/// refetches when navigated back to after, e.g., adding a customer.
+/// FutureProvider consumed by dashboard screen. NOT autoDispose — the cache
+/// persists across tab switches so returning to the dashboard is instant.
+/// Pull-to-refresh calls ref.refresh(dashboardSummaryProvider.future) to
+/// force a network round-trip when the user explicitly requests it.
 final dashboardSummaryProvider =
-    FutureProvider.autoDispose<DashboardSummary>((ref) {
+    FutureProvider<DashboardSummary>((ref) {
   return ref.watch(dashboardRepositoryProvider).getSummary();
 });
 

@@ -31,6 +31,10 @@ class ChitDashboardBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
+      cacheExtent: 1500,
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         _ChitGreeting(name: userName, t: t),

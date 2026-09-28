@@ -21,11 +21,10 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Bound the in-memory decoded-image cache. Flutter's default is 100 MB,
-  // which on 2-3 GB devices (plus our lists of customer photos) is enough to
-  // get the whole app OOM-killed in the background. 40 MB comfortably holds
-  // a few screens' worth of 800px-capped decodes (see authed_image.dart).
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 << 20;
+  // Bound the in-memory decoded-image cache. 80 MB comfortably holds 50+
+  // 800px-capped decodes while staying well within memory limits.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 80 << 20;
+  PaintingBinding.instance.imageCache.maximumSize = 500;
   // Release builds paint a bare gray box (RenderErrorBox) when a widget
   // build throws, which users report as a "blank page" with nothing to act
   // on. Render the exception and stack instead so a screenshot of the

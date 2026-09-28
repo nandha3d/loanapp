@@ -678,6 +678,8 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                           TileLayer(
                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                             userAgentPackageName: 'com.zolofund.app',
+                            panBuffer: 2,
+                            keepBuffer: 3,
                           ),
                           MarkerLayer(
                             markers: filteredPins.map((pin) {
