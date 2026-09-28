@@ -33,50 +33,60 @@ class CollectionTrendCard extends ConsumerWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
+        border: Border.all(color: AppColors.border.withAlpha(80)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (responsive && MediaQuery.sizeOf(context).width < 500)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(t.x('an.collection_trend'),
-                    style: AppTypography.sectionTitle,),
-                const SizedBox(height: 8),
-                _RangePicker(),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Text(t.x('an.collection_trend'),
-                    style: AppTypography.sectionTitle,),
-                const Spacer(),
-                _RangePicker(),
-              ],
-            ),
-          const SizedBox(height: 12),
-          Row(
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _Legend(
-                  color: const Color(0xFFCBD5E1), label: t.x('an.expected'),),
-              const SizedBox(width: 12),
-              _Legend(color: AppColors.primary, label: t.x('an.collected')),
+              Text(
+                'Collection Trend',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              _RangePicker(),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          // Legend row with Expected, Collected, Overdue
+          const Row(
+            children: [
+              _LineLegend(
+                color: Color(0xFF94A3B8),
+                label: 'Expected',
+                isDashed: true,
+              ),
+              SizedBox(width: 14),
+              _LineLegend(
+                color: Color(0xFF7C3AED),
+                label: 'Collected',
+              ),
+              SizedBox(width: 14),
+              _LineLegend(
+                color: Color(0xFFEF4444),
+                label: 'Overdue',
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           SizedBox(
-            height: 160,
+            height: 190,
             child: asyncPoints.when(
               loading: () =>
-                  const Skeleton(height: 160, borderRadius: AppTokens.radius),
+                  const Skeleton(height: 190, borderRadius: AppTokens.radius),
               error: (e, _) => Center(
-                child: Text(e.toString(),
-                    style: AppTypography.caption
-                        .copyWith(color: AppColors.danger),),
+                child: Text(
+                  e.toString(),
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.danger),
+                ),
               ),
-              data: (points) => _Chart(points: points, t: t),
+              data: (points) => _InteractiveChart(points: points, t: t),
             ),
           ),
         ],
@@ -86,82 +96,149 @@ class CollectionTrendCard extends ConsumerWidget {
 }
 
 class _RangePicker extends ConsumerWidget {
+  const _RangePicker();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(trendRangeProvider);
-    return Row(
-      children: [7, 30, 90].map((r) {
-        final isSelected = range == r;
-        return GestureDetector(
-          onTap: () => ref.read(trendRangeProvider.notifier).state = r,
-          child: Container(
-            margin: const EdgeInsets.only(left: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.border,
+    final options = [
+      (label: '7D', value: 7),
+      (label: '30D', value: 30),
+      (label: '90D', value: 90),
+      (label: '1Y', value: 365),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: options.map((opt) {
+          final isSelected = range == opt.value;
+          return GestureDetector(
+            onTap: () =>
+                ref.read(trendRangeProvider.notifier).state = opt.value,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF7C3AED) : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF7C3AED).withAlpha(80),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Text(
+                opt.label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  fontSize: 11.5,
+                ),
               ),
             ),
-            child: Text(
-              '${r}d',
-              style: AppTypography.caption.copyWith(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-        );
-      }).toList(growable: false),
+          );
+        }).toList(growable: false),
+      ),
     );
   }
 }
 
-class _Legend extends StatelessWidget {
-  const _Legend({required this.color, required this.label});
+class _LineLegend extends StatelessWidget {
+  const _LineLegend({
+    required this.color,
+    required this.label,
+    this.isDashed = false,
+  });
+
   final Color color;
   final String label;
+  final bool isDashed;
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Container(width: 16, height: 2.5, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: AppTypography.caption),
-        ],
-      );
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 3,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF475569),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _Chart extends StatelessWidget {
-  const _Chart({required this.points, required this.t});
+class _InteractiveChart extends StatelessWidget {
+  const _InteractiveChart({required this.points, required this.t});
   final List<CollectionPoint> points;
   final T t;
+
+  String _fmtVal(double v) {
+    if (v >= 10000000) return '${(v / 10000000).toStringAsFixed(1)}Cr';
+    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return v.toStringAsFixed(0);
+  }
 
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
       return EmptyState(
-          icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'),);
+        icon: Icons.bar_chart_outlined,
+        title: t.x('an.no_data_yet'),
+      );
     }
 
     double maxY = 100;
     for (final p in points) {
       if (p.expected > maxY) maxY = p.expected;
       if (p.collected > maxY) maxY = p.collected;
+      if (p.overdue > maxY) maxY = p.overdue;
     }
-    maxY *= 1.2;
+    maxY *= 1.25;
 
     final expectedSpots = <FlSpot>[];
     final collectedSpots = <FlSpot>[];
+    final overdueSpots = <FlSpot>[];
     final labels = <String>[];
+
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
       expectedSpots.add(FlSpot(i.toDouble(), p.expected));
       collectedSpots.add(FlSpot(i.toDouble(), p.collected));
+      overdueSpots.add(FlSpot(i.toDouble(), p.overdue));
       final parts = p.date.split('-');
       labels.add(parts.length >= 3 ? parts[2] : p.date);
     }
+
+    final interval = points.length > 90
+        ? (points.length / 6).ceil().toDouble()
+        : (points.length > 30
+            ? 7.0
+            : (points.length > 7 ? 3.0 : 1.0));
 
     return LineChart(
       LineChartData(
@@ -170,40 +247,51 @@ class _Chart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) =>
-              const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 1),
+          getDrawingHorizontalLine: (_) => const FlLine(
+            color: Color(0xFFF1F5F9),
+            strokeWidth: 1,
+          ),
         ),
         borderData: FlBorderData(show: false),
         lineTouchData: LineTouchData(
           handleBuiltInTouches: true,
           touchTooltipData: LineTouchTooltipData(
-            getTooltipItems: (spots) => spots.map((spot) {
-              final isExpected = spot.barIndex == 0;
-              String fmtVal(double v) {
-                if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-                if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-                return v.toStringAsFixed(0);
-              }
-              return LineTooltipItem(
-                '${isExpected ? t.x('an.expected') : t.x('an.collected')}\n${fmtVal(spot.y)}',
-                TextStyle(
-                  color: isExpected
-                      ? const Color(0xFFCBD5E1)
-                      : AppColors.primary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              );
-            }).toList(),
+            tooltipRoundedRadius: 8,
+            getTooltipColor: (_) => const Color(0xFF0F172A),
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final idx = spot.barIndex;
+                final name = idx == 0
+                    ? 'Expected'
+                    : (idx == 1 ? 'Collected' : 'Overdue');
+                final col = idx == 0
+                    ? const Color(0xFF94A3B8)
+                    : (idx == 1
+                        ? const Color(0xFFA78BFA)
+                        : const Color(0xFFF87171));
+                return LineTooltipItem(
+                  '$name: ₹${_fmtVal(spot.y)}',
+                  TextStyle(
+                    color: col,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+              }).toList();
+            },
           ),
           getTouchedSpotIndicator: (data, spots) => spots.map((_) {
             return TouchedSpotIndicatorData(
-              const FlLine(color: Color(0x30000000), strokeWidth: 1),
+              const FlLine(
+                color: Color(0xFFCBD5E1),
+                strokeWidth: 1.5,
+                dashArray: [4, 4],
+              ),
               FlDotData(
                 show: true,
                 getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
-                  radius: 4,
-                  color: bar.color ?? AppColors.primary,
+                  radius: 4.5,
+                  color: bar.color ?? const Color(0xFF7C3AED),
                   strokeWidth: 2,
                   strokeColor: Colors.white,
                 ),
@@ -212,16 +300,34 @@ class _Chart extends StatelessWidget {
           }).toList(),
         ),
         titlesData: FlTitlesData(
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 34,
+              interval: maxY > 0 ? (maxY / 4) : 20,
+              getTitlesWidget: (value, meta) {
+                if (value == 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Text(
+                    _fmtVal(value),
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                );
+              },
+            ),
+          ),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: points.length > 30 ? 7 : (points.length > 7 ? 3 : 1),
+              interval: interval,
               reservedSize: 22,
               getTitlesWidget: (value, _) {
                 final idx = value.toInt();
@@ -230,36 +336,53 @@ class _Chart extends StatelessWidget {
                 }
                 return Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(labels[idx], style: AppTypography.extraTiny),
+                  child: Text(
+                    labels[idx],
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                 );
               },
             ),
           ),
         ),
         lineBarsData: [
+          // 0. Expected Line (Dashed)
           LineChartBarData(
             spots: expectedSpots,
             isCurved: true,
-            curveSmoothness: 0.4,
+            curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: const Color(0xFFCBD5E1),
+            color: const Color(0xFF94A3B8),
             barWidth: 2,
-            dotData: const FlDotData(show: false),
+            dotData: FlDotData(
+              show: points.length <= 15,
+              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                radius: 2.5,
+                color: const Color(0xFF94A3B8),
+                strokeWidth: 0,
+              ),
+            ),
             dashArray: [5, 4],
           ),
+          // 1. Collected Line (Solid brand purple + gradient fill)
           LineChartBarData(
             spots: collectedSpots,
             isCurved: true,
-            curveSmoothness: 0.4,
+            curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: AppColors.primary,
-            barWidth: 2.5,
+            color: const Color(0xFF7C3AED),
+            barWidth: 2.8,
             dotData: FlDotData(
-              show: true,
-              getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
-                radius: 2.5,
-                color: AppColors.primary,
-                strokeWidth: 0,
+              show: points.length <= 15,
+              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                radius: 3,
+                color: const Color(0xFF7C3AED),
+                strokeWidth: 1.5,
+                strokeColor: Colors.white,
               ),
             ),
             belowBarData: BarAreaData(
@@ -268,8 +391,37 @@ class _Chart extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.primary.withAlpha(40),
-                  AppColors.primary.withAlpha(5),
+                  const Color(0xFF7C3AED).withAlpha(55),
+                  const Color(0xFF7C3AED).withAlpha(3),
+                ],
+              ),
+            ),
+          ),
+          // 2. Overdue Line (Solid red + soft gradient fill)
+          LineChartBarData(
+            spots: overdueSpots,
+            isCurved: true,
+            curveSmoothness: 0.35,
+            preventCurveOverShooting: true,
+            color: const Color(0xFFEF4444),
+            barWidth: 2.2,
+            dotData: FlDotData(
+              show: points.length <= 15,
+              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                radius: 2.5,
+                color: const Color(0xFFEF4444),
+                strokeWidth: 1.5,
+                strokeColor: Colors.white,
+              ),
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFEF4444).withAlpha(35),
+                  const Color(0xFFEF4444).withAlpha(0),
                 ],
               ),
             ),

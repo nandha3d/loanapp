@@ -35,10 +35,21 @@ import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/help_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
-import 'package:zolofund/shared/widgets/skeleton.dart';
+List<CollectionRow>? _cachedCollectionToday;
 
-final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) {
-  return ref.watch(collectionServiceProvider).today();
+List<CollectionRow>? get cachedCollectionToday => _cachedCollectionToday;
+
+final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) async {
+  try {
+    final rows = await ref.watch(collectionServiceProvider).today();
+    _cachedCollectionToday = rows;
+    return rows;
+  } catch (e) {
+    if (_cachedCollectionToday != null && _cachedCollectionToday!.isNotEmpty) {
+      return _cachedCollectionToday!;
+    }
+    rethrow;
+  }
 });
 
 final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {

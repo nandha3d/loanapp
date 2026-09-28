@@ -41,12 +41,14 @@ class CollectionPoint {
     required this.date,
     required this.expected,
     required this.collected,
+    this.overdue = 0,
     this.label = '',
     this.dateKey = '',
   });
   final String date;
   final double expected;
   final double collected;
+  final double overdue;
   final String label;
   final String dateKey;
 
@@ -54,10 +56,16 @@ class CollectionPoint {
     double n(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final exp = n(json['expected']);
+    final col = n(json['collected']);
+    final ovd = json['overdue'] != null
+        ? n(json['overdue'])
+        : (exp > col ? exp - col : 0.0);
     return CollectionPoint(
-      date: (json['date'] ?? json['dateKey']) as String,
-      expected: n(json['expected']),
-      collected: n(json['collected']),
+      date: (json['date'] ?? json['dateKey'] ?? '') as String,
+      expected: exp,
+      collected: col,
+      overdue: ovd,
       label: (json['label'] as String?) ?? '',
       dateKey: (json['dateKey'] ?? json['date'] ?? '') as String,
     );

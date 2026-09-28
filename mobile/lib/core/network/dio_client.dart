@@ -59,19 +59,25 @@ class _AuthInterceptor extends Interceptor {
   /// Guards concurrent 401 handling. When a refresh is in progress, later 401s
   /// wait on this completer instead of triggering a duplicate refresh or an
   /// immediate logout (the bug that caused "Could not load" / "Failed to load"
-  /// on pages that fire multiple API calls simultaneously).
-  Completer<String?>? _refreshCompleter;
+  /// on pages that fire multiple API calls simultaneousl  Completer<String?>? _refreshCompleter;
 
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await _storage.readToken();
+    final path = options.path;
+    final isAuthEndpoint =
+        path.contains('/auth/refresh') || path.contains('/auth/login');
+    if (!isAuthEndpoint) {
+      final token = await _storage.readToken();
+      if (token != null && token.isNotEmpty) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+    }
     final tenantSlug = await _storage.readTenantSlug();
     final branchId = await _storage.readBranchId();
     final appType = await _storage.readAppType();
-    if (token != null) options.headers['Authorization'] = 'Bearer $token';
     if (tenantSlug != null) options.headers['X-Tenant-Slug'] = tenantSlug;
     if (branchId != null) options.headers['X-Branch-Id'] = branchId;
     if (appType != null) options.headers['X-App-Type'] = appType;
@@ -83,7 +89,8 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode != 401) {
+    if (err.response?.statusCode != 401 ||
+        err.requestOptions.path.contains('/auth/refresh')) {
       handler.next(err);
       return;
     }
@@ -158,6 +165,47 @@ class _AuthInterceptor extends Interceptor {
   }
 }
 
+/// Automatically retries idempotent GET requests on transient network drops,
+/// timeouts, or temporary 5xx server responses with exponential backoff.
+class _RetryInterceptor extends Interceptor {
+  _RetryInterceptor(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final req = err.requestOptions;
+    final isGet = req.method.toUpperCase() == 'GET';
+    final retryCount = (req.extra['retry_count'] as int?) ?? 0;
+    final statusCode = err.response?.statusCode;
+
+    final isTransient = err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.sendTimeout ||
+        err.type == DioExceptionType.connectionError ||
+        (statusCode != null && statusCode >= 500);
+
+    if (isGet && isTransient && retryCount < 2) {
+      req.extra['retry_count'] = retryCount + 1;
+      await Future<void>.delayed(
+        Duration(milliseconds: 300 * (retryCount + 1)),
+      );
+      try {
+        final res = await _dio.fetch<dynamic>(req);
+        handler.resolve(res);
+        return;
+      } catch (retryErr) {
+        if (retryErr is DioException) {
+          handler.next(retryErr);
+          return;
+        }
+      }
+    }
+    handler.next(err);
+  }
+}
 
 final dioProvider = Provider<Dio>((ref) {
   final storage = ref.watch(authStorageProvider);
@@ -167,8 +215,6 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
-      // Generous timeouts so a brief server restart or a slow mobile network
-      // doesn't abort login with a scary timeout error.
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
@@ -183,6 +229,8 @@ final dioProvider = Provider<Dio>((ref) {
     }),
   );
 
+  dio.interceptors.add(_RetryInterceptor(dio));
+
   if (kDebugMode) {
     dio.interceptors.add(
       PrettyDioLogger(
@@ -195,6 +243,7 @@ final dioProvider = Provider<Dio>((ref) {
   }
 
   return dio;
+});n dio;
 });
 
 /// Server media (photos, KYC docs) is stored as a RELATIVE url like

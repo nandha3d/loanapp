@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   if (rangeStr === '7') duration = 7;
   else if (rangeStr === '30') duration = 30;
   else if (rangeStr === '90') duration = 90;
+  else if (rangeStr === '365' || rangeStr === '1Y' || rangeStr === '365d') duration = 365;
 
   const to = new Date(searchParams.get('to') || now);
   
@@ -55,14 +56,15 @@ export async function GET(req: NextRequest) {
       byDay.set(key, cur);
     }
 
-    const series: Array<{ date: string; expected: number; collected: number }> = [];
+    const series: Array<{ date: string; expected: number; collected: number; overdue: number }> = [];
     for (let i = 0; i < diffDays; i++) {
       const d = new Date(from);
       d.setDate(from.getDate() + i);
       if (d > to) break;
       const key = d.toISOString().split('T')[0];
       const v = byDay.get(key) ?? { expected: 0, collected: 0 };
-      series.push({ date: key, ...v });
+      const overdue = Math.max(0, v.expected - v.collected);
+      series.push({ date: key, overdue, ...v });
     }
 
     return ok(series);

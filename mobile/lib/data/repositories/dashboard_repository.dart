@@ -8,9 +8,37 @@ class DashboardRepository {
   DashboardRepository(this._service);
   final DashboardService _service;
 
-  Future<DashboardSummary> getSummary() => _service.getSummary();
+  static DashboardSummary? _cachedSummary;
+  static ChitDashboardSummary? _cachedChitSummary;
 
-  Future<ChitDashboardSummary> getChitSummary() => _service.getChitSummary();
+  static DashboardSummary? get cachedSummary => _cachedSummary;
+  static ChitDashboardSummary? get cachedChitSummary => _cachedChitSummary;
+
+  Future<DashboardSummary> getSummary() async {
+    try {
+      final summary = await _service.getSummary();
+      _cachedSummary = summary;
+      return summary;
+    } catch (e) {
+      if (_cachedSummary != null) {
+        return _cachedSummary!;
+      }
+      rethrow;
+    }
+  }
+
+  Future<ChitDashboardSummary> getChitSummary() async {
+    try {
+      final chit = await _service.getChitSummary();
+      _cachedChitSummary = chit;
+      return chit;
+    } catch (e) {
+      if (_cachedChitSummary != null) {
+        return _cachedChitSummary!;
+      }
+      rethrow;
+    }
+  }
 
   Future<TodaysActivityBundle> getActivities({DateTime? from, DateTime? to}) =>
       _service.getActivities(from: from, to: to);

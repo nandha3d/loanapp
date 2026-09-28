@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'package:fl_chart/fl_chart.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
@@ -17,10 +16,17 @@ import 'package:zolofund/data/models/dashboard_summary.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/features/collection/collection_screen.dart'
-    show collectionTodayProvider, refreshCollectionViews;
+    show
+        collectionTodayProvider,
+        refreshCollectionViews,
+        cachedCollectionToday;
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/chit_dashboard_body.dart';
 import 'package:zolofund/features/dashboard/widgets/collection_trend_card.dart';
+import 'package:zolofund/features/dashboard/widgets/daily_collection_heat_map_card.dart';
+import 'package:zolofund/features/dashboard/widgets/disbursement_trend_card.dart';
+import 'package:zolofund/features/dashboard/widgets/interactive_portfolio_donut_card.dart';
+import 'package:zolofund/features/dashboard/widgets/overdue_aging_card.dart';
 import 'package:zolofund/features/onboarding/onboarding_overlay.dart';
 import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
@@ -96,8 +102,30 @@ class DashboardScreen extends ConsumerWidget {
         },
         child: isChit
             ? chitSummary!.when(
-                loading: () => const _LoadingSkeleton(),
-                error: (err, _) => _ErrorState(message: err.toString()),
+                loading: () {
+                  final cached = DashboardRepository.cachedChitSummary;
+                  if (cached != null) {
+                    return ChitDashboardBody(
+                      summary: cached,
+                      fmt: fmt,
+                      userName: user?.name ?? '',
+                      t: t,
+                    );
+                  }
+                  return const _LoadingSkeleton();
+                },
+                error: (err, _) {
+                  final cached = DashboardRepository.cachedChitSummary;
+                  if (cached != null) {
+                    return ChitDashboardBody(
+                      summary: cached,
+                      fmt: fmt,
+                      userName: user?.name ?? '',
+                      t: t,
+                    );
+                  }
+                  return _ErrorState(message: err.toString());
+                },
                 data: (s) => ChitDashboardBody(
                   summary: s,
                   fmt: fmt,
@@ -106,8 +134,32 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               )
             : summary!.when(
-                loading: () => const _LoadingSkeleton(),
-                error: (err, _) => _ErrorState(message: err.toString()),
+                loading: () {
+                  final cached = DashboardRepository.cachedSummary;
+                  if (cached != null) {
+                    return _DashboardBody(
+                      summary: cached,
+                      fmt: fmt,
+                      userName: user?.name ?? '',
+                      t: t,
+                      responsive: user?.appType == AppType.microlending,
+                    );
+                  }
+                  return const _LoadingSkeleton();
+                },
+                error: (err, _) {
+                  final cached = DashboardRepository.cachedSummary;
+                  if (cached != null) {
+                    return _DashboardBody(
+                      summary: cached,
+                      fmt: fmt,
+                      userName: user?.name ?? '',
+                      t: t,
+                      responsive: user?.appType == AppType.microlending,
+                    );
+                  }
+                  return _ErrorState(message: err.toString());
+                },
                 data: (s) => _DashboardBody(
                   summary: s,
                   fmt: fmt,
@@ -172,7 +224,7 @@ class _DashboardBody extends ConsumerWidget {
         if (!isAgent) ...[
           _SpotlightCards(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
-          _PortfolioPieChart(summary: summary, fmt: fmt),
+          InteractivePortfolioDonutCard(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
           _ModeSplitCard(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
@@ -181,6 +233,28 @@ class _DashboardBody extends ConsumerWidget {
             const SizedBox(height: 18),
           ],
           CollectionTrendCard(responsive: responsive),
+          const SizedBox(height: 18),
+          if (responsive && MediaQuery.sizeOf(context).width >= 620)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: DisbursementTrendCard(summary: summary)),
+                const SizedBox(width: 14),
+                Expanded(child: OverdueAgingCard(summary: summary, fmt: fmt)),
+              ],
+            )
+          else ...[
+            DisbursementTrendCard(summary: summary),
+            const SizedBox(height: 18),
+            OverdueAgingCard(summary: summary, fmt: fmt),
+          ],
+          const SizedBox(height: 18),
+          const DailyCollectionHeatMapCard(),
+          const SizedBox(height: 18),
+        ] else ...[
+          CollectionTrendCard(responsive: responsive),
+          const SizedBox(height: 18),
+          const DailyCollectionHeatMapCard(),
           const SizedBox(height: 18),
         ],
         _QuickActions(t: t, responsive: responsive),
@@ -1560,9 +1634,19 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
         ),
         const SizedBox(height: 10),
         async.when(
-          loading: () => const Skeleton(height: 156, borderRadius: 18),
+          loading: () {
+            final cached = cachedCollectionToday;
+            if (cached != null && cached.isNotEmpty) {
+              return _buildRowsContent(cached, t);
+            }
+            return const Skeleton(height: 156, borderRadius: 18);
+          },
           error: (e, st) {
             debugPrint('[UpNextPager] collectionTodayProvider error: $e\n$st');
+            final cached = cachedCollectionToday;
+            if (cached != null && cached.isNotEmpty) {
+              return _buildRowsContent(cached, t);
+            }
             return SizedBox(
               height: 130,
               child: GestureDetector(
@@ -1574,151 +1658,153 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               ),
             );
           },
-          data: (rows) {
-            // One card per loan. A customer can have separate active loans, and
-            // collection must not merge those amounts on the dashboard.
-            final pendingRows = rows
-                .where((r) => !r.isResolved && r.outstanding > 0)
-                .toList(growable: false);
-            final byLoan = <String, _UpNextEntry>{};
-            for (final r in pendingRows) {
-              final todayDue = r.todayOutstanding;
-              final overdueDue = r.overdueOutstanding;
-              final due = todayDue + overdueDue;
-              if (due <= 0) continue;
-              final loanKey = r.loanId.isNotEmpty ? r.loanId : r.instalmentId;
-              final existing = byLoan[loanKey];
-              if (existing == null) {
-                byLoan[loanKey] = _UpNextEntry(
-                  row: r,
-                  rows: [r],
-                  todayTotal: todayDue,
-                  overdueTotal: overdueDue,
-                  count: 1,
-                );
-              } else {
-                existing.rows.add(r);
-                existing.todayTotal += todayDue;
-                existing.overdueTotal += overdueDue;
-                existing.count += 1;
-                // Keep the earliest-due instalment as the collect target.
-                if (r.dueDate.isBefore(existing.row.dueDate)) {
-                  existing.row = r;
-                }
-              }
-            }
-            for (final entry in byLoan.values) {
-              final loanRows =
-                  rows.where((r) => r.loanId == entry.row.loanId).toList();
-              final bool hasPaidToday = loanRows.any((r) => r.isResolved);
-              // When tenure reached, keep extending days only if nothing was collected today yet:
-              // today's due continues as the normal installment carved out of overdue.
-              if (!hasPaidToday &&
-                  entry.todayTotal == 0 &&
-                  entry.overdueTotal > 0) {
-                final daily = math.min(entry.row.dueAmount, entry.overdueTotal);
-                entry.todayTotal = daily;
-                entry.overdueTotal = math.max(0, entry.overdueTotal - daily);
-              }
-            }
-            final pending = byLoan.values.toList(growable: false);
-            if (pending.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: AppTokens.shadow,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.successBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.check_circle_outline,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.x('dash.all_done_title'),
-                            style: AppTypography.bodyLarge,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            t.x('dash.all_done_sub'),
-                            style: AppTypography.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return Column(
-              children: [
-                SizedBox(
-                  height: 220,
-                  child: PageView.builder(
-                    controller: _ctrl,
-                    itemCount: pending.length,
-                    onPageChanged: (i) => setState(() => _idx = i),
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _UpNextCard(
-                        row: pending[i].row,
-                        scopeRows: pending[i].rows,
-                        fmt: widget.fmt,
-                        todayDue: pending[i].todayTotal,
-                        overdueDue: pending[i].overdueTotal,
-                        dueCount: pending[i].count,
-                      ),
-                    ),
-                  ),
-                ),
-                if (pending.length > 1) ...[
-                  const SizedBox(height: 10),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Text(
-                        '${_idx + 1}/${pending.length}',
-                        style: AppTypography.caption.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
+          data: (rows) => _buildRowsContent(rows, t),
         ),
         const SizedBox(height: 14),
         DashboardGpsWidget(
           isSubscribed: isGpsSubscribed,
           onTapSubscribe: () => showGpsAddonSubscribeSheet(context, ref),
         ),
+      ],
+    );
+  }
+
+  Widget _buildRowsContent(List<CollectionRow> rows, T t) {
+    // One card per loan. A customer can have separate active loans, and
+    // collection must not merge those amounts on the dashboard.
+    final pendingRows = rows
+        .where((r) => !r.isResolved && r.outstanding > 0)
+        .toList(growable: false);
+    final byLoan = <String, _UpNextEntry>{};
+    for (final r in pendingRows) {
+      final todayDue = r.todayOutstanding;
+      final overdueDue = r.overdueOutstanding;
+      final due = todayDue + overdueDue;
+      if (due <= 0) continue;
+      final loanKey = r.loanId.isNotEmpty ? r.loanId : r.instalmentId;
+      final existing = byLoan[loanKey];
+      if (existing == null) {
+        byLoan[loanKey] = _UpNextEntry(
+          row: r,
+          rows: [r],
+          todayTotal: todayDue,
+          overdueTotal: overdueDue,
+          count: 1,
+        );
+      } else {
+        existing.rows.add(r);
+        existing.todayTotal += todayDue;
+        existing.overdueTotal += overdueDue;
+        existing.count += 1;
+        // Keep the earliest-due instalment as the collect target.
+        if (r.dueDate.isBefore(existing.row.dueDate)) {
+          existing.row = r;
+        }
+      }
+    }
+    for (final entry in byLoan.values) {
+      final loanRows =
+          rows.where((r) => r.loanId == entry.row.loanId).toList();
+      final bool hasPaidToday = loanRows.any((r) => r.isResolved);
+      // When tenure reached, keep extending days only if nothing was collected today yet:
+      // today's due continues as the normal installment carved out of overdue.
+      if (!hasPaidToday &&
+          entry.todayTotal == 0 &&
+          entry.overdueTotal > 0) {
+        final daily = math.min(entry.row.dueAmount, entry.overdueTotal);
+        entry.todayTotal = daily;
+        entry.overdueTotal = math.max(0, entry.overdueTotal - daily);
+      }
+    }
+    final pending = byLoan.values.toList(growable: false);
+    if (pending.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.successBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.check_circle_outline,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t.x('dash.all_done_title'),
+                    style: AppTypography.bodyLarge,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    t.x('dash.all_done_sub'),
+                    style: AppTypography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: PageView.builder(
+            controller: _ctrl,
+            itemCount: pending.length,
+            onPageChanged: (i) => setState(() => _idx = i),
+            itemBuilder: (_, i) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: _UpNextCard(
+                row: pending[i].row,
+                scopeRows: pending[i].rows,
+                fmt: widget.fmt,
+                todayDue: pending[i].todayTotal,
+                overdueDue: pending[i].overdueTotal,
+                dueCount: pending[i].count,
+              ),
+            ),
+          ),
+        ),
+        if (pending.length > 1) ...[
+          const SizedBox(height: 10),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                '${_idx + 1}/${pending.length}',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -3394,181 +3480,6 @@ class _SpotlightCards extends StatelessWidget {
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// Donut pie chart showing collection progress and loan status at a glance.
-class _PortfolioPieChart extends StatelessWidget {
-  const _PortfolioPieChart({required this.summary, required this.fmt});
-  final DashboardSummary summary;
-  final NumberFormat fmt;
-
-  @override
-  Widget build(BuildContext context) {
-    // Collection progress slice data
-    final paid = summary.todayCollected;
-    final pending = math.max(0.0, summary.todayExpected - summary.todayCollected);
-    final overdue = summary.overdueOutstanding;
-    final totalCollection = paid + pending + overdue;
-
-    // Loan status slice data
-    final active = summary.activeLoans;
-    final overdueLoan = summary.overdueLoans;
-    final totalLoans = active + overdueLoan;
-
-    if (totalCollection <= 0 && totalLoans <= 0) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radius),
-        boxShadow: AppTokens.shadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Portfolio Overview', style: AppTypography.sectionTitle),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              // Collection progress donut
-              if (totalCollection > 0)
-                Expanded(
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: 120,
-                        child: PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 28,
-                            startDegreeOffset: -90,
-                            sections: [
-                              PieChartSectionData(
-                                value: paid,
-                                color: AppColors.success,
-                                radius: 20,
-                                title: '',
-                              ),
-                              PieChartSectionData(
-                                value: pending > 0 ? pending : 0.001,
-                                color: const Color(0xFFF59E0B),
-                                radius: 20,
-                                title: '',
-                              ),
-                              PieChartSectionData(
-                                value: overdue > 0 ? overdue : 0.001,
-                                color: AppColors.danger,
-                                radius: 20,
-                                title: '',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Collection',
-                        style: AppTypography.caption.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              // Loan status donut
-              if (totalLoans > 0)
-                Expanded(
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: 120,
-                        child: PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 28,
-                            startDegreeOffset: -90,
-                            sections: [
-                              PieChartSectionData(
-                                value: active.toDouble(),
-                                color: AppColors.primary,
-                                radius: 20,
-                                title: '',
-                              ),
-                              PieChartSectionData(
-                                value: overdueLoan > 0
-                                    ? overdueLoan.toDouble()
-                                    : 0.001,
-                                color: AppColors.danger,
-                                radius: 20,
-                                title: '',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Loans',
-                        style: AppTypography.caption.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // Legend
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              _PieLegend(color: AppColors.success, label: 'Paid', value: fmt.format(paid)),
-              _PieLegend(color: const Color(0xFFF59E0B), label: 'Pending', value: fmt.format(pending)),
-              _PieLegend(color: AppColors.danger, label: 'Overdue', value: fmt.format(overdue)),
-              _PieLegend(color: AppColors.primary, label: 'Active', value: '$active'),
-              _PieLegend(color: AppColors.danger, label: 'Overdue Loans', value: '$overdueLoan'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PieLegend extends StatelessWidget {
-  const _PieLegend({
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-  final Color color;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$label: $value',
-          style: AppTypography.caption.copyWith(fontSize: 10),
-        ),
       ],
     );
   }
