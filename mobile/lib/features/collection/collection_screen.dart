@@ -423,7 +423,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                 itemCount: 6,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, __) =>
-                    const Skeleton(height: 110, borderRadius: 16),
+                    Skeleton(height: 110, borderRadius: 16),
               ),
               error: (e, _) => EmptyState(
                 icon: Icons.cloud_off,
@@ -726,7 +726,7 @@ class _SelfPayQueueSheet extends ConsumerWidget {
                   itemCount: 4,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, __) =>
-                      const Skeleton(height: 104, borderRadius: 12),
+                      Skeleton(height: 104, borderRadius: 12),
                 ),
                 error: (e, _) => EmptyState(
                   icon: Icons.cloud_off,

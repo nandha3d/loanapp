@@ -57,9 +57,8 @@ class _AuthInterceptor extends Interceptor {
   final void Function() _on401;
 
   /// Guards concurrent 401 handling. When a refresh is in progress, later 401s
-  /// wait on this completer instead of triggering a duplicate refresh or an
-  /// immediate logout (the bug that caused "Could not load" / "Failed to load"
-  /// on pages that fire multiple API calls simultaneousl  Completer<String?>? _refreshCompleter;
+  /// wait on this completer instead of triggering a duplicate refresh.
+  Completer<String?>? _refreshCompleter;
 
   @override
   Future<void> onRequest(
@@ -243,7 +242,6 @@ final dioProvider = Provider<Dio>((ref) {
   }
 
   return dio;
-});n dio;
 });
 
 /// Server media (photos, KYC docs) is stored as a RELATIVE url like
