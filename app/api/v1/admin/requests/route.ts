@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
+import { notifyUser } from '@/lib/notify/userNotify';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { normalizeModuleList, isAddOnKey } from '@/types/modules';
@@ -140,16 +141,15 @@ export async function POST(req: NextRequest) {
         : `Module request ${decision}`;
       const notifMsg = `Your request for "${moduleReq.appType}" was ${decision}.`;
 
-      await prisma.systemNotification.create({
-        data: {
-          tenantId: moduleReq.tenantId,
-          appType: 'microlending',
-          type: 'module_request',
-          icon: decision === 'approved' ? 'check_circle' : 'cancel',
-          title: notifTitle,
-          message: notifMsg,
-          link: '/module-requests',
-        },
+      await notifyUser({
+        tenantId: moduleReq.tenantId,
+        targetUserId: moduleReq.requestedById,
+        appType: 'microlending',
+        type: 'module_request',
+        icon: decision === 'approved' ? 'check_circle' : 'cancel',
+        title: notifTitle,
+        message: notifMsg,
+        link: '/module-requests',
       }).catch(() => {});
 
       return ok({ success: true });

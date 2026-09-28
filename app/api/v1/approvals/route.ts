@@ -347,6 +347,7 @@ export async function POST(req: NextRequest) {
         entityType,
         entityId,
         requestType,
+        actionable: 'true',
       },
     });
 

@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { notifyUser } from '@/lib/notify/userNotify';
 
 async function requireAdmin() {
   const session = await auth();
@@ -134,7 +135,12 @@ export async function createVehicle(formData: FormData) {
       icon: 'directions_car',
       title: 'Vehicle awaiting approval',
       message: `Vehicle ${data.registrationNo} was submitted and needs review.`,
-      link: modulePath(appType, '/approvals'),
+      link: `${modulePath(appType, '/approvals')}?id=${vehicle.id}`,
+      data: {
+        approvalId: vehicle.id,
+        entityType: 'vehicle',
+        actionable: 'true',
+      },
     });
   }
 
@@ -191,7 +197,10 @@ export async function flagForRepo(vehicleId: string, reason: string) {
   await requireModule(tenantId, 'autofinance');
   const userId = session.user?.id as string;
 
-  const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId } });
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId },
+    include: { customer: { select: { agentId: true, branchId: true } } },
+  });
   if (!vehicle) throw new Error('Vehicle not found or not in your tenant');
 
   await prisma.vehicle.update({
@@ -203,17 +212,32 @@ export async function flagForRepo(vehicleId: string, reason: string) {
     },
   });
 
-  await prisma.systemNotification.create({
-    data: {
+  await notifyUser({
+    tenantId,
+    branchId: vehicle.customer?.branchId ?? null,
+    appType,
+    type: 'danger',
+    icon: 'directions_car',
+    title: 'Repo Flag Set',
+    message: `Vehicle ${vehicle.registrationNo} flagged for repossession. Reason: ${reason}`,
+    link: `/vehicles/${vehicleId}`,
+    targetRole: 'admin',
+    includeUnassignedBranch: true,
+  }).catch(() => {});
+
+  if (vehicle.customer?.agentId) {
+    await notifyUser({
       tenantId,
+      branchId: vehicle.customer?.branchId ?? null,
       appType,
+      targetUserId: vehicle.customer.agentId,
       type: 'danger',
       icon: 'directions_car',
       title: 'Repo Flag Set',
       message: `Vehicle ${vehicle.registrationNo} flagged for repossession. Reason: ${reason}`,
       link: `/vehicles/${vehicleId}`,
-    },
-  });
+    }).catch(() => {});
+  }
 
   await prisma.auditLog.create({
     data: {

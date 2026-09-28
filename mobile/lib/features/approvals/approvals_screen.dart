@@ -20,74 +20,149 @@ final _approvalsProvider = FutureProvider.autoDispose<List<Approval>>((ref) {
   return ref.watch(approvalServiceProvider).list(status: 'pending');
 });
 
-class ApprovalsScreen extends ConsumerWidget {
-  const ApprovalsScreen({super.key});
+class ApprovalsScreen extends ConsumerStatefulWidget {
+  const ApprovalsScreen({super.key, this.initialId, this.initialAction});
+
+  final String? initialId;
+  final String? initialAction;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ApprovalsScreen> createState() => _ApprovalsScreenState();
+}
+
+class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _handledInitialAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(_approvalsProvider);
     final t = T.of(ref);
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text(t.x('title.approvals')),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/dashboard'),
-          ),
-          bottom: TabBar(
-            indicatorColor: AppColors.primary,
-            indicatorWeight: 3,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textSecondary,
-            labelStyle: AppTypography.label,
-            tabs: [
-              Tab(text: t.x('tab.customers')),
-              Tab(text: t.x('tab.loans')),
-              Tab(text: t.x('tab.general')),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(t.x('title.approvals')),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
-        body: async.when(
-          loading: () => const _LoadingState(),
-          error: (e, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
-                  const SizedBox(height: 12),
-                  Text(t.x('err.failed_to_load'), style: AppTypography.sectionTitle),
-                  const SizedBox(height: 6),
-                  Text(e.toString(), style: AppTypography.body, textAlign: TextAlign.center),
-                ],
-              ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 3,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: AppTypography.label,
+          tabs: [
+            Tab(text: t.x('tab.customers')),
+            Tab(text: t.x('tab.loans')),
+            Tab(text: t.x('tab.general')),
+          ],
+        ),
+      ),
+      body: async.when(
+        loading: () => const _LoadingState(),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
+                const SizedBox(height: 12),
+                Text(t.x('err.failed_to_load'), style: AppTypography.sectionTitle),
+                const SizedBox(height: 6),
+                Text(e.toString(), style: AppTypography.body, textAlign: TextAlign.center),
+              ],
             ),
           ),
-          data: (list) {
-            final customers = list.where((a) => a.entityType == 'customer').toList();
-            final loans = list.where((a) => a.entityType == 'loan').toList();
-            final other = list
-                .where((a) => a.entityType != 'customer' && a.entityType != 'loan')
-                .toList();
-            void refresh() => ref.invalidate(_approvalsProvider);
-            return TabBarView(
-              children: [
-                _ApprovalList(approvals: customers, emptyTitle: t.x('appr.no_customer_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
-                _ApprovalList(approvals: loans, emptyTitle: t.x('appr.no_loan_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
-                _ApprovalList(approvals: other, emptyTitle: t.x('appr.no_general_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
-              ],
-            );
-          },
         ),
-        bottomNavigationBar: const AppBottomNav(currentRoute: '/approvals'),
+        data: (list) {
+          final customers = list.where((a) => a.entityType == 'customer').toList();
+          final loans = list.where((a) => a.entityType == 'loan').toList();
+          final other = list
+              .where((a) => a.entityType != 'customer' && a.entityType != 'loan')
+              .toList();
+          void refresh() => ref.invalidate(_approvalsProvider);
+
+          if (widget.initialId != null && !_handledInitialAction) {
+            final target = list.where((a) => a.id == widget.initialId).firstOrNull;
+            if (target != null) {
+              final tabIdx = target.entityType == 'customer'
+                  ? 0
+                  : (target.entityType == 'loan' ? 1 : 2);
+              if (_tabController.index != tabIdx) {
+                _tabController.index = tabIdx;
+              }
+              if (widget.initialAction == 'reject') {
+                _handledInitialAction = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _ApprovalCard.showActionDialog(context, ref, target, false, refresh);
+                  }
+                });
+              } else if (widget.initialAction == 'approved') {
+                _handledInitialAction = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(t.x('notif.approved_toast')),
+                        backgroundColor: AppColors.success,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                });
+              }
+            }
+          }
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _ApprovalList(
+                approvals: customers,
+                emptyTitle: t.x('appr.no_customer_pending'),
+                subtitle: t.x('appr.all_caught_up'),
+                onRefresh: refresh,
+                highlightedId: widget.initialId,
+              ),
+              _ApprovalList(
+                approvals: loans,
+                emptyTitle: t.x('appr.no_loan_pending'),
+                subtitle: t.x('appr.all_caught_up'),
+                onRefresh: refresh,
+                highlightedId: widget.initialId,
+              ),
+              _ApprovalList(
+                approvals: other,
+                emptyTitle: t.x('appr.no_general_pending'),
+                subtitle: t.x('appr.all_caught_up'),
+                onRefresh: refresh,
+                highlightedId: widget.initialId,
+              ),
+            ],
+          );
+        },
       ),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/approvals'),
     );
   }
 }
@@ -98,11 +173,13 @@ class _ApprovalList extends StatelessWidget {
     required this.emptyTitle,
     required this.subtitle,
     required this.onRefresh,
+    this.highlightedId,
   });
   final List<Approval> approvals;
   final String emptyTitle;
   final String subtitle;
   final VoidCallback onRefresh;
+  final String? highlightedId;
 
   @override
   Widget build(BuildContext context) {
@@ -119,16 +196,25 @@ class _ApprovalList extends StatelessWidget {
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: approvals.length,
-        itemBuilder: (_, i) => _ApprovalCard(approval: approvals[i], onAction: onRefresh),
+        itemBuilder: (_, i) => _ApprovalCard(
+          approval: approvals[i],
+          onAction: onRefresh,
+          isHighlighted: approvals[i].id == highlightedId,
+        ),
       ),
     );
   }
 }
 
 class _ApprovalCard extends ConsumerWidget {
-  const _ApprovalCard({required this.approval, required this.onAction});
+  const _ApprovalCard({
+    required this.approval,
+    required this.onAction,
+    this.isHighlighted = false,
+  });
   final Approval approval;
   final VoidCallback onAction;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -180,9 +266,13 @@ class _ApprovalCard extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: isHighlighted ? AppColors.primaryLight : AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
+        border: Border.all(
+          color: isHighlighted ? AppColors.primary : AppColors.border,
+          width: isHighlighted ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,7 +338,7 @@ class _ApprovalCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309), size: 18),
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309), size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -280,7 +370,7 @@ class _ApprovalCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
-                    onPressed: () => _handleAction(context, ref, false),
+                    onPressed: () => showActionDialog(context, ref, approval, false, onAction),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -295,7 +385,7 @@ class _ApprovalCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
-                    onPressed: () => _handleAction(context, ref, true, isUnderfunded: insufficientFloat),
+                    onPressed: () => showActionDialog(context, ref, approval, true, onAction, isUnderfunded: insufficientFloat),
                   ),
                 ),
               ],
@@ -306,7 +396,14 @@ class _ApprovalCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleAction(BuildContext context, WidgetRef ref, bool approve, {bool isUnderfunded = false}) async {
+  static Future<void> showActionDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Approval approval,
+    bool approve,
+    VoidCallback onAction, {
+    bool isUnderfunded = false,
+  }) async {
     final t = T.of(ref);
     final noteCtrl = TextEditingController();
     final ok = await showDialog<bool>(

@@ -81,6 +81,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     ref.invalidate(_notificationsProvider);
   }
 
+  Future<void> _handleTileTap(NotificationItem item) async {
+    await _markOneRead(item);
+    if (!mounted) return;
+    if (item.link != null && item.link!.isNotEmpty) {
+      context.push(item.link!);
+    } else if (item.type.contains('approval')) {
+      final apprId = _extractApprovalId(item);
+      if (apprId != null && apprId.isNotEmpty) {
+        context.push('/approvals?id=$apprId');
+      } else {
+        context.push('/approvals');
+      }
+    } else if (item.type == 'collection_received' || item.type == 'payment') {
+      context.push('/admin/tracking');
+    } else if (item.type == 'float_insufficient') {
+      context.push('/wallet');
+    }
+  }
+
   Future<void> _handleReply(NotificationItem item) async {
     if (item.link != null && item.link!.isNotEmpty) {
       await _markOneRead(item);
@@ -480,7 +499,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ...today.map(
                     (n) => _NotificationTile(
                       item: n,
-                      onTap: () => _markOneRead(n),
+                      onTap: () => _handleTileTap(n),
                       onMarkRead: () => _markOneRead(n),
                       onReply: () => _handleReply(n),
                       onMute: () => _handleMute(n),
@@ -496,7 +515,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ...earlier.map(
                     (n) => _NotificationTile(
                       item: n,
-                      onTap: () => _markOneRead(n),
+                      onTap: () => _handleTileTap(n),
                       onMarkRead: () => _markOneRead(n),
                       onReply: () => _handleReply(n),
                       onMute: () => _handleMute(n),

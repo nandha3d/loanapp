@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
+import { notifyUser } from '@/lib/notify/userNotify';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { distanceMeters } from '@/lib/gps/geofence';
@@ -74,18 +75,18 @@ export async function GET(req: NextRequest) {
           });
 
           if (!existingAlert) {
-            await prisma.systemNotification.create({
-              data: {
-                tenantId: ctx.tenantId,
-                appType: 'microlending',
-                type: 'agent_stationary',
-                icon: 'person_pin',
-                title: 'Agent Stationary Alert',
-                message: `Agent ${agent.name} has been stationary (movement < 10m) for over ${idleMinutes} minutes.`,
-                link: '/route-tracker',
-                targetRole: 'admin',
-              },
-            });
+            await notifyUser({
+              tenantId: ctx.tenantId,
+              branchId: agent.branchId,
+              appType: 'microlending',
+              type: 'agent_stationary',
+              icon: 'person_pin',
+              title: 'Agent Stationary Alert',
+              message: `Agent ${agent.name} has been stationary (movement < 10m) for over ${idleMinutes} minutes.`,
+              link: '/route-tracker',
+              targetRole: 'admin',
+              includeUnassignedBranch: true,
+            }).catch(() => {});
           }
 
           flagged.push({

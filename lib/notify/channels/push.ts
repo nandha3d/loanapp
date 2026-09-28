@@ -88,7 +88,12 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
   if (!unique.length) return;
 
   const data: Record<string, string> = { ...(payload.data || {}) };
-  if (payload.link) data.link = payload.link;
+  if (payload.title && !data.title) data.title = payload.title;
+  if (payload.body && !data.body) data.body = payload.body;
+  if (payload.body && !data.message) data.message = payload.body;
+  if (payload.link && !data.link) data.link = payload.link;
+  if (!data.largeIcon) data.largeIcon = 'app_logo';
+  if (!data.icon) data.icon = 'ic_notification';
 
   const messaging = getMessaging();
   for (let i = 0; i < unique.length; i += 500) {

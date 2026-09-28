@@ -57,10 +57,23 @@ export async function submitLoanPrecloseRequest(ctx: MobileTokenClaims, body: Re
       newValue: JSON.stringify({ requestType: LOAN_PRECLOSE_REQUEST, loanId: loan.id, amount, paymentMode }) } });
     return { request, loan };
   }, { isolationLevel: 'ReadCommitted' });
-  await notifyApprovers({ tenantId: ctx.tenantId, appType: ctx.appType,
-    branchId: result.loan.branchId, requesterBranchId: ctx.branchId, requesterRole: ctx.role,
-    type: LOAN_PRECLOSE_REQUEST, icon: 'request_quote', title: d.title,
-    message: `${result.loan.loanCode}: ${d.reviewHint}`, link: modulePath(ctx.appType, '/approvals') });
+  await notifyApprovers({
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+    branchId: result.loan.branchId,
+    requesterBranchId: ctx.branchId,
+    requesterRole: ctx.role,
+    type: LOAN_PRECLOSE_REQUEST,
+    icon: 'request_quote',
+    title: d.title,
+    message: `${result.loan.loanCode}: ${d.reviewHint}`,
+    link: `${modulePath(ctx.appType, '/approvals')}?id=${result.request.id}`,
+    data: {
+      approvalId: result.request.id,
+      entityType: 'loan_preclose',
+      actionable: 'true',
+    },
+  });
   return result.request;
 }
 

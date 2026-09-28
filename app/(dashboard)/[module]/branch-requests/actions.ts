@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { withActionAuth } from '@/lib/serverActionAuth';
 import { normalizeModuleList } from '@/types/modules';
+import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function submitBranchRequest(formData: FormData) {
   const branchIdValue = formData.get('branchId') as string | null;
@@ -40,18 +41,17 @@ export async function submitBranchRequest(formData: FormData) {
       },
     });
 
-    await prisma.systemNotification.create({
-      data: {
-        tenantId,
-        appType: 'microlending',
-        type: 'branch_request',
-        icon: 'account_tree',
-        title: 'Branch request submitted',
-        message: branchId
-          ? 'A superadmin requested module changes for a branch.'
-          : `A superadmin requested a new branch: ${branchName}.`,
-        link: '/admin/branch-requests',
-      },
+    await notifyUser({
+      tenantId,
+      targetRole: 'developer',
+      appType: 'microlending',
+      type: 'branch_request',
+      icon: 'account_tree',
+      title: 'Branch request submitted',
+      message: branchId
+        ? 'A superadmin requested module changes for a branch.'
+        : `A superadmin requested a new branch: ${branchName}.`,
+      link: '/admin/branch-requests',
     }).catch(() => {});
 
     revalidatePath('/branch-requests');

@@ -341,7 +341,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
       GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
-      GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
+      GoRoute(
+        path: '/approvals',
+        builder: (_, state) => ApprovalsScreen(
+          initialId: state.uri.queryParameters['id'],
+          initialAction: state.uri.queryParameters['action'],
+        ),
+      ),
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(

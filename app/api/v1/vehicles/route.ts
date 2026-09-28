@@ -148,7 +148,12 @@ export async function POST(req: NextRequest) {
         icon: 'directions_car',
         title: 'Vehicle awaiting approval',
         message: `Vehicle ${registrationNo} (${vehicle.customer?.name ?? 'customer'}) was submitted and needs review.`,
-        link: modulePath(ctx.appType, '/approvals'),
+        link: `${modulePath(ctx.appType, '/approvals')}?id=${vehicle.id}`,
+        data: {
+          approvalId: vehicle.id,
+          entityType: 'vehicle',
+          actionable: 'true',
+        },
       });
     }
 

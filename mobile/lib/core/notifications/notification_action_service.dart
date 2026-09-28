@@ -69,6 +69,15 @@ class NotificationActionService {
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
+    // Process notification tap that launched the app from terminated state
+    final launchDetails = await _localNotif.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp == true &&
+        launchDetails?.notificationResponse != null) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        _onNotificationResponse(launchDetails!.notificationResponse!);
+      });
+    }
+
     // 2. Create notification channels on Android
     final androidPlugin = _localNotif.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -193,7 +202,7 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
-      largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
+      largeIcon: const DrawableResourceAndroidBitmap('app_logo'),
       color: const Color(0xFF7D287E),
       category: isApproval ? AndroidNotificationCategory.reminder : null,
       actions: isApproval
@@ -318,7 +327,7 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
-      largeIcon: DrawableResourceAndroidBitmap('ic_launcher'),
+      largeIcon: DrawableResourceAndroidBitmap('app_logo'),
       color: Color(0xFF7D287E), // Brand primary purple
       category: AndroidNotificationCategory.reminder,
       actions: <AndroidNotificationAction>[
@@ -380,7 +389,7 @@ class NotificationActionService {
       color: const Color(0xFF10B981), // Emerald green
       largeIcon: avatarPath != null
           ? FilePathAndroidBitmap(avatarPath)
-          : const DrawableResourceAndroidBitmap('ic_launcher'),
+          : const DrawableResourceAndroidBitmap('app_logo'),
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
@@ -424,7 +433,7 @@ class NotificationActionService {
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
-      largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
+      largeIcon: const DrawableResourceAndroidBitmap('app_logo'),
       color: const Color(0xFFD97706), // Amber warning
       category: AndroidNotificationCategory.reminder,
       styleInformation: BigTextStyleInformation(
@@ -479,7 +488,7 @@ class NotificationActionService {
       color: const Color(0xFF7D287E),
       largeIcon: avatarPath != null
           ? FilePathAndroidBitmap(avatarPath)
-          : const DrawableResourceAndroidBitmap('ic_launcher'),
+          : const DrawableResourceAndroidBitmap('app_logo'),
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
@@ -530,7 +539,7 @@ class NotificationActionService {
       } catch (_) {}
     }
 
-    final approvalId = data['approvalId'] as String?;
+    final approvalId = (data['approvalId'] ?? data['id'])?.toString();
 
     if (actionId == actionApprove) {
       _handleApproveAction(approvalId);
@@ -563,14 +572,18 @@ class NotificationActionService {
         debugPrint('[Notification] Inline approval error: $e');
       }
     }
-    // Navigate to /approvals
-    rootNavigatorKey.currentContext?.go('/approvals');
+    final route = (approvalId != null && approvalId.isNotEmpty)
+        ? '/approvals?id=$approvalId&action=approved'
+        : '/approvals';
+    rootNavigatorKey.currentContext?.go(route);
   }
 
   void _handleRejectAction(String? approvalId) {
     debugPrint('[Notification] User tapped REJECT for id: $approvalId');
-    // Navigate directly to the approvals queue so user can review and provide reason
-    rootNavigatorKey.currentContext?.go('/approvals');
+    final route = (approvalId != null && approvalId.isNotEmpty)
+        ? '/approvals?id=$approvalId&action=reject'
+        : '/approvals';
+    rootNavigatorKey.currentContext?.go(route);
   }
 
   void _handleShowOnMapAction(Map<String, dynamic> data) {
@@ -610,10 +623,16 @@ class NotificationActionService {
   void _handleDefaultClick(Map<String, dynamic> data) {
     final type = data['type']?.toString() ?? '';
     final link = data['link'] as String?;
+    final approvalId = (data['approvalId'] ?? data['id'])?.toString();
+
     if (link != null && link.isNotEmpty && link != '/route-tracker') {
       rootNavigatorKey.currentContext?.go(link);
-    } else if (type.contains('approval') || data.containsKey('approvalId')) {
-      rootNavigatorKey.currentContext?.go('/approvals');
+    } else if (type.contains('approval') || data.containsKey('approvalId') || data['actionable'] == 'true') {
+      if (approvalId != null && approvalId.isNotEmpty) {
+        rootNavigatorKey.currentContext?.go('/approvals?id=$approvalId');
+      } else {
+        rootNavigatorKey.currentContext?.go('/approvals');
+      }
     } else if (type == 'collection_received' || type == 'payment' || link == '/route-tracker') {
       rootNavigatorKey.currentContext?.go('/admin/tracking');
     } else if (type == 'float_insufficient') {

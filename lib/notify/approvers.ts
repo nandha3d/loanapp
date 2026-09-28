@@ -54,11 +54,21 @@ type NotifyApproversInput = {
 export async function notifyApprovers(input: NotifyApproversInput): Promise<void> {
   const { requesterBranchId, requesterRole, ...rest } = input;
 
+  const data: Record<string, string> = { ...(input.data || {}) };
+  if (!data.approvalId && input.link) {
+    const match = input.link.match(/[?&]id=([^&]+)/);
+    if (match) data.approvalId = match[1];
+  }
+  if (data.approvalId && !data.actionable) {
+    data.actionable = 'true';
+  }
+
   // Only an agent's own manager gets the extra ping; see above.
   const agentBranchId = requesterRole === 'agent' ? requesterBranchId : null;
 
   const reached = await notifyUser({
     ...rest,
+    data,
     targetRole: 'admin',
     branchId: input.branchId ?? null,
     recipientBranchIds: [input.branchId, agentBranchId],
@@ -75,6 +85,7 @@ export async function notifyApprovers(input: NotifyApproversInput): Promise<void
   // carries the record's branch so the notification stays traceable to it.
   await notifyUser({
     ...rest,
+    data,
     targetRole: 'superadmin',
     branchId: input.branchId ?? null,
     recipientBranchIds: [],

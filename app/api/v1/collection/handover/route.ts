@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       return fail('Handover already requested or settled', 400);
     }
 
-    await prisma.$transaction([
+    const [, handoverRequest] = await prisma.$transaction([
       prisma.dailyCollection.update({
         where: { id: dailyCollection.id },
         data: { status: 'pending_handover' }
@@ -62,7 +62,12 @@ export async function POST(req: NextRequest) {
       icon: 'payments',
       title: 'Cash handover to collect',
       message: `${agent?.name ?? 'An agent'} requested end-of-day handover of ₹${Number(dailyCollection.totalCollected).toLocaleString('en-IN')}.`,
-      link: modulePath(ctx.appType, '/approvals'),
+      link: `${modulePath(ctx.appType, '/approvals')}?id=${handoverRequest.id}`,
+      data: {
+        approvalId: handoverRequest.id,
+        entityType: 'cash_handover',
+        actionable: 'true',
+      },
     });
 
     return ok({ success: true });

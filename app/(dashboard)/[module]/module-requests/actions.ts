@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { withActionAuth } from '@/lib/serverActionAuth';
 import { isModuleKey } from '@/types/modules';
+import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function submitModuleRequest(formData: FormData) {
   const appType = (formData.get('appType') as string | null)?.trim() || '';
@@ -36,16 +37,15 @@ export async function submitModuleRequest(formData: FormData) {
       data: { tenantId, requestedById: userId, appType, reason, status: 'pending' },
     });
 
-    await prisma.systemNotification.create({
-      data: {
-        tenantId,
-        appType: 'microlending',
-        type: 'module_request',
-        icon: 'extension',
-        title: 'Module request submitted',
-        message: `A superadmin requested to enable module: ${appType}.`,
-        link: '/admin/module-requests',
-      },
+    await notifyUser({
+      tenantId,
+      targetRole: 'developer',
+      appType: 'microlending',
+      type: 'module_request',
+      icon: 'extension',
+      title: 'Module request submitted',
+      message: `A superadmin requested to enable module: ${appType}.`,
+      link: '/admin/module-requests',
     }).catch(() => {});
 
     revalidatePath('/module-requests');
