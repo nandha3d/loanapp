@@ -1614,13 +1614,19 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
         const SizedBox(height: 10),
         async.when(
           loading: () => const Skeleton(height: 156, borderRadius: 18),
-          error: (e, _) => SizedBox(
-            height: 130,
-            child: EmptyState(
-              icon: Icons.cloud_off,
-              title: t.x('err.failed_to_load'),
-            ),
-          ),
+          error: (e, st) {
+            debugPrint('[UpNextPager] collectionTodayProvider error: $e\n$st');
+            return SizedBox(
+              height: 130,
+              child: GestureDetector(
+                onTap: () => ref.invalidate(collectionTodayProvider),
+                child: EmptyState(
+                  icon: Icons.cloud_off,
+                  title: t.x('err.failed_to_load'),
+                ),
+              ),
+            );
+          },
           data: (rows) {
             // One card per loan. A customer can have separate active loans, and
             // collection must not merge those amounts on the dashboard.

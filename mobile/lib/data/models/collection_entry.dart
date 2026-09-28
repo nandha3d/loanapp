@@ -18,11 +18,11 @@ class CollectionEntry {
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return CollectionEntry(
-      id: json['id'] as String,
-      idempotencyKey: (json['idempotencyKey'] as String?) ?? '',
-      instalmentId: json['instalmentId'] as String?,
+      id: json['id']?.toString() ?? '',
+      idempotencyKey: json['idempotencyKey']?.toString() ?? '',
+      instalmentId: json['instalmentId']?.toString(),
       receivedAmount: n(json['receivedAmount']),
-      paymentMode: (json['paymentMode'] as String?) ?? 'cash',
+      paymentMode: json['paymentMode']?.toString() ?? 'cash',
     );
   }
 }
@@ -110,27 +110,40 @@ class CollectionRow {
     double n(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
-    final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
-    final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
-    final route = customer['route'] as Map<String, dynamic>?;
+    final loan = json['loan'] is Map<String, dynamic>
+        ? (json['loan'] as Map<String, dynamic>)
+        : const <String, dynamic>{};
+    final customer = loan['customer'] is Map<String, dynamic>
+        ? (loan['customer'] as Map<String, dynamic>)
+        : const <String, dynamic>{};
+    final rawRoute = customer['route'];
+    final String? routeName = rawRoute is Map<String, dynamic>
+        ? rawRoute['name']?.toString()
+        : (rawRoute != null ? rawRoute.toString() : null);
+
+    final rawDueDate = json['dueDate']?.toString();
+    final parsedDueDate = rawDueDate != null
+        ? (DateTime.tryParse(rawDueDate)?.toLocal() ?? DateTime.now())
+        : DateTime.now();
+
     return CollectionRow(
-      instalmentId: json['id'] as String,
-      loanId: (loan['id'] as String?) ?? '',
-      loanCode: (loan['loanCode'] as String?) ?? '',
-      customerId: (customer['id'] as String?) ?? '',
-      customerName: (customer['name'] as String?) ?? '—',
-      customerCode: (customer['customerCode'] as String?) ?? '',
-      customerPhoto: customer['profilePhoto'] as String?,
-      customerPhone: (customer['phone'] as String?) ?? '',
-      routeName: route?['name'] as String?,
+      instalmentId: json['id']?.toString() ?? '',
+      loanId: loan['id']?.toString() ?? '',
+      loanCode: loan['loanCode']?.toString() ?? '',
+      customerId: customer['id']?.toString() ?? '',
+      customerName: customer['name']?.toString() ?? '—',
+      customerCode: customer['customerCode']?.toString() ?? '',
+      customerPhoto: customer['profilePhoto']?.toString(),
+      customerPhone: customer['phone']?.toString() ?? '',
+      routeName: routeName,
       dueAmount: n(json['dueAmount']),
       receivedAmount: n(json['receivedAmount']),
-      dueDate: DateTime.parse(json['dueDate'] as String).toLocal(),
-      status: (json['status'] as String?) ?? 'upcoming',
+      dueDate: parsedDueDate,
+      status: json['status']?.toString() ?? 'upcoming',
       lat: customer['lat'] == null ? null : n(customer['lat']),
       lng: customer['lng'] == null ? null : n(customer['lng']),
-      collectionEntryId: json['collectionEntryId'] as String?,
-      frequency: loan['frequency'] as String?,
+      collectionEntryId: json['collectionEntryId']?.toString(),
+      frequency: loan['frequency']?.toString(),
     );
   }
 }

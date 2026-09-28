@@ -67,31 +67,11 @@ export default function CollectionBreakdownCards({
 }: CollectionBreakdownCardsProps) {
   // Today's Collection filter state
   const [todayFreq, setTodayFreq] = useState<FilterFrequency>('all');
-  const [todayStatus, setTodayStatus] = useState<LoanStatusFilter>('all');
 
   // Overdue Collection filter state
   const [overdueFreq, setOverdueFreq] = useState<FilterFrequency>('all');
-  const [overdueStatus, setOverdueStatus] = useState<LoanStatusFilter>('all');
 
   const d = dict.dashboard;
-
-  const getTodayMetrics = (
-    data: { total: StatusSubMetrics; active: StatusSubMetrics; inactive: StatusSubMetrics },
-    status: LoanStatusFilter,
-  ): StatusSubMetrics => {
-    if (status === 'active') return data.active;
-    if (status === 'inactive') return data.inactive;
-    return data.total;
-  };
-
-  const getOverdueMetrics = (
-    data: { total: OverdueStatusSubMetrics; active: OverdueStatusSubMetrics; inactive: OverdueStatusSubMetrics },
-    status: LoanStatusFilter,
-  ): OverdueStatusSubMetrics => {
-    if (status === 'active') return data.active;
-    if (status === 'inactive') return data.inactive;
-    return data.total;
-  };
 
   const emptyTodayMetrics: TodayFrequencyMetrics = {
     total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
@@ -108,16 +88,16 @@ export default function CollectionBreakdownCards({
   // Compute selected metrics for Today's Card
   const activeToday =
     todayFreq === 'all'
-      ? getTodayMetrics(todayData, todayStatus)
-      : getTodayMetrics(todayData.breakdown?.[todayFreq] || emptyTodayMetrics, todayStatus);
+      ? todayData.total
+      : (todayData.breakdown?.[todayFreq]?.total || emptyTodayMetrics.total);
 
   const todayRemainingPct = Math.max(0, 100 - activeToday.pct);
 
   // Compute selected metrics for Overdue Card
   const activeOverdue =
     overdueFreq === 'all'
-      ? getOverdueMetrics(overdueData, overdueStatus)
-      : getOverdueMetrics(overdueData.breakdown?.[overdueFreq] || emptyOverdueMetrics, overdueStatus);
+      ? overdueData.total
+      : (overdueData.breakdown?.[overdueFreq]?.total || emptyOverdueMetrics.total);
 
   const overdueRemainingPct = Math.max(0, 100 - activeOverdue.pct);
 
@@ -126,12 +106,6 @@ export default function CollectionBreakdownCards({
     { key: 'weekly', label: d.weekly || 'Weekly', icon: 'date_range', color: '#7c3aed', bg: '#f5f3ff' },
     { key: 'monthly', label: d.monthly || 'Monthly', icon: 'calendar_month', color: '#059669', bg: '#ecfdf5' },
     { key: 'custom', label: d.custom || 'Custom', icon: 'tune', color: '#ea580c', bg: '#fff7ed' },
-  ];
-
-  const statusOptions: Array<{ key: LoanStatusFilter; label: string; icon: string }> = [
-    { key: 'all', label: d.allLoans || 'All Loans', icon: 'layers' },
-    { key: 'active', label: d.activeLoansTab || 'Active Loans', icon: 'check_circle' },
-    { key: 'inactive', label: d.inactiveLoansTab || 'Inactive / Defaulted', icon: 'warning' },
   ];
 
   return (
@@ -194,8 +168,6 @@ export default function CollectionBreakdownCards({
                   {d.todayCollection}
                 </h2>
                 <span style={{ fontSize: '.84rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
-                  {todayStatus === 'all' ? (d.allLoans || 'All Loans') : todayStatus === 'active' ? (d.activeLoansTab || 'Active Loans') : (d.inactiveLoansTab || 'Inactive / Defaulted')}
-                  {' • '}
                   {todayFreq === 'all'
                     ? (d.allFrequencies || 'All Frequencies')
                     : `${frequencies.find((f) => f.key === todayFreq)?.label}`}
@@ -259,208 +231,65 @@ export default function CollectionBreakdownCards({
             </div>
           </div>
 
-          {/* ── Active vs Inactive Classification Highlight Strip ── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '12px',
-              marginBottom: '16px',
-            }}
-          >
-            {/* Active Loans Classification Block */}
+          {/* ── Frequency Selector Filter ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+            <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
+              {d.frequency || 'Frequency'}:
+            </span>
             <div
-              onClick={() => setTodayStatus(todayStatus === 'active' ? 'all' : 'active')}
               style={{
-                padding: '12px 16px',
-                borderRadius: '12px',
-                background: todayStatus === 'active' ? '#ecfdf5' : '#ffffff',
-                border: `1.5px solid ${todayStatus === 'active' ? '#10b981' : '#e2e8f0'}`,
-                boxShadow: todayStatus === 'active' ? '0 0 0 2px rgba(16, 185, 129, 0.18)' : '0 1px 3px rgba(0,0,0,0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                display: 'inline-flex',
+                background: '#f1f5f9',
+                padding: '3px',
+                borderRadius: '10px',
+                gap: '3px',
+                flex: 1,
               }}
-              title="Click to filter by Active Loans"
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#10b981',
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '.03em' }}>
-                    {d.activeDue || 'Active Loans Due'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '.75rem', fontWeight: 650, color: '#059669', background: '#d1fae5', padding: '1px 7px', borderRadius: '12px' }}>
-                  {todayData.active.loanCount} {d.loansCount || 'loans'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                  {formatCurrency(todayData.active.expected, currencySymbol)}
-                </span>
-                <span style={{ fontSize: '.78rem', color: '#64748b' }}>
-                  {todayData.active.collected > 0 ? `${formatCurrency(todayData.active.collected, currencySymbol)} rec.` : '0 rec.'}
-                </span>
-              </div>
-            </div>
-
-            {/* Inactive Loans Classification Block */}
-            <div
-              onClick={() => setTodayStatus(todayStatus === 'inactive' ? 'all' : 'inactive')}
-              style={{
-                padding: '12px 16px',
-                borderRadius: '12px',
-                background: todayStatus === 'inactive' ? '#fff7ed' : '#ffffff',
-                border: `1.5px solid ${todayStatus === 'inactive' ? '#f97316' : '#e2e8f0'}`,
-                boxShadow: todayStatus === 'inactive' ? '0 0 0 2px rgba(249, 115, 22, 0.18)' : '0 1px 3px rgba(0,0,0,0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title="Click to filter by Inactive Loans"
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#f97316',
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '.03em' }}>
-                    {d.inactiveDue || 'Inactive Loans Due'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '.75rem', fontWeight: 650, color: '#ea580c', background: '#ffedd5', padding: '1px 7px', borderRadius: '12px' }}>
-                  {todayData.inactive.loanCount} {d.loansCount || 'loans'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                  {formatCurrency(todayData.inactive.expected, currencySymbol)}
-                </span>
-                <span style={{ fontSize: '.78rem', color: '#64748b' }}>
-                  {todayData.inactive.collected > 0 ? `${formatCurrency(todayData.inactive.collected, currencySymbol)} rec.` : '0 rec.'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Dual Interactive Controls: Status & Frequency Filters ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
-            {/* Row 1: Loan Status Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
-                {d.loanClassification || 'Loan Status'}:
-              </span>
-              <div
+              <button
+                type="button"
+                onClick={() => setTodayFreq('all')}
                 style={{
-                  display: 'inline-flex',
-                  background: '#f1f5f9',
-                  padding: '3px',
-                  borderRadius: '10px',
-                  gap: '3px',
                   flex: 1,
+                  padding: '7px 12px',
+                  fontSize: '.82rem',
+                  fontWeight: todayFreq === 'all' ? 700 : 500,
+                  color: todayFreq === 'all' ? '#0f172a' : '#64748b',
+                  background: todayFreq === 'all' ? '#ffffff' : 'transparent',
+                  border: 'none',
+                  borderRadius: '8px',
+                  boxShadow: todayFreq === 'all' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {statusOptions.map((opt) => {
-                  const isSel = todayStatus === opt.key;
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setTodayStatus(opt.key)}
-                      style={{
-                        flex: 1,
-                        padding: '7px 12px',
-                        fontSize: '.82rem',
-                        fontWeight: isSel ? 700 : 500,
-                        color: isSel ? '#0f172a' : '#64748b',
-                        background: isSel ? '#ffffff' : 'transparent',
-                        border: 'none',
-                        borderRadius: '8px',
-                        boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Row 2: Frequency Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
-                {d.frequency || 'Frequency'}:
-              </span>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  background: '#f1f5f9',
-                  padding: '3px',
-                  borderRadius: '10px',
-                  gap: '3px',
-                  flex: 1,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setTodayFreq('all')}
-                  style={{
-                    flex: 1,
-                    padding: '7px 12px',
-                    fontSize: '.82rem',
-                    fontWeight: todayFreq === 'all' ? 700 : 500,
-                    color: todayFreq === 'all' ? '#0f172a' : '#64748b',
-                    background: todayFreq === 'all' ? '#ffffff' : 'transparent',
-                    border: 'none',
-                    borderRadius: '8px',
-                    boxShadow: todayFreq === 'all' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {d.allFrequencies || 'All'}
-                </button>
-                {frequencies.map((f) => {
-                  const isSel = todayFreq === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setTodayFreq(f.key)}
-                      style={{
-                        flex: 1,
-                        padding: '7px 12px',
-                        fontSize: '.82rem',
-                        fontWeight: isSel ? 700 : 500,
-                        color: isSel ? f.color : '#64748b',
-                        background: isSel ? '#ffffff' : 'transparent',
-                        border: 'none',
-                        borderRadius: '8px',
-                        boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
+                {d.allFrequencies || 'All'}
+              </button>
+              {frequencies.map((f) => {
+                const isSel = todayFreq === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setTodayFreq(f.key)}
+                    style={{
+                      flex: 1,
+                      padding: '7px 12px',
+                      fontSize: '.82rem',
+                      fontWeight: isSel ? 700 : 500,
+                      color: isSel ? f.color : '#64748b',
+                      background: isSel ? '#ffffff' : 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -581,7 +410,7 @@ export default function CollectionBreakdownCards({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {frequencies.map((freq) => {
               const freqData = todayData.breakdown?.[freq.key] || emptyTodayMetrics;
-              const b = getTodayMetrics(freqData, todayStatus);
+              const b = freqData.total;
               const isSelected = todayFreq === freq.key;
 
               return (
@@ -611,15 +440,11 @@ export default function CollectionBreakdownCards({
                         {freq.label}
                       </span>
                     </div>
-                    {/* Active vs Inactive Pill */}
-                    <div style={{ fontSize: '.72rem', color: '#64748b' }}>
-                      <span style={{ color: '#16a34a', fontWeight: 600 }}>Active: {formatCurrency(freqData.active.expected, currencySymbol)}</span>
-                      {freqData.inactive.expected > 0 && (
-                        <span style={{ color: '#ea580c', fontWeight: 600, marginLeft: '6px' }}>
-                          • Inactive: {formatCurrency(freqData.inactive.expected, currencySymbol)}
-                        </span>
-                      )}
-                    </div>
+                    {b.loanCount > 0 && (
+                      <span style={{ fontSize: '.72rem', color: '#64748b' }}>
+                        {b.loanCount} {d.loansCount || 'loans'}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, justifyContent: 'flex-end' }}>
@@ -720,8 +545,6 @@ export default function CollectionBreakdownCards({
                   {d.overdueCollection}
                 </h2>
                 <span style={{ fontSize: '.84rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
-                  {overdueStatus === 'all' ? (d.allLoans || 'All Loans') : overdueStatus === 'active' ? (d.activeLoansTab || 'Active Loans') : (d.inactiveLoansTab || 'Inactive / Defaulted')}
-                  {' • '}
                   {overdueFreq === 'all'
                     ? (d.allFrequencies || 'All Frequencies')
                     : `${frequencies.find((f) => f.key === overdueFreq)?.label}`}
@@ -789,208 +612,65 @@ export default function CollectionBreakdownCards({
             {d.overdueExplainer || "Past dues only (not today's). 'Total' is what was overdue at the start of today; it re-bases tomorrow as anything unpaid rolls over."}
           </div>
 
-          {/* ── Active vs Inactive Classification Highlight Strip ── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '12px',
-              marginBottom: '16px',
-            }}
-          >
-            {/* Active Loans Overdue Block */}
+          {/* ── Frequency Selector Filter ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+            <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
+              {d.frequency || 'Frequency'}:
+            </span>
             <div
-              onClick={() => setOverdueStatus(overdueStatus === 'active' ? 'all' : 'active')}
               style={{
-                padding: '12px 16px',
-                borderRadius: '12px',
-                background: overdueStatus === 'active' ? '#ecfdf5' : '#ffffff',
-                border: `1.5px solid ${overdueStatus === 'active' ? '#10b981' : '#fecaca'}`,
-                boxShadow: overdueStatus === 'active' ? '0 0 0 2px rgba(16, 185, 129, 0.18)' : '0 1px 3px rgba(0,0,0,0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                display: 'inline-flex',
+                background: '#f1f5f9',
+                padding: '3px',
+                borderRadius: '10px',
+                gap: '3px',
+                flex: 1,
               }}
-              title="Click to filter by Active Loans Overdue"
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#10b981',
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '.03em' }}>
-                    {d.activeOverdue || 'Active Loans Overdue'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '.75rem', fontWeight: 650, color: '#059669', background: '#d1fae5', padding: '1px 7px', borderRadius: '12px' }}>
-                  {overdueData.active.customerCount} {d.activeCustomers || 'customers'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                  {formatCurrency(overdueData.active.totalOverdue, currencySymbol)}
-                </span>
-                <span style={{ fontSize: '.78rem', color: '#64748b' }}>
-                  {overdueData.active.collectedToday > 0 ? `${formatCurrency(overdueData.active.collectedToday, currencySymbol)} rec.` : '0 rec.'}
-                </span>
-              </div>
-            </div>
-
-            {/* Inactive Loans Overdue Block */}
-            <div
-              onClick={() => setOverdueStatus(overdueStatus === 'inactive' ? 'all' : 'inactive')}
-              style={{
-                padding: '12px 16px',
-                borderRadius: '12px',
-                background: overdueStatus === 'inactive' ? '#fef2f2' : '#ffffff',
-                border: `1.5px solid ${overdueStatus === 'inactive' ? '#ef4444' : '#fecaca'}`,
-                boxShadow: overdueStatus === 'inactive' ? '0 0 0 2px rgba(239, 68, 68, 0.18)' : '0 1px 3px rgba(0,0,0,0.03)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title="Click to filter by Inactive Loans Overdue"
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#b91c1c', textTransform: 'uppercase', letterSpacing: '.03em' }}>
-                    {d.inactiveOverdue || 'Inactive Loans Overdue'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '.75rem', fontWeight: 650, color: '#dc2626', background: '#fee2e2', padding: '1px 7px', borderRadius: '12px' }}>
-                  {overdueData.inactive.customerCount} {d.activeCustomers || 'customers'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                  {formatCurrency(overdueData.inactive.totalOverdue, currencySymbol)}
-                </span>
-                <span style={{ fontSize: '.78rem', color: '#64748b' }}>
-                  {overdueData.inactive.collectedToday > 0 ? `${formatCurrency(overdueData.inactive.collectedToday, currencySymbol)} rec.` : '0 rec.'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Dual Interactive Controls: Status & Frequency Filters ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
-            {/* Row 1: Loan Status Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
-                {d.loanClassification || 'Loan Status'}:
-              </span>
-              <div
+              <button
+                type="button"
+                onClick={() => setOverdueFreq('all')}
                 style={{
-                  display: 'inline-flex',
-                  background: '#f1f5f9',
-                  padding: '3px',
-                  borderRadius: '10px',
-                  gap: '3px',
                   flex: 1,
+                  padding: '7px 12px',
+                  fontSize: '.82rem',
+                  fontWeight: overdueFreq === 'all' ? 700 : 500,
+                  color: overdueFreq === 'all' ? '#0f172a' : '#64748b',
+                  background: overdueFreq === 'all' ? '#ffffff' : 'transparent',
+                  border: 'none',
+                  borderRadius: '8px',
+                  boxShadow: overdueFreq === 'all' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {statusOptions.map((opt) => {
-                  const isSel = overdueStatus === opt.key;
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setOverdueStatus(opt.key)}
-                      style={{
-                        flex: 1,
-                        padding: '7px 12px',
-                        fontSize: '.82rem',
-                        fontWeight: isSel ? 700 : 500,
-                        color: isSel ? '#0f172a' : '#64748b',
-                        background: isSel ? '#ffffff' : 'transparent',
-                        border: 'none',
-                        borderRadius: '8px',
-                        boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Row 2: Frequency Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', minWidth: '70px' }}>
-                {d.frequency || 'Frequency'}:
-              </span>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  background: '#f1f5f9',
-                  padding: '3px',
-                  borderRadius: '10px',
-                  gap: '3px',
-                  flex: 1,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setOverdueFreq('all')}
-                  style={{
-                    flex: 1,
-                    padding: '7px 12px',
-                    fontSize: '.82rem',
-                    fontWeight: overdueFreq === 'all' ? 700 : 500,
-                    color: overdueFreq === 'all' ? '#0f172a' : '#64748b',
-                    background: overdueFreq === 'all' ? '#ffffff' : 'transparent',
-                    border: 'none',
-                    borderRadius: '8px',
-                    boxShadow: overdueFreq === 'all' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {d.allFrequencies || 'All'}
-                </button>
-                {frequencies.map((f) => {
-                  const isSel = overdueFreq === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setOverdueFreq(f.key)}
-                      style={{
-                        flex: 1,
-                        padding: '7px 12px',
-                        fontSize: '.82rem',
-                        fontWeight: isSel ? 700 : 500,
-                        color: isSel ? f.color : '#64748b',
-                        background: isSel ? '#ffffff' : 'transparent',
-                        border: 'none',
-                        borderRadius: '8px',
-                        boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
+                {d.allFrequencies || 'All'}
+              </button>
+              {frequencies.map((f) => {
+                const isSel = overdueFreq === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setOverdueFreq(f.key)}
+                    style={{
+                      flex: 1,
+                      padding: '7px 12px',
+                      fontSize: '.82rem',
+                      fontWeight: isSel ? 700 : 500,
+                      color: isSel ? f.color : '#64748b',
+                      background: isSel ? '#ffffff' : 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      boxShadow: isSel ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1111,7 +791,7 @@ export default function CollectionBreakdownCards({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {frequencies.map((freq) => {
               const freqData = overdueData.breakdown?.[freq.key] || emptyOverdueMetrics;
-              const b = getOverdueMetrics(freqData, overdueStatus);
+              const b = freqData.total;
               const isSelected = overdueFreq === freq.key;
 
               return (
@@ -1141,15 +821,11 @@ export default function CollectionBreakdownCards({
                         {freq.label}
                       </span>
                     </div>
-                    {/* Active vs Inactive Pill */}
-                    <div style={{ fontSize: '.72rem', color: '#64748b' }}>
-                      <span style={{ color: '#16a34a', fontWeight: 600 }}>Active: {formatCurrency(freqData.active.totalOverdue, currencySymbol)}</span>
-                      {freqData.inactive.totalOverdue > 0 && (
-                        <span style={{ color: '#ea580c', fontWeight: 600, marginLeft: '6px' }}>
-                          • Inactive: {formatCurrency(freqData.inactive.totalOverdue, currencySymbol)}
-                        </span>
-                      )}
-                    </div>
+                    {b.customerCount > 0 && (
+                      <span style={{ fontSize: '.72rem', color: '#64748b' }}>
+                        {b.customerCount} {d.activeCustomers || 'customers'}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, justifyContent: 'flex-end' }}>

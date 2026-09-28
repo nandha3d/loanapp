@@ -26,13 +26,18 @@ export async function GET(req: NextRequest) {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
     status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
+    deletedAt: null,
   };
   if (ctx.role === 'agent') {
     // Agents are scoped to their own customers (agentId / route assignment), NOT
     // by branch — a branch pin falsely hides their customers' loans that have
     // branchId = null or live in another branch.
-    loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+    loanWhere.customer = {
+      deletedAt: null,
+      ...buildAgentCustomerAccessWhere({ userId: ctx.userId }),
+    };
   } else {
+    loanWhere.customer = { deletedAt: null };
     Object.assign(loanWhere, scopedBranchWhere(ctx));
   }
 
@@ -81,7 +86,10 @@ export async function GET(req: NextRequest) {
     // the customer's effective location so the collection list/map/sort all
     // get real data.
     for (const r of rows) {
-      const points = r.loan.customer.collectionPoints;
+      if (!r.loan?.customer) continue;
+      const points = Array.isArray(r.loan.customer.collectionPoints)
+        ? r.loan.customer.collectionPoints
+        : [];
       const point =
         points.find((p) => p.isPrimary && p.latitude != null && p.longitude != null) ??
         points.find((p) => p.latitude != null && p.longitude != null);
@@ -94,7 +102,9 @@ export async function GET(req: NextRequest) {
 
     // Project repayment distribution across all loan instalments so receivedAmount,
     // status, outstandingAmount match the authoritative /collection/dashboard calculation
-    const allLoanIds = Array.from(new Set(rows.map((r) => r.loanId)));
+    const allLoanIds = Array.from(
+      new Set(rows.map((r) => r.loanId).filter((id): id is string => Boolean(id))),
+    );
     if (allLoanIds.length > 0) {
       const allInstalmentsForLoans = await prisma.instalment.findMany({
         where: { loanId: { in: allLoanIds } },
@@ -133,14 +143,17 @@ export async function GET(req: NextRequest) {
     // cadence day, so agents aren't sent to weekly/monthly customers every day.
     // Today's dues and today's collections always pass through.
     const visible = rows.filter((r) => {
+      if (!r.loan || !r.loan.customer) return false;
       const dt = new Date(r.dueDate);
+      if (isNaN(dt.getTime())) return false;
       const dueToday = dt >= today && dt < tomorrow;
       const paidToday =
         r.receivedAt != null &&
+        !isNaN(new Date(r.receivedAt).getTime()) &&
         new Date(r.receivedAt) >= today &&
         new Date(r.receivedAt) < tomorrow;
       if (dueToday || paidToday) return true;
-      return isCollectionDay(r.loan.frequency, r.dueDate, today);
+      return isCollectionDay(r.loan.frequency, dt, today);
     });
 
     const hasMore = visible.length > limit;
@@ -148,6 +161,7 @@ export async function GET(req: NextRequest) {
     const nextCursor = hasMore ? data[data.length - 1].id : null;
     return ok(data, { nextCursor, limit });
   } catch (e: any) {
+    console.error('[collection/today] error:', e);
     return fail(e?.message ?? 'Collection list failed', 500);
   }
 }
