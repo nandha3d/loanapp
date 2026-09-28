@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { withActionAuth } from '@/lib/serverActionAuth';
 import { normalizeModuleList } from '@/types/modules';
-import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function reviewBranchRequest(formData: FormData) {
   const requestId = formData.get('requestId') as string;
@@ -69,15 +68,16 @@ export async function reviewBranchRequest(formData: FormData) {
       },
     });
 
-    await notifyUser({
-      tenantId: req.tenantId,
-      targetUserId: req.requestedById,
-      appType: 'microlending',
-      type: 'branch_request',
-      icon: decision === 'approved' ? 'check_circle' : 'cancel',
-      title: `Branch request ${decision}`,
-      message: `${req.branchName || 'Branch module request'} was ${decision}.`,
-      link: '/branch-requests',
+    await prisma.systemNotification.create({
+      data: {
+        tenantId: req.tenantId,
+        appType: 'microlending',
+        type: 'branch_request',
+        icon: decision === 'approved' ? 'check_circle' : 'cancel',
+        title: `Branch request ${decision}`,
+        message: `${req.branchName || 'Branch module request'} was ${decision}.`,
+        link: '/branch-requests',
+      },
     }).catch(() => {});
 
     revalidatePath('/admin/branch-requests');

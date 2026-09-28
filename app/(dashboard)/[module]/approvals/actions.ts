@@ -504,7 +504,7 @@ export async function submitEditRequest(formData: FormData) {
     return { success: false, error: 'No changes detected. Please modify at least one field.' };
   }
 
-  const approvalRequest = await prisma.approvalRequest.create({
+  await prisma.approvalRequest.create({
     data: {
       tenantId,
       appType,
@@ -547,12 +547,7 @@ export async function submitEditRequest(formData: FormData) {
     icon: 'rate_review',
     title: 'Customer edit pending review',
     message: `Agent requested edits for customer ${customer.name}.`,
-    link: `${modulePath(appType, '/approvals')}?id=${approvalRequest.id}`,
-    data: {
-      approvalId: approvalRequest.id,
-      entityType: 'customer_edit',
-      actionable: 'true',
-    },
+    link: modulePath(appType, '/approvals'),
   });
 
   revalidatePath(`/customers/${customerId}`);
@@ -710,17 +705,19 @@ export async function reviewPendingLoan(formData: FormData) {
   // Notify the agent that their loan was reviewed
   if (loan.createdById) {
     const label = action === 'approve' ? 'approved' : 'rejected';
-    await notifyUser({
-      tenantId: tenantId!,
-      branchId: loan.branchId,
-      appType,
-      targetUserId: loan.createdById,
-      targetRole: 'agent',
-      type: `loan_${label}`,
-      icon: action === 'approve' ? 'check_circle' : 'cancel',
-      title: `Loan ${label}`,
-      message: `Loan ${loan.loanCode} has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
-      link: modulePath(appType, '/loans'),
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: loan.branchId,
+        appType,
+        targetUserId: loan.createdById,
+        targetRole: 'agent',
+        type: `loan_${label}`,
+        icon: action === 'approve' ? 'check_circle' : 'cancel',
+        title: `Loan ${label}`,
+        message: `Loan ${loan.loanCode} has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+        link: modulePath(appType, '/loans'),
+      },
     }).catch(() => {});
   }
 
@@ -760,17 +757,19 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
 
   // Notify the agent that their customer creation was rejected
   if (customer.agentId) {
-    await notifyUser({
-      tenantId: tenantId!,
-      branchId: customer.branchId,
-      appType,
-      targetUserId: customer.agentId,
-      targetRole: 'agent',
-      type: 'customer_rejected',
-      icon: 'cancel',
-      title: 'Customer rejected',
-      message: `Your customer ${customer.name} was not approved.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
-      link: modulePath(appType, '/customers'),
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: customer.branchId,
+        appType,
+        targetUserId: customer.agentId,
+        targetRole: 'agent',
+        type: 'customer_rejected',
+        icon: 'cancel',
+        title: 'Customer rejected',
+        message: `Your customer ${customer.name} was not approved.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+        link: modulePath(appType, '/customers'),
+      },
     }).catch(() => {});
   }
 

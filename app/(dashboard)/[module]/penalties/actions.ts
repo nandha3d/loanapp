@@ -6,7 +6,6 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
-import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function settlePenalty(formData: FormData) {
   const session = await auth();
@@ -106,21 +105,17 @@ export async function waivePenalty(formData: FormData) {
     },
   });
 
-  // Create notification and mobile push
-  if (penalty.loan.createdById) {
-    await notifyUser({
+  // Create notification
+  await prisma.systemNotification.create({
+    data: {
       tenantId,
-      branchId: penalty.loan.branchId,
-      appType,
-      targetUserId: penalty.loan.createdById,
-      targetRole: 'agent',
-      type: 'penalty_waived',
+      type: 'success',
       icon: 'money_off',
       title: 'Penalty Waived',
-      message: `Penalty of ₹${waivedAmount} waived for loan ${penalty.loan.loanCode} by admin.`,
+      message: `Penalty of ${gross} waived for loan ${penalty.loan.loanCode} by admin.`,
       link: `/loans/${penalty.loan.loanCode}`,
-    }).catch(() => {});
-  }
+    },
+  });
 
   revalidatePath('/penalties');
   revalidatePath(`/loans/${penalty.loan.loanCode}`);

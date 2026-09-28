@@ -2,7 +2,6 @@ import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { PrecloseRequestError, reviewLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { notifyUser } from '@/lib/notify/userNotify';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
@@ -98,17 +97,19 @@ export async function PATCH(
       });
 
       if (customer.agentId) {
-        await notifyUser({
-          tenantId: ctx.tenantId,
-          branchId: customer.branchId,
-          appType: ctx.appType,
-          targetUserId: customer.agentId,
-          targetRole: 'agent',
-          type: 'customer_rejected',
-          icon: 'cancel',
-          title: 'Customer rejected',
-          message: `Your customer ${customer.name} was not approved.${note ? ` Note: ${note}` : ''}`,
-          link: '/customers',
+        await prisma.systemNotification.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: customer.branchId,
+            appType: ctx.appType,
+            targetUserId: customer.agentId,
+            targetRole: 'agent',
+            type: 'customer_rejected',
+            icon: 'cancel',
+            title: 'Customer rejected',
+            message: `Your customer ${customer.name} was not approved.${note ? ` Note: ${note}` : ''}`,
+            link: '/customers',
+          },
         }).catch(() => {});
       }
 
@@ -138,17 +139,19 @@ export async function PATCH(
       });
 
       if (loan.createdById) {
-        await notifyUser({
-          tenantId: ctx.tenantId,
-          branchId: loan.branchId,
-          appType: ctx.appType,
-          targetUserId: loan.createdById,
-          targetRole: 'agent',
-          type: 'loan_rejected',
-          icon: 'cancel',
-          title: 'Loan rejected',
-          message: `Loan ${loan.loanCode} has been rejected.${note ? ` Note: ${note}` : ''}`,
-          link: '/loans',
+        await prisma.systemNotification.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            appType: ctx.appType,
+            targetUserId: loan.createdById,
+            targetRole: 'agent',
+            type: 'loan_rejected',
+            icon: 'cancel',
+            title: 'Loan rejected',
+            message: `Loan ${loan.loanCode} has been rejected.${note ? ` Note: ${note}` : ''}`,
+            link: '/loans',
+          },
         }).catch(() => {});
       }
 

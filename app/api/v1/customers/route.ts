@@ -422,7 +422,7 @@ export async function POST(req: NextRequest) {
             icon: 'person_add',
             title: 'Customer awaiting approval',
             message: `${body.name} (${customerCode}) was submitted and needs review.`,
-            link: `${modulePath(ctx.appType, '/approvals')}?id=${customer.id}`,
+            link: modulePath(ctx.appType, '/approvals'),
             data: {
               approvalId: customer.id,
               entityType: 'customer',

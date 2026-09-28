@@ -8,7 +8,6 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
-import { notifyUser } from '@/lib/notify/userNotify';
 
 /**
  * Vehicle recovery: seizure and release.
@@ -53,12 +52,7 @@ export async function seizeVehicle(formData: FormData) {
 
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: data.vehicleId, tenantId, appType },
-    select: {
-      id: true,
-      registrationNo: true,
-      loanId: true,
-      customer: { select: { agentId: true, branchId: true } },
-    },
+    select: { id: true, registrationNo: true, loanId: true },
   });
   if (!vehicle) return { error: 'Vehicle not found in your workspace' };
   if (!vehicle.loanId) return { error: 'This vehicle is not linked to a loan, so it cannot be seized.' };
@@ -115,32 +109,17 @@ export async function seizeVehicle(formData: FormData) {
     });
   });
 
-  await notifyUser({
-    tenantId,
-    branchId: vehicle.customer?.branchId ?? null,
-    appType,
-    type: 'danger',
-    icon: 'car_crash',
-    title: 'Vehicle seized',
-    message: `${vehicle.registrationNo} was seized and moved to ${data.yardLocation}.`,
-    link: modulePath(appType, `/vehicles/${vehicle.id}`),
-    targetRole: 'admin',
-    includeUnassignedBranch: true,
-  }).catch(() => null);
-
-  if (vehicle.customer?.agentId) {
-    await notifyUser({
+  await prisma.systemNotification.create({
+    data: {
       tenantId,
-      branchId: vehicle.customer?.branchId ?? null,
       appType,
-      targetUserId: vehicle.customer.agentId,
       type: 'danger',
       icon: 'car_crash',
       title: 'Vehicle seized',
       message: `${vehicle.registrationNo} was seized and moved to ${data.yardLocation}.`,
       link: modulePath(appType, `/vehicles/${vehicle.id}`),
-    }).catch(() => null);
-  }
+    },
+  }).catch(() => null);
 
   await prisma.auditLog.create({
     data: {
@@ -263,19 +242,6 @@ export async function releaseVehicle(formData: FormData) {
       }),
     },
   });
-
-  await notifyUser({
-    tenantId,
-    branchId: recovery.loan?.branchId ?? null,
-    appType,
-    type: 'success',
-    icon: 'directions_car',
-    title: 'Vehicle released',
-    message: `${recovery.vehicle.registrationNo} was released.`,
-    link: modulePath(appType, `/vehicles/${recovery.vehicle.id}`),
-    targetRole: 'admin',
-    includeUnassignedBranch: true,
-  }).catch(() => null);
 
   revalidatePath(modulePath(appType, `/vehicles/${recovery.vehicle.id}`));
   revalidatePath(modulePath(appType, '/vehicles'));

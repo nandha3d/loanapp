@@ -1,5 +1,4 @@
 import prisma from '@/lib/db';
-import { notifyUser } from '@/lib/notify/userNotify';
 
 export const DEFAULT_GPS_THRESHOLD_METRES = 200;
 
@@ -234,17 +233,18 @@ export async function verifyAndPersistCollectionLocation(input: {
         ? `Agent ${agentName} used a mock/fake GPS location to collect payment from ${customerName}.`
         : `Agent ${agentName} collected payment from ${customerName} outside the geofence (${distanceMetres}m away).`;
 
-      await notifyUser({
-        tenantId: input.tenantId,
-        branchId: branchId,
-        appType: appType,
-        type: isMock ? 'mock_gps_alert' : 'geofence_violation',
-        icon: isMock ? 'gps_fixed' : 'gps_off',
-        title,
-        message,
-        link: `/loans/${loanCode}`,
-        targetRole: 'admin',
-        includeUnassignedBranch: true,
+      await prisma.systemNotification.create({
+        data: {
+          tenantId: input.tenantId,
+          branchId: branchId,
+          appType: appType,
+          type: isMock ? 'mock_gps_alert' : 'geofence_violation',
+          icon: isMock ? 'gps_fixed' : 'gps_off',
+          title,
+          message,
+          link: `/loans/${loanCode}`,
+          targetRole: 'admin',
+        },
       });
     } catch (err) {
       console.error('Failed to create geofence notification:', err);

@@ -5,7 +5,6 @@ import prisma from '@/lib/db';
 import { withActionAuth } from '@/lib/serverActionAuth';
 import { normalizeModuleList, isAddOnKey } from '@/types/modules';
 import { seedDefaultCoA } from '@/lib/accounting/seedDefaultCoA';
-import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function reviewModuleRequest(formData: FormData) {
   const requestId = formData.get('requestId') as string;
@@ -84,15 +83,16 @@ export async function reviewModuleRequest(formData: FormData) {
       : `Module request ${decision}`;
     const notifMsg = `Your request for "${req.appType}" was ${decision}.`;
 
-    await notifyUser({
-      tenantId: req.tenantId,
-      targetUserId: req.requestedById,
-      appType: 'microlending',
-      type: 'module_request',
-      icon: decision === 'approved' ? 'check_circle' : 'cancel',
-      title: notifTitle,
-      message: notifMsg,
-      link: '/module-requests',
+    await prisma.systemNotification.create({
+      data: {
+        tenantId: req.tenantId,
+        appType: 'microlending',
+        type: 'module_request',
+        icon: decision === 'approved' ? 'check_circle' : 'cancel',
+        title: notifTitle,
+        message: notifMsg,
+        link: '/module-requests',
+      },
     }).catch(() => {});
 
     revalidatePath('/admin/module-requests');

@@ -928,7 +928,7 @@ export async function POST(req: NextRequest) {
         icon: 'account_balance',
         title: 'Loan awaiting approval',
         message: `Loan ${loanCode} (${loan.customer?.name ?? 'customer'}) was submitted and needs review.`,
-        link: `${modulePath(ctx.appType, '/approvals')}?id=${loan.id}`,
+        link: modulePath(ctx.appType, '/approvals'),
         data: {
           approvalId: loan.id,
           entityType: 'loan',

@@ -2,7 +2,6 @@ import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { PrecloseRequestError, reviewLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { notifyUser } from '@/lib/notify/userNotify';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { encryptAadharNumber } from '@/lib/pii';
@@ -320,19 +319,21 @@ export async function PATCH(
         },
       });
 
-      // Send system notification and mobile push
+      // Send system notification
       if (customer.agentId) {
-        await notifyUser({
-          tenantId: ctx.tenantId,
-          branchId: customer.branchId,
-          appType: ctx.appType,
-          targetUserId: customer.agentId,
-          targetRole: 'agent',
-          type: 'customer_approved',
-          icon: 'check_circle',
-          title: 'Customer approved',
-          message: `Your customer ${customer.name} has been approved and is now active.`,
-          link: '/customers',
+        await prisma.systemNotification.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: customer.branchId,
+            appType: ctx.appType,
+            targetUserId: customer.agentId,
+            targetRole: 'agent',
+            type: 'customer_approved',
+            icon: 'check_circle',
+            title: 'Customer approved',
+            message: `Your customer ${customer.name} has been approved and is now active.`,
+            link: '/customers',
+          },
         }).catch(() => {});
       }
 
@@ -412,17 +413,19 @@ export async function PATCH(
         });
 
         if (loan.createdById) {
-          await notifyUser({
-            tenantId: ctx.tenantId,
-            branchId: loan.branchId,
-            appType: ctx.appType,
-            targetUserId: loan.createdById,
-            targetRole: 'agent',
-            type: 'loan_approved',
-            icon: 'check_circle',
-            title: 'Loan approved',
-            message: `Loan ${loan.loanCode} has been approved.`,
-            link: '/loans',
+          await prisma.systemNotification.create({
+            data: {
+              tenantId: ctx.tenantId,
+              branchId: loan.branchId,
+              appType: ctx.appType,
+              targetUserId: loan.createdById,
+              targetRole: 'agent',
+              type: 'loan_approved',
+              icon: 'check_circle',
+              title: 'Loan approved',
+              message: `Loan ${loan.loanCode} has been approved.`,
+              link: '/loans',
+            },
           }).catch(() => {});
         }
 
