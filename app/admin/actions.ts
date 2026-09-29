@@ -48,7 +48,11 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
 
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
-  let tenantId = actorTenantId;
+  const explicitTenantId =
+    userRole === 'developer' && formData.get('tenantId')
+      ? String(formData.get('tenantId')).trim()
+      : null;
+  let tenantId = explicitTenantId || actorTenantId;
   // Only a DEVELOPER onboarding a business creates a new tenant. A superadmin
   // creating a superadmin adds a CO-OWNER to their OWN account (same tenant).
   // No new businesses can be created from inside an account — and registration
@@ -58,7 +62,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   if (id) {
     const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true } });
     if (user) tenantId = user.tenantId;
-  } else if (role === 'superadmin' && userRole === 'developer') {
+  } else if (role === 'superadmin' && userRole === 'developer' && !explicitTenantId) {
     // Developer onboarding a new business → create a proper Tenant row.
     creatingNewTenant = true;
     const slug = `tnt_${Math.random().toString(36).substring(2, 9)}`;

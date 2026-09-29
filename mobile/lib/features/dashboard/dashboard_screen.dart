@@ -19,7 +19,7 @@ import 'package:zolofund/features/collection/collection_screen.dart'
     show
         collectionTodayProvider,
         refreshCollectionViews,
-        cachedCollectionToday;
+        cachedCollectionTodayFor;
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/chit_dashboard_body.dart';
 import 'package:zolofund/features/dashboard/widgets/collection_trend_card.dart';
@@ -103,7 +103,8 @@ class DashboardScreen extends ConsumerWidget {
         child: isChit
             ? chitSummary!.when(
                 loading: () {
-                  final cached = DashboardRepository.cachedChitSummary;
+                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached = DashboardRepository.cachedChitSummaryFor(scopeKey);
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -115,7 +116,8 @@ class DashboardScreen extends ConsumerWidget {
                   return const _LoadingSkeleton();
                 },
                 error: (err, _) {
-                  final cached = DashboardRepository.cachedChitSummary;
+                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached = DashboardRepository.cachedChitSummaryFor(scopeKey);
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -135,7 +137,8 @@ class DashboardScreen extends ConsumerWidget {
               )
             : summary!.when(
                 loading: () {
-                  final cached = DashboardRepository.cachedSummary;
+                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached = DashboardRepository.cachedSummaryFor(scopeKey);
                   if (cached != null) {
                     return _DashboardBody(
                       summary: cached,
@@ -148,7 +151,8 @@ class DashboardScreen extends ConsumerWidget {
                   return const _LoadingSkeleton();
                 },
                 error: (err, _) {
-                  final cached = DashboardRepository.cachedSummary;
+                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached = DashboardRepository.cachedSummaryFor(scopeKey);
                   if (cached != null) {
                     return _DashboardBody(
                       summary: cached,
@@ -1492,7 +1496,8 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
         const SizedBox(height: 10),
         async.when(
           loading: () {
-            final cached = cachedCollectionToday;
+            final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+            final cached = cachedCollectionTodayFor(scopeKey);
             if (cached != null && cached.isNotEmpty) {
               return _buildRowsContent(cached, t);
             }
@@ -1500,7 +1505,8 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
           },
           error: (e, st) {
             debugPrint('[UpNextPager] collectionTodayProvider error: $e\n$st');
-            final cached = cachedCollectionToday;
+            final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+            final cached = cachedCollectionTodayFor(scopeKey);
             if (cached != null && cached.isNotEmpty) {
               return _buildRowsContent(cached, t);
             }

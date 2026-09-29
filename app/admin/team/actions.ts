@@ -13,7 +13,11 @@ export async function manageAgent(formData: FormData) {
   const session = await auth();
   const actorRole = (session?.user as any)?.role;
   const actorId = session?.user?.id;
-  const tenantId = await getDefaultTenantId();
+  const explicitTenantId =
+    actorRole === 'developer' && formData.get('tenantId')
+      ? String(formData.get('tenantId')).trim()
+      : null;
+  const tenantId = explicitTenantId || (await getDefaultTenantId());
   const activeBranchId = await getActiveBranchId();
 
   if (!actorId || !['admin', 'superadmin', 'developer'].includes(actorRole)) {

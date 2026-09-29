@@ -66,20 +66,33 @@ class _AuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     final path = options.path;
-    final isAuthEndpoint =
-        path.contains('/auth/refresh') || path.contains('/auth/login');
+    final isAuthEndpoint = path.contains('/auth/refresh') ||
+        path.contains('/auth/login') ||
+        path.contains('/auth/register') ||
+        path.contains('/auth/whatsapp') ||
+        path.contains('/auth/2fa') ||
+        path.contains('/auth/forgot-password') ||
+        path.contains('/auth/reset-password') ||
+        path.contains('/auth/google') ||
+        path.contains('/borrower/auth');
     if (!isAuthEndpoint) {
       final token = await _storage.readToken();
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';
       }
+      final tenantSlug = await _storage.readTenantSlug();
+      final branchId = await _storage.readBranchId();
+      final appType = await _storage.readAppType();
+      if (tenantSlug != null && options.headers['X-Tenant-Slug'] == null) {
+        options.headers['X-Tenant-Slug'] = tenantSlug;
+      }
+      if (branchId != null && options.headers['X-Branch-Id'] == null) {
+        options.headers['X-Branch-Id'] = branchId;
+      }
+      if (appType != null && options.headers['X-App-Type'] == null) {
+        options.headers['X-App-Type'] = appType;
+      }
     }
-    final tenantSlug = await _storage.readTenantSlug();
-    final branchId = await _storage.readBranchId();
-    final appType = await _storage.readAppType();
-    if (tenantSlug != null) options.headers['X-Tenant-Slug'] = tenantSlug;
-    if (branchId != null) options.headers['X-Branch-Id'] = branchId;
-    if (appType != null) options.headers['X-App-Type'] = appType;
     handler.next(options);
   }
 

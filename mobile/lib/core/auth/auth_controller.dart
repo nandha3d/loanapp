@@ -8,8 +8,12 @@ import 'package:local_auth/local_auth.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/auth_repository.dart';
+import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/data/services/auth_service.dart';
 import 'package:zolofund/data/services/fcm_service.dart';
+import 'package:zolofund/features/collection/collection_screen.dart';
+import 'package:zolofund/features/loans/loans_screen.dart';
 
 enum AuthStage { unknown, unauthenticated, pendingTotp, locked, authenticated }
 
@@ -35,8 +39,12 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo, this._fcm, Stream<void> unauthorizedStream)
-      : super(const AuthState(stage: AuthStage.unknown)) {
+  AuthController(
+    this._repo,
+    this._fcm,
+    Stream<void> unauthorizedStream, [
+    this._ref,
+  ]) : super(const AuthState(stage: AuthStage.unknown)) {
     _unauthorizedSub = unauthorizedStream.listen((_) => logout());
     _bootstrap();
   }
@@ -44,7 +52,21 @@ class AuthController extends StateNotifier<AuthState> {
   final AuthRepository _repo;
   final FcmService _fcm;
   final LocalAuthentication _localAuth = LocalAuthentication();
+  final Ref? _ref;
   late final StreamSubscription<void> _unauthorizedSub;
+
+  void clearDomainCaches() {
+    DashboardRepository.clearCache();
+    clearCollectionTodayCache();
+    final r = _ref;
+    if (r != null) {
+      r.invalidate(dashboardSummaryProvider);
+      r.invalidate(chitDashboardSummaryProvider);
+      r.invalidate(collectionTodayProvider);
+      r.invalidate(loansProvider);
+      r.invalidate(customerListProvider);
+    }
+  }
 
   Future<void> _bootstrap() async {
     try {
@@ -86,6 +108,7 @@ class AuthController extends StateNotifier<AuthState> {
       if (user == null) {
         state = state.copyWith(stage: AuthStage.pendingTotp);
       } else {
+        clearDomainCaches();
         state = AuthState(stage: AuthStage.authenticated, user: user);
         _fcm.startTokenSync();
         unawaited(refreshUser());
@@ -120,6 +143,7 @@ class AuthController extends StateNotifier<AuthState> {
         challengeToken: challengeToken,
         tenantSlug: tenantSlug,
       );
+      clearDomainCaches();
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
       unawaited(refreshUser());
@@ -133,6 +157,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(clearError: true);
     try {
       final user = await _repo.verify2fa(code);
+      clearDomainCaches();
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
       unawaited(refreshUser());
@@ -146,6 +171,7 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       final res = await _repo.authenticateWithGoogle(idToken: idToken);
       if (!res.needsRegistration && res.user != null) {
+        clearDomainCaches();
         state = AuthState(stage: AuthStage.authenticated, user: res.user);
         _fcm.startTokenSync();
       }
@@ -177,6 +203,7 @@ class AuthController extends StateNotifier<AuthState> {
         referralCode: referralCode,
       );
       if (res.user != null) {
+        clearDomainCaches();
         state = AuthState(stage: AuthStage.authenticated, user: res.user);
         _fcm.startTokenSync();
       } else {
@@ -211,6 +238,7 @@ class AuthController extends StateNotifier<AuthState> {
         selectedAddons: selectedAddons,
         referralCode: referralCode,
       );
+      clearDomainCaches();
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
     } on Object catch (e) {
@@ -272,6 +300,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    clearDomainCaches();
     await _fcm.dispose();
     await _repo.logout();
     state = const AuthState(stage: AuthStage.unauthenticated);
@@ -312,5 +341,6 @@ final authControllerProvider =
     ref.watch(authRepositoryProvider),
     ref.watch(fcmServiceProvider),
     ref.watch(unauthorizedStreamProvider),
+    ref,
   );
 });

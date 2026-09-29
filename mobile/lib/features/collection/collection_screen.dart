@@ -37,16 +37,37 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 List<CollectionRow>? _cachedCollectionToday;
+String? _cachedCollectionScopeKey;
 
-List<CollectionRow>? get cachedCollectionToday => _cachedCollectionToday;
+List<CollectionRow>? cachedCollectionTodayFor(String? scopeKey) {
+  if (scopeKey == null || _cachedCollectionScopeKey != scopeKey) {
+    return null;
+  }
+  return _cachedCollectionToday;
+}
+
+List<CollectionRow>? get cachedCollectionToday => null;
+
+void clearCollectionTodayCache() {
+  _cachedCollectionToday = null;
+  _cachedCollectionScopeKey = null;
+}
 
 final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) async {
+  final user = ref.watch(authControllerProvider).user;
+  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
   try {
     final rows = await ref.watch(collectionServiceProvider).today();
-    _cachedCollectionToday = rows;
+    if (scopeKey != null) {
+      _cachedCollectionScopeKey = scopeKey;
+      _cachedCollectionToday = rows;
+    }
     return rows;
   } catch (e) {
-    if (_cachedCollectionToday != null && _cachedCollectionToday!.isNotEmpty) {
+    if (scopeKey != null &&
+        _cachedCollectionScopeKey == scopeKey &&
+        _cachedCollectionToday != null &&
+        _cachedCollectionToday!.isNotEmpty) {
       return _cachedCollectionToday!;
     }
     // Retry once after a brief delay if initial fetch fails on startup
