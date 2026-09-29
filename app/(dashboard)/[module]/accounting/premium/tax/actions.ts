@@ -15,8 +15,6 @@ import {
   recordChallan as recordTds,
 } from '@/lib/accounting/tax';
 
-export type { GstSummaryData };
-
 async function actor(): Promise<PremiumAccountingActor> {
   const session = await auth();
   if (!session) redirect('/login');

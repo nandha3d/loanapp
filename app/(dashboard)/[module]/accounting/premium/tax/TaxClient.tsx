@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useTransition } from 'react';
 import { formatIndianCurrency } from '@/lib/accounting/utils';
-import type { GstSummaryData } from './actions';
+import type { GstSummaryData } from '@/lib/accounting/tax';
 import { recomputeGstSummary, markGstFiled, recordChallan } from './actions';
 
 type Tab = 'gstr3b' | 'gstr1' | 'tds' | 'payments';
