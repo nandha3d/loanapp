@@ -177,6 +177,8 @@ class _RetryInterceptor extends Interceptor {
   ) async {
     final req = err.requestOptions;
     final isGet = req.method.toUpperCase() == 'GET';
+    final isAuthLogin =
+        req.path.contains('/auth/login') && err.response == null;
     final retryCount = (req.extra['retry_count'] as int?) ?? 0;
     final statusCode = err.response?.statusCode;
 
@@ -186,10 +188,12 @@ class _RetryInterceptor extends Interceptor {
         err.type == DioExceptionType.connectionError ||
         (statusCode != null && statusCode >= 500);
 
-    if (isGet && isTransient && retryCount < 2) {
+    final maxRetries = isAuthLogin ? 1 : (isGet ? 2 : 0);
+
+    if ((isGet || isAuthLogin) && isTransient && retryCount < maxRetries) {
       req.extra['retry_count'] = retryCount + 1;
       await Future<void>.delayed(
-        Duration(milliseconds: 300 * (retryCount + 1)),
+        Duration(milliseconds: 350 * (retryCount + 1)),
       );
       try {
         final res = await _dio.fetch<dynamic>(req);

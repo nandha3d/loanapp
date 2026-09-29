@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:dio/dio.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -202,46 +203,213 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   void _showServerConfigDialog() {
-    final currentUrl = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
-    final controller = TextEditingController(text: currentUrl);
+    final activeUrl = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+    final controller = TextEditingController(text: activeUrl);
+    String? testStatus;
+    bool isTesting = false;
+    Color testStatusColor = AppColors.textSecondary;
+
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Server API URL'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Specify backend API URL (e.g. http://192.168.1.100:3000/api/v1):',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> runTest(String testTarget) async {
+            final target = testTarget.trim();
+            if (target.isEmpty) return;
+            setDialogState(() {
+              isTesting = true;
+              testStatus = 'Testing $target ...';
+              testStatusColor = AppColors.textSecondary;
+            });
+            final sw = Stopwatch()..start();
+            try {
+              final pingDio = Dio(
+                BaseOptions(
+                  connectTimeout: const Duration(seconds: 5),
+                  receiveTimeout: const Duration(seconds: 5),
+                ),
+              );
+              final endpoint =
+                  target.endsWith('/') ? '${target}pricing' : '$target/pricing';
+              await pingDio.get<dynamic>(endpoint);
+              sw.stop();
+              if (ctx.mounted) {
+                setDialogState(() {
+                  isTesting = false;
+                  testStatus = 'Connected (${sw.elapsedMilliseconds}ms)';
+                  testStatusColor = const Color(0xFF10B981);
+                });
+              }
+            } catch (e) {
+              sw.stop();
+              if (ctx.mounted) {
+                setDialogState(() {
+                  isTesting = false;
+                  testStatus =
+                      'Unreachable: ${e is DioException ? (e.message ?? e.type.name) : e}';
+                  testStatusColor = AppColors.danger;
+                });
+              }
+            }
+          }
+
+          void applyPreset(String url) {
+            controller.text = url;
+            runTest(url);
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'http://...',
-                border: OutlineInputBorder(),
+            title: Row(
+              children: [
+                Icon(Icons.dns_outlined, color: AppColors.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  'Server API URL',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Quick Presets:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ActionChip(
+                        avatar: Icon(
+                          Icons.cloud_done,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        label: const Text(
+                          'Animazon Live',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () =>
+                            applyPreset('https://app.animazon.in/api/v1'),
+                      ),
+                      ActionChip(
+                        avatar: Icon(
+                          Icons.shield_outlined,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        label: const Text(
+                          'Samurai Live',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () =>
+                            applyPreset('https://loan.samuraibuiness.in/api/v1'),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.phone_android,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        label: const Text(
+                          'Emulator (10.0.2.2)',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () =>
+                            applyPreset('http://10.0.2.2:3000/api/v1'),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.computer,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        label: const Text(
+                          'Local PC',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () =>
+                            applyPreset('http://localhost:3000/api/v1'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(
+                      labelText: 'API Base URL',
+                      hintText: 'https://...',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: isTesting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(
+                                Icons.network_check,
+                                color: AppColors.primary,
+                              ),
+                        tooltip: 'Test Connection',
+                        onPressed: isTesting
+                            ? null
+                            : () => runTest(controller.text),
+                      ),
+                    ),
+                  ),
+                  if (testStatus != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      testStatus!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: testStatusColor,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ref.read(apiBaseUrlProvider.notifier).set(null);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Reset Default'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(apiBaseUrlProvider.notifier).set(controller.text.trim());
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () {
+                  ref.read(apiBaseUrlProvider.notifier).set(null);
+                  if (mounted) setState(() => _localError = null);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Reset Default'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  final newUrl = controller.text.trim();
+                  if (newUrl.isNotEmpty) {
+                    ref.read(apiBaseUrlProvider.notifier).set(newUrl);
+                  }
+                  if (mounted) setState(() => _localError = null);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Save & Apply'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -354,6 +522,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               loading: loading,
                               onSubmit: _submit,
                               onGoogleSignIn: _handleGoogleSignIn,
+                              onConfigureServer: _showServerConfigDialog,
                             ),
                           ),
                         ),
@@ -389,6 +558,7 @@ class _LoginCard extends ConsumerWidget {
     required this.loading,
     required this.onSubmit,
     required this.onGoogleSignIn,
+    this.onConfigureServer,
   });
 
   final TextEditingController username;
@@ -408,6 +578,7 @@ class _LoginCard extends ConsumerWidget {
   final bool loading;
   final Future<void> Function() onSubmit;
   final VoidCallback onGoogleSignIn;
+  final VoidCallback? onConfigureServer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -510,7 +681,12 @@ class _LoginCard extends ConsumerWidget {
             ),
           ],
           if (error != null) ...[
-            _ErrorBanner(message: error!),
+            _ErrorBanner(
+              message: error!,
+              serverUrl: ref.watch(apiBaseUrlProvider) ?? kDefaultBaseUrl,
+              onConfigureServer: onConfigureServer,
+              onRetry: onSubmit,
+            ),
             const SizedBox(height: 16),
           ],
           if (!useWhatsApp || isSamurai) ...[
@@ -710,32 +886,118 @@ class _LoginCard extends ConsumerWidget {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner({
+    required this.message,
+    this.serverUrl,
+    this.onConfigureServer,
+    this.onRetry,
+  });
+
   final String message;
+  final String? serverUrl;
+  final VoidCallback? onConfigureServer;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final lower = message.toLowerCase();
+    final isConnectionErr = lower.contains('connection') ||
+        lower.contains('server') ||
+        lower.contains('reach the server');
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.dangerBg,
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            size: 18,
-            color: AppColors.danger,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: AppColors.danger,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.dangerText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (isConnectionErr && serverUrl != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Target: $serverUrl',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style:
-                  AppTypography.bodySmall.copyWith(color: AppColors.dangerText),
+          if (isConnectionErr && onConfigureServer != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (onRetry != null) ...[
+                  TextButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh, size: 14),
+                    label: const Text('Retry', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.dangerText,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                ElevatedButton.icon(
+                  onPressed: onConfigureServer,
+                  icon: const Icon(Icons.tune, size: 14),
+                  label: const Text(
+                    'Change Server / Test',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+          ],
         ],
       ),
     );
