@@ -15,7 +15,7 @@ import path from 'path';
 //   firebase-service-account.json    (root file fallback)
 // If neither is set, push is a no-op (other channels keep working).
 
-function loadServiceAccount(): any | null {
+function loadServiceAccount(): Record<string, unknown> | null {
   const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
   const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -103,6 +103,23 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
   if (!data.icon) data.icon = 'ic_notification';
   if (!data.click_action) data.click_action = 'FLUTTER_NOTIFICATION_CLICK';
 
+  const isApproval =
+    data?.type?.includes('approval') ||
+    data?.actionable === 'true' ||
+    Boolean(data?.approvalId) ||
+    payload.title?.toLowerCase().includes('approv') ||
+    payload.body?.toLowerCase().includes('approv') ||
+    payload.link?.includes('approvals');
+
+  if (isApproval) {
+    data.actionable = 'true';
+    if (!data.type) data.type = 'approval_request';
+    if (!data.approvalId && payload.link) {
+      const m = payload.link.match(/[?&]id=([^&]+)/);
+      if (m) data.approvalId = m[1];
+    }
+  }
+
   const messaging = getMessaging();
   for (let i = 0; i < unique.length; i += 500) {
     const batch = unique.slice(i, i + 500);
@@ -126,7 +143,7 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
             color: '#7D287E',
             imageUrl: imgUrl,
             channelId:
-              data?.type?.includes('approval') || data?.type === 'float_insufficient'
+              isApproval || data?.type === 'float_insufficient'
                 ? 'approvals_channel'
                 : 'general_channel',
             defaultSound: true,

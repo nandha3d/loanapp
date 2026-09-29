@@ -19,12 +19,32 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   }
 }
 
+// Memory management observer: Trims decoded bitmap cache on memory pressure or when
+// the app is paused/backgrounded, so Android Low Memory Killer (LMK) never terminates
+// the app while switching between apps.
+class _AppMemoryManager with WidgetsBindingObserver {
+  @override
+  void didHaveMemoryPressure() {
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // Clear non-visible decoded image caches when user switches to another app
+      PaintingBinding.instance.imageCache.clear();
+    }
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Bound the in-memory decoded-image cache. 80 MB comfortably holds 50+
-  // 800px-capped decodes while staying well within memory limits.
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 80 << 20;
-  PaintingBinding.instance.imageCache.maximumSize = 500;
+  // Bound the in-memory decoded-image cache to keep RAM footprint lean (40MB / 80 items)
+  // and register memory observer so switching apps never terminates this application.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 << 20;
+  PaintingBinding.instance.imageCache.maximumSize = 80;
+  WidgetsBinding.instance.addObserver(_AppMemoryManager());
   // Release builds paint a bare gray box (RenderErrorBox) when a widget
   // build throws, which users report as a "blank page" with nothing to act
   // on. Render the exception and stack instead so a screenshot of the

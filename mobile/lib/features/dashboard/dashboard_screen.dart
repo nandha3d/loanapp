@@ -344,8 +344,6 @@ class _CollectionBreakdownSectionState
     extends ConsumerState<_CollectionBreakdownSection> {
   // 0 = Today's Collection, 1 = Overdue Collection, 2 = Agent GPS Live
   int _tab = 0;
-  // 'all' | 'active' | 'inactive'
-  String _loanStatus = 'all';
   // 'all' | 'daily' | 'weekly' | 'monthly' | 'custom'
   String _frequency = 'all';
 
@@ -373,13 +371,9 @@ class _CollectionBreakdownSectionState
         ? td
         : (td.breakdown[_frequency] ?? const TodayFrequencyMetrics());
     if (source is TodayCollectionBreakdown) {
-      if (_loanStatus == 'active') return source.active;
-      if (_loanStatus == 'inactive') return source.inactive;
       return source.total;
     }
     final fm = source as TodayFrequencyMetrics;
-    if (_loanStatus == 'active') return fm.active;
-    if (_loanStatus == 'inactive') return fm.inactive;
     return fm.total;
   }
 
@@ -389,13 +383,9 @@ class _CollectionBreakdownSectionState
         ? od
         : (od.breakdown[_frequency] ?? const OverdueFrequencyMetrics());
     if (source is OverdueCollectionBreakdown) {
-      if (_loanStatus == 'active') return source.active;
-      if (_loanStatus == 'inactive') return source.inactive;
       return source.total;
     }
     final fm = source as OverdueFrequencyMetrics;
-    if (_loanStatus == 'active') return fm.active;
-    if (_loanStatus == 'inactive') return fm.inactive;
     return fm.total;
   }
 
@@ -427,7 +417,6 @@ class _CollectionBreakdownSectionState
           onChanged: (i) {
             setState(() {
               _tab = i;
-              _loanStatus = 'all';
               _frequency = 'all';
             });
             _pageController.animateToPage(
@@ -439,9 +428,9 @@ class _CollectionBreakdownSectionState
         ),
         const SizedBox(height: 10),
 
-        // ── Swipable Cards Carousel (Wider, no internal vertical scroll) ─
+        // ── Swipable Cards Carousel (Compact height starting from frequency pills) ─
         SizedBox(
-          height: 285,
+          height: 205,
           child: PageView(
             controller: _pageController,
             clipBehavior: Clip.none,
@@ -484,8 +473,14 @@ class _CollectionBreakdownSectionState
         ),
         const SizedBox(height: 14),
 
-        // ── Up Next Section for Collection ──────────────────────────────
-        _UpNextPager(fmt: fmt, t: widget.t),
+        // ── Up Next Section for Collection (Filtered by frequency & tab) ──
+        _UpNextPager(
+          fmt: fmt,
+          t: widget.t,
+          frequency: _frequency,
+          tab: _tab,
+          onResetFrequency: () => setState(() => _frequency = 'all'),
+        ),
       ],
     );
   }
@@ -505,53 +500,13 @@ class _CollectionBreakdownSectionState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _StatusPillRow(
-            activeLabel: 'ACTIVE LOANS DUE',
-            activeAmount: fmt.format(td.active.expected),
-            activeCount: '${td.active.loanCount} loans',
-            activeCollected: fmt.format(td.active.collected),
-            inactiveLabel: 'INACTIVE LOANS DUE',
-            inactiveAmount: fmt.format(td.inactive.expected),
-            inactiveCount: '${td.inactive.loanCount} loans',
-            inactiveCollected: fmt.format(td.inactive.collected),
-            onActiveTap: () => setState(() => _loanStatus = 'active'),
-            onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
-            selectedStatus: _loanStatus,
-            responsive: widget.responsive,
-          ),
-          const SizedBox(height: 10),
-          _SegmentedRow(
-            label: 'LOAN STATUS',
-            options: const ['All Loans', 'Active', 'Inactive'],
-            values: const ['all', 'active', 'inactive'],
-            selected: _loanStatus,
-            onChanged: (v) => setState(() => _loanStatus = v),
-            responsive: widget.responsive,
-          ),
-          const SizedBox(height: 6),
-          _SegmentedRow(
-            label: 'FREQUENCY',
-            options: const [
-              'All',
-              'Daily',
-              'Weekly',
-              'Monthly',
-              'Custom',
-            ],
-            values: const [
-              'all',
-              'daily',
-              'weekly',
-              'monthly',
-              'custom',
-            ],
+          _FrequencyPills(
             selected: _frequency,
             onChanged: (v) => setState(() => _frequency = v),
-            responsive: widget.responsive,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _buildTodayKPIs(fmt),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _buildProgressBar(0),
         ],
       ),
@@ -584,53 +539,13 @@ class _CollectionBreakdownSectionState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _StatusPillRow(
-            activeLabel: 'ACTIVE LOANS OVERDUE',
-            activeAmount: fmt.format(od.active.totalOverdue),
-            activeCount: '${od.active.loanCount} loans',
-            activeCollected: fmt.format(od.active.collectedToday),
-            inactiveLabel: 'INACTIVE LOANS OVERDUE',
-            inactiveAmount: fmt.format(od.inactive.totalOverdue),
-            inactiveCount: '${od.inactive.loanCount} loans',
-            inactiveCollected: fmt.format(od.inactive.collectedToday),
-            onActiveTap: () => setState(() => _loanStatus = 'active'),
-            onInactiveTap: () => setState(() => _loanStatus = 'inactive'),
-            selectedStatus: _loanStatus,
-            responsive: widget.responsive,
-          ),
-          const SizedBox(height: 10),
-          _SegmentedRow(
-            label: 'LOAN STATUS',
-            options: const ['All Loans', 'Active', 'Inactive'],
-            values: const ['all', 'active', 'inactive'],
-            selected: _loanStatus,
-            onChanged: (v) => setState(() => _loanStatus = v),
-            responsive: widget.responsive,
-          ),
-          const SizedBox(height: 6),
-          _SegmentedRow(
-            label: 'FREQUENCY',
-            options: const [
-              'All',
-              'Daily',
-              'Weekly',
-              'Monthly',
-              'Custom',
-            ],
-            values: const [
-              'all',
-              'daily',
-              'weekly',
-              'monthly',
-              'custom',
-            ],
+          _FrequencyPills(
             selected: _frequency,
             onChanged: (v) => setState(() => _frequency = v),
-            responsive: widget.responsive,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _buildOverdueKPIs(fmt),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _buildProgressBar(1),
         ],
       ),
@@ -847,147 +762,71 @@ class _TabToggle extends StatelessWidget {
   }
 }
 
-// ── Active vs Inactive status pills (Single Row, Side-by-Side) ───────────────
-class _StatusPillRow extends StatelessWidget {
-  const _StatusPillRow({
-    required this.activeLabel,
-    required this.activeAmount,
-    required this.activeCount,
-    required this.activeCollected,
-    required this.inactiveLabel,
-    required this.inactiveAmount,
-    required this.inactiveCount,
-    required this.inactiveCollected,
-    required this.onActiveTap,
-    required this.onInactiveTap,
-    required this.selectedStatus,
-    required this.responsive,
+// ── Frequency Filter Pills (Prominent, large touch targets) ───────────────────
+class _FrequencyPills extends StatelessWidget {
+  const _FrequencyPills({
+    required this.selected,
+    required this.onChanged,
   });
-  final String activeLabel, activeAmount, activeCount, activeCollected;
-  final String inactiveLabel, inactiveAmount, inactiveCount, inactiveCollected;
-  final VoidCallback onActiveTap, onInactiveTap;
-  final String selectedStatus;
-  final bool responsive;
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  static const _options = ['All', 'Daily', 'Weekly', 'Monthly', 'Custom'];
+  static const _values = ['all', 'daily', 'weekly', 'monthly', 'custom'];
 
   @override
   Widget build(BuildContext context) {
-    // Always render in a single horizontal row for compact, wide design
-    return Row(
-      children: [
-        Expanded(
-          child: _StatusPill(
-            label: activeLabel,
-            amount: activeAmount,
-            count: activeCount,
-            collected: activeCollected,
-            color: const Color(0xFF34D399),
-            isSelected: selectedStatus == 'active',
-            onTap: onActiveTap,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatusPill(
-            label: inactiveLabel,
-            amount: inactiveAmount,
-            count: inactiveCount,
-            collected: inactiveCollected,
-            color: const Color(0xFFFF8674),
-            isSelected: selectedStatus == 'inactive',
-            onTap: onInactiveTap,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.amount,
-    required this.count,
-    required this.collected,
-    required this.color,
-    required this.isSelected,
-    required this.onTap,
-  });
-  final String label, amount, count, collected;
-  final Color color;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withAlpha(28) : Colors.white.withAlpha(10),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color:
-                isSelected ? color.withAlpha(140) : Colors.white.withAlpha(18),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withAlpha(20), width: 1),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < _options.length; i++)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onChanged(_values[i]),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
+                    color: selected == _values[i]
+                        ? AppColors.primary
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
+                    boxShadow: selected == _values[i]
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary.withAlpha(140),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ]
+                        : null,
                   ),
-                ),
-                const SizedBox(width: 4),
-                Flexible(
+                  alignment: Alignment.center,
                   child: Text(
-                    label,
+                    _options[i],
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.extraTiny.copyWith(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      fontSize: 8.5,
+                    style: TextStyle(
+                      color: selected == _values[i]
+                          ? Colors.white
+                          : Colors.white70,
+                      fontWeight: selected == _values[i]
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                amount,
-                style: AppTypography.bodyLarge.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              '$count \u2022 Recv: $collected',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.extraTiny.copyWith(
-                color: Colors.white54,
-                fontSize: 9.5,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1573,9 +1412,18 @@ class _CompactActionChip extends StatelessWidget {
 }
 
 class _UpNextPager extends ConsumerStatefulWidget {
-  const _UpNextPager({required this.fmt, required this.t});
+  const _UpNextPager({
+    required this.fmt,
+    required this.t,
+    this.frequency = 'all',
+    this.tab = 0,
+    this.onResetFrequency,
+  });
   final NumberFormat fmt;
   final T t;
+  final String frequency;
+  final int tab;
+  final VoidCallback? onResetFrequency;
 
   @override
   ConsumerState<_UpNextPager> createState() => _UpNextPagerState();
@@ -1606,9 +1454,13 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
           child: Row(
             children: [
               Text(
-                t.x('dash.up_next').toUpperCase(),
+                widget.frequency == 'all'
+                    ? t.x('dash.up_next').toUpperCase()
+                    : '${t.x('dash.up_next').toUpperCase()} \u2022 ${widget.frequency.toUpperCase()}',
                 style: AppTypography.tiny.copyWith(
-                  color: AppColors.textSecondary,
+                  color: widget.frequency == 'all'
+                      ? AppColors.textSecondary
+                      : AppColors.primary,
                   letterSpacing: 1,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1620,7 +1472,12 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: () => context.go('/collection'),
+                onTap: () {
+                  final freqParam = widget.frequency != 'all'
+                      ? '?frequency=${widget.frequency}'
+                      : '';
+                  context.go('/collection$freqParam');
+                },
                 child: Text(
                   '${t.x('common.see_all')} \u2192',
                   style: AppTypography.caption.copyWith(
@@ -1719,10 +1576,21 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
   }
 
   Widget _buildRowsContent(List<CollectionRow> rows, T t) {
-    // One card per loan. A customer can have separate active loans, and
-    // collection must not merge those amounts on the dashboard.
-    final pendingRows = rows
-        .where((r) => !r.isResolved && r.outstanding > 0)
+    // Filter by frequency if specified
+    final freqFiltered = widget.frequency == 'all'
+        ? rows
+        : rows
+            .where((r) =>
+                r.cadence.toLowerCase() == widget.frequency.toLowerCase())
+            .toList(growable: false);
+
+    // One card per loan. Filter by tab: 0 = Today's scheduled queue, 1 = Overdue queue
+    final pendingRows = freqFiltered
+        .where((r) {
+          if (r.isResolved || r.outstanding <= 0) return false;
+          if (widget.tab == 1) return r.isOverdueBucket;
+          return true;
+        })
         .toList(growable: false);
     final byLoan = <String, _UpNextEntry>{};
     for (final r in pendingRows) {
@@ -1767,6 +1635,61 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
     }
     final pending = byLoan.values.toList(growable: false);
     if (pending.isEmpty) {
+      if (widget.frequency != 'all') {
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: AppTokens.shadow,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.filter_alt_outlined,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No ${widget.frequency} collections',
+                      style: AppTypography.bodyLarge
+                          .copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'No pending items match ${widget.frequency} frequency.',
+                      style: AppTypography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.onResetFrequency != null)
+                TextButton(
+                  onPressed: widget.onResetFrequency,
+                  child: Text(
+                    'Show all',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(

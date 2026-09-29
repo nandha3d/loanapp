@@ -177,10 +177,26 @@ class NotificationActionService {
     }
 
     final type = data['type']?.toString() ?? '';
+    final link = (data['link'] ?? '').toString();
     final isApproval = type.contains('approval') ||
         data['actionable'] == 'true' ||
-        data.containsKey('approvalId');
+        data.containsKey('approvalId') ||
+        title.toLowerCase().contains('approv') ||
+        body.toLowerCase().contains('approv') ||
+        link.contains('approvals');
     final channelId = isApproval ? channelApprovals : channelGeneral;
+
+    String? approvalId = data['approvalId']?.toString();
+    if (approvalId == null || approvalId.isEmpty) {
+      approvalId = data['id']?.toString();
+    }
+    if (approvalId == null || approvalId.isEmpty) {
+      final match = RegExp(r'[?&]id=([^&]+)').firstMatch(link);
+      if (match != null) approvalId = match.group(1);
+    }
+    if (approvalId != null && approvalId.isNotEmpty) {
+      data['approvalId'] = approvalId;
+    }
 
     final androidPlugin = _localNotif.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -279,11 +295,27 @@ class NotificationActionService {
     final body = (notification?.body ?? data['body'] ?? data['message'] ?? '').toString();
 
     final type = data['type']?.toString() ?? '';
+    final link = (data['link'] ?? '').toString();
     final isApproval = type.contains('approval') ||
         data['actionable'] == 'true' ||
-        data.containsKey('approvalId');
+        data.containsKey('approvalId') ||
+        title.toLowerCase().contains('approv') ||
+        body.toLowerCase().contains('approv') ||
+        link.contains('approvals');
     final isCollection = type == 'collection_received' || type == 'payment' || type.contains('collect');
     final isFloatInsufficient = type == 'float_insufficient' || type.contains('float');
+
+    String? approvalId = data['approvalId']?.toString();
+    if (approvalId == null || approvalId.isEmpty) {
+      approvalId = data['id']?.toString();
+    }
+    if (approvalId == null || approvalId.isEmpty) {
+      final match = RegExp(r'[?&]id=([^&]+)').firstMatch(link);
+      if (match != null) approvalId = match.group(1);
+    }
+    if (approvalId != null && approvalId.isNotEmpty) {
+      data['approvalId'] = approvalId;
+    }
 
     final payloadStr = jsonEncode(data);
 
@@ -293,7 +325,7 @@ class NotificationActionService {
         title: title,
         body: body,
         payload: payloadStr,
-        approvalId: data['approvalId'] as String?,
+        approvalId: approvalId,
       );
     } else if (isCollection) {
       final avatarUrl = (data['avatarUrl'] ?? data['customerPhoto'] ?? data['profilePhoto'] ?? data['photo'])?.toString();
@@ -550,7 +582,8 @@ class NotificationActionService {
       } catch (_) {}
     }
 
-    final approvalId = (data['approvalId'] ?? data['id'])?.toString();
+    final approvalId = (data['approvalId'] ?? data['id'])?.toString() ??
+        RegExp(r'[?&]id=([^&]+)').firstMatch(data['link']?.toString() ?? '')?.group(1);
 
     if (actionId == actionApprove) {
       _handleApproveAction(approvalId);
@@ -574,17 +607,20 @@ class NotificationActionService {
 
   Future<void> _handleApproveAction(String? approvalId) async {
     debugPrint('[Notification] User tapped APPROVE for id: $approvalId');
+    bool approved = false;
     if (_ref != null && approvalId != null && approvalId.isNotEmpty) {
       try {
         final approvalSvc = _ref!.read(approvalServiceProvider);
         await approvalSvc.approve(approvalId);
+        approved = true;
         debugPrint('[Notification] Approved successfully via notification bar');
       } catch (e) {
         debugPrint('[Notification] Inline approval error: $e');
       }
     }
+    final action = approved ? 'approved' : 'approve';
     final route = (approvalId != null && approvalId.isNotEmpty)
-        ? '/approvals?id=$approvalId&action=approved'
+        ? '/approvals?id=$approvalId&action=$action'
         : '/approvals';
     rootNavigatorKey.currentContext?.go(route);
   }

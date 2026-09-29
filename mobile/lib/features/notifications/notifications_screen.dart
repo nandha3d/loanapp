@@ -648,33 +648,41 @@ class _NotificationTile extends ConsumerWidget {
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: iconBg,
-                          child: hasPhotoUrl
-                              ? ClipOval(
-                                  child: Image(
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: iconBg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.border.withAlpha(90),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: hasPhotoUrl
+                                ? Image(
                                     image: authedImage(ref, item.icon!),
                                     width: 44,
                                     height: 44,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Icon(
-                                      iconData,
-                                      color: iconColor,
-                                      size: 20,
+                                    errorBuilder: (_, __, ___) => Padding(
+                                      padding: const EdgeInsets.all(5),
+                                      child: Image.asset(
+                                        'assets/images/logo-square-dark.png',
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.all(5),
+                                    child: Image.asset(
+                                      'assets/images/logo-square-dark.png',
+                                      fit: BoxFit.contain,
                                     ),
                                   ),
-                                )
-                              : Text(
-                                  (item.title != null && item.title!.isNotEmpty)
-                                      ? item.title![0].toUpperCase()
-                                      : 'Z',
-                                  style: TextStyle(
-                                    color: iconColor,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
-                                  ),
-                                ),
+                          ),
                         ),
                         Positioned(
                           right: -2,

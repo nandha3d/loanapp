@@ -322,10 +322,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/collection',
-        builder: (_, __) {
+        builder: (_, state) {
           final user = ref.read(authControllerProvider).user;
           if (AppType.userIsChit(user)) return const ChitsScreen();
-          return const CollectionScreen();
+          final freq = state.uri.queryParameters['frequency'];
+          return CollectionScreen(initialFrequency: freq);
         },
         routes: [
           GoRoute(

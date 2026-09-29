@@ -110,7 +110,14 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen>
               if (_tabController.index != tabIdx) {
                 _tabController.index = tabIdx;
               }
-              if (widget.initialAction == 'reject') {
+              if (widget.initialAction == 'approve') {
+                _handledInitialAction = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _ApprovalCard.showActionDialog(context, ref, target, true, refresh);
+                  }
+                });
+              } else if (widget.initialAction == 'reject') {
                 _handledInitialAction = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
