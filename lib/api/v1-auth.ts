@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
 import { fail } from './v1-envelope';
 import { checkLoginWindow } from '../autofinance/operations';
+import { resolveUnbranchedAdminBranch, UNBRANCHED_ADMIN_ERROR } from '../branchScope';
 
 const ALG = 'HS256';
 const ISSUER = 'zolofund';
@@ -221,7 +222,14 @@ async function resolveScopeBranchId(
   requestedBranchId: string | null,
 ): Promise<string | null> {
   const privileged = claims.role === 'superadmin' || claims.role === 'developer';
-  if (!privileged) return claims.branchId;
+  if (!privileged && (claims.role !== 'admin' || claims.branchId)) return claims.branchId;
+  if (!privileged) {
+    // Unbranched admin token: re-read the row (a branch may have been assigned
+    // since login), else fail closed — null would be "All Branches" (SCOPE-4).
+    const prisma = (await import('../db')).default;
+    const user = await prisma.user.findUnique({ where: { id: claims.userId }, select: { branchId: true } });
+    return user?.branchId ?? resolveUnbranchedAdminBranch(prisma, claims.tenantId);
+  }
   if (!requestedBranchId || requestedBranchId === 'all') return null;
   if (requestedBranchId === claims.branchId) return claims.branchId;
 
@@ -231,9 +239,10 @@ async function resolveScopeBranchId(
       where: { id: requestedBranchId, tenantId: claims.tenantId },
       select: { id: true },
     });
-    return branch?.id ?? null;
+    // Unknown branch → home branch, never null ("All Branches" widens, SCOPE-3).
+    return branch?.id ?? claims.branchId;
   } catch {
-    return null;
+    return claims.branchId;
   }
 }
 
@@ -312,7 +321,10 @@ export async function requireMobileContext(req: NextRequest): Promise<MobileAuth
         requestedBranchId,
       },
     };
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message === UNBRANCHED_ADMIN_ERROR) {
+      return { response: fail(UNBRANCHED_ADMIN_ERROR, 403) };
+    }
     return { response: fail('Unauthorized', 401) };
   }
 }

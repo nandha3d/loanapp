@@ -90,3 +90,20 @@ export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
 
   return where;
 }
+
+/**
+ * Who may read or act on a loan looked up by id: tenant + module always; agents
+ * by customer linkage (SCOPE-5), everyone else by the ACTIVE branch (SCOPE-3,
+ * null = "All Branches"). Same rule as GET /api/v1/loans/[id]. Spread it next
+ * to `id` — a by-id lookup that checks only `tenantId` lets another branch or
+ * module reach the loan.
+ */
+export function loanAccessWhere(input: Omit<LoanDetailWhereInput, 'loanId'>) {
+  return {
+    tenantId: input.tenantId,
+    appType: input.appType,
+    ...(input.role === 'agent'
+      ? { customer: buildAgentCustomerAccessWhere({ userId: input.userId }) }
+      : input.branchId ? { branchId: input.branchId } : {}),
+  };
+}

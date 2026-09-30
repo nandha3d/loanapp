@@ -33,3 +33,27 @@ export function branchScopeWhere(branchId?: string | null) {
   if (!branchId) return {};
   return { branchId };
 }
+
+export const UNBRANCHED_ADMIN_ERROR =
+  'Your admin account is not assigned to a branch. Ask a superadmin to assign one.';
+
+/**
+ * Branch for an admin whose user row has no `branchId`. Returning null would
+ * mean "All Branches", i.e. an admin reading every branch (SCOPE-4). So: no
+ * active branch → null (nothing is branched yet), exactly one → that branch,
+ * more → throw (fail closed). Repair the data with
+ * `scripts/backfill-admin-branch.js`. `db` is passed in to keep this file
+ * dependency-free.
+ */
+export async function resolveUnbranchedAdminBranch(
+  db: { branch: { findMany(args: object): Promise<{ id: string }[]> } },
+  tenantId: string,
+): Promise<string | null> {
+  const branches = await db.branch.findMany({
+    where: { tenantId, status: 'active', deletedAt: null },
+    select: { id: true },
+    take: 2,
+  });
+  if (branches.length <= 1) return branches[0]?.id ?? null;
+  throw new Error(UNBRANCHED_ADMIN_ERROR);
+}

@@ -4,6 +4,7 @@ import { auth } from './auth';
 import prisma from './db';
 import type { ModuleKey } from '@/types/modules';
 import { normalizeModuleList } from '@/types/modules';
+import { resolveUnbranchedAdminBranch } from './branchScope';
 
 type SessionUser = {
   id?: string | null;
@@ -27,29 +28,32 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
     const activeBranchId = forwardedBranchId || cookieBranchId;
     if (activeBranchId === 'all') return null;
 
-    if (!activeBranchId) {
-      const firstBranch = await prisma.branch.findFirst({
+    if (activeBranchId) {
+      const branch = await prisma.branch.findFirst({
         where: {
+          id: activeBranchId,
           tenantId: user?.tenantId ?? '',
           superadminId: user?.id ?? '',
           status: 'active',
         },
         select: { id: true },
-        orderBy: { name: 'asc' },
       });
-      return firstBranch?.id ?? null;
+      if (branch) return branch.id;
+      // A stale/foreign cookie (branch deactivated, deleted, or not this
+      // superadmin's) falls back to the default branch below — never to null,
+      // which means "All Branches" and would silently widen scope (SCOPE-3).
     }
 
-    const branch = await prisma.branch.findFirst({
+    const firstBranch = await prisma.branch.findFirst({
       where: {
-        id: activeBranchId,
         tenantId: user?.tenantId ?? '',
         superadminId: user?.id ?? '',
         status: 'active',
       },
       select: { id: true },
+      orderBy: { name: 'asc' },
     });
-    return branch?.id ?? null;
+    return firstBranch?.id ?? null;
   }
 
   // Branch Admin: strictly load from DB to prevent session serialization or caching issues
@@ -58,7 +62,7 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
       where: { id: user.id },
       select: { branchId: true }
     });
-    return dbUser?.branchId ?? null;
+    return dbUser?.branchId ?? resolveUnbranchedAdminBranch(prisma, user.tenantId ?? '');
   }
 
   return user?.branchId ?? null;

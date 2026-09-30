@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiContext } from '@/lib/apiAuth';
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getBranding } from '@/lib/tenant';
+import { getSetting, getBranding } from '@/lib/tenant';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 
 // Printable A4 gold pledge receipt (HTML) — renders Tamil natively in the
 // browser, no PDF font registration needed. Shop details + bilingual terms come
@@ -13,13 +14,15 @@ function esc(s: unknown): string {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireApiContext();
+  if (authResult.response) return authResult.response;
+  const { context } = authResult;
   const { id } = await params;
-  const tenantId = await getDefaultTenantId();
+  const tenantId = context.tenantId;
 
   const loan = await prisma.loan.findFirst({
-    where: { id, tenantId },
+    // Same scope as the loan detail page (tenant, module, branch / agent linkage).
+    where: { id, ...loanAccessWhere(context) },
     include: {
       customer: true,
       goldCollateral: { include: { items: { orderBy: { sortOrder: 'asc' } } } },

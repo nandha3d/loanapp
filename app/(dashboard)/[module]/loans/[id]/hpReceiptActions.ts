@@ -8,6 +8,8 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
+import { getActiveBranchId } from '@/lib/branch';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import {
   planWaterfallAllocation,
   summarizeWaterfallByInstalment,
@@ -27,6 +29,17 @@ async function requireStaff() {
   const session = await auth();
   if (!session?.user) redirect('/login');
   return session;
+}
+
+/** Same loan scope as the loan detail page: module + active branch / agent linkage. */
+async function loanScope(session: Awaited<ReturnType<typeof requireStaff>>, tenantId: string) {
+  return loanAccessWhere({
+    tenantId,
+    appType: await getUserAppType(),
+    branchId: await getActiveBranchId(),
+    role: (session.user as { role?: string }).role,
+    userId: session.user?.id,
+  });
 }
 
 const receiptSchema = z.object({
@@ -86,11 +99,11 @@ async function loadWaterfallRows(loanId: string): Promise<WaterfallInstalment[]>
  * rows a bulk amount will clear before confirming.
  */
 export async function previewHpReceipt(loanId: string, amount: number, penaltyOverride?: number) {
-  await requireStaff();
+  const session = await requireStaff();
   const tenantId = await getDefaultTenantId();
 
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId },
+    where: { id: loanId, ...(await loanScope(session, tenantId)) },
     select: { id: true },
   });
   if (!loan) return { error: 'Loan not found in your workspace' };
@@ -138,7 +151,7 @@ export async function recordHpReceipt(formData: FormData) {
   const data = parsed.data;
 
   const loan = await prisma.loan.findFirst({
-    where: { id: data.loanId, tenantId, appType },
+    where: { id: data.loanId, ...(await loanScope(session, tenantId)) },
     select: { id: true, loanCode: true, status: true, totalCollected: true, totalInstalments: true },
   });
   if (!loan) return { error: 'Loan not found in your workspace' };

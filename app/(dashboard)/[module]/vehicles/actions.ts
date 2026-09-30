@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 
 async function requireAdmin() {
   const session = await auth();
@@ -17,6 +18,16 @@ async function requireAdmin() {
 }
 
 import { z } from 'zod';
+
+/** A vehicle by id as staff see it: module + its customer's branch (SCOPE-12). */
+async function vehicleAccessWhere(vehicleId: string, tenantId: string) {
+  return {
+    id: vehicleId,
+    tenantId,
+    appType: await getUserAppType(),
+    customer: branchScopeWhere(await getActiveBranchId()),
+  };
+}
 
 const vehicleSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
@@ -58,21 +69,22 @@ export async function createVehicle(formData: FormData) {
   }
   const data = parsed.data;
 
-  // Security: customer must be in scope — agents by customer-linkage, others tenant-wide.
+  // Security: customer must be in scope — agents by customer-linkage, others by
+  // the active branch (SCOPE-16: pickers and links are branch work too).
   const customer = await prisma.customer.findFirst({
     where: {
       id: data.customerId,
       tenantId,
-      ...(isAgent ? buildAgentCustomerAccessWhere({ userId }) : {}),
+      appType,
+      ...(isAgent ? buildAgentCustomerAccessWhere({ userId }) : branchScopeWhere(await getActiveBranchId())),
     },
   });
   if (!customer) throw new Error('Customer not found or not in your tenant');
 
-  // Security: if loanId given, verify it belongs to this tenant (and, for agents,
-  // to the same customer the vehicle is filed under).
+  // Security: if loanId given, it must be that (in-scope) customer's own loan.
   if (data.loanId) {
     const loan = await prisma.loan.findFirst({
-      where: { id: data.loanId, tenantId, ...(isAgent ? { customerId: data.customerId } : {}) },
+      where: { id: data.loanId, tenantId, appType, customerId: data.customerId },
     });
     if (!loan) throw new Error('Loan not found or not in your tenant');
   }
@@ -148,8 +160,8 @@ export async function updateVehicle(formData: FormData) {
   await requireModule(tenantId, 'autofinance');
   const vehicleId = formData.get('vehicleId') as string;
 
-  // Security: verify vehicle belongs to this tenant
-  const existing = await prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId } });
+  // Security: vehicle must be in this module + active branch
+  const existing = await prisma.vehicle.findFirst({ where: await vehicleAccessWhere(vehicleId, tenantId) });
   if (!existing) return { error: 'Vehicle not found or not in your tenant' };
 
   const make = formData.get('make') as string;
@@ -164,6 +176,14 @@ export async function updateVehicle(formData: FormData) {
   const insuranceExpiryStr = formData.get('insuranceExpiry') as string | null;
   const insuranceExpiry = insuranceExpiryStr ? new Date(insuranceExpiryStr) : null;
   const loanId = (formData.get('loanId') as string) || null;
+  if (loanId) {
+    // Only the vehicle's own customer's loan may be linked.
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, tenantId, customerId: existing.customerId },
+      select: { id: true },
+    });
+    if (!loan) return { error: 'Loan not found or not in your tenant' };
+  }
 
   await prisma.vehicle.update({
     where: { id: vehicleId, tenantId },
@@ -191,7 +211,7 @@ export async function flagForRepo(vehicleId: string, reason: string) {
   await requireModule(tenantId, 'autofinance');
   const userId = session.user?.id as string;
 
-  const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId } });
+  const vehicle = await prisma.vehicle.findFirst({ where: await vehicleAccessWhere(vehicleId, tenantId) });
   if (!vehicle) throw new Error('Vehicle not found or not in your tenant');
 
   await prisma.vehicle.update({
@@ -234,6 +254,8 @@ export async function clearRepoFlag(vehicleId: string) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
   await requireModule(tenantId, 'autofinance');
+  const vehicle = await prisma.vehicle.findFirst({ where: await vehicleAccessWhere(vehicleId, tenantId), select: { id: true } });
+  if (!vehicle) throw new Error('Vehicle not found or not in your tenant');
 
   await prisma.vehicle.update({
     where: { id: vehicleId, tenantId },

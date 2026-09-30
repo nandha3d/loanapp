@@ -39,6 +39,20 @@ function startOfDay(value?: string | Date | null): Date {
   }
 }
 
+/**
+ * A run by id, as the actor may see it: tenant + module always; staff by the
+ * ACTIVE branch (SCOPE-3). Agents are checked by `run.agentId` after the lookup
+ * (SCOPE-5), so no branch filter for them here.
+ */
+export function runAccessWhere(actor: Pick<RunActor, 'tenantId' | 'appType' | 'branchId' | 'role'>, id: string) {
+  return {
+    id,
+    tenantId: actor.tenantId,
+    appType: actor.appType,
+    ...(actor.role !== 'agent' && actor.branchId ? { branchId: actor.branchId } : {}),
+  };
+}
+
 /** Digital line (UPI) lands in the bank, not the agent's cash float. */
 function isDigital(paymentMode: string): boolean {
   return paymentMode === 'upi' || paymentMode === 'qr' || paymentMode === 'netbanking' || paymentMode === 'card';
@@ -258,7 +272,7 @@ export async function collectRunLines(
   lines: RunCollectLine[],
 ): Promise<RunCollectResult> {
   const run = await prisma.collectionRun.findFirst({
-    where: { id: runId, tenantId: actor.tenantId },
+    where: runAccessWhere(actor, runId),
   });
   if (!run) throw new Error('run_not_found');
   if (run.status === 'closed' || run.status === 'reconciled') throw new Error('run_closed');
@@ -366,7 +380,7 @@ export async function collectRunLines(
 }
 
 export async function closeRun(actor: RunActor, runId: string) {
-  const run = await prisma.collectionRun.findFirst({ where: { id: runId, tenantId: actor.tenantId } });
+  const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(actor, runId) });
   if (!run) throw new Error('run_not_found');
   if (actor.role === 'agent' && run.agentId !== actor.agentId) throw new Error('forbidden');
   if (run.status === 'reconciled') throw new Error('run_reconciled');
@@ -387,7 +401,7 @@ export async function reconcileRun(
   runId: string,
   input: { cashDeposited: number; depositRef?: string | null; note?: string | null },
 ) {
-  const run = await prisma.collectionRun.findFirst({ where: { id: runId, tenantId: actor.tenantId } });
+  const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(actor, runId) });
   if (!run) throw new Error('run_not_found');
   if (actor.role === 'agent' && run.agentId !== actor.agentId) throw new Error('forbidden');
   if (run.status === 'reconciled') throw new Error('already_reconciled');

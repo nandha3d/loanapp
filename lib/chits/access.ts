@@ -4,10 +4,6 @@ import { requireModule } from '@/lib/moduleGate';
 import { getDefaultTenantId } from '@/lib/tenant';
 import type { ChitScope } from './types';
 
-export function isTenantWideRole(role?: string | null) {
-  return role === 'superadmin' || role === 'developer';
-}
-
 export function canAdminChits(role?: string | null) {
   return role === 'admin' || role === 'superadmin' || role === 'developer';
 }
@@ -25,7 +21,8 @@ export function scopedChitGroupWhere(scope: ChitScope, extra: Record<string, unk
     tenantId: scope.tenantId,
     appType: scope.appType,
     deletedAt: null,
-    ...(scope.branchId && !isTenantWideRole(scope.role) ? { branchId: scope.branchId } : {}),
+    // No role exemption (SCOPE-15): branchId is the ACTIVE branch, null = All Branches.
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...extra,
   };
 }

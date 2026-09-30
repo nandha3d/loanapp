@@ -49,7 +49,7 @@ export async function PATCH(
         select: { id: true },
       });
       if (!hasAccess) return fail('Penalty not found', 404);
-    } else if (ctx.branchId && ctx.role === 'admin') {
+    } else if (ctx.branchId) { // no role exemption (SCOPE-15)
       if (penalty.loan.branchId !== ctx.branchId) {
         return fail('Penalty not found', 404);
       }

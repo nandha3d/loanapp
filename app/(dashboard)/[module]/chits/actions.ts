@@ -13,7 +13,6 @@ import {
   canApproveChitSecurity,
   canCollectChits,
   getWebChitScope,
-  isTenantWideRole,
   scopedChitGroupWhere,
 } from '@/lib/chits/access';
 import {
@@ -1420,7 +1419,6 @@ export async function listChitPaymentIntentsQueue(status: string | null = 'pendi
   return listChitPaymentIntentsForStaff({
     tenantId: scope.tenantId,
     branchId: scope.branchId,
-    isTenantWide: isTenantWideRole(scope.role),
     status,
     chitGroupId: chitGroupId || null,
   });

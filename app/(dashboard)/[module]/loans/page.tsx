@@ -4,7 +4,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, calcPercentage } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDictionary } from '@/lib/i18n';
-import { getActiveBranchId } from '@/lib/branch';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 
 import { auth } from '@/lib/auth';
 import { notFound } from 'next/navigation';
@@ -57,7 +57,8 @@ export default async function LoansPage({
 
   const partners = isAutoFinance
     ? await prisma.financePartner.findMany({
-      where: { tenantId, appType, status: 'active', deletedAt: null },
+      // Same branch scope as the Finance Partners page (SCOPE-12, SCOPE-16).
+      where: { tenantId, appType, status: 'active', deletedAt: null, ...branchScopeWhere(branchId) },
       select: { id: true, name: true, type: true },
       orderBy: { name: 'asc' },
     }).catch(() => [])

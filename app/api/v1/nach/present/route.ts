@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { presentPayment } from '@/lib/nach';
 import prisma from '@/lib/db';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import { z } from 'zod';
 
 const ADMIN_ROLES = new Set(['admin', 'superadmin', 'developer']);
@@ -36,16 +37,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Validation failed' }, { status: 422 });
   }
 
-  // Verify mandate belongs to tenant
+  // Verify caller can see the mandate's loan (tenant, module, branch)
   const mandate = await prisma.nachMandate.findFirst({
-    where: { id: parsed.data.mandateId, tenantId: user.tenantId },
-    select: { id: true, status: true },
+    where: { id: parsed.data.mandateId, tenantId: user.tenantId, loan: loanAccessWhere(user) },
+    select: { id: true, status: true, loanId: true },
   });
   if (!mandate) return NextResponse.json({ error: 'Mandate not found' }, { status: 404 });
 
-  // Check instalment belongs to tenant
+  // The instalment must be on the mandate's own loan — never debit one
+  // customer's mandate for another loan's instalment.
   const instalment = await prisma.instalment.findFirst({
-    where: { id: parsed.data.instalmentId, loan: { tenantId: user.tenantId } },
+    where: { id: parsed.data.instalmentId, loanId: mandate.loanId },
     select: { id: true, dueAmount: true, receivedAmount: true, status: true },
   });
   if (!instalment) return NextResponse.json({ error: 'Instalment not found' }, { status: 404 });

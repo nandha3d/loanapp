@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import { writeAudit } from '@/lib/audit';
 
 export async function POST(
@@ -15,7 +16,8 @@ export async function POST(
 
   try {
     const loan = await prisma.loan.findFirst({
-      where: { id: loanId, tenantId: ctx.tenantId }
+      // Same scope as GET /loans/[id]: no mutating a loan you cannot see.
+      where: { id: loanId, ...loanAccessWhere(ctx) },
     });
     if (!loan) return fail('Loan not found', 404);
 

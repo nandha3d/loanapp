@@ -1342,7 +1342,7 @@ export const en = {
     databaseBackupDesc: 'Download a complete backup of all database tables (Customers, Loans, Accounting, Routes) to an Excel-compatible CSV spreadsheet before performing a wipe or for regular archiving.',
     downloadBackup: 'Download Excel Backup',
     wipeData: 'Wipe Transactional Data',
-    wipeDataDesc: 'Select the data modules you wish to permanently delete.',
+    wipeDataDesc: 'Select the data modules you wish to permanently delete. Only the branch selected at the top is affected; choose All Branches to wipe every branch of this module.',
     selectAtLeastOne: 'Please select at least one data module to wipe.',
     wipeConfirm: 'Are you absolutely sure you want to permanently delete the selected data modules? This action is irreversible.',
     wipeSuccess: 'Data successfully wiped.',

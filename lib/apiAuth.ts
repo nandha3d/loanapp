@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
+import { UNBRANCHED_ADMIN_ERROR } from '@/lib/branchScope';
 import { apiError } from '@/lib/utils';
 import { isSubscriptionAccessError } from '@/lib/subscription';
 
@@ -36,7 +37,15 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
     throw error;
   }
   const appType = await getUserAppType();
-  const branchId = await getActiveBranchId();
+  let branchId: string | null;
+  try {
+    branchId = await getActiveBranchId();
+  } catch (error) {
+    if (error instanceof Error && error.message === UNBRANCHED_ADMIN_ERROR) {
+      return { response: apiError(error.message, 403) };
+    }
+    throw error;
+  }
 
   return {
     context: {

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { writeAudit } from '@/lib/audit';
 
 export async function POST(
@@ -18,7 +18,8 @@ export async function POST(
 
   const { id: customerId } = await params;
   const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId: ctx.tenantId }
+    // Same scope as GET /customers/[id] for staff (SCOPE-3).
+    where: { id: customerId, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) }
   });
 
   if (!customer) return fail('Customer not found', 404);

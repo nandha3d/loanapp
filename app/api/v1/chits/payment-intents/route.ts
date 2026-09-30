@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { canCollectChits, isTenantWideRole } from '@/lib/chits/access';
+import { canCollectChits } from '@/lib/chits/access';
 import { listChitPaymentIntentsForStaff } from '@/lib/chits/paymentIntents';
 
 // Staff queue of customer "I've paid" claims (doc 19), mobile counterpart of
@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
     const intents = await listChitPaymentIntentsForStaff({
       tenantId: ctx.tenantId,
       branchId: ctx.branchId,
-      isTenantWide: isTenantWideRole(ctx.role),
       status: status === 'all' ? null : status || 'pending',
       chitGroupId: chitGroupId || null,
     });

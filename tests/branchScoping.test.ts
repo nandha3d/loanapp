@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { branchScopeWhere } from '../lib/branchScope';
+import { branchScopeWhere, resolveUnbranchedAdminBranch, UNBRANCHED_ADMIN_ERROR } from '../lib/branchScope';
 import { scopedBranchWhere } from '../lib/api/v1-auth';
-import { buildLoanDetailWhere } from '../lib/loanPolicy';
+import { buildLoanDetailWhere, loanAccessWhere } from '../lib/loanPolicy';
 import { gpsAgentWhere } from '../lib/gps/routeProgress';
 
 /**
@@ -72,4 +72,34 @@ assert.deepEqual(gpsAgentWhere({ tenantId: 't1', appType: 'microlending', branch
   tenantId: 't1', appType: 'microlending', role: 'agent', status: 'active',
 });
 
-console.log('branch scoping tests passed');
+// --- loanAccessWhere: by-id loan lookups (repossession, NACH, receipts, foreclosure) ---
+for (const role of ['admin', 'superadmin', 'developer']) {
+  assert.deepEqual(
+    loanAccessWhere({ tenantId: 't1', appType: 'goldloan', branchId: BRANCH, role, userId: 'u1' }),
+    { tenantId: 't1', appType: 'goldloan', branchId: BRANCH },
+    `role "${role}" must not reach another branch's loan by id`,
+  );
+}
+assert.deepEqual(
+  loanAccessWhere({ tenantId: 't1', appType: 'goldloan', branchId: null, role: 'superadmin', userId: 'u1' }),
+  { tenantId: 't1', appType: 'goldloan' },
+  'All Branches = whole module, never another module',
+);
+const agentLoan = loanAccessWhere({ tenantId: 't1', appType: 'goldloan', branchId: BRANCH, role: 'agent', userId: 'a1' });
+assert.ok(!('branchId' in agentLoan), 'agents scope by customer linkage, not branch (SCOPE-5)');
+assert.ok('customer' in agentLoan);
+
+// --- resolveUnbranchedAdminBranch: an unbranched admin never becomes "All Branches" ---
+const fakeDb = (ids: string[]) => ({ branch: { findMany: async () => ids.map((id) => ({ id })) } });
+
+Promise.all([
+  resolveUnbranchedAdminBranch(fakeDb([]), 't1').then((b) => assert.equal(b, null, 'no branches yet → nothing to scope')),
+  resolveUnbranchedAdminBranch(fakeDb([BRANCH]), 't1').then((b) => assert.equal(b, BRANCH, 'single branch → that branch')),
+  resolveUnbranchedAdminBranch(fakeDb([BRANCH, 'branch-salem']), 't1').then(
+    () => assert.fail('several branches must fail closed'),
+    (e: Error) => assert.equal(e.message, UNBRANCHED_ADMIN_ERROR),
+  ),
+]).then(
+  () => console.log('branch scoping tests passed'),
+  (e) => { console.error(e); process.exit(1); },
+);

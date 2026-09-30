@@ -107,8 +107,8 @@ assert.match(
 );
 assert.match(
   npaServiceSrc,
-  /if\s*\(actor\.branchId && actor\.role !== 'superadmin' && actor\.role !== 'developer'\)\s*\{\s*where\.branchId = actor\.branchId;\s*\}/,
-  'NPA list and loan assertions must enforce branch scoping for branch admins',
+  /if\s*\(actor\.branchId\)\s*\{\s*where\.branchId = actor\.branchId;\s*\}/,
+  'NPA list and loan assertions must enforce the active branch for every role (SCOPE-15)',
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

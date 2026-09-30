@@ -8,6 +8,8 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import {
   businessDateKey,
   businessDateValue,
@@ -32,6 +34,11 @@ export async function getDayClosingSnapshot(dateKey?: string) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
+  // One close per branch (the log is UNIQUE on tenant+module+branch+date), so
+  // figures and the "already closed" check follow the active branch (SCOPE-3).
+  const branchId = await getActiveBranchId();
+  const branch = branchScopeWhere(branchId);
+
   const key = dateKey || businessDateKey();
   const dayStart = new Date(`${key}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -41,25 +48,25 @@ export async function getDayClosingSnapshot(dateKey?: string) {
       where: {
         tenantId,
         paymentDate: { gte: dayStart, lt: dayEnd },
-        loan: { appType },
+        loan: { appType, ...branch },
       },
       _sum: { amount: true },
     }),
     prisma.loan.aggregate({
-      where: { tenantId, appType, createdAt: { gte: dayStart, lt: dayEnd }, status: { not: 'pending_review' } },
+      where: { tenantId, appType, ...branch, createdAt: { gte: dayStart, lt: dayEnd }, status: { not: 'pending_review' } },
       _sum: { disbursed: true },
     }),
     prisma.payment.count({
-      where: { tenantId, paymentDate: { gte: dayStart, lt: dayEnd }, loan: { appType } },
+      where: { tenantId, paymentDate: { gte: dayStart, lt: dayEnd }, loan: { appType, ...branch } },
     }),
     // Yesterday's counted closing becomes today's opening float.
     prisma.dayClosingLog.findFirst({
-      where: { tenantId, appType, businessDate: { lt: dayStart } },
+      where: { tenantId, appType, branchId, businessDate: { lt: dayStart } },
       orderBy: { businessDate: 'desc' },
       select: { countedClosing: true },
     }),
     prisma.dayClosingLog.findFirst({
-      where: { tenantId, appType, businessDate: dayStart },
+      where: { tenantId, appType, branchId, businessDate: dayStart },
     }),
   ]);
 
@@ -87,15 +94,17 @@ export async function getDayClosingGate() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
+  const branchId = await getActiveBranchId();
   const [recent, firstLoan] = await Promise.all([
     prisma.dayClosingLog.findMany({
-      where: { tenantId, appType },
+      // "All Branches" (null) counts any branch's close, so the overview is not blocked.
+      where: { tenantId, appType, ...branchScopeWhere(branchId) },
       orderBy: { businessDate: 'desc' },
       take: 10,
       select: { businessDate: true },
     }),
     prisma.loan.findFirst({
-      where: { tenantId, appType },
+      where: { tenantId, appType, ...branchScopeWhere(branchId) },
       orderBy: { createdAt: 'asc' },
       select: { createdAt: true },
     }),
@@ -121,7 +130,7 @@ export async function closeBusinessDay(formData: FormData) {
   const appType = await getUserAppType();
   await requireModule(tenantId, 'autofinance');
   const userId = session.user?.id as string;
-  const branchId = (session.user as any)?.branchId ?? null;
+  const branchId = await getActiveBranchId(); // not the session copy (SCOPE-6)
 
   const raw = Object.fromEntries(formData.entries()) as Record<string, unknown>;
   for (const key of Object.keys(raw)) if (raw[key] === '') raw[key] = null;
@@ -216,7 +225,14 @@ export async function logCustomerCall(formData: FormData) {
 
   // Both the customer and, when given, the loan must be in this workspace.
   const customer = await prisma.customer.findFirst({
-    where: { id: data.customerId, tenantId, appType },
+    where: {
+      id: data.customerId,
+      tenantId,
+      appType,
+      ...((session.user as { role?: string }).role === 'agent'
+        ? buildAgentCustomerAccessWhere({ userId })
+        : branchScopeWhere(await getActiveBranchId())),
+    },
     select: { id: true },
   });
   if (!customer) return { error: 'Customer not found in your workspace' };

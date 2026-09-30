@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { buildRouteSheet } from '@/lib/collectionRun';
+import { buildRouteSheet, runAccessWhere } from '@/lib/collectionRun';
 
 /**
  * GET /api/v1/collection/run/:id/sheet  (agent/admin)
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const { id } = await params;
-    const run = await prisma.collectionRun.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(ctx, id) });
     if (!run) return fail('Run not found', 404);
     if (ctx.role === 'agent' && run.agentId !== ctx.userId) return fail('Forbidden', 403);
     if (!run.routeId) return ok({ run, sheet: [] });

@@ -10,7 +10,7 @@ import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
 import { startTwoFactorSetup, verifyTwoFactorSetup, disableTwoFactor, TwoFactorError } from '@/lib/twoFactor';
 import { encryptField } from '@/lib/pii';
-import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
+import { getActiveBranchId, getBranchEnabledModules, branchScopeWhere } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 import { storeTenantUpload } from '@/lib/fileUpload';
 import {
@@ -436,41 +436,51 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
   }
   
   const tenantId = await getDefaultTenantId();
-  
+  const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
+  // Wipe only the active module + branch (SCOPE-2, SCOPE-3). "All Branches"
+  // (branchId null) wipes every branch of this module — by selection (SCOPE-15).
+  const branch = branchScopeWhere(branchId);
+  const scope = { tenantId, appType, ...branch };
+
   try {
     await prisma.$transaction(async (tx) => {
       if (tablesToWipe.includes('loans')) {
-        await tx.dailyCollection.deleteMany({ where: { tenantId } });
-        await tx.collectionEntry.deleteMany({ where: { tenantId } });
-        await tx.payment.deleteMany({ where: { loan: { tenantId } } });
-        await tx.penalty.deleteMany({ where: { loan: { tenantId } } });
-        await tx.instalment.deleteMany({ where: { loan: { tenantId } } });
-        await tx.loanCollateral.deleteMany({ where: { loan: { tenantId } } });
-        await tx.loan.deleteMany({ where: { tenantId } });
+        await tx.dailyCollection.deleteMany({ where: scope });
+        await tx.collectionEntry.deleteMany({ where: { loan: scope } });
+        await tx.payment.deleteMany({ where: { loan: scope } });
+        await tx.penalty.deleteMany({ where: { loan: scope } });
+        await tx.instalment.deleteMany({ where: { loan: scope } });
+        await tx.loanCollateral.deleteMany({ where: { loan: scope } });
+        await tx.loan.deleteMany({ where: scope });
       }
 
       if (tablesToWipe.includes('customers')) {
-        await tx.guarantor.deleteMany({ where: { customer: { tenantId } } });
-        await tx.vehicle.deleteMany({ where: { tenantId } });
-        await tx.securityCheque.deleteMany({ where: { customer: { tenantId } } });
-        await tx.customer.deleteMany({ where: { tenantId } });
+        await tx.guarantor.deleteMany({ where: { customer: scope } });
+        await tx.vehicle.deleteMany({ where: { customer: scope } });
+        await tx.securityCheque.deleteMany({ where: { customer: scope } });
+        await tx.customer.deleteMany({ where: scope });
       }
 
       if (tablesToWipe.includes('accounting')) {
-        await tx.accountEntry.deleteMany({ where: { tenantId } });
+        await tx.accountEntry.deleteMany({ where: scope });
         // Wallet ledger drives Branch Cash / Agent Float / Released-to-Agent on
         // the dashboard. Clear the transactions first, then zero the balances by
         // removing the account rows (recreated lazily on next release/disburse).
-        await tx.walletTransaction.deleteMany({ where: { tenantId } });
-        await tx.cashHandover.deleteMany({ where: { tenantId } });
-        await tx.agentAccount.deleteMany({ where: { tenantId } });
-        await tx.branchCashAccount.deleteMany({ where: { tenantId } });
+        await tx.walletTransaction.deleteMany({ where: scope });
+        await tx.cashHandover.deleteMany({ where: { tenantId, agent: { appType, ...branch } } });
+        // AgentAccount has no branch column: scope through the agent's own branch.
+        const agentIds = branchId
+          ? (await tx.user.findMany({ where: { ...scope, role: 'agent' }, select: { id: true } })).map(u => u.id)
+          : undefined;
+        await tx.agentAccount.deleteMany({ where: { tenantId, appType, ...(agentIds && { agentId: { in: agentIds } }) } });
+        await tx.branchCashAccount.deleteMany({ where: scope });
       }
 
       // Helper function to delete a specific set of users
       const deleteUsersByRole = async (rolesToDelete: string[]) => {
         const usersToDelete = await tx.user.findMany({
-          where: { tenantId, role: { in: rolesToDelete } },
+          where: { ...scope, role: { in: rolesToDelete } },
           select: { id: true },
         });
         const userIds = usersToDelete.map(u => u.id);
@@ -575,13 +585,14 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
         await deleteUsersByRole(['agent', 'admin']);
 
         // Delete all routes and route-agent associations
-        await tx.routeAgent.deleteMany({ where: { route: { tenantId } } });
-        await tx.route.deleteMany({ where: { tenantId } });
+        await tx.routeAgent.deleteMany({ where: { route: scope } });
+        await tx.route.deleteMany({ where: scope });
       }
 
       if (tablesToWipe.includes('approvals')) {
-        await tx.approvalRequest.deleteMany({ where: { tenantId } });
-        await tx.auditLog.deleteMany({ where: { tenantId } });
+        // Neither model has a branch column (SCOPE-18): scope through the filer.
+        await tx.approvalRequest.deleteMany({ where: { tenantId, appType, requestedBy: branch } });
+        await tx.auditLog.deleteMany({ where: { tenantId, user: { appType, ...branch } } });
       }
       
       await tx.auditLog.create({
@@ -590,7 +601,7 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
           userId,
           action: 'database_wipe',
           entityType: 'system',
-          newValue: JSON.stringify({ wiped: tablesToWipe }),
+          newValue: JSON.stringify({ wiped: tablesToWipe, appType, branchId }),
         }
       });
     });

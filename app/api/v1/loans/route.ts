@@ -300,7 +300,8 @@ export async function POST(req: NextRequest) {
     for (const [id, kind] of [[brokerId, 'broker'], [dealerId, 'dealer']] as const) {
       if (!id) continue;
       const partner = await prisma.financePartner.findFirst({
-        where: { id, tenantId: ctx.tenantId, type: kind, deletedAt: null },
+        // Same scope as the partner picker: module + active branch (SCOPE-16).
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), type: kind, deletedAt: null },
         select: { id: true },
       });
       if (!partner) return fail(`Selected ${kind} not found`, 404);

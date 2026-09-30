@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { createMandate } from '@/lib/nach';
 import prisma from '@/lib/db';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import { z } from 'zod';
 
 
@@ -42,9 +43,9 @@ export async function POST(req: NextRequest) {
   }
   const data = parsed.data;
 
-  // Verify loan belongs to tenant
+  // Verify caller can see the loan, and the customer is the loan's own
   const loan = await prisma.loan.findFirst({
-    where: { id: data.loanId, tenantId: user.tenantId, deletedAt: null },
+    where: { id: data.loanId, customerId: data.customerId, ...loanAccessWhere(user), deletedAt: null },
     select: { id: true, status: true },
   });
   if (!loan) return NextResponse.json({ error: 'Loan not found' }, { status: 404 });
@@ -115,6 +116,8 @@ export async function GET(req: NextRequest) {
 
   const where = {
     tenantId: user.tenantId,
+    // Mandates carry no module/branch column: scope through the loan (SCOPE-3).
+    loan: loanAccessWhere(user),
     ...(status ? { status } : {}),
   };
 

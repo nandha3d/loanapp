@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import prisma from '@/lib/db';
-import { requireApiContext, isApiError } from '@/lib/apiAuth';
+import { requireApiContext, isApiError, scopedBranchWhere } from '@/lib/apiAuth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { getBranding } from '@/lib/tenant';
 import { apiError } from '@/lib/utils';
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const authResult = await requireApiContext();
     if (isApiError(authResult)) return authResult.response;
-    const { tenantId, role, userId } = authResult.context;
+    const { tenantId, appType, role, userId } = authResult.context;
     const { id } = await params;
 
     const { searchParams } = new URL(req.url);
@@ -32,7 +32,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where: {
         OR: [{ id }, { customerCode: id }],
         tenantId,
-        ...(role === 'agent' ? buildAgentCustomerAccessWhere({ userId }) : {}),
+        appType,
+        // AND, not a spread: the agent clause is itself an OR and would overwrite
+        // the id/customerCode OR. Staff: active branch (SCOPE-3).
+        AND: [role === 'agent' ? buildAgentCustomerAccessWhere({ userId }) : scopedBranchWhere(authResult.context)],
       },
       select: { id: true, name: true, customerCode: true, phone: true, address: true },
     });

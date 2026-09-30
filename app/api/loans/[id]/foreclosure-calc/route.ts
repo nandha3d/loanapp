@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { calculateForeclosure } from '@/lib/foreclosure';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import { apiError, apiSuccess } from '@/lib/utils';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { searchParams } = new URL(req.url);
     const discount = Math.max(0, Number(searchParams.get('discount') || '0'));
-    const calculation = await calculateForeclosure(id, tenantId, Number.isFinite(discount) ? discount : 0);
+    const calculation = await calculateForeclosure(id, tenantId, Number.isFinite(discount) ? discount : 0, loanAccessWhere(authResult.context));
 
     return apiSuccess(calculation);
   } catch (error: any) {

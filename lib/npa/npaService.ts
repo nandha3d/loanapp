@@ -77,7 +77,8 @@ export async function listNpaLoans(
     where.appType = actor.appType;
   }
 
-  if (actor.branchId && actor.role !== 'superadmin' && actor.role !== 'developer') {
+  // No role exemption (SCOPE-15): branchId is the ACTIVE branch, null = All Branches.
+  if (actor.branchId) {
     where.branchId = actor.branchId;
   }
 
@@ -186,7 +187,8 @@ async function assertTenantLoan(actor: NpaActor, loanId: string): Promise<void> 
     where.appType = actor.appType;
   }
 
-  if (actor.branchId && actor.role !== 'superadmin' && actor.role !== 'developer') {
+  // No role exemption (SCOPE-15): branchId is the ACTIVE branch, null = All Branches.
+  if (actor.branchId) {
     where.branchId = actor.branchId;
   }
 

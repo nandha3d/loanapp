@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { getMandateForLoan } from '@/lib/nach';
 import prisma from '@/lib/db';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 
 const ADMIN_ROLES = new Set(['admin', 'superadmin', 'developer', 'agent']);
 
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ loan
 
   const { loanId } = await params;
 
-  // Verify loan belongs to tenant
+  // Verify caller can see the loan (tenant, module, branch / agent linkage)
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId: user.tenantId, deletedAt: null },
+    where: { id: loanId, ...loanAccessWhere(user), deletedAt: null },
     select: { id: true },
   });
   if (!loan) return NextResponse.json({ error: 'Loan not found' }, { status: 404 });

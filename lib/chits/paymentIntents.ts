@@ -98,7 +98,6 @@ export async function listMyChitPaymentIntents(customerId: string, tenantId: str
 export async function listChitPaymentIntentsForStaff(params: {
   tenantId: string;
   branchId?: string | null;
-  isTenantWide: boolean;
   status?: string | null;
   chitGroupId?: string | null;
 }) {
@@ -106,7 +105,8 @@ export async function listChitPaymentIntentsForStaff(params: {
     where: {
       tenantId: params.tenantId,
       ...(params.status ? { status: params.status } : {}),
-      ...(params.branchId && !params.isTenantWide ? { branchId: params.branchId } : {}),
+      // No role exemption (SCOPE-15): branchId is the ACTIVE branch.
+      ...(params.branchId ? { branchId: params.branchId } : {}),
     },
     orderBy: { createdAt: 'desc' },
   });

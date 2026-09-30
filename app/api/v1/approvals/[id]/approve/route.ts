@@ -50,7 +50,8 @@ export async function PATCH(
       appType: ctx.appType,
       status: 'pending',
     };
-    if (ctx.branchId && ctx.role === 'admin') {
+    // Same scope as the approvals list: every staff role, active branch (SCOPE-15).
+    if (ctx.branchId) {
       if (ctx.appType !== 'microlending') {
         requestWhere.requestedBy = { branchId: ctx.branchId };
       } else {

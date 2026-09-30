@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { gpsAgentWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/agent/:id
@@ -14,6 +15,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return fail('Forbidden', 403);
   }
   const { id } = await ctx.params;
+
+  // Same agent scope as GPS history (module + active branch).
+  const targetAgent = await prisma.user.findFirst({
+    where: { id, ...gpsAgentWhere(auth.context) },
+    select: { id: true },
+  });
+  if (!targetAgent) return fail('Agent not found', 404);
 
   try {
     const last = await prisma.agentLocationPing.findFirst({

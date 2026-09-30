@@ -32,11 +32,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     tenantId: ctx.tenantId,
     appType: ctx.appType,
   };
-  if (ctx.role === 'agent') {
-    Object.assign(customerWhere, buildAgentCustomerAccessWhere({ userId: ctx.userId }));
-  } else {
-    Object.assign(customerWhere, scopedBranchWhere(ctx));
-  }
+  // AND, not Object.assign: the agent clause is itself an OR and would
+  // overwrite the id/customerCode OR, returning an arbitrary customer.
+  customerWhere.AND = [
+    ctx.role === 'agent' ? buildAgentCustomerAccessWhere({ userId: ctx.userId }) : scopedBranchWhere(ctx),
+  ];
 
   const customer = await prisma.customer.findFirst({
     where: customerWhere,

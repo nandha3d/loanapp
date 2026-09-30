@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import { modulePath } from '@/types/modules';
 
 /** Brokers and dealers are master data — admins only. */
@@ -48,7 +49,7 @@ export async function saveFinancePartner(formData: FormData) {
     if (partnerId) {
       // Security: only touch a row that belongs to this tenant.
       const existing = await prisma.financePartner.findFirst({
-        where: { id: partnerId, tenantId, deletedAt: null },
+        where: { id: partnerId, tenantId, appType, deletedAt: null, ...branchScopeWhere(await getActiveBranchId()) },
         select: { id: true },
       });
       if (!existing) return { error: 'Partner not found in your workspace' };
@@ -69,7 +70,9 @@ export async function saveFinancePartner(formData: FormData) {
         data: {
           tenantId,
           appType,
-          branchId: (session.user as any)?.branchId ?? null,
+          // Active branch, not the session copy (SCOPE-6): a superadmin works
+          // other branches through the switcher.
+          branchId: await getActiveBranchId(),
           type: data.type,
           name: data.name,
           phone: data.phone || null,
@@ -109,7 +112,7 @@ export async function setFinancePartnerStatus(partnerId: string, status: 'active
   await requireModule(tenantId, 'autofinance');
 
   const existing = await prisma.financePartner.findFirst({
-    where: { id: partnerId, tenantId, deletedAt: null },
+    where: { id: partnerId, tenantId, appType, deletedAt: null, ...branchScopeWhere(await getActiveBranchId()) },
     select: { id: true },
   });
   if (!existing) return { error: 'Partner not found in your workspace' };
@@ -138,7 +141,7 @@ export async function deleteFinancePartner(partnerId: string) {
   await requireModule(tenantId, 'autofinance');
 
   const existing = await prisma.financePartner.findFirst({
-    where: { id: partnerId, tenantId, deletedAt: null },
+    where: { id: partnerId, tenantId, appType, deletedAt: null, ...branchScopeWhere(await getActiveBranchId()) },
     select: { id: true, _count: { select: { brokerLoans: true, dealerLoans: true } } },
   });
   if (!existing) return { error: 'Partner not found in your workspace' };

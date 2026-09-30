@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { calculateForeclosure } from '@/lib/foreclosure';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 import { SettlementLetterPDF } from '@/lib/settlementLetter';
 import { getBranding } from '@/lib/tenant';
 import { apiError } from '@/lib/utils';
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { searchParams } = new URL(req.url);
     const discount = Math.max(0, Number(searchParams.get('discount') || '0'));
-    const calculation = await calculateForeclosure(id, tenantId, Number.isFinite(discount) ? discount : 0);
+    const calculation = await calculateForeclosure(id, tenantId, Number.isFinite(discount) ? discount : 0, loanAccessWhere(authResult.context));
 
     if (!calculation.canForeclose) {
       return apiError(calculation.reason || 'Cannot generate settlement letter for this loan.', 400);

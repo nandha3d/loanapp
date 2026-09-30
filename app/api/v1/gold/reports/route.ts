@@ -72,12 +72,13 @@ export async function GET(req: NextRequest) {
         where: { ...scope, status: 'active', goldCollateral: { isNot: null } },
         include: { goldCollateral: true },
       }),
+      // Weights scoped through the loan, like every other figure here (SCOPE-3).
       prisma.goldLoanCollateral.aggregate({
-        where: { tenantId: ctx.tenantId, releaseStatus: 'released' },
+        where: { tenantId: ctx.tenantId, releaseStatus: 'released', loan: scope },
         _sum: { grossWeightGrams: true, netWeightGrams: true },
       }),
       prisma.goldLoanCollateral.aggregate({
-        where: { tenantId: ctx.tenantId, releaseStatus: 'pledged' },
+        where: { tenantId: ctx.tenantId, releaseStatus: 'pledged', loan: scope },
         _sum: { grossWeightGrams: true, netWeightGrams: true },
       }),
     ]);

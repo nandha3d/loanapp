@@ -95,6 +95,10 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   const adminModules = normalizeModuleList(formData.getAll('adminModules'));
   const userModuleList = normalizeModuleList(formData.getAll('userModules'));
   const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
+  // An unbranched admin would read every branch (SCOPE-4) — never save one.
+  if (role === 'admin' && !branchId) {
+    return { success: false, error: 'Select a branch for this admin account' };
+  }
 
   // New optional details & permission switches
   const aadharNumber = formData.get('aadharNumber') as string | null || null;

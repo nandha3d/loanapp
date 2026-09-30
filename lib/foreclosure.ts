@@ -194,9 +194,11 @@ export async function calculateForeclosure(
   loanId: string,
   tenantId: string,
   discount: number = 0,
+  // Caller's visibility scope (`loanAccessWhere`): module + branch / agent linkage.
+  access: Record<string, unknown> = {},
 ): Promise<ForeclosureCalculation> {
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId },
+    where: { ...access, id: loanId, tenantId },
     include: {
       customer: {
         select: { name: true, customerCode: true, phone: true },

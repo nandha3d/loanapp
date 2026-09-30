@@ -6,6 +6,7 @@ import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
 import HpOriginationWizard from './HpOriginationWizard';
 import { auth } from '@/lib/auth';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import { notFound } from 'next/navigation';
 
 export default async function NewLoanPage({
@@ -56,7 +57,8 @@ export default async function NewLoanPage({
   // shared single-page loan form.
   if (appType === 'autofinance') {
     const partners = await prisma.financePartner.findMany({
-      where: { tenantId, appType, status: 'active', deletedAt: null },
+      // Same branch scope as the Finance Partners page (SCOPE-12, SCOPE-16).
+      where: { tenantId, appType, status: 'active', deletedAt: null, ...branchScopeWhere(await getActiveBranchId()) },
       select: { id: true, name: true, type: true, commissionRate: true },
       orderBy: { name: 'asc' },
     }).catch(() => []);

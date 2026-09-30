@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { cancelMandate } from '@/lib/nach';
 import prisma from '@/lib/db';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 
 const ADMIN_ROLES = new Set(['admin', 'superadmin', 'developer']);
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const mandate = await prisma.nachMandate.findFirst({
-    where: { id, tenantId: user.tenantId },
+    where: { id, tenantId: user.tenantId, loan: loanAccessWhere(user) },
     include: {
       loan: { select: { loanCode: true, status: true, perInstalment: true, frequency: true } },
       customer: { select: { name: true, phone: true, email: true } },
@@ -46,9 +47,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { id } = await params;
 
-  // Verify mandate belongs to tenant
+  // Verify caller can see the mandate's loan (tenant, module, branch)
   const mandate = await prisma.nachMandate.findFirst({
-    where: { id, tenantId: user.tenantId },
+    where: { id, tenantId: user.tenantId, loan: loanAccessWhere(user) },
     select: { id: true },
   });
   if (!mandate) return NextResponse.json({ error: 'Mandate not found' }, { status: 404 });

@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { requireApiContext } from '@/lib/apiAuth';
+import { requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
 import { apiError } from '@/lib/utils';
 
 export async function GET() {
@@ -8,13 +8,15 @@ export async function GET() {
     if (authResult.response) return authResult.response;
     const { context } = authResult;
     const tenantId = context.tenantId;
+    // Active module + branch only (SCOPE-2, SCOPE-3); "All Branches" = whole module.
+    const scope = { tenantId, appType: context.appType, ...scopedBranchWhere(context) };
 
     // Safety cap: 10k rows per section to avoid OOM on large tenants.
     // For a full dump, use db-level mysqldump instead.
     const CAP = 10_000;
     const [customers, loans, accountEntries, routes] = await Promise.all([
       prisma.customer.findMany({
-        where: { tenantId },
+        where: scope,
         select: {
           id: true, customerCode: true, name: true, phone: true, pan: true,
           status: true, createdAt: true,
@@ -25,7 +27,7 @@ export async function GET() {
         take: CAP,
       }),
       prisma.loan.findMany({
-        where: { tenantId },
+        where: scope,
         select: {
           id: true, loanCode: true, principal: true, totalPayable: true,
           perInstalment: true, frequency: true, tenure: true, startDate: true,
@@ -36,7 +38,7 @@ export async function GET() {
         take: CAP,
       }),
       prisma.accountEntry.findMany({
-        where: { tenantId },
+        where: scope,
         select: {
           id: true, type: true, category: true, amount: true,
           entryDate: true, description: true, createdAt: true,
@@ -46,7 +48,7 @@ export async function GET() {
         take: CAP,
       }),
       prisma.route.findMany({
-        where: { tenantId },
+        where: scope,
         select: {
           id: true, name: true, status: true, createdAt: true,
           routeAgents: { select: { agent: { select: { name: true } } } },
@@ -65,7 +67,7 @@ export async function GET() {
 
     let csv = '';
     csv += `# ZoloFund Database Backup - Generated on ${new Date().toISOString()}\n`;
-    csv += `# Tenant ID: ${tenantId}\n\n`;
+    csv += `# Tenant ID: ${tenantId}\n# Module: ${context.appType}\n# Branch ID: ${context.branchId ?? 'all'}\n\n`;
 
     // 1. Customers Section
     csv += `=== SECTION: CUSTOMERS ===\n`;
