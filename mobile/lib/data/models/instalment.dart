@@ -12,6 +12,8 @@ class Instalment {
     this.receivedAt,
     this.paymentMode,
     this.restructuredAmount,
+    this.ledgerReceivedAmount,
+    this.ledgerStatus,
   });
 
   final String id;
@@ -27,6 +29,11 @@ class Instalment {
   /// Server-computed restructured rate for this instalment (lib/restructure.ts).
   /// Equals dueAmount unless the row is a still-collectable future/today due.
   final double? restructuredAmount;
+  /// Past-term date ledger (EXT-1, lib/restructure.ts#computeArrearsLedger):
+  /// cash filled oldest-due-first. Display only — corrections use the posted
+  /// [receivedAmount].
+  final double? ledgerReceivedAmount;
+  final String? ledgerStatus;
 
   Instalment copyWith({
     String? id,
@@ -40,6 +47,8 @@ class Instalment {
     DateTime? receivedAt,
     String? paymentMode,
     double? restructuredAmount,
+    double? ledgerReceivedAmount,
+    String? ledgerStatus,
   }) {
     return Instalment(
       id: id ?? this.id,
@@ -53,6 +62,8 @@ class Instalment {
       receivedAt: receivedAt ?? this.receivedAt,
       paymentMode: paymentMode ?? this.paymentMode,
       restructuredAmount: restructuredAmount ?? this.restructuredAmount,
+      ledgerReceivedAmount: ledgerReceivedAmount ?? this.ledgerReceivedAmount,
+      ledgerStatus: ledgerStatus ?? this.ledgerStatus,
     );
   }
 
@@ -105,6 +116,10 @@ class Instalment {
       paymentMode: json['paymentMode'] as String?,
       restructuredAmount:
           json['restructuredAmount'] == null ? null : toNum(json['restructuredAmount']),
+      ledgerReceivedAmount: json['ledgerReceivedAmount'] == null
+          ? null
+          : toNum(json['ledgerReceivedAmount']),
+      ledgerStatus: json['ledgerStatus'] as String?,
     );
   }
 }

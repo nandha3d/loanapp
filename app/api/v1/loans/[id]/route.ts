@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
+import { computeRestructure, restructuredAmountFor, computeExtendedSchedule, pairEntriesWithInstalments } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
@@ -64,7 +64,10 @@ export async function GET(
       propertyCollateral: true,
       productFinanceItem: true,
       payments: {
-        orderBy: { paymentDate: 'asc' }
+        orderBy: { paymentDate: 'asc' },
+        // The row each payment was posted on — pairs collection entries to
+        // their instalment for the tenure-end view (EXT-1).
+        include: { allocations: { select: { instalmentId: true } } },
       },
       collectionEntries: {
         orderBy: { submittedAt: 'asc' },
@@ -77,6 +80,8 @@ export async function GET(
           verificationStatus: true,
           agentId: true,
           remarks: true,
+          // Business collection date (EXT-1 matches extended days on it).
+          collection: { select: { date: true } },
         },
       },
     },
@@ -141,6 +146,12 @@ export async function GET(
     restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate, today),
   }));
 
+  // Each entry with the instalment it was posted on (EXT-1 tenure-end view).
+  const collectionEntries = pairEntriesWithInstalments(
+    (loan as any).collectionEntries || [],
+    (loan as any).payments || [],
+  );
+
   // Default "extend term" projection — same server-side source of truth the
   // web page uses for its heatmap tail cells, so mobile can render the
   // identical projected extra days without re-deriving the math.
@@ -149,27 +160,48 @@ export async function GET(
     Number(loan.perInstalment),
     loan.frequency,
     today,
-    ((loan as any).collectionEntries || []).map((c: any) => ({
+    collectionEntries.map((c: any) => ({
       ...c,
-      collectionDate: c.submittedAt,
+      collectionDate: c.collection?.date ?? c.submittedAt,
     })),
   );
 
-  const payableInsts = preMappedInstalments.filter((i) => i.status !== 'waived');
+  // Past the term the original rows show what they held when the term ended
+  // (EXT-1): each instalment carries those figures beside the posted ones, and
+  // the counts below read the same rows plus the extended days, so the cards
+  // match the calendar.
+  const ledger = extendedSchedule.ledger;
+  const instalmentsOut = ledger
+    ? instalments.map((inst, idx) => ({
+        ...inst,
+        ledgerReceivedAmount: ledger[idx].receivedAmount,
+        ledgerStatus: ledger[idx].status,
+      }))
+    : instalments;
+  const countedInsts = ledger
+    ? preMappedInstalments.map((inst, idx) => ({ ...inst, receivedAmount: ledger[idx].receivedAmount, status: ledger[idx].status as string }))
+    : preMappedInstalments;
+
+  const payableInsts = countedInsts.filter((i) => i.status !== 'waived');
   const pastDueInsts = payableInsts.filter((i) => new Date(i.dueDate) < today);
-  const missedCount = pastDueInsts.filter((i) => i.status === 'missed' || i.status === 'partial').length;
+  const extendedMissed = extendedSchedule.extendedRows
+    .filter((r) => r.status === 'missed' || r.status === 'partial').length;
+  const missedCount = pastDueInsts.filter((i) => i.status === 'missed' || i.status === 'partial').length
+    + extendedMissed;
   const overdueAmount = pastDueInsts.reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
   const totalOutstanding = Math.max(0, Number(loan.totalPayable) - Number(loan.totalCollected));
   const metrics = {
     totalOutstanding,
     overdueAmount: Math.min(overdueAmount, totalOutstanding),
     missedCount,
-    paidCount: preMappedInstalments.filter((i) => i.status === 'paid').length,
+    paidCount: countedInsts.filter((i) => i.status === 'paid').length,
   };
 
   // Server-supplied penalty summary — canonical source of truth shared across
   // web, mobile and reports to eliminate client-side calculation drift.
-  const missedInstsCount = payableInsts.filter((i) => new Date(i.dueDate) < today && i.status === 'missed').length;
+  // Penalty maths stays on the posted instalments — the ledger is display only.
+  const missedInstsCount = preMappedInstalments
+    .filter((i) => i.status !== 'waived' && new Date(i.dueDate) < today && i.status === 'missed').length;
   const recordedPenalty = (loan.penalties || []).reduce((sum, p) => sum + Number(p.grossPenalty || 0), 0);
   const potentialPenalty = (loan.status === 'closed' || totalOutstanding <= 0) ? 0 : missedInstsCount * Number(loan.penaltyRate || 0);
   const grossPenalty = Math.max(recordedPenalty, potentialPenalty);
@@ -188,7 +220,8 @@ export async function GET(
 
   return ok({
     ...loan,
-    instalments,
+    collectionEntries,
+    instalments: instalmentsOut,
     restructure,
     extendedSchedule,
     metrics,

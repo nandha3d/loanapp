@@ -191,7 +191,7 @@ export default function LoanDetailClient({
   const outstanding = totalRepayable - totalCollected;
   
   const [viewMode, setViewMode] = useState<'actual' | 'distributed' | 'recent_first'>('actual');
-  const [showRestructuredRates, setShowRestructuredRates] = useState(false);
+  const [restructureToggle, setShowRestructuredRates] = useState(false);
   const [highlightedInstalmentNo, setHighlightedInstalmentNo] = useState<number | null>(null);
 
   const scrollToInstalment = (instalmentNo: number) => {
@@ -226,6 +226,11 @@ export default function LoanDetailClient({
 
     if (viewMode === 'actual') {
       return loan.instalments.map((inst: any) => {
+        // Past the term the server sends the date ledger (EXT-1): cash filled
+        // oldest-due-first, so the rows show the dues actually still unpaid.
+        if (inst.ledgerStatus) {
+          return { ...inst, receivedAmount: inst.ledgerReceivedAmount, status: inst.ledgerStatus };
+        }
         const dueDate = new Date(inst.dueDate);
         dueDate.setHours(0, 0, 0, 0);
         const isPaid = Number(inst.receivedAmount) >= Number(inst.dueAmount);
@@ -290,11 +295,15 @@ export default function LoanDetailClient({
       new Date(),
       ((loan as any).collectionEntries || []).map((c: any) => ({
         ...c,
-        collectionDate: c.submittedAt,
+        collectionDate: c.collection?.date ?? c.submittedAt,
       })),
     ),
     [loan.instalments, loan.perInstalment, loan.frequency, (loan as any).collectionEntries],
   );
+  // The restructured rate is for the tenure only — once the last scheduled due
+  // is behind today the loan runs on extended days at the normal rate (EXT-1).
+  const showRestructuredRates = restructureToggle && !extended.scheduleFinished;
+
   // Projected rows BEYOND the original schedule's last date — appended
   // to the schedule in extend mode so the extra days are visible.
   const projectedExtraRows = useMemo(() => {
@@ -386,7 +395,10 @@ export default function LoanDetailClient({
   const missedInstalments = loan.status === 'closed' || outstanding <= 0
     ? []
     : displayInstalments.filter((i: any) => i.status === 'missed');
-  const missedCount = missedInstalments.length;
+  // Past the term, missed extended days count too — the card matches the calendar.
+  const missedCount = missedInstalments.length + (loan.status === 'closed' || outstanding <= 0 || !extended.scheduleFinished
+    ? 0
+    : extended.extendedRows.filter((r) => r.status === 'missed').length);
 
   const serverSummary = (loan as any).penaltySummary;
   const recordedPenalty = serverSummary?.recorded ?? loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
@@ -555,7 +567,10 @@ export default function LoanDetailClient({
     }
   };
 
-  const openPaymentModal = (inst: any) => {
+  const openPaymentModal = (shown: any) => {
+    // Corrections act on the amount actually posted on the row, never on a
+    // display view (ledger / distributed) of it.
+    const inst = (loan.instalments || []).find((i: any) => i.id === shown.id) ?? shown;
     const isPaid = Number(inst.receivedAmount) > 0;
     let defaultAmount = Number(inst.dueAmount);
     if (!isPaid && showRestructuredRates) {
@@ -1091,22 +1106,42 @@ export default function LoanDetailClient({
                   );
                 })}
                 {/* Extended days (extend mode) — projected term beyond the original. */}
-                {!showRestructuredRates && projectedExtraRows.map((r) => (
-                  <div
-                    key={`cal-proj-${r.no}`}
-                    className="heatmap-cell"
-                    style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: '#C7D2FE', border: '1px dashed #6366F1' }}
-                  >
-                    <div className="tooltip-content">
-                      <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
-                        #{r.no} (Projected)
+                {!showRestructuredRates && projectedExtraRows.map((r) => {
+                  // EXT-1: an extended day takes its row's status once it has
+                  // elapsed or been collected; only future days stay projected.
+                  const isProjected = r.status === 'projected';
+                  let bg = '#E2E8F0';
+                  if (r.status === 'paid') bg = '#16A34A';
+                  else if (r.status === 'partial') bg = '#F59E0B';
+                  else if (r.status === 'missed') bg = '#EF4444';
+                  return (
+                    <div
+                      key={`cal-proj-${r.no}`}
+                      className="heatmap-cell"
+                      style={isProjected
+                        ? { width: '18px', height: '18px', borderRadius: '3px', backgroundColor: '#C7D2FE', border: '1px dashed #6366F1' }
+                        : { width: '18px', height: '18px', borderRadius: '3px', backgroundColor: bg }}
+                    >
+                      <div className="tooltip-content">
+                        <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
+                          #{r.no}{isProjected ? ' (Projected)' : ''}
+                        </div>
+                        <div>{d.dueLabel}: <strong>{formatDate(r.date)}</strong></div>
+                        <div>{d.amountLabel2}: <strong>{formatCurrency(r.amount, currencySymbol)}</strong></div>
+                        {!isProjected && (
+                          <div>{d.collectedTooltip}: <strong>{formatCurrency(r.receivedAmount || 0, currencySymbol)}</strong></div>
+                        )}
+                        {isProjected ? (
+                          <div style={{ marginTop: '2px', fontWeight: 700, color: '#A5B4FC' }}>{d.extendedDay}</div>
+                        ) : (
+                          <div style={{ textTransform: 'capitalize', marginTop: '2px', fontWeight: 700, color: r.status === 'paid' ? '#4ADE80' : r.status === 'partial' ? '#FBBF24' : '#F87171' }}>
+                            Status: {r.status}
+                          </div>
+                        )}
                       </div>
-                      <div>{d.dueLabel}: <strong>{formatDate(r.date)}</strong></div>
-                      <div>{d.amountLabel2}: <strong>{formatCurrency(r.amount, currencySymbol)}</strong></div>
-                      <div style={{ marginTop: '2px', fontWeight: 700, color: '#A5B4FC' }}>{d.extendedDay}</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -1134,7 +1169,7 @@ export default function LoanDetailClient({
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h3>📅 {d.paymentSchedule}</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {outstanding > 0 && (
+              {outstanding > 0 && !extended.scheduleFinished && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }} title={d.restructureHint}>
                   <input
                     type="checkbox"
@@ -1289,7 +1324,7 @@ export default function LoanDetailClient({
                       <td>{isPaid && r.receivedAt ? formatDate(r.receivedAt) : '—'}</td>
                       <td style={{ fontWeight: 600 }}>{formatCurrency(r.amount, currencySymbol)}</td>
                       <td style={{ color: isPaid ? 'var(--success)' : 'inherit', fontWeight: isPaid ? 600 : 'normal' }}>
-                        {isPaid ? formatCurrency(r.receivedAmount, currencySymbol) : '—'}
+                        {Number(r.receivedAmount) > 0 ? formatCurrency(r.receivedAmount, currencySymbol) : '—'}
                       </td>
                       <td>
                         {isProjected ? (

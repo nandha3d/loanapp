@@ -60,6 +60,7 @@ class ExtendedSchedule {
     this.projectedDates = const [],
     this.finalPartial = 0,
     this.extendedRows = const [],
+    this.scheduleFinished = false,
   });
 
   final int remainingPayments;
@@ -68,6 +69,10 @@ class ExtendedSchedule {
   final List<DateTime> projectedDates;
   final double finalPartial;
   final List<ExtendedScheduleRow> extendedRows;
+
+  /// The original schedule's last due date is behind today (EXT-1): the
+  /// restructured rate no longer applies.
+  final bool scheduleFinished;
 
   factory ExtendedSchedule.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -97,6 +102,7 @@ class ExtendedSchedule {
       projectedDates: dates,
       finalPartial: num$(json['finalPartial']),
       extendedRows: rows,
+      scheduleFinished: json['scheduleFinished'] == true,
     );
   }
 }

@@ -17,6 +17,8 @@ export type RInstalment = {
   dueDate: Date | string;
   dueAmount: unknown;
   receivedAmount: unknown;
+  status?: string;
+  instalmentNo?: number;
 };
 
 function startOfDay(value: Date): Date {
@@ -55,10 +57,24 @@ export function computeRestructure(
     }
   }
 
-  const divisor = actualRemainingCount || 1;
-  const restructuredRate = Math.round((outstanding / divisor) * 100) / 100;
+  // The restructured rate spreads the balance over the tenure only. Once the
+  // last scheduled due is behind today there is no tenure left to spread over:
+  // the loan runs on extended days at the normal rate (EXT-1), so the
+  // restructured rate is off in the calculation and in the UI.
+  const lastDue = instalments.length
+    ? Math.max(...instalments.map((i) => startOfDay(new Date(i.dueDate)).getTime()))
+    : null;
+  const available = lastDue === null || lastDue >= today.getTime();
 
-  return { restructuredRate, outstanding, remainingPeriods: actualRemainingCount };
+  const divisor = actualRemainingCount || 1;
+  const restructuredRate = available ? Math.round((outstanding / divisor) * 100) / 100 : 0;
+
+  return {
+    restructuredRate,
+    outstanding,
+    remainingPeriods: available ? actualRemainingCount : 0,
+    available,
+  };
 }
 
 export type ExtendedScheduleRow = {
@@ -72,6 +88,11 @@ export type ExtendedScheduleRow = {
   paymentMode?: string | null;
 };
 
+export type TenureLedgerRow = {
+  receivedAmount: number;
+  status: 'paid' | 'partial' | 'missed' | 'waived';
+};
+
 export type ExtendedScheduleResult = {
   outstanding: number;
   remainingPayments: number;
@@ -80,7 +101,104 @@ export type ExtendedScheduleResult = {
   projectedEndDate: Date;
   extraPeriods: number;
   extendedRows: ExtendedScheduleRow[];
+  /** The original schedule's last due date is behind today. */
+  scheduleFinished: boolean;
+  /** Tenure-end view of the original rows, aligned to the input; null while the term runs. */
+  ledger: TenureLedgerRow[] | null;
 };
+
+type LedgerCollection = {
+  instalmentId?: string | null;
+  receivedAmount: unknown;
+  submittedAt?: Date | string | null;
+  collectionDate?: Date | string | null;
+};
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Which instalment each collection entry was posted on. The entry does not
+ * record it (`Instalment.collectionEntryId` keeps only a row's first entry),
+ * but `recordCollection` writes every entry in the same transaction as a
+ * Payment + PaymentAllocation for the same amount and mode
+ * (`recordPaymentLedger`). The pair is found by amount, mode and creation time
+ * within a few seconds. Entries with no pair get `instalmentId: null`, and
+ * payments with no entry (corrections, preclosure) are left alone.
+ */
+export function pairEntriesWithInstalments<E extends {
+  receivedAmount: unknown;
+  paymentMode?: string | null;
+  submittedAt?: Date | string | null;
+}>(
+  entries: E[],
+  payments: Array<{
+    amount: unknown;
+    paymentMode?: string | null;
+    createdAt?: Date | string | null;
+    allocations?: Array<{ instalmentId: string }>;
+  }>,
+): (E & { instalmentId: string | null })[] {
+  const WINDOW_MS = 10_000;
+  const used = new Set<number>();
+  return entries.map((e) => {
+    const at = e.submittedAt ? new Date(e.submittedAt).getTime() : NaN;
+    const amount = round2(Number(e.receivedAmount || 0));
+    let best = -1;
+    let bestGap = Infinity;
+    payments.forEach((p, idx) => {
+      if (used.has(idx) || !p.createdAt || !p.allocations?.length) return;
+      if (round2(Number(p.amount || 0)) !== amount) return;
+      if ((p.paymentMode ?? null) !== (e.paymentMode ?? null)) return;
+      const gap = Math.abs(new Date(p.createdAt).getTime() - at);
+      if (gap <= WINDOW_MS && gap < bestGap) {
+        best = idx;
+        bestGap = gap;
+      }
+    });
+    if (best < 0) return { ...e, instalmentId: null };
+    used.add(best);
+    return { ...e, instalmentId: payments[best].allocations![0].instalmentId };
+  });
+}
+
+/**
+ * Tenure-end view of the original rows (EXT-1). Once the term is over, a row's
+ * misses stay as they were: the unpaid dues move on to the extended days
+ * instead. A payment taken after the term is still posted on an original row
+ * (EXT-1 creates no instalment rows), so each row shows its posted amount less
+ * the collections posted to it after the last scheduled date — that cash is
+ * shown once, on the extended day it was collected. Display only — posted
+ * amounts are untouched. Returns null while the schedule is still running.
+ */
+export function computeTenureLedger(
+  instalments: (RInstalment & { id?: string })[],
+  collections: LedgerCollection[],
+  now = new Date(),
+): TenureLedgerRow[] | null {
+  if (instalments.length === 0) return null;
+  const today = startOfDay(now);
+  const lastDue = Math.max(...instalments.map((i) => startOfDay(new Date(i.dueDate)).getTime()));
+  if (lastDue >= today.getTime()) return null;
+  const lastDueKey = toBusinessDayStr(new Date(lastDue));
+
+  const afterTermByRow = new Map<string, number>();
+  for (const c of collections) {
+    const cDate = c.collectionDate || c.submittedAt;
+    if (!c.instalmentId || !cDate || toBusinessDayStr(cDate) <= lastDueKey) continue;
+    afterTermByRow.set(c.instalmentId, (afterTermByRow.get(c.instalmentId) ?? 0) + Number(c.receivedAmount || 0));
+  }
+
+  return instalments.map((inst) => {
+    const posted = Number(inst.receivedAmount ?? 0);
+    if (inst.status === 'waived') return { receivedAmount: posted, status: 'waived' as const };
+    const atTermEnd = round2(Math.max(0, posted - (inst.id ? afterTermByRow.get(inst.id) ?? 0 : 0)));
+    const due = Number(inst.dueAmount);
+    return {
+      receivedAmount: atTermEnd,
+      status: atTermEnd >= due ? 'paid' as const : atTermEnd > 0 ? 'partial' as const : 'missed' as const,
+    };
+  });
+}
 
 function toBusinessDayStr(value: Date | string): string {
   const d = new Date(value);
@@ -120,6 +238,7 @@ export function computeExtendedSchedule(
     collectionDate?: Date | string | null;
     dueDate?: Date | string | null;
     paymentMode?: string | null;
+    instalmentId?: string | null;
   }> = [],
 ): ExtendedScheduleResult {
   const today = startOfDay(now);
@@ -165,6 +284,21 @@ export function computeExtendedSchedule(
     return startOfDay(d);
   }
 
+  // Collections grouped by business day — several entries on one day are
+  // summed so the day's row reflects everything received that day.
+  const collectedByDay = new Map<string, { amount: number; first: (typeof collections)[number] }>();
+  for (const c of collections) {
+    // The business collection date wins over the entry's submission time — a
+    // payment typed in on the 30th for the 27th belongs to the 27th.
+    const cDate = c.collectionDate || c.submittedAt || c.dueDate;
+    const amount = Number(c.receivedAmount || 0);
+    if (!cDate || amount <= 0) continue;
+    const key = toBusinessDayStr(cDate);
+    const slot = collectedByDay.get(key);
+    if (slot) slot.amount += amount;
+    else collectedByDay.set(key, { amount, first: c });
+  }
+
   const projectedDates: Date[] = [];
   if (outstanding > 0) {
     if (isScheduleFinished && lastScheduledDate) {
@@ -174,8 +308,14 @@ export function computeExtendedSchedule(
         projectedDates.push(new Date(cur));
         cur = addStep(cur, 1);
       }
-      // 2. Today and future payments needed from today onward to settle outstanding balance
-      for (let k = 0; k < remainingPayments; k++) {
+      // 2. Payments needed to settle the outstanding balance. When today's
+      // period is already collected, it is history (a paid row) and the
+      // remaining payments start from the next period — otherwise today would
+      // count both as paid and as one of the payments still owed.
+      const todayCollected = collectedByDay.has(toBusinessDayStr(today));
+      if (todayCollected) projectedDates.push(new Date(today));
+      const firstK = todayCollected ? 1 : 0;
+      for (let k = firstK; k < firstK + remainingPayments; k++) {
         projectedDates.push(addStep(today, k));
       }
     } else if (lastScheduledDate) {
@@ -200,11 +340,8 @@ export function computeExtendedSchedule(
     const rowAmt = (idx === projectedDates.length - 1 && finalPartial > 0) ? finalPartial : per;
     const dateKey = toBusinessDayStr(date);
 
-    // Match collections received on this extended date
-    const coll = collections.find((c) => {
-      const cDate = c.submittedAt || c.collectionDate || c.dueDate;
-      return cDate ? toBusinessDayStr(cDate) === dateKey : false;
-    });
+    // Match collections received on this extended date (summed per day)
+    const day = collectedByDay.get(dateKey);
 
     let status: ExtendedScheduleRow['status'] = 'projected';
     let recAmt = 0;
@@ -212,8 +349,9 @@ export function computeExtendedSchedule(
     let collId: string | null = null;
     let mode: string | null = null;
 
-    if (coll && Number(coll.receivedAmount || 0) > 0) {
-      recAmt = Number(coll.receivedAmount);
+    if (day) {
+      const coll = day.first;
+      recAmt = Math.round(day.amount * 100) / 100;
       status = recAmt >= rowAmt ? 'paid' : 'partial';
       recAt = coll.submittedAt || coll.collectionDate || null;
       collId = coll.id || null;
@@ -249,6 +387,8 @@ export function computeExtendedSchedule(
     projectedEndDate,
     extraPeriods: isScheduleFinished ? projectedDates.length : Math.max(0, remainingPayments - futureUnpaid),
     extendedRows,
+    scheduleFinished: isScheduleFinished,
+    ledger: computeTenureLedger(instalments, collections, now),
   };
 }
 

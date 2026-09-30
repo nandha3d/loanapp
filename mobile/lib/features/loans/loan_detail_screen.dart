@@ -151,7 +151,12 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   final _rowKeys = <int, GlobalKey>{};
   int? _highlight;
   String _viewMode = 'actual';
-  bool _showRestructuredRates = false;
+  bool _restructureToggle = false;
+  bool _tenureOver = false;
+
+  /// The restructured rate is for the tenure only — once the last scheduled
+  /// due is behind today the loan runs on extended days at the normal rate.
+  bool get _showRestructuredRates => _restructureToggle && !_tenureOver;
   int _currentSummaryPage = 0;
 
   @override
@@ -191,6 +196,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     final progress =
         loan.instalmentCount == 0 ? 0.0 : paid / loan.instalmentCount;
 
+    _tenureOver = loan.extendedSchedule?.scheduleFinished ?? false;
     final displayInstalments = _computeDisplayInstalments(loan);
 
     return ListView(
@@ -284,6 +290,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           onJump: _jumpTo,
           extraPeriods: loan.extendedSchedule?.extraPeriods ?? 0,
           projectedEndDate: loan.extendedSchedule?.projectedEndDate,
+          extendedRows: loan.extendedSchedule?.extendedRows ?? const [],
         ),
         if (!_showRestructuredRates &&
             loan.extendedSchedule != null &&
@@ -628,7 +635,20 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   }
 
   List<Instalment> _computeDisplayInstalments(Loan loan) {
-    if (_viewMode == 'actual') return loan.instalments;
+    if (_viewMode == 'actual') {
+      // Past the term the server sends the date ledger (EXT-1): cash filled
+      // oldest-due-first, so the rows show the dues actually still unpaid.
+      return loan.instalments
+          .map(
+            (i) => i.ledgerStatus == null
+                ? i
+                : i.copyWith(
+                    receivedAmount: i.ledgerReceivedAmount ?? 0,
+                    status: i.ledgerStatus,
+                  ),
+          )
+          .toList();
+    }
 
     final dist = loan.instalments.map((i) => i.copyWith()).toList();
     double remaining =
@@ -747,7 +767,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       children: [
         Checkbox(
           value: _showRestructuredRates,
-          onChanged: (v) => setState(() => _showRestructuredRates = v ?? false),
+          onChanged: (v) => setState(() => _restructureToggle = v ?? false),
           activeColor: AppColors.primary,
           visualDensity: VisualDensity.compact,
         ),
@@ -772,6 +792,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                         scrollDirection: Axis.horizontal,
                         child: modeSelector,
                       ),
+                      if (!_tenureOver)
                       SizedBox(
                         width: constraints.maxWidth,
                         child: Row(
@@ -779,7 +800,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                             Checkbox(
                               value: _showRestructuredRates,
                               onChanged: (v) => setState(
-                                  () => _showRestructuredRates = v ?? false),
+                                  () => _restructureToggle = v ?? false),
                               activeColor: AppColors.primary,
                             ),
                             Expanded(
@@ -793,7 +814,10 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [modeSelector, rateToggle],
+                    children: [
+                      modeSelector,
+                      if (!_tenureOver) rateToggle,
+                    ],
                   ),
       ),
     );
@@ -1726,8 +1750,14 @@ class _InstalmentRow extends ConsumerWidget {
   Future<void> _requestCollectionEdit(
     BuildContext context,
     WidgetRef ref,
-    Instalment inst,
+    Instalment shown,
   ) async {
+    // Corrections act on the amount actually posted on the row, never on a
+    // display view (ledger / distributed) of it.
+    final inst = loan.instalments.firstWhere(
+      (i) => i.id == shown.id,
+      orElse: () => shown,
+    );
     final amountCtrl =
         TextEditingController(text: inst.receivedAmount.toStringAsFixed(2));
     final reasonCtrl = TextEditingController();
@@ -2047,7 +2077,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
                     children: [
                       Text('RECEIVED', style: AppTypography.caption),
                       Text(
-                        isPaid ? fmt.format(receivedAmount) : '—',
+                        receivedAmount > 0 ? fmt.format(receivedAmount) : '—',
                         style: AppTypography.bodyLarge.copyWith(
                           color: isPaid ? AppColors.success : AppColors.textLight,
                           fontWeight: isPaid ? FontWeight.w700 : FontWeight.normal,
@@ -2120,7 +2150,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
           Expanded(
             flex: 2,
             child: Text(
-              isPaid ? fmt.format(receivedAmount) : '—',
+              receivedAmount > 0 ? fmt.format(receivedAmount) : '—',
               style: AppTypography.body.copyWith(
                 fontSize: 12,
                 color: isPaid ? AppColors.success : AppColors.textLight,

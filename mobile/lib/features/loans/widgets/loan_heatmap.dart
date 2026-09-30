@@ -8,6 +8,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/instalment.dart';
+import 'package:zolofund/data/models/loan.dart';
 
 /// Mobile port of the web "Calendar Tracker" heatmap.
 ///
@@ -28,6 +29,7 @@ class LoanHeatmap extends ConsumerWidget {
     this.title = 'Calendar Tracker',
     this.extraPeriods = 0,
     this.projectedEndDate,
+    this.extendedRows = const [],
   });
 
   final List<Instalment> instalments;
@@ -40,6 +42,11 @@ class LoanHeatmap extends ConsumerWidget {
   /// same figure as web's "extend term" default model.
   final int extraPeriods;
   final DateTime? projectedEndDate;
+
+  /// Server-computed extended-term rows (EXT-1). When present, each tail cell
+  /// takes its row's status — paid / partial / missed / due today / projected —
+  /// so a collection on an extended day shows up on the tracker.
+  final List<ExtendedScheduleRow> extendedRows;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,8 +103,21 @@ class LoanHeatmap extends ConsumerWidget {
                     size: cellSize,
                     onTap: () => _open(context, inst),
                   ),
-                for (var i = 0; i < extraPeriods; i++)
-                  _ExtraDayCell(size: cellSize, dayNumber: i + 1),
+                if (extendedRows.isNotEmpty)
+                  for (final row in extendedRows)
+                    row.status == 'projected'
+                        ? _ExtraDayCell(size: cellSize, dayNumber: row.no)
+                        : _HeatCell(
+                            inst: _extendedAsInstalment(row),
+                            size: cellSize,
+                            onTap: () => _openExtended(
+                              context,
+                              _extendedAsInstalment(row),
+                            ),
+                          )
+                else
+                  for (var i = 0; i < extraPeriods; i++)
+                    _ExtraDayCell(size: cellSize, dayNumber: i + 1),
               ],
             ),
           if (extraPeriods > 0) ...[
@@ -130,6 +150,30 @@ class LoanHeatmap extends ConsumerWidget {
           _Legend(t: t),
         ],
       ),
+    );
+  }
+
+  Instalment _extendedAsInstalment(ExtendedScheduleRow row) => Instalment(
+        id: row.collectionEntryId ?? 'ext-${row.no}',
+        loanId: instalments.isNotEmpty ? instalments.first.loanId : '',
+        instalmentNo: row.no,
+        dueDate: row.date,
+        dueAmount: row.amount,
+        receivedAmount: row.receivedAmount,
+        status: row.status,
+        receivedAt: row.receivedAt,
+        paymentMode: row.paymentMode,
+      );
+
+  /// Extended days have no schedule row of their own to jump to.
+  void _openExtended(BuildContext context, Instalment inst) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _InstSheet(inst: inst, onJump: null),
     );
   }
 
