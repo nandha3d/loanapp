@@ -9,7 +9,6 @@ import './globals.css';
 // and serves the woff2 from our own origin with immutable caching.
 const inter = Inter({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-inter',
 });
