@@ -1237,6 +1237,8 @@ export const te = {
     actions: 'చర్యలు',
     delete: 'తొలగించండి',
     unassigned: 'కేటాయించబడలేదు',
+    otherBranch: 'ఇతర బ్రాంచ్',
+    otherBranchDisabled: 'ఇతర బ్రాంచ్ - వర్తించదు',
     penaltyTitle: 'జరిమానా కాన్ఫిగరేషన్',
     defaultPenaltyPerDay: 'రోజువారీ డిఫాల్ట్ జరిమానా',
     gracePeriod: 'గ్రేస్ పీరియడ్ (జరిమానా ప్రారంభమయ్యే ముందు రోజులు)',

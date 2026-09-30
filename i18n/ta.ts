@@ -1237,6 +1237,8 @@ export const ta = {
     actions: 'நடவடிக்கைகள்',
     delete: 'நீக்கு',
     unassigned: 'நியமிக்கப்படவில்லை',
+    otherBranch: 'மற்றொரு கிளை',
+    otherBranchDisabled: 'மற்றொரு கிளை - பொருந்தாது',
     penaltyTitle: 'அபராத கட்டமைப்பு',
     defaultPenaltyPerDay: 'தினசரி இயல்புநிலை அபராதம்',
     gracePeriod: 'தவண இல்லா காலம் (நாட்கள்)',

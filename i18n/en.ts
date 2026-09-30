@@ -1237,6 +1237,8 @@ export const en = {
     actions: 'Actions',
     delete: 'Delete',
     unassigned: 'Unassigned',
+    otherBranch: 'Other Branch',
+    otherBranchDisabled: 'Other Branch - Not Applicable',
     penaltyTitle: 'Penalty Configuration',
     defaultPenaltyPerDay: 'Default Penalty Per Day',
     gracePeriod: 'Grace Period (days before penalty starts)',

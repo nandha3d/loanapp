@@ -32,15 +32,22 @@ export default async function SettingsPage() {
     prisma.route.findMany({
       where: { tenantId, appType, ...branchScope },
       include: {
-        assignedAgent: { select: { id: true, name: true } },
+        assignedAgent: { select: { id: true, name: true, branchId: true } },
         _count: { select: { customers: true } },
-        routeAgents: { include: { agent: { select: { id: true, name: true } } } }
+        routeAgents: { include: { agent: { select: { id: true, name: true, branchId: true } } } },
+        branch: { select: { id: true, name: true } },
       }
     }),
     prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
     prisma.user.findMany({
       where: { tenantId, appType, ...branchScope },
-      select: { id: true, name: true, role: true },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        branchId: true,
+        branch: { select: { id: true, name: true } },
+      },
     }),
     getTenantSettings(tenantId),
     prisma.user.findUnique({ where: { id: session?.user?.id } }),

@@ -6380,6 +6380,22 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಏಜೆಂಟ್ ನಿಯೋಜಿಸಿ',
     'ml': 'ഏജന്റിനെ നിയോഗിക്കുക',
   },
+  'set.other_branch': {
+    'en': 'Other Branch',
+    'ta': 'மற்றொரு கிளை',
+    'hi': 'अन्य शाखा',
+    'te': 'ఇతర బ్రాంచ్',
+    'kn': 'ಇತರ ಶಾಖೆ',
+    'ml': 'മറ്റ് ബ്രാഞ്ച്',
+  },
+  'set.other_branch_disabled': {
+    'en': 'Other Branch - Not Applicable',
+    'ta': 'மற்றொரு கிளை - பொருந்தாது',
+    'hi': 'अन्य शाखा - लागू नहीं',
+    'te': 'ఇతర బ్రాంచ్ - వర్తించదు',
+    'kn': 'ಇತರ ಶಾಖೆ - ಅನ್ವಯಿಸುವುದಿಲ್ಲ',
+    'ml': 'മറ്റ് ബ്രാഞ്ച് - ബാധകമല്ല',
+  },
   'pkg.create': {
     'en': 'Create package',
     'ta': 'கடன் தொகுப்பை உருவாக்கு',

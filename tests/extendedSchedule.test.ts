@@ -92,8 +92,43 @@ function run() {
   assert.equal(res3.extendedRows[1].status, 'paid');
   // Today 28 Sep (due today)
   assert.equal(res3.extendedRows[2].status, 'due today');
-  // Future 29 Sep (projected)
-  assert.equal(res3.extendedRows[3].status, 'projected');
+  // Test 4: Schedule is still active (ends 18 Nov, today is 29 Sep) and 0 missed payments
+  const weeklyInstalments = [
+    { dueDate: new Date('2026-09-23T00:00:00Z'), dueAmount: 2000, receivedAmount: 2000 },
+    { dueDate: new Date('2026-09-30T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-07T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-14T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-21T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-28T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-04T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-11T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-18T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+  ];
+  const todaySep29 = new Date('2026-09-29T00:00:00Z');
+  const res4 = computeExtendedSchedule(weeklyInstalments, 2000, 'weekly', todaySep29);
+  assert.equal(res4.extraPeriods, 0, 'No extra periods needed when on schedule');
+  assert.equal(res4.extendedRows.length, 0, 'No extended rows when loan is on schedule');
+
+  // Test 5: Schedule is still active, but 1 payment was missed (23 Sep missed, 0 received)
+  const weeklyWithMiss = [
+    { dueDate: new Date('2026-09-23T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-09-30T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-07T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-14T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-21T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-10-28T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-04T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-11T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+    { dueDate: new Date('2026-11-18T00:00:00Z'), dueAmount: 2000, receivedAmount: 0 },
+  ];
+  const res5 = computeExtendedSchedule(weeklyWithMiss, 2000, 'weekly', todaySep29);
+  assert.equal(res5.extraPeriods, 1, '1 extra period needed for missed payment');
+  assert.equal(res5.extendedRows.length, 1, 'Exactly 1 extended row should be generated');
+  assert.equal(res5.extendedRows[0].no, 10, 'Extended row should be #10');
+  const extDate = new Date(res5.extendedRows[0].date);
+  assert.equal(extDate.getDate(), 25, 'Day must be 25 Nov');
+  assert.equal(extDate.getMonth(), 10, 'Month must be Nov (10)');
+  assert.equal(res5.extendedRows[0].status, 'projected');
 
   console.log('✓ All Extended Schedule Tests passed successfully');
 }

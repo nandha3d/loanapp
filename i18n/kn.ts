@@ -1237,6 +1237,8 @@ export const kn = {
     actions: 'ಕ್ರಿಯೆಗಳು',
     delete: 'ಅಳಿಸಿ',
     unassigned: 'ನಿಯೋಜಿಸಿಲ್ಲ',
+    otherBranch: 'ಇತರ ಶಾಖೆ',
+    otherBranchDisabled: 'ಇತರ ಶಾಖೆ - ಅನ್ವಯಿಸುವುದಿಲ್ಲ',
     penaltyTitle: 'ದಂಡ ಕಾನ್ಫಿಗರೇಶನ್',
     defaultPenaltyPerDay: 'ದಿನವಾರು ಡೀಫಾಲ್ಟ್ ದಂಡ',
     gracePeriod: 'ಗ್ರೇಸ್ ಪೀರಿಯಡ್ (ದಂಡ ಪ್ರಾರಂಭಕ್ಕೆ ಮೊದಲು ದಿನಗಳು)',

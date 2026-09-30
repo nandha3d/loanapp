@@ -1237,6 +1237,8 @@ export const hi = {
     actions: 'कार्रवाई',
     delete: 'हटाएं',
     unassigned: 'अनअसाइन्ड',
+    otherBranch: 'अन्य शाखा',
+    otherBranchDisabled: 'अन्य शाखा - लागू नहीं',
     penaltyTitle: 'दंड कॉन्फ़िगरेशन',
     defaultPenaltyPerDay: 'प्रति दिन डिफ़ॉल्ट दंड',
     gracePeriod: 'ग्रेस पीरियड (दंड शुरू होने से पहले दिन)',

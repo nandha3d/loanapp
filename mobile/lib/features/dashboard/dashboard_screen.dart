@@ -1130,8 +1130,12 @@ class _MoneyFlowRow extends StatelessWidget {
           const SizedBox(height: 12),
           _StatTile(
             icon: Icons.savings_outlined,
-            iconColor: AppColors.success,
-            iconBg: AppColors.successBg,
+            iconColor: summary.currentCapital! >= 0
+                ? AppColors.success
+                : AppColors.danger,
+            iconBg: summary.currentCapital! >= 0
+                ? AppColors.successBg
+                : AppColors.dangerBg,
             label: t.x('analytics.capitalBalance'),
             value: fmt.format(summary.currentCapital),
             sub: t.x('dash.cash_book'),
@@ -1171,6 +1175,7 @@ class _StatTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 32,
@@ -1181,13 +1186,14 @@ class _StatTile extends StatelessWidget {
                 ),
                 child: Icon(icon, color: iconColor, size: 17),
               ),
-              const Spacer(),
-              Flexible(
+              const SizedBox(width: 8),
+              Expanded(
                 child: Text(
                   label,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
                   ),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
                 ),
@@ -1315,7 +1321,7 @@ class _AlertCard extends StatelessWidget {
                     Text(
                       label,
                       style: AppTypography.caption.copyWith(color: fg),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

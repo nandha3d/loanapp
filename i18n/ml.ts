@@ -1237,6 +1237,8 @@ export const ml = {
     actions: 'പ്രവർത്തനങ്ങൾ',
     delete: 'ഇല്ലാതാക്കുക',
     unassigned: 'നിയോഗിച്ചിട്ടില്ല',
+    otherBranch: 'മറ്റ് ബ്രാഞ്ച്',
+    otherBranchDisabled: 'മറ്റ് ബ്രാഞ്ച് - ബാധകമല്ല',
     penaltyTitle: 'പിഴ കോൺഫിഗറേഷൻ',
     defaultPenaltyPerDay: 'ദിവസേന ഡിഫോൾട്ട് പിഴ',
     gracePeriod: 'ഗ്രേസ് കാലയളവ് (പിഴ ആരംഭിക്കുന്നതിന് മുമ്പുള്ള ദിവസങ്ങൾ)',

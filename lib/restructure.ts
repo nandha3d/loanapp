@@ -178,14 +178,18 @@ export function computeExtendedSchedule(
       for (let k = 0; k < remainingPayments; k++) {
         projectedDates.push(addStep(today, k));
       }
-    } else {
-      for (let k = 0; k < remainingPayments; k++) {
-        projectedDates.push(addStep(today, k));
+    } else if (lastScheduledDate) {
+      // Schedule is still ongoing. Only extra periods needed past the scheduled end are projected.
+      const extraPeriods = Math.max(0, remainingPayments - futureUnpaid);
+      for (let k = 1; k <= extraPeriods; k++) {
+        projectedDates.push(addStep(lastScheduledDate, k));
       }
     }
   }
 
-  const projectedEndDate = projectedDates.length ? projectedDates[projectedDates.length - 1] : today;
+  const projectedEndDate = projectedDates.length
+    ? projectedDates[projectedDates.length - 1]
+    : (lastScheduledDate ?? today);
 
   // Build extended rows with accurate status, amounts, and collection links
   const startNo = instalments.length + 1;

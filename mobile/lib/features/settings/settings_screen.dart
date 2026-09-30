@@ -1273,9 +1273,25 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
                   if (!snapshot.hasData) {
                     return const CircularProgressIndicator();
                   }
-                  final agents = snapshot.data!
-                      .where((agent) => agent['branchId'] == _route.branchId)
-                      .toList(growable: false);
+                  final allAgents = snapshot.data!;
+                  bool isOtherBranch(Map<String, dynamic> agent) {
+                    final agentBranchId = agent['branchId'] as String?;
+                    return _route.branchId != null &&
+                        agentBranchId != null &&
+                        agentBranchId != _route.branchId;
+                  }
+
+                  String agentLabel(Map<String, dynamic> agent, bool isOther) {
+                    final name = agent['name'] as String? ?? '';
+                    if (!isOther) return name;
+                    final branch = agent['branch'] as Map<String, dynamic>?;
+                    final branchName = (branch?['name'] as String?)?.trim() ?? '';
+                    final suffix = branchName.isNotEmpty
+                        ? ' ($branchName - ${t.x('set.other_branch_disabled')})'
+                        : ' (${t.x('set.other_branch_disabled')})';
+                    return '$name$suffix';
+                  }
+
                   return Column(
                     children: [
                       DropdownButtonFormField<String>(
@@ -1289,23 +1305,50 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
                             value: '',
                             child: Text(t.x('set.clear_primary')),
                           ),
-                          ...agents.map(
-                            (agent) => DropdownMenuItem(
-                              value: agent['id'] as String,
-                              child: Text(agent['name'] as String? ?? ''),
-                            ),
+                          ...allAgents.map(
+                            (agent) {
+                              final other = isOtherBranch(agent);
+                              final isCurrent = agent['id'] == _route.agentId;
+                              return DropdownMenuItem<String>(
+                                value: agent['id'] as String,
+                                enabled: !other || isCurrent,
+                                child: Text(
+                                  agentLabel(agent, other),
+                                  style: other
+                                      ? TextStyle(
+                                          color: AppColors.textSecondary.withAlpha(140),
+                                          fontStyle: FontStyle.italic,
+                                        )
+                                      : null,
+                                ),
+                              );
+                            },
                           ),
                         ],
                         onChanged: _busy
                             ? null
-                            : (id) => _apply(
+                            : (id) {
+                                if (id != null && id.isNotEmpty) {
+                                  final selected = allAgents.firstWhere(
+                                    (a) => a['id'] == id,
+                                    orElse: () => <String, dynamic>{},
+                                  );
+                                  if (isOtherBranch(selected) && id != _route.agentId) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(t.x('set.other_branch_disabled'))),
+                                    );
+                                    return;
+                                  }
+                                }
+                                _apply(
                                   () => ref
                                       .read(settingsServiceProvider)
                                       .setPrimaryRouteAgent(
                                         _route.id,
                                         id?.isEmpty == true ? null : id,
                                       ),
-                                ),
+                                );
+                              },
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -1335,7 +1378,7 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
                         key: ValueKey('shared-${_route.sharedAgents.length}'),
                         decoration:
                             InputDecoration(labelText: t.x('set.assign_agent')),
-                        items: agents
+                        items: allAgents
                             .where(
                               (agent) =>
                                   agent['id'] != _route.agentId &&
@@ -1344,16 +1387,38 @@ class _ManageRouteSheetState extends ConsumerState<_ManageRouteSheet> {
                                   ),
                             )
                             .map(
-                              (agent) => DropdownMenuItem(
-                                value: agent['id'] as String,
-                                child: Text(agent['name'] as String? ?? ''),
-                              ),
+                              (agent) {
+                                final other = isOtherBranch(agent);
+                                return DropdownMenuItem<String>(
+                                  value: agent['id'] as String,
+                                  enabled: !other,
+                                  child: Text(
+                                    agentLabel(agent, other),
+                                    style: other
+                                        ? TextStyle(
+                                            color: AppColors.textSecondary.withAlpha(140),
+                                            fontStyle: FontStyle.italic,
+                                          )
+                                        : null,
+                                  ),
+                                );
+                              },
                             )
                             .toList(),
                         onChanged: _busy
                             ? null
                             : (id) {
                                 if (id != null) {
+                                  final selected = allAgents.firstWhere(
+                                    (a) => a['id'] == id,
+                                    orElse: () => <String, dynamic>{},
+                                  );
+                                  if (isOtherBranch(selected)) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(t.x('set.other_branch_disabled'))),
+                                    );
+                                    return;
+                                  }
                                   _apply(
                                     () => ref
                                         .read(settingsServiceProvider)

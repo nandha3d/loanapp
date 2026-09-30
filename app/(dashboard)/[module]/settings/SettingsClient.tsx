@@ -735,21 +735,42 @@ export default function SettingsClient({
                     {editingPrimaryRouteId === r.id ? (
                       <select
                         className="form-control"
-                        style={{ width: '150px', padding: '4px 8px', fontSize: '.82rem' }}
+                        style={{ minWidth: '180px', padding: '4px 8px', fontSize: '.82rem' }}
                         defaultValue={r.assignedAgentId || ''}
                         autoFocus
                         onBlur={() => setEditingPrimaryRouteId(null)}
                         onChange={async (e) => {
                           const val = e.target.value;
+                          if (val) {
+                            const selectedAgent = users.find(u => u.id === val);
+                            if (r.branchId && selectedAgent?.branchId && r.branchId !== selectedAgent.branchId) {
+                              alert(d.otherBranchDisabled || 'Other Branch - Not Applicable');
+                              return;
+                            }
+                          }
                           await setPrimaryAgent(r.id, val || null);
                           setEditingPrimaryRouteId(null);
                           window.location.reload();
                         }}
                       >
                         <option value="">{d.unassigned}</option>
-                        {users.filter(u => u.role === 'agent').map(u => (
-                          <option key={u.id} value={u.id}>{u.name}</option>
-                        ))}
+                        {users.filter(u => u.role === 'agent').map(u => {
+                          const isOtherBranch = Boolean(r.branchId && u.branchId && r.branchId !== u.branchId);
+                          const branchName = u.branch?.name;
+                          const branchLabel = isOtherBranch
+                            ? ` (${branchName ? `${branchName} - ` : ''}${d.otherBranch || 'Other Branch'})`
+                            : (branchName ? ` (${branchName})` : '');
+                          return (
+                            <option
+                              key={u.id}
+                              value={u.id}
+                              disabled={isOtherBranch}
+                              style={isOtherBranch ? { color: 'var(--text-light, #888)', fontStyle: 'italic', background: 'var(--bg-muted, #f8f9fa)' } : {}}
+                            >
+                              {u.name}{branchLabel}
+                            </option>
+                          );
+                        })}
                       </select>
                     ) : (
                       <span
@@ -1938,7 +1959,15 @@ export default function SettingsClient({
 
       {/* Route Modal */}
       <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title={d.addNewRoute}>
-        <form action={async (fd) => { await createRoute(fd); setIsRouteModalOpen(false); showToast(d.routeCreated); }}>
+        <form action={async (fd) => {
+          const res = await createRoute(fd);
+          if (!res?.success && (res as any)?.error) {
+            alert((res as any).error);
+            return;
+          }
+          setIsRouteModalOpen(false);
+          showToast(d.routeCreated);
+        }}>
           <div className="form-group">
             <label className="form-label">{d.routeName}</label>
             <input type="text" name="name" className="form-control" required placeholder={d.routeNamePlaceholder} />
@@ -1947,9 +1976,24 @@ export default function SettingsClient({
             <label className="form-label">{d.primaryAgent}</label>
             <select name="primaryAgentId" className="form-control">
               <option value="">{d.unassigned}</option>
-              {users.filter(u => u.role === 'agent').map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
+              {users.filter(u => u.role === 'agent').map(u => {
+                const targetBranchId = manageBranchId || currentUser?.branchId;
+                const isOtherBranch = targetBranchId && u.branchId && u.branchId !== targetBranchId;
+                const branchName = u.branch?.name || (isOtherBranch ? (d.otherBranch || 'Other Branch') : '');
+                const branchTag = branchName
+                  ? ` (${branchName}${isOtherBranch ? ` - ${d.otherBranchDisabled || 'Other Branch - Not Applicable'}` : ''})`
+                  : '';
+                return (
+                  <option
+                    key={u.id}
+                    value={u.id}
+                    disabled={!!isOtherBranch}
+                    style={isOtherBranch ? { color: 'var(--text-light, #888)', fontStyle: 'italic' } : undefined}
+                  >
+                    {u.name}{branchTag}
+                  </option>
+                );
+              })}
             </select>
             <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>{d.primaryAgentHelper}</span>
           </div>
@@ -1959,12 +2003,32 @@ export default function SettingsClient({
               {users.filter(u => u.role === 'agent').length === 0 ? (
                 <span style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>{d.noAgentsAvailable}</span>
               ) : (
-                users.filter(u => u.role === 'agent').map(u => (
-                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '.9rem' }}>
-                    <input type="checkbox" name="agentIds" value={u.id} />
-                    {u.name}
-                  </label>
-                ))
+                users.filter(u => u.role === 'agent').map(u => {
+                  const targetBranchId = manageBranchId || currentUser?.branchId;
+                  const isOtherBranch = targetBranchId && u.branchId && u.branchId !== targetBranchId;
+                  const branchName = u.branch?.name || (isOtherBranch ? (d.otherBranch || 'Other Branch') : '');
+                  const branchTag = branchName
+                    ? ` (${branchName}${isOtherBranch ? ` - ${d.otherBranchDisabled || 'Other Branch - Not Applicable'}` : ''})`
+                    : '';
+                  return (
+                    <label
+                      key={u.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: isOtherBranch ? 'not-allowed' : 'pointer',
+                        fontSize: '.9rem',
+                        color: isOtherBranch ? 'var(--text-light, #888)' : undefined,
+                        fontStyle: isOtherBranch ? 'italic' : undefined,
+                        opacity: isOtherBranch ? 0.65 : 1,
+                      }}
+                    >
+                      <input type="checkbox" name="agentIds" value={u.id} disabled={!!isOtherBranch} />
+                      {u.name}{branchTag}
+                    </label>
+                  );
+                })
               )}
             </div>
             <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>{d.sharedAgentsHelper}</span>
@@ -2060,13 +2124,39 @@ export default function SettingsClient({
             <label className="form-label">{d.selectAgent}</label>
             <select className="form-control" value={raAgentId} onChange={e => setRaAgentId(e.target.value)}>
               <option value="">{d.chooseAgent}</option>
-              {users.filter(u => u.role === 'agent' && !routeAgentModal.agents.some((ra: any) => ra.agentId === u.id)).map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
+              {users.filter(u => u.role === 'agent' && !routeAgentModal.agents.some((ra: any) => ra.agentId === u.id)).map(u => {
+                const targetRoute = routes.find(r => r.id === routeAgentModal.routeId);
+                const isOtherBranch = Boolean(targetRoute?.branchId && u.branchId && targetRoute.branchId !== u.branchId);
+                const branchName = u.branch?.name;
+                const branchLabel = isOtherBranch
+                  ? ` (${branchName ? `${branchName} - ` : ''}${d.otherBranch || 'Other Branch'})`
+                  : (branchName ? ` (${branchName})` : '');
+                return (
+                  <option
+                    key={u.id}
+                    value={u.id}
+                    disabled={isOtherBranch}
+                    style={isOtherBranch ? { color: 'var(--text-light, #888)', fontStyle: 'italic', background: 'var(--bg-muted, #f8f9fa)' } : {}}
+                  >
+                    {u.name}{branchLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="form-actions" style={{marginTop:'20px'}}>
-            <button className="btn btn-primary" disabled={!raAgentId} onClick={async () => { if (!raAgentId) return; await assignAgentToRoute(routeAgentModal.routeId, raAgentId); setRouteAgentModal(null); window.location.reload(); }}>{d.assign}</button>
+            <button className="btn btn-primary" disabled={!raAgentId} onClick={async () => {
+              if (!raAgentId) return;
+              const targetRoute = routes.find(r => r.id === routeAgentModal.routeId);
+              const selectedAgent = users.find(u => u.id === raAgentId);
+              if (targetRoute?.branchId && selectedAgent?.branchId && targetRoute.branchId !== selectedAgent.branchId) {
+                alert(d.otherBranchDisabled || 'Other Branch - Not Applicable');
+                return;
+              }
+              await assignAgentToRoute(routeAgentModal.routeId, raAgentId);
+              setRouteAgentModal(null);
+              window.location.reload();
+            }}>{d.assign}</button>
             <button className="btn btn-ghost" onClick={() => setRouteAgentModal(null)}>{d.cancel}</button>
           </div>
         </Modal>
