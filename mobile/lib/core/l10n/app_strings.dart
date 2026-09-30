@@ -53,6 +53,30 @@ extension AppLangX on AppLang {
 ///
 /// Structure: key -> { 'en': ..., 'ta': ..., 'hi': ..., 'te': ..., 'kn': ..., 'ml': ... }
 const Map<String, Map<String, String>> kStrings = {
+  'branch.all': {
+    'en': 'All Branches',
+    'ta': 'அனைத்து கிளைகள்',
+    'hi': 'सभी शाखाएँ',
+    'te': 'అన్ని శాఖలు',
+    'kn': 'ಎಲ್ಲಾ ಶಾಖೆಗಳು',
+    'ml': 'എല്ലാ ശാഖകളും',
+  },
+  'branch.switch': {
+    'en': 'Switch branch',
+    'ta': 'கிளையை மாற்று',
+    'hi': 'शाखा बदलें',
+    'te': 'శాఖను మార్చండి',
+    'kn': 'ಶಾಖೆ ಬದಲಿಸಿ',
+    'ml': 'ശാഖ മാറ്റുക',
+  },
+  'branch.switched': {
+    'en': 'Now viewing',
+    'ta': 'இப்போது பார்க்கிறது',
+    'hi': 'अब देख रहे हैं',
+    'te': 'ఇప్పుడు చూస్తున్నది',
+    'kn': 'ಈಗ ವೀಕ್ಷಿಸುತ್ತಿರುವುದು',
+    'ml': 'ഇപ്പോൾ കാണുന്നത്',
+  },
   'set.import_customers': {
     'en': 'Import customers',
     'ta': 'வாடிக்கையாளர்களை இறக்குமதி செய்',

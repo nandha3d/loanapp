@@ -122,6 +122,10 @@ class AuthRepository {
     return _storage.saveActiveAppType(appType);
   }
 
+  Future<void> setActiveBranch(String branchId) {
+    return _storage.saveActiveBranchId(branchId);
+  }
+
   Future<User> registerWithEmail({
     required String businessName,
     required String ownerName,

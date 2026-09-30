@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { distanceMeters } from '@/lib/gps/geofence';
+import { gpsAgentWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/idle-check
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest) {
     const idleCutoff = new Date(Date.now() - idleMinutes * 60 * 1000);
 
     const agents = await prisma.user.findMany({
-      where: { tenantId: ctx.tenantId, role: 'agent', status: 'active' },
+      // Caller's module + active branch, like the rest of GPS (SCOPE-12).
+      where: gpsAgentWhere(ctx),
       select: { id: true, name: true },
     });
 

@@ -263,6 +263,17 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(user: user.copyWith(appType: appType));
   }
 
+  /// Superadmin branch switcher. Every request then carries the new
+  /// `X-Branch-Id`; caches are dropped and a fresh [AuthState] is emitted so
+  /// every provider watching auth refetches for the selected branch.
+  Future<void> setActiveBranch(String branchId) async {
+    final user = state.user;
+    if (user == null) return;
+    await _repo.setActiveBranch(branchId);
+    clearDomainCaches();
+    state = AuthState(stage: state.stage, user: user);
+  }
+
   /// Refreshes user profile and tenant subscription from server (/auth/me).
   Future<void> refreshProfile() async {
     try {

@@ -52,6 +52,10 @@ class AuthStorage {
   Future<void> saveActiveAppType(String appType) =>
       _storage.write(key: _kAppType, value: appType);
 
+  /// Superadmin branch switcher: sent as `X-Branch-Id` (`all` = All Branches).
+  Future<void> saveActiveBranchId(String branchId) =>
+      _storage.write(key: _kBranchId, value: branchId);
+
   /// Cached profile of the signed-in user (JSON) — lets the app boot to the
   /// dashboard offline / on a slow network instead of bouncing to login while
   /// a valid token + refresh token still exist.

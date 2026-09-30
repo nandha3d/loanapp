@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getSetting, getTenantName } from '@/lib/tenant';
+import { requireApiContext } from '@/lib/apiAuth';
+import { loanAccessWhere } from '@/lib/loanPolicy';
+import { getSetting, getTenantName } from '@/lib/tenant';
 import { buildLedgerRows, summarizeLedger } from '@/lib/autofinance/ledger';
 
 /**
@@ -39,12 +40,12 @@ export async function GET(
     return NextResponse.json({ error: 'Unknown document' }, { status: 404 });
   }
 
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const tenantId = await getDefaultTenantId();
+  const authResult = await requireApiContext();
+  if (authResult.response) return authResult.response;
+  const tenantId = authResult.context.tenantId;
   const loan = await prisma.loan.findFirst({
-    where: { id, tenantId, appType: 'autofinance' },
+    // Active branch / agent linkage like the loan page; documents are HP-only.
+    where: { id, ...loanAccessWhere(authResult.context), appType: 'autofinance' },
     include: {
       customer: { select: { name: true, customerCode: true, phone: true, address: true } },
       vehicle: { select: { registrationNo: true, make: true, model: true, chassisNo: true, engineNo: true } },

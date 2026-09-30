@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { canCollectChits } from '@/lib/chits/access';
 import { approveChitPaymentIntent, rejectChitPaymentIntent } from '@/lib/chits/paymentIntents';
 
@@ -17,6 +17,14 @@ export async function POST(
   const ctx = auth.context;
   if (!canCollectChits(ctx.role)) return fail('Forbidden', 403);
   const { id } = await params;
+
+  // Approve and reject both act only on an intent in the active branch — the
+  // same scope as the review list (SCOPE-3).
+  const inScope = await prisma.chitPaymentIntent.findFirst({
+    where: { id, tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
+    select: { id: true },
+  });
+  if (!inScope) return fail('Payment intent not found', 404);
 
   try {
     const body = (await req.json().catch(() => null)) as {

@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { loanAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(
   req: NextRequest,
@@ -15,11 +16,8 @@ export async function GET(
 
   try {
     const loans = await prisma.loan.findMany({
-      where: {
-        customerId: id,
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-      },
+      // Module + active branch / agent linkage, like every loan read (SCOPE-3).
+      where: { customerId: id, ...loanAccessWhere(ctx) },
       include: { instalments: true, penalties: true },
       orderBy: { createdAt: 'desc' },
     });

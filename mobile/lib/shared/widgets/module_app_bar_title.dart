@@ -5,6 +5,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/shared/widgets/app_logo.dart';
+import 'package:zolofund/shared/widgets/branch_switcher.dart';
 
 /// Universal module header title widget: shows the official ZoloFund logo
 /// paired with a clear, prominent module title identifier across all modules.
@@ -59,15 +60,24 @@ class ModuleAppBarTitle extends ConsumerWidget {
                   letterSpacing: -0.2,
                 ),
               ),
-              if (subtitle != null && subtitle!.isNotEmpty)
-                Text(
-                  subtitle!,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.1,
-                  ),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (subtitle != null && subtitle!.isNotEmpty)
+                    Flexible(
+                      child: Text(
+                        subtitle!,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                  // Superadmin only; renders nothing for everyone else.
+                  const Flexible(child: BranchSwitcherLabel()),
+                ],
+              ),
             ],
           ),
         ),

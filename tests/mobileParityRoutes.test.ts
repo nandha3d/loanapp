@@ -5,6 +5,7 @@ const mobileV1Routes = [
   'app/api/v1/auth/2fa/route.ts',
   'app/api/v1/auth/forgot-password/route.ts',
   'app/api/v1/auth/register/route.ts',
+  'app/api/v1/auth/me/branches/route.ts',
   'app/api/v1/dashboard/route.ts',
   'app/api/v1/customers/route.ts',
   'app/api/v1/customers/[id]/route.ts',

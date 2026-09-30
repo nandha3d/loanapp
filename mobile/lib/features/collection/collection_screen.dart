@@ -86,6 +86,8 @@ final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) async 
 });
 
 final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {
+  // Refetch on module/branch switch — each emits a new auth state.
+  ref.watch(authControllerProvider);
   return ref.watch(collectionServiceProvider).selfPayQueue();
 });
 
