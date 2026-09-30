@@ -19,6 +19,8 @@ export type RInstalment = {
   receivedAmount: unknown;
   status?: string;
   instalmentNo?: number;
+  id?: string;
+  collectionEntryId?: string | null;
 };
 
 function startOfDay(value: Date): Date {
@@ -86,6 +88,13 @@ export type ExtendedScheduleRow = {
   receivedAt?: Date | string | null;
   collectionEntryId?: string | null;
   paymentMode?: string | null;
+  /**
+   * Instalment whose payment correction edits exactly this day's payment:
+   * the day is one collection entry, it is that row's linked entry, and it is
+   * the only cash on the row (a correction rewrites the row total and its
+   * linked entry). Null when the day is several payments or shares its row.
+   */
+  editInstalmentId?: string | null;
 };
 
 export type TenureLedgerRow = {
@@ -286,7 +295,7 @@ export function computeExtendedSchedule(
 
   // Collections grouped by business day — several entries on one day are
   // summed so the day's row reflects everything received that day.
-  const collectedByDay = new Map<string, { amount: number; first: (typeof collections)[number] }>();
+  const collectedByDay = new Map<string, { amount: number; first: (typeof collections)[number]; count: number }>();
   for (const c of collections) {
     // The business collection date wins over the entry's submission time — a
     // payment typed in on the 30th for the 27th belongs to the 27th.
@@ -295,8 +304,10 @@ export function computeExtendedSchedule(
     if (!cDate || amount <= 0) continue;
     const key = toBusinessDayStr(cDate);
     const slot = collectedByDay.get(key);
-    if (slot) slot.amount += amount;
-    else collectedByDay.set(key, { amount, first: c });
+    if (slot) {
+      slot.amount += amount;
+      slot.count += 1;
+    } else collectedByDay.set(key, { amount, first: c, count: 1 });
   }
 
   const projectedDates: Date[] = [];
@@ -348,6 +359,7 @@ export function computeExtendedSchedule(
     let recAt: Date | string | null = null;
     let collId: string | null = null;
     let mode: string | null = null;
+    let editInstalmentId: string | null = null;
 
     if (day) {
       const coll = day.first;
@@ -356,6 +368,13 @@ export function computeExtendedSchedule(
       recAt = coll.submittedAt || coll.collectionDate || null;
       collId = coll.id || null;
       mode = coll.paymentMode || null;
+      if (day.count === 1 && coll.instalmentId && coll.id) {
+        const row = instalments.find((i) => i.id === coll.instalmentId);
+        if (row && row.collectionEntryId === coll.id
+          && round2(Number(row.receivedAmount ?? 0)) === round2(recAmt)) {
+          editInstalmentId = row.id!;
+        }
+      }
     } else {
       const dateTime = startOfDay(date).getTime();
       if (dateTime < today.getTime()) {
@@ -376,6 +395,7 @@ export function computeExtendedSchedule(
       receivedAt: recAt,
       collectionEntryId: collId,
       paymentMode: mode,
+      editInstalmentId,
     });
   }
 
@@ -390,6 +410,19 @@ export function computeExtendedSchedule(
     scheduleFinished: isScheduleFinished,
     ledger: computeTenureLedger(instalments, collections, now),
   };
+}
+
+/**
+ * Missed days that carry a penalty once the term is over (EXT-1): original
+ * rows still missed at the end of the term plus extended days missed since.
+ * Null while the term runs — callers keep their own count of missed rows.
+ * Shared by the loan page's penalty summary and the pending-penalty accrual
+ * (`ensurePendingPenaltiesForMissedLoans`) so both carry the same figure.
+ */
+export function pastTermMissedDays(ext: ExtendedScheduleResult): number | null {
+  if (!ext.ledger) return null;
+  return ext.ledger.filter((r) => r.status === 'missed').length
+    + ext.extendedRows.filter((r) => r.status === 'missed').length;
 }
 
 /**

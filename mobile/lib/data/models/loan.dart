@@ -12,6 +12,7 @@ class ExtendedScheduleRow {
     this.receivedAt,
     this.collectionEntryId,
     this.paymentMode,
+    this.editInstalmentId,
   });
 
   final int no;
@@ -22,6 +23,10 @@ class ExtendedScheduleRow {
   final DateTime? receivedAt;
   final String? collectionEntryId;
   final String? paymentMode;
+
+  /// Instalment whose correction edits exactly this day's payment (EXT-1,
+  /// lib/restructure.ts); null when the day cannot be edited on its own.
+  final String? editInstalmentId;
 
   factory ExtendedScheduleRow.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -44,6 +49,7 @@ class ExtendedScheduleRow {
       receivedAt: recAt,
       collectionEntryId: json['collectionEntryId'] as String?,
       paymentMode: json['paymentMode'] as String?,
+      editInstalmentId: json['editInstalmentId'] as String?,
     );
   }
 }

@@ -117,7 +117,12 @@ export default function Topbar({
   useEffect(() => {
     fetchCount();
     const interval = setInterval(fetchCount, 30000);
-    return () => clearInterval(interval);
+    // Branch switch keeps the pathname, so refetch explicitly (BranchSwitcher).
+    window.addEventListener('active-branch-changed', fetchCount);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('active-branch-changed', fetchCount);
+    };
   }, [pathname, fetchCount]);
 
   // Reflect unread notifications in the browser tab title: "(3) Page — App".

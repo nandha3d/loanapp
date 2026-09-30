@@ -34,6 +34,7 @@ export default function BranchSwitcher({ branches, activeBranchId }: Props) {
     const result = await switchActiveBranch(nextBranchId);
     if (result.success) {
       router.refresh();
+      window.dispatchEvent(new Event('active-branch-changed'));
     } else if (activeBranchId) {
       setSelectedBranchId(activeBranchId);
     }

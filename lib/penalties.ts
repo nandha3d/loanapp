@@ -1,4 +1,6 @@
 import prisma from './db';
+import { startOfBusinessDayUtc } from './businessTime';
+import { computeExtendedSchedule, pairEntriesWithInstalments, pastTermMissedDays } from './restructure';
 
 export function penaltyListWhere(scope: {
   tenantId: string;
@@ -71,6 +73,54 @@ export function shouldUpdatePenaltyGross(existingGrossPenalty: number, nextGross
   return nextGrossPenalty > existingGrossPenalty;
 }
 
+/**
+ * Missed days for the pending accrual. While the term runs: instalments marked
+ * missed. Once the last scheduled due is behind today (EXT-1): rows missed at
+ * the end of the term plus extended days missed since — the same count the
+ * loan page's penalty summary shows (`pastTermMissedDays`).
+ */
+async function penaltyMissedDays(
+  loan: {
+    id: string;
+    perInstalment: unknown;
+    frequency: string;
+    instalments: Array<{ id: string; dueDate: Date; dueAmount: unknown; receivedAmount: unknown; status: string; instalmentNo: number; collectionEntryId: string | null }>;
+  },
+  today: Date,
+): Promise<number> {
+  const missedRows = loan.instalments.filter((i) => i.status === 'missed').length;
+  const lastDue = loan.instalments.reduce((max, i) => Math.max(max, new Date(i.dueDate).getTime()), 0);
+  if (!lastDue || lastDue >= today.getTime()) return missedRows;
+
+  const detail = await prisma.loan.findUnique({
+    where: { id: loan.id },
+    select: {
+      collectionEntries: {
+        orderBy: { submittedAt: 'asc' },
+        select: {
+          id: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          collection: { select: { date: true } },
+        },
+      },
+      payments: {
+        select: {
+          amount: true,
+          paymentMode: true,
+          createdAt: true,
+          allocations: { select: { instalmentId: true } },
+        },
+      },
+    },
+  });
+  const entries = pairEntriesWithInstalments(detail?.collectionEntries ?? [], detail?.payments ?? [])
+    .map((c) => ({ ...c, collectionDate: c.collection?.date ?? c.submittedAt }));
+  const ext = computeExtendedSchedule(loan.instalments, Number(loan.perInstalment), loan.frequency, today, entries);
+  return pastTermMissedDays(ext) ?? missedRows;
+}
+
 export async function ensurePendingPenaltiesForMissedLoans(
   scope: PenaltySyncScope
 ): Promise<PenaltySyncResult> {
@@ -91,18 +141,29 @@ export async function ensurePendingPenaltiesForMissedLoans(
       id: true,
       customerId: true,
       penaltyRate: true,
+      perInstalment: true,
+      frequency: true,
       instalments: {
-        where: { status: 'missed' },
-        select: { id: true },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+        select: {
+          id: true,
+          instalmentNo: true,
+          dueDate: true,
+          dueAmount: true,
+          receivedAmount: true,
+          status: true,
+          collectionEntryId: true,
+        },
       },
     },
   });
+  const today = startOfBusinessDayUtc();
 
   let penaltiesCreated = 0;
   let penaltiesUpdated = 0;
 
   for (const loan of loans) {
-    const missedDays = loan.instalments.length;
+    const missedDays = await penaltyMissedDays(loan, today);
     const liveGrossPenalty = missedDays * Number(loan.penaltyRate);
     if (missedDays === 0 || liveGrossPenalty <= 0) continue;
 

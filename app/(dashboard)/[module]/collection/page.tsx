@@ -128,6 +128,7 @@ export default async function CollectionPage() {
         totalCollected: Number(dailyCollection.totalCollected)
       } : null}
       collectionSummary={collectionSummary}
+      collectionSummaryByRoute={payload.collectionSummaryByRoute || {}}
       receiptPdfEnabled={receiptPdfEnabled}
       gpsTrackingEnabled={gpsTrackingEnabled}
     />

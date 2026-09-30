@@ -696,6 +696,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
             status: r.status,
             receivedAt: r.receivedAt,
             collectionEntryId: r.collectionEntryId,
+            editInstalmentId: r.editInstalmentId,
             fmt: fmt,
             mobile: compactSchedule,
             loan: loan,
@@ -1752,87 +1753,99 @@ class _InstalmentRow extends ConsumerWidget {
     WidgetRef ref,
     Instalment shown,
   ) async {
-    // Corrections act on the amount actually posted on the row, never on a
-    // display view (ledger / distributed) of it.
-    final inst = loan.instalments.firstWhere(
-      (i) => i.id == shown.id,
-      orElse: () => shown,
-    );
-    final amountCtrl =
-        TextEditingController(text: inst.receivedAmount.toStringAsFixed(2));
-    final reasonCtrl = TextEditingController();
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Request correction'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'This won\'t apply immediately — an admin reviews and approves it.',
-              style: AppTypography.caption,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Correct amount',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Reason *',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+    await _requestInstalmentCorrection(context, ref, loan, shown);
+  }
+}
+
+/// Correction request for an instalment row (tenure rows and extended days
+/// whose payment is the only cash on its row). Acts on the posted amount,
+/// never on a display view of it.
+Future<void> _requestInstalmentCorrection(
+  BuildContext context,
+  WidgetRef ref,
+  Loan loan,
+  Instalment shown,
+) async {
+  // Corrections act on the amount actually posted on the row, never on a
+  // display view (ledger / distributed) of it.
+  final inst = loan.instalments.firstWhere(
+    (i) => i.id == shown.id,
+    orElse: () => shown,
+  );
+  final amountCtrl =
+      TextEditingController(text: inst.receivedAmount.toStringAsFixed(2));
+  final reasonCtrl = TextEditingController();
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Request correction'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'This won\'t apply immediately — an admin reviews and approves it.',
+            style: AppTypography.caption,
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Submit'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amountCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Correct amount',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Reason *',
+              border: OutlineInputBorder(),
+            ),
           ),
         ],
       ),
-    );
-    if (result != true) return;
-    final amount = double.tryParse(amountCtrl.text.trim());
-    final reason = reasonCtrl.text.trim();
-    if (amount == null || reason.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a valid amount and reason')),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Submit'),
+        ),
+      ],
+    ),
+  );
+  if (result != true) return;
+  final amount = double.tryParse(amountCtrl.text.trim());
+  final reason = reasonCtrl.text.trim();
+  if (amount == null || reason.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid amount and reason')),
+      );
+    }
+    return;
+  }
+  try {
+    await ref.read(approvalServiceProvider).request(
+          requestType: 'edit_collection',
+          entityType: 'instalment',
+          entityId: inst.id,
+          requestedChanges: {'requestedAmount': amount},
+          reason: reason,
         );
-      }
-      return;
-    }
-    try {
-      await ref.read(approvalServiceProvider).request(
-            requestType: 'edit_collection',
-            entityType: 'instalment',
-            entityId: inst.id,
-            requestedChanges: {'requestedAmount': amount},
-            reason: reason,
-          );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Correction request sent for review')),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Correction request sent for review')),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+    );
   }
 }
 
@@ -1935,6 +1948,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
     this.status = 'projected',
     this.receivedAt,
     this.collectionEntryId,
+    this.editInstalmentId,
   });
   final int no;
   final DateTime date;
@@ -1946,6 +1960,9 @@ class _ProjectedExtraRow extends ConsumerWidget {
   final String status;
   final DateTime? receivedAt;
   final String? collectionEntryId;
+
+  /// Instalment whose correction edits exactly this day's payment (EXT-1).
+  final String? editInstalmentId;
 
   BadgeKind _badgeKind(String s) => switch (s) {
         'paid' => BadgeKind.active,
@@ -1973,6 +1990,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
     final isMissed = status == 'missed';
     final isProjected = status == 'projected';
     final canPay = loan.status != 'closed' && (isDueToday || isMissed);
+    final canEdit = loan.status != 'closed' && editInstalmentId != null && receivedAmount > 0;
     final kind = _badgeKind(status);
     final collectedTime = receivedAt != null ? timeFmt.format(receivedAt!) : null;
 
@@ -1986,6 +2004,18 @@ class _ProjectedExtraRow extends ConsumerWidget {
       status: isPaid ? 'paid' : (isDueToday ? 'due today' : (isMissed ? 'missed' : 'upcoming')),
       receivedAt: receivedAt,
     );
+    // The correction resolves the posted row by id — this day's payment is the
+    // only cash on it (EXT-1), so it edits exactly this payment.
+    Widget editButton() => IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: t.x('loan.actions'),
+          onPressed: () => _requestInstalmentCorrection(
+            context,
+            ref,
+            loan,
+            inst.copyWith(id: editInstalmentId),
+          ),
+        );
 
     if (mobile) {
       Color borderColor = const Color(0xFFC7D2FE);
@@ -2092,6 +2122,8 @@ class _ProjectedExtraRow extends ConsumerWidget {
                     loan: loan,
                     mobile: true,
                   )
+                else if (canEdit)
+                  editButton()
                 else
                   const SizedBox(width: 48),
               ],
@@ -2193,6 +2225,8 @@ class _ProjectedExtraRow extends ConsumerWidget {
                     inst: inst,
                     loan: loan,
                   )
+                : canEdit
+                ? editButton()
                 : const Center(
                     child: Text(
                       '—',

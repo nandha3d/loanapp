@@ -80,7 +80,7 @@
     "test:penalty-list-where": "tsx tests/penaltyListWhere.test.ts",
     "test:journal-input": "tsx tests/journalInput.test.ts",
     "test:customer-import": "tsx tests/customerImport.test.ts",
-    "test:dashboard-today": "tsx tests/dashboardTodayMetrics.test.ts",
+    "test:dashboard-today": "tsx tests/dashboardTodayMetrics.test.ts && tsx tests/dashboardOverdueInsights.test.ts",
     "test:accounting-export-boundary": "tsx tests/accountingExportBoundary.test.ts",
     "test:accounting-settings-patch": "tsx tests/accountingSettingsPatch.test.ts",
     "test:bill-math": "tsx tests/billMath.test.ts",

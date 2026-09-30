@@ -371,7 +371,7 @@ export default function CollectionBreakdownCards({
           </div>
 
           {/* Progress Bar */}
-          <div style={{ marginBottom: '18px' }}>
+          <div style={{ marginBottom: 0 }}>
             <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
               {activeToday.pct > 0 && (
                 <div
@@ -395,101 +395,6 @@ export default function CollectionBreakdownCards({
               </span>
               <span>{formatCurrency(activeToday.expected, currencySymbol)}</span>
             </div>
-          </div>
-        </div>
-
-        {/* ── Breakdown by Frequency Strip with Active/Inactive Split ── */}
-        <div style={{ borderTop: '1.5px solid #e2e8f0', paddingTop: '16px', marginTop: 'auto' }}>
-          <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{d.frequencyBreakdown || 'Breakdown by Frequency'}</span>
-            <span style={{ fontSize: '.74rem', fontWeight: 600, color: '#64748b' }}>
-              {todayFreq !== 'all' ? `Filtered: ${frequencies.find((f) => f.key === todayFreq)?.label}` : (d.allFrequencies || 'All Frequencies')}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {frequencies.map((freq) => {
-              const freqData = todayData.breakdown?.[freq.key] || emptyTodayMetrics;
-              const b = freqData.total;
-              const isSelected = todayFreq === freq.key;
-
-              return (
-                <div
-                  key={freq.key}
-                  onClick={() => setTodayFreq(isSelected ? 'all' : freq.key)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderRadius: '12px',
-                    background: isSelected ? freq.bg : '#ffffff',
-                    border: `1.5px solid ${isSelected ? freq.color : '#e2e8f0'}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                  }}
-                  title={`Click to filter by ${freq.label}`}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '130px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-icons-outlined" style={{ fontSize: '19px', color: freq.color }}>
-                        {freq.icon}
-                      </span>
-                      <span style={{ fontWeight: 700, fontSize: '.92rem', color: '#0f172a' }}>
-                        {freq.label}
-                      </span>
-                    </div>
-                    {b.loanCount > 0 && (
-                      <span style={{ fontSize: '.72rem', color: '#64748b' }}>
-                        {b.loanCount} {d.loansCount || 'loans'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, justifyContent: 'flex-end' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: '#64748b', fontWeight: 600 }}>{dict.reports.expected}</div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: '#0f172a' }}>
-                        {formatCurrency(b.expected, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: '#16a34a', fontWeight: 600 }}>{dict.reports.collected}</div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: '#16a34a' }}>
-                        {formatCurrency(b.collected, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: b.remaining > 0 ? '#dc2626' : '#64748b', fontWeight: 600 }}>
-                        {dict.loanDetail.remaining}
-                      </div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: b.remaining > 0 ? '#b91c1c' : '#15803d' }}>
-                        {formatCurrency(b.remaining, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ minWidth: '54px', textAlign: 'right' }}>
-                      <span
-                        style={{
-                          fontSize: '.78rem',
-                          fontWeight: 750,
-                          color: b.pct >= 100 ? '#15803d' : b.pct > 50 ? '#b45309' : '#b91c1c',
-                          background: b.pct >= 100 ? '#dcfce7' : b.pct > 50 ? '#fef3c7' : '#fee2e2',
-                          padding: '4px 8px',
-                          borderRadius: '8px',
-                          display: 'inline-block',
-                        }}
-                      >
-                        {b.pct}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>
@@ -752,7 +657,7 @@ export default function CollectionBreakdownCards({
           </div>
 
           {/* Progress Bar */}
-          <div style={{ marginBottom: '18px' }}>
+          <div style={{ marginBottom: 0 }}>
             <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
               {activeOverdue.pct > 0 && (
                 <div
@@ -776,101 +681,6 @@ export default function CollectionBreakdownCards({
               </span>
               <span>{formatCurrency(activeOverdue.totalOverdue, currencySymbol)}</span>
             </div>
-          </div>
-        </div>
-
-        {/* ── Breakdown by Frequency Strip with Active/Inactive Split ── */}
-        <div style={{ borderTop: '1.5px solid #fecaca', paddingTop: '16px', marginTop: 'auto' }}>
-          <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{d.frequencyBreakdown || 'Breakdown by Frequency'}</span>
-            <span style={{ fontSize: '.74rem', fontWeight: 600, color: '#64748b' }}>
-              {overdueFreq !== 'all' ? `Filtered: ${frequencies.find((f) => f.key === overdueFreq)?.label}` : (d.allFrequencies || 'All Frequencies')}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {frequencies.map((freq) => {
-              const freqData = overdueData.breakdown?.[freq.key] || emptyOverdueMetrics;
-              const b = freqData.total;
-              const isSelected = overdueFreq === freq.key;
-
-              return (
-                <div
-                  key={freq.key}
-                  onClick={() => setOverdueFreq(isSelected ? 'all' : freq.key)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderRadius: '12px',
-                    background: isSelected ? freq.bg : '#ffffff',
-                    border: `1.5px solid ${isSelected ? freq.color : '#fecaca'}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                  }}
-                  title={`Click to filter by ${freq.label}`}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '130px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-icons-outlined" style={{ fontSize: '19px', color: freq.color }}>
-                        {freq.icon}
-                      </span>
-                      <span style={{ fontWeight: 700, fontSize: '.92rem', color: '#0f172a' }}>
-                        {freq.label}
-                      </span>
-                    </div>
-                    {b.customerCount > 0 && (
-                      <span style={{ fontSize: '.72rem', color: '#64748b' }}>
-                        {b.customerCount} {d.activeCustomers || 'customers'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, justifyContent: 'flex-end' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: '#64748b', fontWeight: 600 }}>{d.totalOverdue}</div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: '#0f172a' }}>
-                        {formatCurrency(b.totalOverdue, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: '#16a34a', fontWeight: 600 }}>{d.collectedToday}</div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: '#16a34a' }}>
-                        {formatCurrency(b.collectedToday, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '.7rem', color: b.remaining > 0 ? '#dc2626' : '#64748b', fontWeight: 600 }}>
-                        {dict.loanDetail.remaining}
-                      </div>
-                      <div style={{ fontSize: '.9rem', fontWeight: 700, color: b.remaining > 0 ? '#b91c1c' : '#15803d' }}>
-                        {formatCurrency(b.remaining, currencySymbol)}
-                      </div>
-                    </div>
-
-                    <div style={{ minWidth: '54px', textAlign: 'right' }}>
-                      <span
-                        style={{
-                          fontSize: '.78rem',
-                          fontWeight: 750,
-                          color: b.pct >= 100 ? '#15803d' : b.pct > 50 ? '#b45309' : '#b91c1c',
-                          background: b.pct >= 100 ? '#dcfce7' : b.pct > 50 ? '#fef3c7' : '#fee2e2',
-                          padding: '4px 8px',
-                          borderRadius: '8px',
-                          display: 'inline-block',
-                        }}
-                      >
-                        {b.pct}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>

@@ -159,6 +159,7 @@ export default function CollectionClient({
   dict,
   dailyCollection,
   collectionSummary,
+  collectionSummaryByRoute,
   receiptPdfEnabled = false,
   gpsTrackingEnabled = false,
 }: {
@@ -172,6 +173,7 @@ export default function CollectionClient({
   dict: any;
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
   collectionSummary: CollectionSummary;
+  collectionSummaryByRoute: Record<string, CollectionSummary>;
   receiptPdfEnabled?: boolean;
   gpsTrackingEnabled?: boolean;
 }) {
@@ -525,41 +527,32 @@ export default function CollectionClient({
     });
   }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
-  const todayTotals = useMemo(() => {
-    if (!routeFilter) {
-      return {
-        due: collectionSummary.todayExpected,
-        collected: collectionSummary.todayCollected,
-        outstanding: collectionSummary.todayOutstanding,
-        pendingCount: collectionSummary.todayPendingCount,
-      };
-    }
-    const routeTodayRows = todayInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
-    const due = routeTodayRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
-    const collected = routeTodayRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
-    const outstanding = Math.max(0, due - collected);
-    const pendingCount = routeTodayRows.filter((r) => r.outstandingAmount > 0).length;
-    return { due, collected, outstanding, pendingCount };
-  }, [collectionSummary, routeFilter, todayInstalments, rowMatchesRoute]);
+  // Route cards read the server's per-route summary — same calculation as the
+  // "All routes" card, so the routes always add up to it.
+  const activeSummary = useMemo<CollectionSummary>(() => {
+    if (!routeFilter) return collectionSummary;
+    return collectionSummaryByRoute[activeRouteObj?.id ?? routeFilter] ?? {
+      todayExpected: 0, todayCollected: 0, todayOutstanding: 0, todayPendingCount: 0, todayPaidCount: 0,
+      overdueTotalTillToday: 0, overdueCollectedToday: 0, overdueOutstanding: 0, overduePendingCount: 0,
+    };
+  }, [collectionSummary, collectionSummaryByRoute, routeFilter, activeRouteObj]);
 
-  const overdueTotals = useMemo(() => {
-    if (!routeFilter) {
-      return {
-        amount: collectionSummary.overdueOutstanding,
-        dueTotal: collectionSummary.overdueTotalTillToday,
-        recovered: collectionSummary.overdueCollectedToday,
-        count: collectionSummary.overduePendingCount,
-        maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
-      };
-    }
-    const routeOverdueRows = overdueInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
-    const amount = routeOverdueRows.reduce((sum, r) => sum + (Number(r.outstandingAmount) || 0), 0);
-    const dueTotal = routeOverdueRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
-    const recovered = routeOverdueRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
-    const count = routeOverdueRows.filter((r) => r.outstandingAmount > 0).length;
-    const maxDays = routeOverdueRows.reduce((max, r) => Math.max(max, r.daysOverdue || 0), 0);
-    return { amount, dueTotal, recovered, count, maxDays };
-  }, [collectionSummary, overdueInstalments, routeFilter, rowMatchesRoute]);
+  const todayTotals = {
+    due: activeSummary.todayExpected,
+    collected: activeSummary.todayCollected,
+    outstanding: activeSummary.todayOutstanding,
+    pendingCount: activeSummary.todayPendingCount,
+  };
+
+  const overdueTotals = {
+    amount: activeSummary.overdueOutstanding,
+    dueTotal: activeSummary.overdueTotalTillToday,
+    recovered: activeSummary.overdueCollectedToday,
+    count: activeSummary.overduePendingCount,
+    maxDays: overdueInstalments
+      .filter((r) => rowMatchesRoute(r, routeFilter))
+      .reduce((max, r) => Math.max(max, r.daysOverdue || 0), 0),
+  };
 
   // Customer worklist progress for today: how many distinct customers due today
   // have had something collected. Drives the "Customers" completion bar.

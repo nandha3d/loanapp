@@ -7,7 +7,7 @@ import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPoli
 import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { startOfBusinessToday, startOfBusinessTomorrow, startOfBusinessDayUtc } from '@/lib/businessTime';
-import { summarizeCollectionWorklist } from '@/lib/collectionSummary';
+import { summarizeCollectionWorklist, summarizeCollectionWorklistByRoute } from '@/lib/collectionSummary';
 import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 
 export async function GET(req: NextRequest) {
@@ -185,6 +185,7 @@ export async function GET(req: NextRequest) {
 
     const allInstalmentsForLoans = await prisma.instalment.findMany({
       where: { loanId: { in: allLoanIds } },
+      include: { collectionEntry: { select: { id: true } } },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
     });
 
@@ -210,65 +211,41 @@ export async function GET(req: NextRequest) {
       return i;
     });
 
-    const mappedOverdue = overdueVisible.map((i) => {
-      const dist = distributedMap.get(i.id);
-      if (dist) {
-        return {
-          ...i,
-          receivedAmount: dist.receivedAmount,
-          outstandingAmount: dist.outstandingAmount,
-          overdueAmount: dist.overdueAmount,
-          status: dist.status,
-        };
-      }
-      return i;
+    // Overdue rows come from the distributed view, not the raw `status` column:
+    // distribution re-fills historical cash oldest-first (MONEY-22), so a row
+    // stored as 'paid' can still be outstanding. Filtering on the raw status
+    // dropped those rows and under-stated overdue against the dashboard.
+    const loanById = new Map([...todayInstalments, ...overdueInstalments].map((i) => [i.loanId, i.loan]));
+    const mappedOverdue = distributedInstalments
+      .filter((i) => i.overdueAmount > 0)
+      .map((i) => ({ ...i, loan: loanById.get(i.loanId)! }))
+      .filter((i) => i.loan && isCollectionDay(i.loan.frequency, i.dueDate, today));
+
+    // Today's card counts only instalments DUE today (MONEY-26). Past dues
+    // cleared today stay in the list, but their cash is overdue recovery and
+    // is already in overdueCollectedToday — counting it here too doubled it.
+    const dueTodayRows = mappedToday.filter((row) => seen.has(row.id));
+    const overdueCollectedTodayByLoan = new Map(
+      Array.from(metricsByLoan, ([loanId, m]) => [loanId, m.overdueCollectedToday]),
+    );
+
+    const collectionSummary = summarizeCollectionWorklist({
+      todayRows: dueTodayRows,
+      overdueRows: mappedOverdue,
+      overdueCollectedToday: Array.from(overdueCollectedTodayByLoan.values()).reduce((sum, v) => sum + v, 0),
     });
-
-    const todayExpected = mappedToday.reduce((sum, row) => sum + Number(row.dueAmount), 0);
-    const todayCollected = mappedToday.reduce(
-      (sum, row) => sum + Math.min(Number(row.receivedAmount), Number(row.dueAmount)),
-      0,
-    );
-    const todayOutstanding = mappedToday.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)),
-      0,
-    );
-    const todayPendingCount = mappedToday.filter(
-      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) > 0
-    ).length;
-    const todayPaidCount = mappedToday.filter(
-      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) <= 0 && Number(row.receivedAmount) > 0
-    ).length;
-
-    // Overdue Outstanding comes from the visible overdue rows in distributed view
-    const overdueOutstanding = mappedOverdue.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)),
-      0,
-    );
-    const overdueCollectedToday = Array.from(metricsByLoan.values()).reduce(
-      (sum, m) => sum + m.overdueCollectedToday,
-      0,
-    );
-    const overduePendingCount = mappedOverdue.filter(
-      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) > 0
-    ).length;
-
-    const collectionSummary = {
-      todayExpected,
-      todayCollected,
-      todayOutstanding,
-      todayPendingCount,
-      todayPaidCount,
-      overdueTotalTillToday: overdueOutstanding + overdueCollectedToday,
-      overdueCollectedToday,
-      overdueOutstanding,
-      overduePendingCount,
-    };
+    const collectionSummaryByRoute = summarizeCollectionWorklistByRoute({
+      todayRows: dueTodayRows,
+      overdueRows: mappedOverdue,
+      overdueCollectedTodayByLoan,
+      routeIdByLoan: new Map(Array.from(loanById, ([loanId, loan]) => [loanId, loan.customer.routeId])),
+    });
 
     return ok({
       todayInstalments: mappedToday,
       overdueInstalments: mappedOverdue,
       collectionSummary,
+      collectionSummaryByRoute,
       routes: agentRoutes,
       dailyCollection: dailyCollectionRaw ? {
         id: dailyCollectionRaw.id,

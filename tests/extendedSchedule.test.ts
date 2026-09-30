@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { computeExtendedSchedule, computeRestructure, pairEntriesWithInstalments } from '../lib/restructure';
+import { computeExtendedSchedule, computeRestructure, pairEntriesWithInstalments, pastTermMissedDays } from '../lib/restructure';
 
 function run() {
   console.log('--- Running Extended Schedule Tests ---');
@@ -169,6 +169,7 @@ function run() {
     id: `r${idx + 1}`,
     instalmentNo: idx + 1,
     receivedAmount: idx < 2 ? 2000 : idx < 4 ? 4000 : 0,
+    collectionEntryId: (["c16", "c17", "c18", "c30"] as (string | undefined)[])[idx] ?? null,
   }));
   const dl3Collections = [
     { id: "c16", instalmentId: "r1", receivedAmount: 2000, collectionDate: new Date("2026-09-16T00:00:00Z"), submittedAt: new Date("2026-09-16T09:00:00Z") },
@@ -194,6 +195,12 @@ function run() {
   assert.equal(res8.extendedRows[1].receivedAmount, 2000);
   assert.equal(res8.extendedRows[4].receivedAmount, 4000);
   assert.equal(res8.projectedEndDate.getDate(), 4, "Finish 4 Oct");
+  // Edit: 30 Sep is one payment and the only cash on row 4 → editable via row 4.
+  // 27 Sep shares row 3 with the 18 Sep payment → a row correction would touch both.
+  assert.equal(res8.extendedRows[4].editInstalmentId, "r4");
+  assert.equal(res8.extendedRows[1].editInstalmentId, null);
+  // Penalty days: rows 4–10 missed at the end of the term + 26, 28, 29 Sep.
+  assert.equal(pastTermMissedDays(res8), 10);
 
   // Test 8b: the extend-days rule. 16–25 Sep, days 1–4 paid, 5–10 missed.
   const fourPaid = instalments.map((i, idx) => ({ ...i, id: `r${idx + 1}`, receivedAmount: idx < 4 ? 2000 : 0 }));
@@ -209,6 +216,7 @@ function run() {
   assert.equal(d12.ledger![4].status, "missed", "Row 5 stays missed — the payment belongs to day 12");
   assert.deepEqual(d12.extendedRows.slice(0, 2).map((r) => r.status), ["missed", "paid"]);
   assert.equal(d12.projectedEndDate.getDate(), 2, "Day 17 = 2 Oct");
+  assert.equal(pastTermMissedDays(d12), 7, "6 rows missed in tenure + day 11");
   // Paid ₹6,000 (3 days) on day 13: 2 payments left, finish comes in to day 15.
   const pay13 = { instalmentId: "r6", receivedAmount: 6000, collectionDate: new Date("2026-09-28T00:00:00Z") };
   const after13 = after12.map((i, idx) => (idx === 5 ? { ...i, receivedAmount: 6000 } : i));
@@ -250,6 +258,7 @@ function run() {
 
   // Test 10: No ledger while the term is still running.
   assert.equal(res4.ledger, null);
+  assert.equal(pastTermMissedDays(res4), null);
 
   console.log('✓ All Extended Schedule Tests passed successfully');
 }

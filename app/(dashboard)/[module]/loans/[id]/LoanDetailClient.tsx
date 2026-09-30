@@ -323,6 +323,7 @@ export default function LoanDetailClient({
       receivedAt: null,
       collectionEntryId: null,
       paymentMode: null,
+      editInstalmentId: null,
     }));
   }, [extended, loan.perInstalment, loan.totalInstalments]);
 
@@ -1321,7 +1322,11 @@ export default function LoanDetailClient({
                     <tr key={`proj-${r.no}`} style={{ background: rowBg }}>
                       <td style={{ fontWeight: 600 }}>#{r.no}</td>
                       <td>{formatDate(r.date)}</td>
-                      <td>{isPaid && r.receivedAt ? formatDate(r.receivedAt) : '—'}</td>
+                      <td style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
+                        {Number(r.receivedAmount) > 0 && r.receivedAt
+                          ? new Date(r.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                          : '—'}
+                      </td>
                       <td style={{ fontWeight: 600 }}>{formatCurrency(r.amount, currencySymbol)}</td>
                       <td style={{ color: isPaid ? 'var(--success)' : 'inherit', fontWeight: isPaid ? 600 : 'normal' }}>
                         {Number(r.receivedAmount) > 0 ? formatCurrency(r.receivedAmount, currencySymbol) : '—'}
@@ -1347,6 +1352,17 @@ export default function LoanDetailClient({
                             >
                               <span className="material-icons-outlined" style={{ fontSize: '15px' }}>payments</span>
                               {d.pay}
+                            </button>
+                          )}
+                          {loan.status !== 'closed' && r.editInstalmentId && Number(r.receivedAmount) > 0 && (
+                            // Same correction as a tenure row: this day's payment is the
+                            // only cash on its instalment (EXT-1), so editing that row
+                            // edits exactly this payment.
+                            <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal({ id: r.editInstalmentId })} style={{ padding: '6px 10px' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
+                                {isAdmin ? 'edit' : 'history_edu'}
+                              </span>{' '}
+                              {isAdmin ? d.edit : 'Request'}
                             </button>
                           )}
                           {receiptPdfEnabled && r.collectionEntryId && (
@@ -1473,6 +1489,11 @@ export default function LoanDetailClient({
                         style={{ minHeight: 36 }}
                       >
                         <span className="material-icons-outlined" style={{ fontSize: 14 }}>payments</span> {d.pay}
+                      </button>
+                    )}
+                    {loan.status !== 'closed' && r.editInstalmentId && Number(r.receivedAmount) > 0 && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal({ id: r.editInstalmentId })} style={{ minHeight: 36 }}>
+                        <span className="material-icons-outlined" style={{ fontSize: 14 }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? d.edit : 'Request'}
                       </button>
                     )}
                     {receiptPdfEnabled && r.collectionEntryId && (

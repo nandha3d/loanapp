@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { computeRestructure, restructuredAmountFor, computeExtendedSchedule, pairEntriesWithInstalments } from '@/lib/restructure';
+import { computeRestructure, restructuredAmountFor, computeExtendedSchedule, pairEntriesWithInstalments, pastTermMissedDays } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
@@ -199,9 +199,11 @@ export async function GET(
 
   // Server-supplied penalty summary — canonical source of truth shared across
   // web, mobile and reports to eliminate client-side calculation drift.
-  // Penalty maths stays on the posted instalments — the ledger is display only.
-  const missedInstsCount = preMappedInstalments
-    .filter((i) => i.status !== 'waived' && new Date(i.dueDate) < today && i.status === 'missed').length;
+  // Past the term a penalty day is a row missed at the end of the term or an
+  // extended day missed since (EXT-1) — same count the pending accrual writes.
+  const missedInstsCount = pastTermMissedDays(extendedSchedule)
+    ?? preMappedInstalments
+      .filter((i) => i.status !== 'waived' && new Date(i.dueDate) < today && i.status === 'missed').length;
   const recordedPenalty = (loan.penalties || []).reduce((sum, p) => sum + Number(p.grossPenalty || 0), 0);
   const potentialPenalty = (loan.status === 'closed' || totalOutstanding <= 0) ? 0 : missedInstsCount * Number(loan.penaltyRate || 0);
   const grossPenalty = Math.max(recordedPenalty, potentialPenalty);

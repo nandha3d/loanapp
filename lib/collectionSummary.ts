@@ -56,3 +56,33 @@ export function summarizeCollectionWorklist(args: {
     overduePendingCount: args.overdueRows.filter((row) => outstanding(row) > 0).length,
   };
 }
+
+// Same summary, split by the customer's route (key '' = no route). Every route
+// goes through summarizeCollectionWorklist, so the route cards on Collection
+// Entry always add up to the "All routes" card.
+export function summarizeCollectionWorklistByRoute(args: {
+  todayRows: (CollectionSummaryInput & { loanId: string })[];
+  overdueRows: (CollectionSummaryInput & { loanId: string })[];
+  overdueCollectedTodayByLoan: Map<string, number>;
+  routeIdByLoan: Map<string, string | null | undefined>;
+}): Record<string, CollectionSummary> {
+  const routeOf = (loanId: string) => args.routeIdByLoan.get(loanId) ?? '';
+  const keys = new Set([
+    ...args.todayRows.map((row) => routeOf(row.loanId)),
+    ...args.overdueRows.map((row) => routeOf(row.loanId)),
+    ...Array.from(args.overdueCollectedTodayByLoan.keys()).map(routeOf),
+  ]);
+  const byRoute: Record<string, CollectionSummary> = {};
+  for (const key of keys) {
+    let overdueCollectedToday = 0;
+    for (const [loanId, amount] of args.overdueCollectedTodayByLoan) {
+      if (routeOf(loanId) === key) overdueCollectedToday += amount;
+    }
+    byRoute[key] = summarizeCollectionWorklist({
+      todayRows: args.todayRows.filter((row) => routeOf(row.loanId) === key),
+      overdueRows: args.overdueRows.filter((row) => routeOf(row.loanId) === key),
+      overdueCollectedToday,
+    });
+  }
+  return byRoute;
+}

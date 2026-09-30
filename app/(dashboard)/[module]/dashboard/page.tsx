@@ -16,8 +16,10 @@ import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
 import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
 import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
 import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCards';
-import TodaysActivityCard from './TodaysActivityCard';
-import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import RecentActivityCard from './RecentActivityCard';
+import { OverdueAgeingChart, TopOverdueCustomers, CashFlowChart, PortfolioHealthDonut } from './DashboardCharts';
+import { startOfBusinessToday, startOfBusinessTomorrow, startOfBusinessDayUtc } from '@/lib/businessTime';
+import { buildOverdueAgeing, parseAgeingEdges, topOverdueCustomers, DEFAULT_AGEING_BUCKETS } from '@/lib/dashboard/overdueInsights';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
 import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
@@ -479,6 +481,73 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     overdueCollectedToday += m.overdueCollectedToday;
   }
   const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
+
+  // ── Dashboard charts ──────────────────────────────────────────────────
+  // Ageing + top customers read the same distribution-adjusted overdue rows as
+  // the Overdue card, so their totals equal its "Remaining" figure (MONEY-22).
+  const overdueRows = overdueForTotals.map((item: any) => ({
+    dueDate: item.dueDate,
+    overdueAmount: Number(item.overdueAmount),
+    customerId: item.loan?.customerId ?? '',
+  }));
+  const bizTodayUtc = startOfBusinessDayUtc();
+  const cashFlowMonths = Array.from({ length: 6 }, (_, i) => {
+    const offset = 5 - i;
+    const start = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset, 1));
+    const end = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset + 1, 1));
+    return { start, end, label: start.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) };
+  });
+  const topOverdue = topOverdueCustomers(overdueRows, 6);
+
+  const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups] = await Promise.all([
+    // Same bucket edges as the Aging report (report_aging_buckets).
+    getSetting(tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
+    prisma.loan.count({ where: { ...loanWhere, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
+    topOverdue.length > 0
+      ? prisma.customer.findMany({
+          where: { tenantId, appType, id: { in: topOverdue.map((c) => c.customerId) } },
+          select: { id: true, name: true, customerCode: true, route: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+    // Cash book, same basis as the capital / Total Collected KPIs (getDashboardBookTotals).
+    Promise.all(
+      cashFlowMonths.map((m) =>
+        prisma.accountEntry.groupBy({
+          by: ['type'],
+          where: {
+            tenantId,
+            appType,
+            ...branchFilter,
+            type: { in: ['loan_disburse', 'collection'] },
+            entryDate: { gte: m.start, lt: m.end },
+          },
+          _sum: { amount: true },
+        }),
+      ),
+    ),
+  ]);
+
+  const overdueAgeing = buildOverdueAgeing(overdueRows, parseAgeingEdges(ageingSetting));
+  const topCustomerById = new Map(topOverdueCustomerRows.map((c) => [c.id, c]));
+  const topOverdueCustomersView = topOverdue
+    .filter((c) => topCustomerById.has(c.customerId))
+    .map((c) => {
+      const customer = topCustomerById.get(c.customerId)!;
+      return { ...c, name: customer.name, customerCode: customer.customerCode, routeName: customer.route?.name ?? null };
+    });
+  const loansWithOverdue = new Set(
+    overdueForTotals
+      .filter((item: any) => (COLLECTIBLE_LOAN_STATUSES as readonly string[]).includes(item.loan?.status))
+      .map((item: any) => item.loanId),
+  ).size;
+  const portfolioHealth = {
+    withOverdue: loansWithOverdue,
+    onTrack: Math.max(0, collectibleLoanCount - loansWithOverdue),
+  };
+  const cashFlow = cashFlowMonths.map((m, i) => {
+    const sumOf = (type: string) => Number(cashFlowGroups[i].find((g) => g.type === type)?._sum.amount ?? 0);
+    return { label: m.label, disbursed: sumOf('loan_disburse'), collected: sumOf('collection') };
+  });
 
   // Frequency & Status-wise breakdown for Today's Collection:
   const todayLoansByStatus = {
@@ -998,6 +1067,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     pendingPenaltyTotal,
     pendingPenaltyCount: pendingPenalties._count,
     overdueInstalments,
+    overdueAgeing,
+    topOverdueCustomers: topOverdueCustomersView,
+    portfolioHealth,
+    cashFlow,
     trend,
     routePerformance,
     recentActivity,
@@ -2154,51 +2227,91 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className={upiManualVerify ? 'grid-60-40' : ''} style={{ marginTop: '20px' }}>
+      <div className="grid-60-40" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h3>{d.overdueAlerts}</h3>
-            <Link href="/collection" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '20px' }}>hourglass_bottom</span>
+                {d.overdueAgeing}
+              </h3>
+              <div style={{ fontSize: '.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{d.overdueAgeingSub}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '1rem' }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)}</span>
+              <Link href="/collection?tab=overdue" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
+            </div>
           </div>
-          {data.overdueInstalments.length > 0 ? (
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{dict.loansList.customer}</th>
-                    <th>{dict.reports.route}</th>
-                    <th>{dict.collection.dueDate}</th>
-                    <th>{dict.loansList.overdue}</th>
-                    <th>{dict.customersList.action}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.overdueInstalments.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <strong>{item.loan.customer.name}</strong>
-                        <br />
-                        <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{item.loan.customer.customerCode}</span>
-                      </td>
-                      <td>{item.loan.customer.route?.name || '-'}</td>
-                      <td>{formatDate(item.dueDate)} ({item.daysOverdue}d)</td>
-                      <td style={{ color: 'var(--danger)', fontWeight: 700 }}>{formatCurrency(item.overdueAmount, branding.currencySymbol)}</td>
-                      <td><Link href={`/customers/${item.loan.customer.customerCode}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty-state" style={{ padding: '24px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>check_circle</span>
-              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{d.noOverdue}</p>
-            </div>
-          )}
+          <div style={{ padding: '8px 4px 0' }}>
+            <OverdueAgeingChart
+              buckets={data.overdueAgeing}
+              currencySymbol={branding.currencySymbol}
+              labels={{ days: d.daysUnit, instalments: d.instalmentsCount, empty: d.noOverdue }}
+            />
+          </div>
         </div>
 
-        {upiManualVerify && (
         <div className="card">
+          <div className="card-header">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '20px' }}>groups</span>
+              {d.topOverdueCustomers}
+            </h3>
+            <Link href="/collection?tab=overdue" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
+          </div>
+          <div style={{ padding: '8px 4px 4px' }}>
+            <TopOverdueCustomers
+              rows={data.topOverdueCustomers}
+              currencySymbol={branding.currencySymbol}
+              labels={{ instalments: d.instalmentsCount, oldest: d.oldestOverdue, days: d.daysUnit, empty: d.noOverdue }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid-60-40" style={{ marginTop: '20px' }}>
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>bar_chart</span>
+                {d.cashFlow}
+              </h3>
+              <div style={{ fontSize: '.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{d.cashFlowSub}</div>
+            </div>
+            <Link href="/accounting" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
+          </div>
+          <div style={{ padding: '8px 4px 0' }}>
+            <CashFlowChart
+              months={data.cashFlow}
+              currencySymbol={branding.currencySymbol}
+              labels={{ disbursed: d.principalDisbursed, collected: dict.reports.collected, empty: d.noActivityRange }}
+            />
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '20px' }}>donut_large</span>
+                {d.portfolioHealth}
+              </h3>
+              <div style={{ fontSize: '.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{d.portfolioHealthSub}</div>
+            </div>
+          </div>
+          <div style={{ padding: '16px 4px' }}>
+            <PortfolioHealthDonut
+              onTrack={data.portfolioHealth.onTrack}
+              withOverdue={data.portfolioHealth.withOverdue}
+              labels={{ onTrack: d.onTrack, withOverdue: d.withOverdue, loans: d.loansCount, empty: dict.loansList.noLoans }}
+            />
+          </div>
+        </div>
+      </div>
+
+        {upiManualVerify && (
+        <div className="card" style={{ marginTop: '20px' }}>
           <div className="card-header">
             <h3>{d.pendingUpiVerifications}</h3>
             {data.pendingUpiCollections && data.pendingUpiCollections.length > 0 && (
@@ -2246,15 +2359,11 @@ export default async function DashboardPage() {
           )}
         </div>
         )}
-      </div>
 
-      <TodaysActivityCard
+      <RecentActivityCard
         currencySymbol={branding.currencySymbol ?? '₹'}
-        paidItems={data.todaysActivity.paidItems}
-        pendingItems={data.todaysActivity.pendingItems}
-        newLoanItems={data.todaysActivity.newLoanItems}
-        newCustomerItems={data.todaysActivity.newCustomerItems}
-        otherItems={data.todaysActivity.otherItems}
+        today={data.todaysActivity}
+        clearLabel={dict.customersList.clear}
         dict={{
           dashboard: d as any,
         }}

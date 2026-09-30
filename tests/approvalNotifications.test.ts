@@ -53,6 +53,19 @@ assert.deepEqual(
   'unread notification count uses the same targeted visibility scope',
 );
 
+// Superadmin rows are fanned out tenant-wide, so the branch switcher filters them
+// at read time: one branch → that branch (+ unbranched); All Branches → everything.
+assert.deepEqual(
+  buildSystemNotificationWhere({ ...baseInput, userId: 'sa-1', userRole: 'superadmin' }).OR[0],
+  { targetUserId: 'sa-1', OR: [{ branchId: 'branch-1' }, { branchId: null }] },
+  'superadmin on one branch sees only that branch\'s own notifications',
+);
+assert.deepEqual(
+  buildSystemNotificationWhere({ ...baseInput, userId: 'sa-1', userRole: 'superadmin', activeBranchId: null }).OR[0],
+  { targetUserId: 'sa-1' },
+  'superadmin on All Branches sees every notification',
+);
+
 const schema = read('prisma/schema.prisma');
 assert.match(schema, /targetUserId\s+String\?\s+@map\("target_user_id"\)/, 'notifications can target one approving admin user');
 assert.match(schema, /@@index\(\[targetUserId/, 'targeted notifications are indexed by target user');

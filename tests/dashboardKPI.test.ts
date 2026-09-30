@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { summarizeCollectionWorklist } from '../lib/collectionSummary';
+import { summarizeCollectionWorklist, summarizeCollectionWorklistByRoute } from '../lib/collectionSummary';
+import { getDistributedInstalmentsAndMetrics } from '../lib/repayments';
 import { formatCurrency } from '../lib/utils';
 
 // ============================================================
@@ -254,6 +255,52 @@ const fullyRecoveredOverdue = summarizeCollectionWorklist({
 assert.equal(fullyRecoveredOverdue.overdueOutstanding, 0, 'ML-D-043 fully recovered overdue no longer outstanding');
 assert.equal(fullyRecoveredOverdue.overdueTotalTillToday, 500, 'ML-D-043 fully recovered overdue remains in audit total');
 assert.equal(fullyRecoveredOverdue.overduePendingCount, 0, 'ML-D-043 fully recovered overdue is not pending');
+
+// ML-D-044: route cards add up to the "All routes" card.
+const routedToday = [
+  { loanId: 'L1', dueDate: '2026-07-05T09:00:00.000Z', dueAmount: 3000, receivedAmount: 0 },
+  { loanId: 'L2', dueDate: '2026-07-05T09:00:00.000Z', dueAmount: 300, receivedAmount: 300 },
+];
+const routedOverdue = [
+  { loanId: 'L1', dueDate: '2026-07-04T09:00:00.000Z', dueAmount: 3000, receivedAmount: 1000 },
+  { loanId: 'L3', dueDate: '2026-07-01T09:00:00.000Z', dueAmount: 300, receivedAmount: 0 },
+];
+const collectedByLoan = new Map([['L1', 1000], ['L4', 2000]]);
+const byRoute = summarizeCollectionWorklistByRoute({
+  todayRows: routedToday,
+  overdueRows: routedOverdue,
+  overdueCollectedTodayByLoan: collectedByLoan,
+  routeIdByLoan: new Map([['L1', 'bhavani'], ['L2', 'chithode'], ['L3', 'chithode'], ['L4', null]]),
+});
+const routedTotal = summarizeCollectionWorklist({
+  todayRows: routedToday,
+  overdueRows: routedOverdue,
+  overdueCollectedToday: 3000,
+});
+assert.deepEqual(Object.keys(byRoute).sort(), ['', 'bhavani', 'chithode'], 'ML-D-044 loans without a route group under ""');
+assert.equal(byRoute.chithode.todayExpected, 300, 'ML-D-044 route today expected');
+assert.equal(byRoute.bhavani.overdueCollectedToday, 1000, 'ML-D-044 route overdue recovered is that route\'s cash today only');
+for (const key of Object.keys(routedTotal) as (keyof typeof routedTotal)[]) {
+  const sum = Object.values(byRoute).reduce((s, r) => s + r[key], 0);
+  assert.equal(sum, routedTotal[key], `ML-D-044 routes sum to total for ${key}`);
+}
+
+// ML-D-045: an instalment stored as 'paid' can still be overdue once history is
+// re-filled oldest-first (MONEY-22), so Collection Entry must pick overdue rows
+// from the distributed view, never from the raw status column.
+const { distributedInstalments: rawPaidDist } = getDistributedInstalmentsAndMetrics(
+  [
+    { id: 'd1', loanId: 'L', instalmentNo: 1, dueDate: '2026-07-01T00:00:00.000Z', dueAmount: 300, receivedAmount: 0, status: 'missed' },
+    { id: 'd2', loanId: 'L', instalmentNo: 2, dueDate: '2026-07-02T00:00:00.000Z', dueAmount: 300, receivedAmount: 300, status: 'paid' },
+  ],
+  new Date('2026-07-05T00:00:00.000Z'),
+  [],
+);
+assert.deepEqual(
+  rawPaidDist.filter((i) => i.overdueAmount > 0).map((i) => i.id),
+  ['d2'],
+  'ML-D-045 overdue row is the distributed one, not the raw-unpaid one',
+);
 
 // --- Date Formatting (XM-D-012) ---
 
