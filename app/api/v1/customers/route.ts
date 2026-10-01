@@ -16,6 +16,7 @@ import { modulePath } from '@/types/modules';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { getBranding } from '@/lib/tenant';
 import { getAgentRouteIds } from '@/lib/access';
+import { mapGuarantorCreateInput } from '@/lib/customers/guarantors';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -222,6 +223,16 @@ export async function POST(req: NextRequest) {
           longitude?: number | string | null;
           isPrimary?: boolean;
         }>;
+        guarantors?: Array<{
+          name?: string;
+          phone?: string;
+          relation?: string | null;
+          address?: string | null;
+          photoUrl?: string | null;
+          photo?: string | null;
+          aadharNumber?: string | null;
+          notes?: string | null;
+        }>;
       }
     | null;
   if (!body?.name || !body?.phone) {
@@ -415,11 +426,19 @@ export async function POST(req: NextRequest) {
             collectionPoints: collectionPoints.length > 0
               ? { create: collectionPoints }
               : undefined,
+            guarantors: body.guarantors && body.guarantors.length > 0
+              ? {
+                  create: body.guarantors
+                    .filter((g: any) => g?.name && g?.phone)
+                    .map(mapGuarantorCreateInput),
+                }
+              : undefined,
           },
           include: {
             route: { select: { id: true, name: true } },
             kycDocuments: true,
             collectionPoints: true,
+            guarantors: true,
           },
         });
 
