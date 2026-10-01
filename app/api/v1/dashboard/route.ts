@@ -501,6 +501,32 @@ export async function GET(req: NextRequest) {
     const overdueForTotals = distributedInstalments.filter(
       (item: any) => item.overdueAmount > 0,
     );
+    // DASH-06: same definitions as web dashboard/page.tsx.
+    const overdueCustomerCount = new Set(overdueForTotals.map((item: any) => item.loan?.customerId)).size;
+    const pendingFieldFloat = [...pendingUpiCollections, ...pendingCashCollections].reduce(
+      (sum: number, e: any) => sum + Number(e.receivedAmount || 0),
+      0,
+    );
+    // Things waiting for admin attention — matches the /approvals page and the web KPI.
+    const pendingApprovals = isAgent
+      ? 0
+      : await Promise.all([
+          prisma.approvalRequest.count({
+            where: {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              status: 'pending',
+              ...(ctx.branchId && ctx.appType === 'microlending'
+                ? { OR: [
+                    { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
+                    await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
+                  ] }
+                : (ctx.branchId ? { requestedBy: { branchId: ctx.branchId } } : {})),
+            },
+          }),
+          prisma.loan.count({ where: { ...baseLoan, status: 'pending_review' } }),
+          prisma.customer.count({ where: { ...baseCustomer, status: 'pending_review' } }),
+        ]).then(([a, l, c]) => a + l + c);
 
     // ── Dashboard charts (DASH-05 parity with web page.tsx) ───────────────
     let overdueAgeing: any[] = [];
@@ -912,6 +938,9 @@ export async function GET(req: NextRequest) {
       overdueTotalTillToday,
       pendingPenalties,
       pendingPenaltyTotal,
+      overdueCustomerCount,
+      pendingApprovals,
+      pendingFieldFloat,
       activeAgents,
       recentLoans,
       todayInstalments: mappedTodayInstalments,

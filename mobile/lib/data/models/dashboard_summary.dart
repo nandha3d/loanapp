@@ -196,6 +196,9 @@ class DashboardSummary {
     required this.overdueTotalTillToday,
     required this.pendingPenalties,
     this.pendingPenaltyTotal = 0.0,
+    this.overdueCustomerCount = 0,
+    this.pendingApprovals = 0,
+    this.pendingFieldFloat = 0.0,
     required this.activeAgents,
     required this.recentLoans,
     required this.todayInstalments,
@@ -239,6 +242,9 @@ class DashboardSummary {
   final double overdueTotalTillToday;
   final int pendingPenalties;
   final double pendingPenaltyTotal;
+  final int overdueCustomerCount;
+  final int pendingApprovals;
+  final double pendingFieldFloat;
   final int activeAgents;
   final List<RecentLoan> recentLoans;
   final List<TodayInstalment> todayInstalments;
@@ -286,6 +292,9 @@ class DashboardSummary {
       overdueTotalTillToday: toNum(json['overdueTotalTillToday']),
       pendingPenalties: (json['pendingPenalties'] as num?)?.toInt() ?? 0,
       pendingPenaltyTotal: toNum(json['pendingPenaltyTotal']),
+      overdueCustomerCount: toNum(json['overdueCustomerCount']).toInt(),
+      pendingApprovals: toNum(json['pendingApprovals']).toInt(),
+      pendingFieldFloat: toNum(json['pendingFieldFloat']),
       activeAgents: (json['activeAgents'] as num?)?.toInt() ?? 0,
       recentLoans: (json['recentLoans'] as List<dynamic>? ?? const [])
           .map((dynamic e) => RecentLoan.fromJson(e as Map<String, dynamic>))

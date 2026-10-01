@@ -1063,7 +1063,9 @@ class _MoneyFlowRow extends StatelessWidget {
                 : AppColors.dangerBg,
             label: t.x('analytics.capitalBalance'),
             value: fmt.format(summary.currentCapital),
-            sub: t.x('dash.cash_book'),
+            sub: summary.pendingFieldFloat > 0
+                ? '+ ${fmt.format(summary.pendingFieldFloat)} ${t.x('dash.pending_field_float')}'
+                : t.x('dash.cash_book'),
             responsive: responsive,
           ),
         ],
@@ -1179,7 +1181,7 @@ class _AlertsRow extends StatelessWidget {
         ? fmt!.format(summary.pendingPenaltyTotal)
         : '₹${summary.pendingPenaltyTotal.round()}';
 
-    return Row(
+    final firstRow = Row(
       children: [
         Expanded(
           child: _AlertCard(
@@ -1204,6 +1206,39 @@ class _AlertsRow extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+    if (isAgent) return firstRow;
+    // DASH-06: same KPIs as the web dashboard, values from the server.
+    return Column(
+      children: [
+        firstRow,
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _AlertCard(
+                label: t.x('dash.overdue_customers'),
+                value: '${summary.overdueCustomerCount}',
+                icon: Icons.person_off_outlined,
+                bg: AppColors.dangerBg,
+                fg: AppColors.danger,
+                onTap: () => context.go('/collection'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _AlertCard(
+                label: t.x('dash.pending_approvals'),
+                value: '${summary.pendingApprovals}',
+                icon: Icons.approval_outlined,
+                bg: AppColors.primaryLight,
+                fg: AppColors.primary,
+                onTap: () => context.go('/approvals'),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
