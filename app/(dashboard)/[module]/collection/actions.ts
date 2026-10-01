@@ -35,10 +35,7 @@ export async function submitCollectionEntry(formData: FormData) {
       paymentMode,
       remarks,
       collectionDate,
-      latitude,
-      longitude,
-      gpsAccuracy,
-      locationStatus
+      gps: { status: locationStatus, latitude, longitude, accuracy: gpsAccuracy },
     };
 
     const res = await apiFetch<any>('/collection/entry', {
@@ -115,10 +112,9 @@ export async function submitLoanCollection(formData: FormData) {
       paymentMode,
       remarks,
       collectionDate,
-      latitude,
-      longitude,
-      gpsAccuracy,
-      locationStatus,
+      // Nested like the mobile body so normalizeGpsBody keeps the status
+      // (e.g. location_denied) and accuracy (COL-04).
+      gps: { status: locationStatus, latitude, longitude, accuracy: gpsAccuracy },
     };
 
     const res = await apiFetch<any>('/collection/collect', {
