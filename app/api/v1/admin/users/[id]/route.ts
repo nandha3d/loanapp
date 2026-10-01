@@ -36,6 +36,8 @@ export async function PATCH(
         bypassCustomerApproval: true,
         autoReleaseFloat: true,
         feeConfirmationMandatory: true,
+        bypassVehicleApproval: true,
+        isPrimaryAdmin: true,
         branchId: true,
         name: true,
         username: true,
@@ -89,6 +91,9 @@ export async function PATCH(
     if (targetUser.bypassCustomerApproval != null) formData.append('bypassCustomerApproval', String(targetUser.bypassCustomerApproval));
     if (targetUser.autoReleaseFloat != null) formData.append('autoReleaseFloat', String(targetUser.autoReleaseFloat));
     if (targetUser.feeConfirmationMandatory != null) formData.append('feeConfirmationMandatory', String(targetUser.feeConfirmationMandatory));
+    formData.append('bypassVehicleApproval', String(targetUser.bypassVehicleApproval));
+    // Only a superadmin/developer may send isPrimaryAdmin (manageMasterUser rejects it from admins).
+    if (ctx.role !== 'admin' && targetUser.isPrimaryAdmin) formData.append('isPrimaryAdmin', 'true');
     if (targetUser.branchId) formData.append('branchId', targetUser.branchId);
     if (targetUser.role) formData.append('role', targetUser.role);
     if (targetUser.name) formData.append('name', targetUser.name);
