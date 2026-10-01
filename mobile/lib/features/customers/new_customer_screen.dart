@@ -110,6 +110,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   bool _showCompany = false;
   final _picker = ImagePicker();
   String? _kycStatus;
+  String? _preferredTime;
+
+  /// Same options as the web customer form (CUST-08). '' = anytime.
+  static const _preferredTimes = ['', 'morning', 'afternoon', 'evening', 'night'];
   double? _lat;
   double? _lng;
 
@@ -155,6 +159,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           c.businessType != null ||
           c.companyType != null;
       _kycStatus = c.kycStatus;
+      _preferredTime = c.preferredCollectionTime;
       // Prefill guarantors
       for (final g in c.guarantors) {
         final entry = _GuarantorEntry()
@@ -432,9 +437,15 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // already-uploaded company logo URL (null when unchanged/unset).
   Map<String, dynamic> _extendedFields(String? logoUrl, List<Map<String, dynamic>> guarantorPayloads) {
     final m = <String, dynamic>{};
+    // CUST-08: in edit mode a field the user cleared is sent as null so the
+    // server clears it; on create blanks are simply omitted.
     void put(String key, String value) {
       final v = value.trim();
-      if (v.isNotEmpty) m[key] = v;
+      if (v.isNotEmpty) {
+        m[key] = v;
+      } else if (_isEdit) {
+        m[key] = null;
+      }
     }
 
     put('pan', _panCtrl.text);
@@ -456,8 +467,13 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       if (n != null) m['monthlyIncome'] = n;
     }
     if (logoUrl != null) m['companyLogo'] = logoUrl;
-    if (_lat != null) m['lat'] = _lat;
-    if (_lng != null) m['lng'] = _lng;
+    // Edit mode always sends GPS so clearing the pin persists (CUST-08).
+    if (_lat != null || _isEdit) m['lat'] = _lat;
+    if (_lng != null || _isEdit) m['lng'] = _lng;
+    if (_preferredTime != null) {
+      m['preferredCollectionTime'] =
+          _preferredTime!.isEmpty ? null : _preferredTime;
+    }
     final cps = _collectionPoints
         .where((cp) =>
             cp.name.text.trim().isNotEmpty && cp.address.text.trim().isNotEmpty,)
@@ -469,8 +485,11 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               'isPrimary': cp.isPrimary,
             },)
         .toList();
-    if (cps.isNotEmpty) m['collectionPoints'] = cps;
-    if (guarantorPayloads.isNotEmpty) m['guarantors'] = guarantorPayloads;
+    // Edit mode sends emptied lists as [] so removals persist (CUST-08).
+    if (cps.isNotEmpty || _isEdit) m['collectionPoints'] = cps;
+    if (guarantorPayloads.isNotEmpty || _isEdit) {
+      m['guarantors'] = guarantorPayloads;
+    }
     if (_kycStatus != null) m['kycStatus'] = _kycStatus;
     if (_routeId != null) m['routeId'] = _routeId;
     return m;
@@ -528,6 +547,16 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         };
         if (_aadharCtrl.text.trim().isNotEmpty) {
           patch['aadharNumber'] = _aadharCtrl.text.trim();
+        }
+        // CUST-08: documents added while editing are uploaded and appended
+        // (server kycDocs is append-only, MON-09).
+        if (_docs.isNotEmpty) {
+          final docs = <Map<String, dynamic>>[];
+          for (final d in _docs) {
+            final r = await uploader.uploadFile(d.file);
+            docs.add({'type': d.type, 'url': r.url});
+          }
+          patch['kycDocs'] = docs;
         }
         // CUST-05: an agent edit carries only the fields web's request-edit
         // modal offers; the server files it for approval.
@@ -959,11 +988,36 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   // customer's collecting agent — no separate agent picker;
                   // agent↔route assignment lives in Settings → Routes, same
                   // as web). ────────────────────────────────────────────────
+                  // ── Preferred collection time (same options as web) ──
+                  if (!_agentEdit) ...[
+                    _LabeledField(
+                      label: t.x('cust.preferred_time'),
+                      child: _AppDropdown<String>(
+                        value: _preferredTime ?? '',
+                        hint: t.x('cust.time_anytime'),
+                        items: [
+                          for (final v in _preferredTimes)
+                            DropdownMenuItem(
+                              value: v,
+                              child: Text(t.x(v.isEmpty
+                                  ? 'cust.time_anytime'
+                                  : 'cust.time_$v')),
+                            ),
+                        ],
+                        onChanged: (v) => setState(() => _preferredTime = v),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   if (!isChit && !_agentEdit) ...[
                     _LabeledField(
                       label: t.x('fld.route_line'),
                       required: true,
-                      trailing: TextButton(
+                      // CUST-08: agents don't create routes (as web).
+                      trailing: ref.read(authControllerProvider).user?.role ==
+                              UserRole.agent
+                          ? null
+                          : TextButton(
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,

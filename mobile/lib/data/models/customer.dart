@@ -21,6 +21,7 @@ class Customer {
     this.aadhaarDob,
     this.aadhaarAddress,
     this.kycRejectedReason,
+    this.preferredCollectionTime,
     this.kycVerifiedAt,
     this.routeName,
     this.agentName,
@@ -68,6 +69,7 @@ class Customer {
   final String? aadhaarDob;
   final String? aadhaarAddress;
   final String? kycRejectedReason;
+  final String? preferredCollectionTime;
   final DateTime? kycVerifiedAt;
   final String? routeName;
   final String? agentName;
@@ -152,6 +154,7 @@ class Customer {
       aadhaarDob: json['aadhaarDob'] as String?,
       aadhaarAddress: json['aadhaarAddress'] as String?,
       kycRejectedReason: json['kycRejectedReason'] as String?,
+      preferredCollectionTime: json['preferredCollectionTime'] as String?,
       kycVerifiedAt: DateTime.tryParse('${json['kycVerifiedAt'] ?? ''}')?.toLocal(),
       routeName: route?['name'] as String?,
       agentName: agent?['name'] as String?,
