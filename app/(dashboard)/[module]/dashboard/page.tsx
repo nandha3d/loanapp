@@ -271,23 +271,26 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       },
       orderBy: { submittedAt: 'desc' },
     }),
+    // DASH-07: one definition on web and mobile — highest borrower = max Σ
+    // principal of active+overdue loans; best payer = top Σ collected.
     prisma.loan.groupBy({
       by: ['customerId'],
-      where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) },
       _sum: { principal: true },
       orderBy: { _sum: { principal: 'desc' } },
       take: 1
     }),
-    prisma.customer.findFirst({
-      where: {
-        tenantId,
-        appType,
-        status: 'active',
-        ...(branchId ? { branchId } : {}),
-        loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } }
-      },
-      include: { loans: true },
-    }),
+    prisma.collectionEntry.groupBy({
+      by: ['customerId'],
+      where: { tenantId, loan: { tenantId, appType, ...(branchId ? { branchId } : {}) } },
+      _sum: { receivedAmount: true },
+      orderBy: { _sum: { receivedAmount: 'desc' } },
+      take: 1,
+    }).then(async (rows) =>
+      rows[0]?.customerId
+        ? prisma.customer.findFirst({ where: { id: rows[0].customerId, tenantId }, include: { loans: true } })
+        : null,
+    ),
     prisma.collectionEntry.findMany({
       where: {
         tenantId,

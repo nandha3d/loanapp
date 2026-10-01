@@ -277,10 +277,13 @@ export async function GET(req: NextRequest) {
         orderBy: { _sum: { receivedAmount: 'desc' } },
         take: 1,
       }),
-      prisma.loan.findFirst({
+      // DASH-07: highest borrower = max Σ principal of active+overdue loans per customer (same as web).
+      prisma.loan.groupBy({
+        by: ['customerId'],
         where: { ...baseLoan, status: { in: ['active', 'overdue'] } },
-        orderBy: { principal: 'desc' },
-        include: { customer: { select: { name: true } } },
+        _sum: { principal: true },
+        orderBy: { _sum: { principal: 'desc' } },
+        take: 1,
       }),
       prisma.collectionEntry.findMany({
         where: {
@@ -421,7 +424,14 @@ export async function GET(req: NextRequest) {
       });
       if (cust) bestPayer = cust.name;
     }
-    const highestBorrower = topLoan?.customer?.name ?? '—';
+    let highestBorrower = '—';
+    if (topLoan.length > 0 && topLoan[0].customerId) {
+      const cust = await prisma.customer.findFirst({
+        where: { id: topLoan[0].customerId, tenantId: ctx.tenantId },
+        select: { name: true },
+      });
+      if (cust) highestBorrower = cust.name;
+    }
 
     const todayByMode: Record<string, number> = {};
     for (const c of collectionsByMode) {
