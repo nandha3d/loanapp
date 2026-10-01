@@ -9,6 +9,7 @@ import {
 import {
   decryptAadharNumber,
   encryptAadharNumber,
+  isMaskedAadharNumber,
   isMaskedPan,
   maskAadharNumber,
   maskPan,
@@ -154,7 +155,11 @@ export async function PATCH(
       data.profilePhoto = null;
     }
     if (data.aadharNumber !== undefined) {
-      data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+      if (isMaskedAadharNumber(String(data.aadharNumber || ''))) {
+        delete data.aadharNumber; // MON-08: web prefills masked XXXX XXXX 1234
+      } else {
+        data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+      }
     }
     if (data.pan !== undefined && isMaskedPan(data.pan as string)) {
       delete data.pan;
@@ -208,7 +213,9 @@ export async function PATCH(
           relation: g.relation ? String(g.relation) : null,
           address: g.address ? String(g.address) : null,
           photo: g.photoUrl ?? g.photo ? String(g.photoUrl ?? g.photo) : null,
-          aadharNumber: g.aadharNumber ? encryptAadharNumber(String(g.aadharNumber)) : null,
+          aadharNumber: g.aadharNumber && !isMaskedAadharNumber(String(g.aadharNumber))
+            ? encryptAadharNumber(String(g.aadharNumber))
+            : null,
         }));
       data.guarantors = {
         deleteMany: {},
