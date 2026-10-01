@@ -1,6 +1,8 @@
 import prisma from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 
 // Web counterpart of GET /api/v1/dashboard/activities (the mobile "Recent
 // Activities" date filter). Same queries, caps and item shapes, but scoped with
@@ -34,7 +36,8 @@ export async function getActivityFeed(scope: ActivityFeedScope, startDate: Date,
     ...(isAgent ? (agentAccess as Prisma.CustomerWhereInput) : branchWhere),
   };
 
-  // ApprovalRequest has no branchId (SCOPE-18): scope through the requester.
+  // ApprovalRequest has no branchId (SCOPE-18): scope through the requester;
+  // microlending preclose requests follow the loan's branch, as the queue does.
   const approvalWhere: Prisma.ApprovalRequestWhereInput = {
     tenantId,
     appType,
@@ -42,8 +45,19 @@ export async function getActivityFeed(scope: ActivityFeedScope, startDate: Date,
       { createdAt: { gte: startDate, lt: endDate } },
       { reviewedAt: { gte: startDate, lt: endDate } },
     ],
-    ...(isAgent ? { requestedById: userId } : branchId ? { requestedBy: { branchId } } : {}),
   };
+  if (isAgent) {
+    approvalWhere.requestedById = userId;
+  } else if (branchId) {
+    if (appType === 'microlending') {
+      approvalWhere.AND = [{ OR: [
+        { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId } },
+        await precloseApprovalVisibility(tenantId, appType, branchId),
+      ] }];
+    } else {
+      approvalWhere.requestedBy = { branchId };
+    }
+  }
 
   const [collections, instalments, newLoans, newCustomers, closedLoans, approvals] = await Promise.all([
     prisma.collectionEntry.findMany({
@@ -82,6 +96,7 @@ export async function getActivityFeed(scope: ActivityFeedScope, startDate: Date,
             loanCode: true,
             frequency: true,
             status: true,
+            perInstalment: true,
             customer: {
               select: { id: true, name: true, customerCode: true, phone: true, route: { select: { id: true, name: true } } },
             },
@@ -200,6 +215,7 @@ export async function getActivityFeed(scope: ActivityFeedScope, startDate: Date,
           id: inst.loan?.id ?? '',
           loanCode: inst.loan?.loanCode ?? '—',
           frequency: inst.loan?.frequency ?? null,
+          perInstalment: Number(inst.loan?.perInstalment ?? 0),
         },
       })),
     newLoanItems: newLoans.map((l) => ({
