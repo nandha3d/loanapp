@@ -23,6 +23,7 @@ class QueuedCollection {
     required this.paymentMode,
     required this.collectionDate,
     required this.status,
+    this.loanId,
     this.failureReason,
     this.customerName,
     this.loanCode,
@@ -34,6 +35,7 @@ class QueuedCollection {
   final String paymentMode;
   final DateTime collectionDate;
   String status; // pending | synced | failed
+  final String? loanId;
   String? failureReason;
   final String? customerName;
   final String? loanCode;
@@ -45,6 +47,7 @@ class QueuedCollection {
         'paymentMode': paymentMode,
         'collectionDate': collectionDate.toIso8601String(),
         'status': status,
+        'loanId': loanId,
         'failureReason': failureReason,
         'customerName': customerName,
         'loanCode': loanCode,
@@ -57,6 +60,7 @@ class QueuedCollection {
         paymentMode: j['paymentMode'] as String,
         collectionDate: DateTime.parse(j['collectionDate'] as String),
         status: j['status'] as String,
+        loanId: j['loanId'] as String?,
         failureReason: j['failureReason'] as String?,
         customerName: j['customerName'] as String?,
         loanCode: j['loanCode'] as String?,
@@ -95,18 +99,32 @@ class CollectionQueue {
   }
 
   /// Push all pending entries. Stops on first network failure.
+  /// Replays through collectLoan (same endpoint as the online path) so that
+  /// the server-side idempotency key deduplicates correctly (MON-05).
   Future<({int synced, int failed})> syncPending() async {
     int synced = 0, failed = 0;
     final pending = (await all()).where((q) => q.status == 'pending');
     for (final q in pending) {
       try {
-        await _service.submit(
-          instalmentId: q.instalmentId,
-          receivedAmount: q.receivedAmount,
-          paymentMode: q.paymentMode,
-          idempotencyKey: q.idempotencyKey,
-          collectionDate: q.collectionDate,
-        );
+        if (q.loanId != null) {
+          // New-style queue entry — replay through the same loan-level endpoint.
+          await _service.collectLoan(
+            loanId: q.loanId!,
+            amount: q.receivedAmount,
+            paymentMode: q.paymentMode,
+            idempotencyKey: q.idempotencyKey,
+            collectionDate: q.collectionDate,
+          );
+        } else {
+          // Legacy queue entry (no loanId) — fall back to instalment-level submit.
+          await _service.submit(
+            instalmentId: q.instalmentId,
+            receivedAmount: q.receivedAmount,
+            paymentMode: q.paymentMode,
+            idempotencyKey: q.idempotencyKey,
+            collectionDate: q.collectionDate,
+          );
+        }
         q.status = 'synced';
         await _update(q);
         synced++;

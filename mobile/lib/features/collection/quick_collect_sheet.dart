@@ -247,13 +247,13 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       }
 
       if (!sync.online) {
+        // Generate key once per user action — same key goes to online + replay.
+        final key = _idempotencyKey(targetInst.instalmentId, appliedTotal);
         await queue.add(
           QueuedCollection(
-            idempotencyKey: _idempotencyKey(
-              targetInst.instalmentId,
-              appliedTotal,
-            ),
+            idempotencyKey: key,
             instalmentId: targetInst.instalmentId,
+            loanId: widget.row.loanId,
             receivedAmount: appliedTotal,
             paymentMode: _mode,
             collectionDate: today,
@@ -300,25 +300,25 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
 
       // ONE loan-level submit — the server records the amount on the
       // collection-date row for Actual. No client-side splitting.
+      // Generate one key per user action so online + retry share the same
+      // idempotency key (MON-05).
+      final submitKey = _idempotencyKey(targetInst.instalmentId, appliedTotal);
       try {
-        // No client key — the server derives a stable date-row key from
-        // (agent, instalment, amount, day), exactly like the web popup.
         await svc.collectLoan(
           loanId: widget.row.loanId,
           amount: appliedTotal,
           paymentMode: _mode,
+          idempotencyKey: submitKey,
           gps: gps,
         );
       } catch (e) {
         if (e is ApiException) rethrow;
-        // Network error: queue the same actual-date payment to replay online.
+        // Network error: queue the SAME key to replay through the same endpoint.
         await queue.add(
           QueuedCollection(
-            idempotencyKey: _idempotencyKey(
-              targetInst.instalmentId,
-              appliedTotal,
-            ),
+            idempotencyKey: submitKey,
             instalmentId: targetInst.instalmentId,
+            loanId: widget.row.loanId,
             receivedAmount: appliedTotal,
             paymentMode: _mode,
             collectionDate: today,
@@ -353,13 +353,14 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         if (!mounted) return;
         setState(() => _error = e.message);
       } else {
-        final targetInst = (_todayInstalment != null && _selectedToday)
+        final fallbackInst = (_todayInstalment != null && _selectedToday)
             ? _todayInstalment!
             : (_overdueInstalment ?? widget.row);
         await queue.add(
           QueuedCollection(
-            idempotencyKey: _idempotencyKey(targetInst.instalmentId, amt),
-            instalmentId: targetInst.instalmentId,
+            idempotencyKey: _idempotencyKey(fallbackInst.instalmentId, amt),
+            instalmentId: fallbackInst.instalmentId,
+            loanId: widget.row.loanId,
             receivedAmount: amt,
             paymentMode: _mode,
             collectionDate: today,
