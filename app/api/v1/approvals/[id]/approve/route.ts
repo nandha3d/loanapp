@@ -204,6 +204,7 @@ export async function PATCH(
           const voucherRef = changes.voucherRef !== undefined ? changes.voucherRef : loan.voucherRef;
           const loanType = changes.loanType !== undefined ? changes.loanType : loan.loanType;
           const collateralDetails = changes.collateralDetails !== undefined ? changes.collateralDetails : loan.collateralDetails;
+          const dueDay = changes.dueDay !== undefined ? (changes.dueDay === null ? null : Number(changes.dueDay)) : loan.dueDay;
 
           const startDate = new Date(startDateStr);
           const endDate = calculateEndDate(startDate, frequency, tenure);
@@ -214,6 +215,7 @@ export async function PATCH(
             tenure,
             frequency,
             startDate,
+            dueDay: dueDay ?? undefined,
           });
           const disbursed = calculation.disbursedAmount;
           const totalPayable = calculation.totalPayable;
@@ -258,7 +260,10 @@ export async function PATCH(
             Number(loan.principal) !== principal ||
             Number(loan.tenure) !== tenure ||
             loan.frequency !== frequency ||
-            new Date(loan.startDate).getTime() !== startDate.getTime();
+            loan.dueDay !== dueDay ||
+            new Date(loan.startDate).getTime() !== startDate.getTime() ||
+            loan.deductionType !== interestType ||
+            Number(loan.deduction) !== rate;
 
           await tx.loan.update({
             where: { id: loan.id },
@@ -271,6 +276,7 @@ export async function PATCH(
               tenure,
               startDate,
               endDate,
+              dueDay,
               perInstalment,
               penaltyRate,
               voucherRef,
