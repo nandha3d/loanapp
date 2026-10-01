@@ -286,7 +286,6 @@ class Endpoints {
 
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';
-  static const String dashboardCollectCash = '/collection/verify';
 
   // Borrower portal
   static const String borrowerLogin = '/borrower/auth/login';
