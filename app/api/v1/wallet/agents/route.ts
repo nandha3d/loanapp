@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const agents = await prisma.user.findMany({
       where: {
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         role: 'agent',
         status: 'active',
         ...scopedBranchWhere(ctx),

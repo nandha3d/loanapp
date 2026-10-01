@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const agent = await prisma.user.findFirst({
-      where: { id: agentId, tenantId: ctx.tenantId, role: 'agent', status: 'active', ...scopedBranchWhere(ctx) },
+      where: { id: agentId, tenantId: ctx.tenantId, appType: ctx.appType, role: 'agent', status: 'active', ...scopedBranchWhere(ctx) },
       select: { id: true, branchId: true },
     });
     if (!agent) return fail('Agent not found', 404);

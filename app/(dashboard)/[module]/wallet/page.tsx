@@ -106,7 +106,7 @@ export default async function WalletPage() {
 
   // Agents (scoped) + float balances.
   const agents = await prisma.user.findMany({
-    where: { tenantId, role: 'agent', status: 'active', ...(branchScope ? { branchId: branchScope } : {}) },
+    where: { tenantId, appType, role: 'agent', status: 'active', ...(branchScope ? { branchId: branchScope } : {}) },
     select: { id: true, name: true, phone: true },
     orderBy: { name: 'asc' },
   });
