@@ -264,7 +264,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
       itemCount: _bankAccounts.length,
       itemBuilder: (context, index) {
         final ba = _bankAccounts[index];
-        final bookBal = ba['bookBalance'] as num? ?? 0;
+        final bookBal = num.tryParse('${ba['bookBalance']}') ?? 0;
         final accountNo = ba['accountNo'] as String? ?? '';
         final bankName = ba['bankName'] as String? ?? '';
 
@@ -346,7 +346,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('$from to $to', style: AppTypography.nameLg.copyWith(fontSize: 14)),
-                                Text('$linesCount Transactions · Closing: ₹${stmt['closingBalance']}', style: AppTypography.caption),
+                                Text('$linesCount Transactions · Closing: ₹${(num.tryParse('${stmt['closingBalance']}') ?? 0).toStringAsFixed(2)}', style: AppTypography.caption),
                               ],
                             ),
                             Container(
@@ -411,8 +411,8 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
               final line = Map<String, dynamic>.from(_statementLines[index] as Map);
               final date = (line['postingDate'] as String).split('T')[0];
               final desc = line['description'] as String? ?? '';
-              final debit = line['debit'] as num? ?? 0;
-              final credit = line['credit'] as num? ?? 0;
+              final debit = num.tryParse('${line['debit']}') ?? 0;
+              final credit = num.tryParse('${line['credit']}') ?? 0;
               final amount = debit > 0 ? -debit : credit;
               final isDebit = amount < 0;
 

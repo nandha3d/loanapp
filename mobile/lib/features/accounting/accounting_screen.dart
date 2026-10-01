@@ -1553,7 +1553,7 @@ class _JournalViewState extends ConsumerState<_JournalView> {
               final no = je['entryNo'] as String? ?? 'Draft';
               final narration = je['narration'] as String? ?? '';
               final date = (je['entryDate'] as String).split('T')[0];
-              final total = je['totalDebit'] as num? ?? 0;
+              final total = _num(je['totalDebit']);
               final status = je['status'] as String? ?? 'posted';
               final isPosted = status == 'posted';
 
@@ -2193,3 +2193,5 @@ class _ReportRow extends StatelessWidget {
     );
   }
 }
+
+num _num(dynamic v) => v is num ? v : num.tryParse(v?.toString() ?? '') ?? 0;

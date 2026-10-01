@@ -32,9 +32,12 @@ class _RouteBucket {
   double dueNow = 0;
 }
 
+double _toDouble(dynamic v) =>
+    v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+
 double _outstandingOf(Map<String, dynamic> loan) {
-  final payable = (loan['totalPayable'] as num?)?.toDouble() ?? 0;
-  final collected = (loan['totalCollected'] as num?)?.toDouble() ?? 0;
+  final payable = _toDouble(loan['totalPayable']);
+  final collected = _toDouble(loan['totalCollected']);
   final balance = payable - collected;
   return balance > 0 ? balance : 0;
 }
