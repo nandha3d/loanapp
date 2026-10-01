@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -224,11 +225,61 @@ class _LoanTile extends ConsumerWidget {
   double _toDouble(dynamic v) =>
       v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
 
+  Future<void> _openLocation(
+    BuildContext context,
+    String name,
+    String? route,
+    double? lat,
+    double? lng,
+  ) async {
+    if (lat != null && lng != null && lat != 0 && lng != 0) {
+      final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final query =
+        [name, if (route != null && route.isNotEmpty) route].join(', ');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(query)}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _callPhone(String phone) async {
+    if (phone.isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
     final customerName = customer['name']?.toString() ?? '-';
     final customerPhoto = customer['profilePhoto']?.toString();
+    final customerPhone = customer['phone']?.toString() ?? '';
+    final lat = customer['lat'] == null
+        ? null
+        : (customer['lat'] is num
+            ? (customer['lat'] as num).toDouble()
+            : double.tryParse(customer['lat'].toString()));
+    final lng = customer['lng'] == null
+        ? null
+        : (customer['lng'] is num
+            ? (customer['lng'] as num).toDouble()
+            : double.tryParse(customer['lng'].toString()));
+    final route = customer['route'];
+    final routeName = route is Map<String, dynamic>
+        ? route['name']?.toString()
+        : route?.toString();
+
     final principal = _toDouble(loan['principal']);
     final status = (loan['status'] as String?) ?? 'pending_review';
 
@@ -251,118 +302,236 @@ class _LoanTile extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppTokens.radius),
-        boxShadow: AppTokens.shadow,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: progressColor.withAlpha(20),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppTokens.radius),
-        child: Material(
-          color: AppColors.surface,
-          child: InkWell(
-            onTap: onTap,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                  child: Row(
-                    children: [
-                      _Avatar(
-                        name: customerName,
-                        size: 44,
-                        image: customerPhoto != null && customerPhoto.isNotEmpty
-                            ? authedImage(ref, customerPhoto)
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              loan['loanCode']?.toString() ?? '-',
-                              style: AppTypography.bodyLarge.copyWith(
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              customerName,
-                              style: AppTypography.caption,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (total > 0) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                '$paid / $total \u00b7 ${(pct * 100).round()}%',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: AppColors.textLight,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: progressColor.withAlpha(50),
+                width: 1.2,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  progressColor.withAlpha(8),
+                ],
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          width: 5,
+                          color: progressColor,
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    _Avatar(
+                                      name: customerName,
+                                      size: 42,
+                                      image: customerPhoto != null &&
+                                              customerPhoto.isNotEmpty
+                                          ? authedImage(ref, customerPhoto)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            loan['loanCode']?.toString() ?? '-',
+                                            style: AppTypography.bodyLarge
+                                                .copyWith(
+                                              fontFamily: 'monospace',
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            customerName,
+                                            style: AppTypography.caption
+                                                .copyWith(fontSize: 12),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (total > 0) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              '$paid / $total · ${(pct * 100).round()}%',
+                                              style: AppTypography.extraTiny
+                                                  .copyWith(
+                                                color: AppColors.textLight,
+                                                fontFeatures: const [
+                                                  FontFeature.tabularFigures(),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    if (lat != null ||
+                                        customerPhone.isNotEmpty) ...[
+                                      if (lat != null) ...[
+                                        InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          onTap: () => _openLocation(
+                                            context,
+                                            customerName,
+                                            routeName,
+                                            lat,
+                                            lng,
+                                          ),
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFEFF6FF),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: const Color(0xFF2563EB)
+                                                    .withAlpha(40),
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.near_me_rounded,
+                                              size: 15,
+                                              color: Color(0xFF2563EB),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      if (customerPhone.isNotEmpty) ...[
+                                        InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          onTap: () =>
+                                              _callPhone(customerPhone),
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFECFDF5),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: AppColors.success
+                                                    .withAlpha(40),
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.call_rounded,
+                                              size: 15,
+                                              color: AppColors.success,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                    ],
+                                    if (!responsive) ...[
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            fmt.format(principal),
+                                            style: AppTypography.bodyLarge
+                                                .copyWith(
+                                              color: AppColors.primaryDark,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          AppBadge(label: status, kind: kind),
+                                        ],
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (!responsive) ...[
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              fmt.format(principal),
-                              style: AppTypography.bodyLarge.copyWith(
-                                color: AppColors.primaryDark,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            AppBadge(label: status, kind: kind),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (responsive)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                fmt.format(principal),
-                                style: AppTypography.moneyLg.copyWith(
-                                  color: AppColors.primaryDark,
-                                ),
-                              ),
+                                if (responsive) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              fmt.format(principal),
+                                              style: AppTypography.moneyLg
+                                                  .copyWith(
+                                                color: AppColors.primaryDark,
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      AppBadge(label: status, kind: kind),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        AppBadge(label: status, kind: kind),
                       ],
                     ),
                   ),
-                // Progress bar hugging the bottom edge of the card.
-                LinearProgressIndicator(
-                  value: pct,
-                  minHeight: 4,
-                  backgroundColor: AppColors.border.withAlpha(90),
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                ),
-              ],
+                  LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 4,
+                    backgroundColor: AppColors.border.withAlpha(90),
+                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

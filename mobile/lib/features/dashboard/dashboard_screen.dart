@@ -1,3 +1,5 @@
+// ignore_for_file: require_trailing_commas
+
 import 'dart:math' as math;
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -832,88 +835,6 @@ class _FrequencyPills extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-// ── Segmented filter row (Compact inline design) ──────────────────────────────
-class _SegmentedRow extends StatelessWidget {
-  const _SegmentedRow({
-    required this.label,
-    required this.options,
-    required this.values,
-    required this.selected,
-    required this.onChanged,
-    required this.responsive,
-  });
-  final String label;
-  final List<String> options;
-  final List<String> values;
-  final String selected;
-  final ValueChanged<String> onChanged;
-  final bool responsive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 74,
-          child: Text(
-            label,
-            style: AppTypography.extraTiny.copyWith(
-              color: Colors.white54,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              fontSize: 8.5,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 28,
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                for (var i = 0; i < options.length; i++)
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => onChanged(values[i]),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        decoration: BoxDecoration(
-                          color: selected == values[i]
-                              ? AppColors.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          options[i],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: selected == values[i]
-                                ? Colors.white
-                                : Colors.white70,
-                            fontWeight: selected == values[i]
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1828,190 +1749,55 @@ class _UpNextCard extends ConsumerWidget {
   /// How many separate due rows this loan has today.
   final int dueCount;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    final time = TimeOfDay.fromDateTime(row.dueDate).format(context);
-    final route = row.routeName;
-    final due = todayDue + overdueDue;
-    final statusLabel = overdueDue > 0 && todayDue > 0
-        ? 'MIXED DUES'
-        : overdueDue > 0
-            ? t.x('coll.filter_overdue').toUpperCase()
-            : 'TODAY SCHEDULED';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: AppTokens.shadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _Avatar(
-                name: row.customerName,
-                size: 44,
-                image:
-                    row.customerPhoto != null && row.customerPhoto!.isNotEmpty
-                        ? authedImage(ref, row.customerPhoto!)
-                        : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      row.customerName,
-                      style: AppTypography.bodyLarge.copyWith(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.access_time_rounded,
-                          size: 12,
-                          color: AppColors.textLight,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            [
-                              time,
-                              if (row.loanCode.isNotEmpty) row.loanCode,
-                              if (route != null && route.isNotEmpty) route,
-                              if (dueCount > 1) '$dueCount ${t.x('dash.dues')}',
-                            ].join(' \u00b7 '),
-                            style: AppTypography.caption,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    statusLabel,
-                    style: AppTypography.extraTiny.copyWith(
-                      color: overdueDue > 0
-                          ? AppColors.danger
-                          : AppColors.textLight,
-                      letterSpacing: 0,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    fmt.format(due),
-                    style: AppTypography.heroNumber.copyWith(
-                      fontSize: 22,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (todayDue > 0 || overdueDue > 0) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (todayDue > 0)
-                  _DueChip(
-                    icon: Icons.today_rounded,
-                    label: 'Today scheduled',
-                    value: fmt.format(todayDue),
-                    color: AppColors.primary,
-                  ),
-                if (overdueDue > 0)
-                  _DueChip(
-                    icon: Icons.history_rounded,
-                    label: 'Still overdue',
-                    value: fmt.format(overdueDue),
-                    color: AppColors.danger,
-                  ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Material(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _openCollect(context, ref),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.payments_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Collect now',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Material(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _callCustomer(ref, row.customerId),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.border),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.phone_outlined,
-                      size: 18,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+  Future<void> _openLocation(BuildContext context) async {
+    if (row.lat != null && row.lng != null && row.lat != 0 && row.lng != 0) {
+      final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${row.lat},${row.lng}&travelmode=driving',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final query = [
+      row.customerName,
+      if (row.routeName != null && row.routeName!.isNotEmpty) row.routeName,
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(query)}',
     );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open map navigation')),
+      );
+    }
+  }
+
+  Future<void> _openWhatsApp(BuildContext context) async {
+    if (row.customerPhone.isEmpty) return;
+    final digits = row.customerPhone.replaceAll(RegExp(r'\D'), '');
+    final phone = digits.length == 10 ? '91$digits' : digits;
+    final text = Uri.encodeComponent(
+      'Namaste ${row.customerName}, this is regarding your ZoloFund loan ${row.loanCode}.',
+    );
+    final uri = Uri.parse('https://wa.me/$phone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open WhatsApp')),
+      );
+    }
+  }
+
+  Future<void> _callPhone() async {
+    if (row.customerPhone.isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: row.customerPhone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   void _openCollect(BuildContext context, WidgetRef ref) {
@@ -2023,9 +1809,328 @@ class _UpNextCard extends ConsumerWidget {
     ).then((_) => refreshCollectionViews(ref));
   }
 
-  void _callCustomer(WidgetRef ref, String customerId) {
-    final ctx = ref.context;
-    if (ctx.mounted) ctx.push('/customers/$customerId');
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final time = TimeOfDay.fromDateTime(row.dueDate).format(context);
+    final route = row.routeName;
+    final due = todayDue + overdueDue;
+    final statusLabel = overdueDue > 0 && todayDue > 0
+        ? 'MIXED DUES'
+        : overdueDue > 0
+            ? t.x('coll.filter_overdue').toUpperCase()
+            : 'TODAY SCHEDULED';
+    final Color statusAccent =
+        overdueDue > 0 ? AppColors.danger : AppColors.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: statusAccent.withAlpha(20),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: statusAccent.withAlpha(50),
+              width: 1.2,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                statusAccent.withAlpha(10),
+              ],
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 5,
+                    color: statusAccent,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              _Avatar(
+                                name: row.customerName,
+                                size: 44,
+                                image: row.customerPhoto != null &&
+                                        row.customerPhoto!.isNotEmpty
+                                    ? authedImage(ref, row.customerPhoto!)
+                                    : null,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      row.customerName,
+                                      style: AppTypography.bodyLarge.copyWith(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time_rounded,
+                                          size: 11,
+                                          color: AppColors.textLight,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Flexible(
+                                          child: Text(
+                                            [
+                                              time,
+                                              if (row.loanCode.isNotEmpty)
+                                                row.loanCode,
+                                              if (route != null &&
+                                                  route.isNotEmpty)
+                                                route,
+                                              if (dueCount > 1)
+                                                '$dueCount ${t.x('dash.dues')}',
+                                            ].join(' · '),
+                                            style:
+                                                AppTypography.caption.copyWith(
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusAccent.withAlpha(24),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      statusLabel,
+                                      style: AppTypography.extraTiny.copyWith(
+                                        color: statusAccent,
+                                        letterSpacing: 0,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 9.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    fmt.format(due),
+                                    style: AppTypography.moneyLg.copyWith(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          if (todayDue > 0 || overdueDue > 0) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                if (todayDue > 0)
+                                  _DueChip(
+                                    icon: Icons.today_rounded,
+                                    label: 'Today',
+                                    value: fmt.format(todayDue),
+                                    color: AppColors.primary,
+                                  ),
+                                if (overdueDue > 0)
+                                  _DueChip(
+                                    icon: Icons.history_rounded,
+                                    label: 'Overdue',
+                                    value: fmt.format(overdueDue),
+                                    color: AppColors.danger,
+                                  ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Material(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () => _openCollect(context, ref),
+                                    child: Container(
+                                      height: 38,
+                                      alignment: Alignment.center,
+                                      child: const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.payments_rounded,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Collect now',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: 'Location / Navigation',
+                                child: Material(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () => _openLocation(context),
+                                    child: Container(
+                                      width: 38,
+                                      height: 38,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: const Color(0xFF2563EB)
+                                              .withAlpha(45),
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.near_me_rounded,
+                                        size: 17,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (row.customerPhone.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: 'WhatsApp',
+                                  child: Material(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () => _openWhatsApp(context),
+                                      child: Container(
+                                        width: 38,
+                                        height: 38,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: const Color(0xFF16A34A)
+                                                .withAlpha(45),
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          size: 17,
+                                          color: Color(0xFF16A34A),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: 'Call customer',
+                                  child: Material(
+                                    color: const Color(0xFFECFDF5),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: _callPhone,
+                                      child: Container(
+                                        width: 38,
+                                        height: 38,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: AppColors.success
+                                                .withAlpha(45),
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.call_rounded,
+                                          size: 17,
+                                          color: AppColors.success,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

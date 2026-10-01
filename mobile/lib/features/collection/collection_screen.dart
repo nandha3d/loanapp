@@ -17,6 +17,7 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/gps/gps_pinger.dart';
 import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -1984,6 +1985,57 @@ class _CollectionCard extends ConsumerWidget {
     );
   }
 
+  Future<void> _openLocation(BuildContext context, CollectionRow p) async {
+    if (p.lat != null && p.lng != null && p.lat != 0 && p.lng != 0) {
+      final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final query = [
+      p.customerName,
+      if (p.routeName != null && p.routeName!.isNotEmpty) p.routeName,
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(query)}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open map navigation')),
+      );
+    }
+  }
+
+  Future<void> _openWhatsApp(BuildContext context, CollectionRow p) async {
+    if (p.customerPhone.isEmpty) return;
+    final digits = p.customerPhone.replaceAll(RegExp(r'\D'), '');
+    final phone = digits.length == 10 ? '91$digits' : digits;
+    final text = Uri.encodeComponent(
+      'Namaste ${p.customerName}, this is regarding your ZoloFund loan ${p.loanCode}.',
+    );
+    final uri = Uri.parse('https://wa.me/$phone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open WhatsApp')),
+      );
+    }
+  }
+
+  Future<void> _callCustomer(CollectionRow p) async {
+    if (p.customerPhone.isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: p.customerPhone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
@@ -2048,235 +2100,332 @@ class _CollectionCard extends ConsumerWidget {
       }
     }
 
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
+    final Color statusAccent = (filter == 'paid' || allCollected)
+        ? AppColors.success
+        : (overdue != null ? AppColors.danger : AppColors.primary);
+
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        onTap: overdue != null ? () => _showOverdueDetails(context, ref) : null,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: AppTokens.shadow,
-            border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _Avatar(name: p.customerName),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          p.customerName,
-                          style: AppTypography.nameLg,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
+          BoxShadow(
+            color: statusAccent.withAlpha(20),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: overdue != null ? () => _showOverdueDetails(context, ref) : null,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: statusAccent.withAlpha(50),
+                width: 1.2,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  statusAccent.withAlpha(10),
+                ],
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: 5,
+                      color: statusAccent,
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              p.loanCode,
-                              style: AppTypography.caption.copyWith(
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                            if (distanceLabel != null) ...[
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.near_me,
-                                size: 12,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                distanceLabel!,
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _Avatar(
+                                  name: p.customerName,
+                                  size: 44,
+                                  image: (p.customerPhoto != null && p.customerPhoto!.isNotEmpty)
+                                      ? authedImage(ref, p.customerPhoto!)
+                                      : null,
+                                  statusColor: chipColor,
                                 ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        p.customerName,
+                                        style: AppTypography.nameLg.copyWith(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            p.loanCode,
+                                            style: AppTypography.caption.copyWith(
+                                              fontFamily: 'monospace',
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          if (distanceLabel != null) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 5,
+                                                vertical: 1.5,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withAlpha(20),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.near_me,
+                                                    size: 10,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    distanceLabel!,
+                                                    style: AppTypography.tiny.copyWith(
+                                                      color: AppColors.primaryDark,
+                                                      fontWeight: FontWeight.w700,
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _CardActionIcon(
+                                  tooltip: 'Location / Navigation',
+                                  icon: Icons.near_me_rounded,
+                                  iconColor: const Color(0xFF2563EB),
+                                  bgColor: const Color(0xFFEFF6FF),
+                                  hasCoords: p.lat != null && p.lng != null,
+                                  onTap: () => _openLocation(context, p),
+                                ),
+                                if (p.customerPhone.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  _CardActionIcon(
+                                    tooltip: 'WhatsApp',
+                                    icon: Icons.chat_bubble_outline_rounded,
+                                    iconColor: const Color(0xFF16A34A),
+                                    bgColor: const Color(0xFFF0FDF4),
+                                    onTap: () => _openWhatsApp(context, p),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _CardActionIcon(
+                                    tooltip: 'Call customer',
+                                    icon: Icons.call_rounded,
+                                    iconColor: AppColors.success,
+                                    bgColor: const Color(0xFFECFDF5),
+                                    onTap: () => _callCustomer(p),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    Text(
+                                      fmt.format(displayAmount),
+                                      style: AppTypography.moneyLg.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      displayLabel,
+                                      style: AppTypography.caption.copyWith(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                _StatusChip(color: chipColor, label: chipLabel),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            LayoutBuilder(
+                              builder: (context, constraints) => responsive &&
+                                      constraints.maxWidth < 320
+                                  ? Column(
+                                      children: [
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: _ActionButton(
+                                            primary: true,
+                                            enabled: today != null,
+                                            icon: Icons.today_rounded,
+                                            label: todayActionLabel,
+                                            dueDate: todayDueDate,
+                                            amount: today != null
+                                                ? fmt.format(group.todayDue)
+                                                : null,
+                                            onTap: today != null
+                                                ? () => _collect(context, ref, today)
+                                                : null,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: _ActionButton(
+                                            primary: false,
+                                            enabled: overdue != null,
+                                            icon: Icons.history_rounded,
+                                            label: overdue != null
+                                                ? t.x('coll.btn_overdue')
+                                                : t.x('coll.no_overdue'),
+                                            amount: overdue != null
+                                                ? fmt.format(group.overdueDue)
+                                                : null,
+                                            onTap: overdue != null
+                                                ? () => _showOverdueDetails(context, ref)
+                                                : null,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      children: [
+                                        Expanded(
+                                          child: _ActionButton(
+                                            primary: true,
+                                            enabled: today != null,
+                                            icon: Icons.today_rounded,
+                                            label: todayActionLabel,
+                                            dueDate: todayDueDate,
+                                            amount: today != null
+                                                ? fmt.format(group.todayDue)
+                                                : null,
+                                            onTap: today != null
+                                                ? () => _collect(context, ref, today)
+                                                : null,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _ActionButton(
+                                            primary: false,
+                                            enabled: overdue != null,
+                                            icon: Icons.history_rounded,
+                                            label: overdue != null
+                                                ? t.x('coll.btn_overdue')
+                                                : t.x('coll.no_overdue'),
+                                            amount: overdue != null
+                                                ? fmt.format(group.overdueDue)
+                                                : null,
+                                            onTap: overdue != null
+                                                ? () => _showOverdueDetails(context, ref)
+                                                : null,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                            if (rrow != null) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.textPrimary,
+                                        side: const BorderSide(color: AppColors.border),
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        visualDensity: VisualDensity.compact,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _downloadReceipt(context, ref, rrow),
+                                      icon: const Icon(Icons.receipt_long, size: 16),
+                                      label: Text(
+                                        t.x('coll.receipt'),
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.textPrimary,
+                                        side: const BorderSide(color: AppColors.border),
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        visualDensity: VisualDensity.compact,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _shareReceipt(context, ref, rrow),
+                                      icon: const Icon(Icons.share, size: 16),
+                                      label: Text(
+                                        t.x('coll.receipt_share'),
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.call_rounded,
-                      color: AppColors.success,
-                    ),
-                    onPressed: () async {
-                      if (p.customerPhone.isEmpty) return;
-                      final uri = Uri(scheme: 'tel', path: p.customerPhone);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri,
-                            mode: LaunchMode.externalApplication,);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (responsive)
-                          SizedBox(
-                            width: double.infinity,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                fmt.format(displayAmount),
-                                style: AppTypography.moneyLg.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 24,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          Text(
-                            fmt.format(displayAmount),
-                            style: AppTypography.moneyLg.copyWith(
-                              color: AppColors.textPrimary,
-                              fontSize: 24,
-                            ),
-                          ),
-                        Text(
-                          displayLabel,
-                          style: AppTypography.caption,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!responsive)
-                    _StatusChip(color: chipColor, label: chipLabel),
-                ],
-              ),
-              if (responsive) ...[
-                const SizedBox(height: 8),
-                _StatusChip(color: chipColor, label: chipLabel),
-              ],
-              const SizedBox(height: 14),
-              LayoutBuilder(
-                  builder: (context, constraints) => responsive &&
-                          constraints.maxWidth < 320
-                      ? Column(children: [
-                          SizedBox(
-                              width: double.infinity,
-                              child: _ActionButton(
-                                primary: true,
-                                enabled: today != null,
-                                icon: Icons.today_rounded,
-                                label: todayActionLabel,
-                                dueDate: todayDueDate,
-                                amount: today != null
-                                    ? fmt.format(group.todayDue)
-                                    : null,
-                                onTap: today != null
-                                    ? () => _collect(context, ref, today)
-                                    : null,
-                              ),),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                              width: double.infinity,
-                              child: _ActionButton(
-                                primary: false,
-                                enabled: overdue != null,
-                                icon: Icons.history_rounded,
-                                label: overdue != null
-                                    ? t.x('coll.btn_overdue')
-                                    : t.x('coll.no_overdue'),
-                                amount: overdue != null
-                                    ? fmt.format(group.overdueDue)
-                                    : null,
-                                onTap: overdue != null
-                                    ? () => _showOverdueDetails(context, ref)
-                                    : null,
-                              ),),
-                        ],)
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: _ActionButton(
-                                primary: true,
-                                enabled: today != null,
-                                icon: Icons.today_rounded,
-                                label: todayActionLabel,
-                                dueDate: todayDueDate,
-                                amount: today != null
-                                    ? fmt.format(group.todayDue)
-                                    : null,
-                                onTap: today != null
-                                    ? () => _collect(context, ref, today)
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _ActionButton(
-                                primary: false,
-                                enabled: overdue != null,
-                                icon: Icons.history_rounded,
-                                label: overdue != null
-                                    ? t.x('coll.btn_overdue')
-                                    : t.x('coll.no_overdue'),
-                                amount: overdue != null
-                                    ? fmt.format(group.overdueDue)
-                                    : null,
-                                onTap: overdue != null
-                                    ? () => _showOverdueDetails(context, ref)
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),),
-              if (rrow != null) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textPrimary,
-                          side: const BorderSide(color: AppColors.border),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () => _downloadReceipt(context, ref, rrow),
-                        icon: const Icon(Icons.receipt_long, size: 18),
-                        label: Text(t.x('coll.receipt')),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textPrimary,
-                          side: const BorderSide(color: AppColors.border),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () => _shareReceipt(context, ref, rrow),
-                        icon: const Icon(Icons.share, size: 18),
-                        label: Text(t.x('coll.receipt_share')),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
         ),
       ),
@@ -2347,12 +2496,85 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
-        color: color.withAlpha(38),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60), width: 0.8),
       ),
-      child: Text(label, style: AppTypography.tiny.copyWith(color: color)),
+      child: Text(
+        label,
+        style: AppTypography.tiny.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 10.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _CardActionIcon extends StatelessWidget {
+  const _CardActionIcon({
+    required this.tooltip,
+    required this.icon,
+    required this.iconColor,
+    required this.bgColor,
+    required this.onTap,
+    this.hasCoords = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color iconColor;
+  final Color bgColor;
+  final VoidCallback onTap;
+  final bool hasCoords;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: iconColor.withAlpha(45),
+                width: 1,
+              ),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, size: 17, color: iconColor),
+                if (hasCoords)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2563EB),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2367,6 +2589,7 @@ class _ActionButton extends StatelessWidget {
     this.amount,
     this.dueDate,
   });
+
   final bool primary;
   final bool enabled;
   final IconData icon;
@@ -2380,6 +2603,8 @@ class _ActionButton extends StatelessWidget {
     final Color bg;
     final Color fg;
     Border? border;
+    List<BoxShadow>? shadows;
+
     if (!enabled) {
       bg = AppColors.background;
       fg = AppColors.textLight;
@@ -2387,58 +2612,93 @@ class _ActionButton extends StatelessWidget {
     } else if (primary) {
       bg = AppColors.primary;
       fg = AppColors.onPrimary;
+      shadows = [
+        BoxShadow(
+          color: AppColors.primary.withAlpha(60),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ];
     } else {
       bg = AppColors.ink;
       fg = AppColors.onInk;
+      border = Border.all(color: AppColors.inkBorder);
     }
 
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          height: dueDate == null ? 60 : 76,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: border,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 16, color: fg),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.label.copyWith(color: fg),
-                    ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: shadows,
+      ),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: border,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 15, color: fg),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.label.copyWith(
+                                color: fg,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (amount != null) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              amount!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.label.copyWith(
+                                color: fg,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (dueDate != null)
+                        Text(
+                          dueDate!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.extraTiny.copyWith(
+                            color: fg.withAlpha(200),
+                            fontSize: 9,
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
-              if (amount != null)
-                Text(
-                  amount!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyLarge
-                      .copyWith(color: fg, fontWeight: FontWeight.w800),
                 ),
-              if (dueDate != null)
-                Text(
-                  dueDate!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.tiny.copyWith(color: fg),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -2447,8 +2707,17 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name});
+  const _Avatar({
+    required this.name,
+    this.size = 44,
+    this.image,
+    this.statusColor,
+  });
+
   final String name;
+  final double size;
+  final ImageProvider? image;
+  final Color? statusColor;
 
   Color _color() {
     final palette = [
@@ -2472,19 +2741,61 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _color();
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: c.withAlpha(40),
-        shape: BoxShape.circle,
-        border: Border.all(color: c.withAlpha(80)),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        _initials(),
-        style: AppTypography.bodyLarge.copyWith(color: c, fontSize: 16),
-      ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: c.withAlpha(25),
+            border: Border.all(
+              color: statusColor != null ? statusColor!.withAlpha(120) : c.withAlpha(70),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(12),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            image: image != null
+                ? DecorationImage(
+                    image: image!,
+                    fit: BoxFit.cover,
+                  )
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: image != null
+              ? null
+              : Text(
+                  _initials(),
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: c,
+                    fontSize: size * 0.36,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+        ),
+        if (statusColor != null)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
+

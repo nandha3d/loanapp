@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Play Store Launch & Compliance Checklist — ZoloFund</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0F17;
+      --surface: #111827;
+      --surface-card: #182234;
+      --surface-border: #1F2E45;
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --primary-light: #6366F1;
+      --accent: #06B6D4;
+      --success: #10B981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #F59E0B;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #EF4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --text: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --text-dim: #6B7280;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px 80px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 40px;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 30px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-light);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      margin-bottom: 16px;
+    }
+
+    .badge-pill.tracking {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent);
+      border-color: rgba(6, 182, 212, 0.3);
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.25;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 780px;
+    }
+
+    /* Core Classification Banner */
+    .classification-banner {
+      background: linear-gradient(135deg, #131E33 0%, #172640 100%);
+      border: 1px solid #2B3D5E;
+      border-left: 5px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 36px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .classification-banner h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .classification-banner p {
+      color: #94A3B8;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .tag-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .tag-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+    }
+
+    .tag-item.yes {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .tag-item.no {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    /* Progress Tracker */
+    .progress-bar-container {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: var(--surface-card);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+      width: 0%;
+      border-radius: 9999px;
+      transition: width 0.4s ease;
+    }
+
+    /* Checklist Sections */
+    .checklist-section {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .section-title-bar {
+      padding: 20px 24px;
+      background: var(--surface-card);
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #FFFFFF;
+    }
+
+    .section-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .section-badge.critical {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .section-badge.setup {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .section-badge.ready {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .section-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+    }
+
+    .checklist-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .checklist-item.checked {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.04);
+    }
+
+    .checklist-item.checked .item-title {
+      text-decoration: line-through;
+      color: var(--text-dim);
+    }
+
+    .custom-checkbox {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      margin-top: 2px;
+      border-radius: 6px;
+      border: 2px solid var(--text-dim);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .custom-checkbox:hover {
+      border-color: var(--primary-light);
+    }
+
+    .checklist-item.checked .custom-checkbox {
+      background: var(--success);
+      border-color: var(--success);
+    }
+
+    .custom-checkbox svg {
+      display: none;
+      width: 14px;
+      height: 14px;
+      stroke: #FFFFFF;
+      stroke-width: 3;
+      fill: none;
+    }
+
+    .checklist-item.checked .custom-checkbox svg {
+      display: block;
+    }
+
+    .item-content {
+      flex: 1;
+    }
+
+    .item-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #FFFFFF;
+    }
+
+    .item-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
+
+    /* Code & Copy Box */
+    .copy-box {
+      background: #090D14;
+      border: 1px solid #1E293B;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: #E2E8F0;
+      position: relative;
+      margin-top: 8px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      color: #FFFFFF;
+      background: var(--primary);
+    }
+
+    /* Comparison Table */
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 0.88rem;
+    }
+
+    .comparison-table th, .comparison-table td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .comparison-table th {
+      background: var(--surface-card);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .comparison-table td strong {
+      color: #FFFFFF;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 50px;
+      padding-top: 24px;
+      border-top: 1px solid var(--surface-border);
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="badge-pill tracking">Field Operations & ERP Software</div>
+    <h1>Google Play Compliance & App Launch Guide</h1>
+    <p class="header-desc">
+      Detailed verification checklist demonstrating why ZoloFund is an <strong>Internal Field-Tracking & Business ERP Tool</strong>, and how to configure your Google Play Console submission to guarantee smooth approval.
+    </p>
+  </header>
+
+  <!-- Classification Banner -->
+  <div class="classification-banner">
+    <h3>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Key Clarification: Is this app a "Finance / Loan" product?
+    </h3>
+    <p>
+      <strong>NO.</strong> For Google Play policy purposes, ZoloFund is an <strong>Enterprise Field-Operations & Bookkeeping Software</strong> used exclusively by registered staff (loan officers, field collection agents, and branch managers). It does <strong>not</strong> lend money, advertise loans, or disburse cash to consumers.
+    </p>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Direct Consumer Loan App (Subject to Strict Lending Mandates)</th>
+          <th>ZoloFund (Internal Business Tracking & ERP Tool)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag-item no">✗ Disburses loans to consumers</span></td>
+          <td><span class="tag-item yes">✓ Field Agent Route & Collection Logging</span></td>
+        </tr>
+        <tr>
+          <td><span class="tag-item no">✗ Consumer-facing loan marketplace / broker</span></td>
+          <td><span class="tag-item yes">✓ Offline/Online Ledger & Receipt Tracking</span></td>
+        </tr>
+        <tr>
+          <td><span class="tag-item no">✗ Payday loans or short-term lending</span></td>
+          <td><span class="tag-item yes">✓ GPS Attendance & Route Optimization</span></td>
+        </tr>
+        <tr>
+          <td><span class="tag-item no">✗ Category: "Finance &gt; Personal Loans"</span></td>
+          <td><span class="tag-item yes">✓ Category: "Business" or "Productivity"</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Progress Tracker -->
+  <div class="progress-bar-container">
+    <div class="progress-header">
+      <span>Play Console Launch Readiness</span>
+      <span id="progress-text">0 of 7 items completed (0%)</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Checklist Section 1: Classification -->
+  <div class="checklist-section">
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>1. App Categorization & Declarations</span>
+      </div>
+      <span class="section-badge critical">Critical Setup</span>
+    </div>
+    <div class="section-body">
+
+      <!-- Item 1.1 -->
+      <div class="checklist-item" id="item-category">
+        <div class="custom-checkbox" onclick="toggleItem('item-category')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Set App Category to "Business" (NOT Finance)</div>
+          <div class="item-desc">
+            In <strong>Play Console &rarr; Store settings &rarr; App category</strong>, select <strong>Business</strong> or <strong>Productivity</strong>. Do NOT select "Finance" or "Personal Loans". Selecting "Personal Loans" triggers consumer lending license audits and RBI partner requirements that do not apply to internal ERP tools.
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 1.2 -->
+      <div class="checklist-item" id="item-financial-features">
+        <div class="custom-checkbox" onclick="toggleItem('item-financial-features')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Complete "Financial Features" Policy Declaration Correctly</div>
+          <div class="item-desc">
+            In <strong>App content &rarr; Financial features</strong> declaration form:
+            Select <strong>"My app doesn't provide any financial features or personal loans directly to consumers"</strong> or <strong>"Internal business/ERP tool for enterprise accounting"</strong>. Use the statement below if a descriptive text box is provided:
+          </div>
+          <div class="copy-box" id="erp-declaration">This application is a B2B enterprise SaaS and field-operations management tool used exclusively by authorized field agents and administrative staff of registered businesses for route planning, attendance tracking, and internal collection recording. The application does not provide, broker, facilitate, or disburse loans to the general public or consumers.<button class="copy-btn" onclick="copyText('erp-declaration')">Copy</button></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Checklist Section 2: Reviewer App Access -->
+  <div class="checklist-section">
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>2. Google Reviewer App Access (Demo Credentials)</span>
+      </div>
+      <span class="section-badge critical">Mandatory</span>
+    </div>
+    <div class="section-body">
+
+      <!-- Item 2.1 -->
+      <div class="checklist-item" id="item-app-access">
+        <div class="custom-checkbox" onclick="toggleItem('item-app-access')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Provide Unrestricted Demo Credentials in App Access</div>
+          <div class="item-desc">
+            Google reviewers cannot create accounts or receive SMS OTPs. Go to <strong>Play Console &rarr; App content &rarr; App access</strong>, choose <strong>"All or some functionality is restricted"</strong>, click <strong>"Add instructions"</strong>, and provide:
+          </div>
+          <div class="copy-box" id="access-instructions">Login Instructions for Google Play Reviewers:
+1. Open the app to the Sign-in screen.
+2. If prompted for Server / Tenant, enter: muraibuiness.in (or default)
+3. Username / Email: [YOUR_DEMO_AGENT_USERNAME]
+4. Password: [YOUR_DEMO_AGENT_PASSWORD]
+5. Tap 'Sign In' to access the Field Agent Dashboard, Collection Routes, and Customer Ledgers.
+Note: 2FA and SMS verification are disabled on this review account.<button class="copy-btn" onclick="copyText('access-instructions')">Copy</button></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Checklist Section 3: Background Location Declaration -->
+  <div class="checklist-section">
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>3. Sensitive Permissions & Location Declaration</span>
+      </div>
+      <span class="section-badge setup">Requires Review</span>
+    </div>
+    <div class="section-body">
+
+      <!-- Item 3.1 -->
+      <div class="checklist-item" id="item-location-declaration">
+        <div class="custom-checkbox" onclick="toggleItem('item-location-declaration')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Declare Background Location for Agent Field Route Tracking</div>
+          <div class="item-desc">
+            The mobile app uses location to map customer collection pins and track field agent travel routes. In <strong>App content &rarr; Location permissions</strong>, declare that location is required for field agent tracking with an ongoing foreground notification.
+          </div>
+          <div class="copy-box" id="location-rationale">Purpose: Field agent collection route tracking and customer visit verification.
+The app collects location data only during active agent duty hours to track travel routes between customer collection stops and verify on-site visits, supported by a persistent foreground notification.<button class="copy-btn" onclick="copyText('location-rationale')">Copy</button></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Checklist Section 4: Store Listing & Accurate Assets -->
+  <div class="checklist-section">
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>4. Store Listing & Metadata Compliance</span>
+      </div>
+      <span class="section-badge ready">Assets</span>
+    </div>
+    <div class="section-body">
+
+      <!-- Item 4.1 -->
+      <div class="checklist-item" id="item-store-copy">
+        <div class="custom-checkbox" onclick="toggleItem('item-store-copy')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Avoid Consumer Lending Buzzwords in App Title & Description</div>
+          <div class="item-desc">
+            Ensure your store listing description clearly states it is an agent management ERP tool. Avoid misleading consumer phrases like <em>"Instant Personal Cash Loans"</em>, <em>"Apply for loan in 5 mins"</em>, or <em>"Low Interest Rates"</em>.
+          </div>
+          <div class="copy-box" id="store-short-desc">Short Description (Max 80 chars):
+Field agent tracking, route management, and collection ledger for business operators.<button class="copy-btn" onclick="copyText('store-short-desc')">Copy</button></div>
+        </div>
+      </div>
+
+      <!-- Item 4.2 -->
+      <div class="checklist-item" id="item-screenshots">
+        <div class="custom-checkbox" onclick="toggleItem('item-screenshots')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Upload Real App Screenshots (1080x1920 or 9:16)</div>
+          <div class="item-desc">
+            Upload at least 4&ndash;8 high-resolution screenshots capturing actual features:
+            <ul style="margin: 8px 0 0 20px; color: var(--text-muted);">
+              <li>Agent Dashboard with today's collection metrics</li>
+              <li>Route & Customer Map view with collection pins</li>
+              <li>Instalment Schedule & Payment Entry dialog</li>
+              <li>Daily Collection Run & Reconcile Summary</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Checklist Section 5: Privacy Policy -->
+  <div class="checklist-section">
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>5. Privacy Policy & Data Safety Form</span>
+      </div>
+      <span class="section-badge setup">Verification</span>
+    </div>
+    <div class="section-body">
+
+      <!-- Item 5.1 -->
+      <div class="checklist-item" id="item-privacy-policy">
+        <div class="custom-checkbox" onclick="toggleItem('item-privacy-policy')">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="item-content">
+          <div class="item-title">Submit Valid Public Privacy Policy URL</div>
+          <div class="item-desc">
+            In <strong>App content &rarr; Privacy policy</strong>, provide your live public privacy URL (e.g. <code>https://muraibuiness.in/privacy</code>). The policy must disclose that:
+            <ul style="margin: 8px 0 0 20px; color: var(--text-muted);">
+              <li>GPS location is collected strictly for agent route tracking and collection verification.</li>
+              <li>No personal customer or agent data is sold or shared with third-party advertisers.</li>
+              <li>Data is encrypted in transit (HTTPS / TLS) and securely stored.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>ZoloFund Internal Launch Compliance Documentation &bull; Document Path: <code>docs/play-store-compliance-checklist.html</code></p>
+  </footer>
+
+</div>
+
+<script>
+  const ITEMS = [
+    'item-category',
+    'item-financial-features',
+    'item-app-access',
+    'item-location-declaration',
+    'item-store-copy',
+    'item-screenshots',
+    'item-privacy-policy'
+  ];
+
+  function loadState() {
+    const saved = localStorage.getItem('play_store_checklist_state');
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        ITEMS.forEach(id => {
+          if (state[id]) {
+            document.getElementById(id)?.classList.add('checked');
+          }
+        });
+      } catch (e) {}
+    }
+    updateProgress();
+  }
+
+  function saveState() {
+    const state = {};
+    ITEMS.forEach(id => {
+      state[id] = document.getElementById(id)?.classList.contains('checked') || false;
+    });
+    localStorage.setItem('play_store_checklist_state', JSON.stringify(state));
+  }
+
+  function toggleItem(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('checked');
+    saveState();
+    updateProgress();
+  }
+
+  function updateProgress() {
+    let completed = 0;
+    ITEMS.forEach(id => {
+      if (document.getElementById(id)?.classList.contains('checked')) {
+        completed++;
+      }
+    });
+    const total = ITEMS.length;
+    const pct = Math.round((completed / total) * 100);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = `${completed} of ${total} items completed (${pct}%)`;
+  }
+
+  function copyText(elementId) {
+    const text = document.getElementById(elementId)?.innerText.replace('Copy', '').trim();
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Copied to clipboard!');
+      });
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', loadState);
+</script>
+
+</body>
+</html>

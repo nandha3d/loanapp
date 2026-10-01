@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -18,17 +19,84 @@ class CustomerTile extends ConsumerWidget {
   final Customer customer;
   final VoidCallback onTap;
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'active':
+        return AppColors.success;
+      case 'pending_review':
+      case 'pending':
+        return AppColors.warning;
+      case 'suspended':
+      case 'blacklisted':
+        return AppColors.danger;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  Future<void> _openLocation(BuildContext context, Customer c) async {
+    if (c.lat != null && c.lng != null && c.lat != 0 && c.lng != 0) {
+      final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}&travelmode=driving',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final query = [
+      c.name,
+      if (c.address != null && c.address!.isNotEmpty) c.address,
+      if (c.routeName != null && c.routeName!.isNotEmpty) c.routeName,
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(query)}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open map navigation')),
+      );
+    }
+  }
+
+  Future<void> _openWhatsApp(BuildContext context, Customer c) async {
+    if (c.phone.isEmpty) return;
+    final digits = c.phone.replaceAll(RegExp(r'\D'), '');
+    final phone = digits.length == 10 ? '91$digits' : digits;
+    final text = Uri.encodeComponent(
+      'Namaste ${c.name}, greeting from ZoloFund.',
+    );
+    final uri = Uri.parse('https://wa.me/$phone?text=$text');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open WhatsApp')),
+      );
+    }
+  }
+
+  Future<void> _callCustomer(Customer c) async {
+    if (c.phone.isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: c.phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final user = ref.watch(authControllerProvider).user;
     final isChit = AppType.userIsChit(user);
-    final compactMicrolending = user?.appType == AppType.microlending &&
-        MediaQuery.sizeOf(context).width < 500;
     final cs = customer.creditScore;
     final activeLoans =
         customer.loans.where((l) => l.status == 'active').toList();
     final outstanding = activeLoans.fold<double>(0, (s, l) => s + l.principal);
+    final statusAccent = _statusColor(customer.status);
+
     final snippets = <Widget>[
       _InfoSnippet(
         icon: Icons.speed_rounded,
@@ -54,119 +122,182 @@ class CustomerTile extends ConsumerWidget {
     ];
     final codeText = Text(
       customer.customerCode,
-      maxLines: compactMicrolending ? 1 : null,
-      overflow: compactMicrolending ? TextOverflow.ellipsis : null,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: AppTypography.caption.copyWith(
         fontFamily: 'monospace',
         color: AppColors.textLight,
+        fontSize: 11,
       ),
     );
     final routeBadge = customer.routeName == null
         ? null
         : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
+              color: AppColors.primary.withAlpha(20),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               customer.routeName!,
-              maxLines: compactMicrolending ? 1 : null,
-              overflow: compactMicrolending ? TextOverflow.ellipsis : null,
-              style: AppTypography.tiny.copyWith(color: AppColors.primaryDark),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.tiny.copyWith(
+                color: AppColors.primaryDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 10,
+              ),
             ),
           );
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(8),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: statusAccent.withAlpha(16),
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: statusAccent.withAlpha(45),
+                width: 1.2,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  statusAccent.withAlpha(10),
+                ],
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Avatar(
-                      initials: customer.initials,
-                      image: (customer.photoUrl != null &&
-                              customer.photoUrl!.isNotEmpty)
-                          ? authedImage(ref, customer.photoUrl!)
-                          : null,
+                    Container(
+                      width: 5,
+                      color: statusAccent,
                     ),
-                    const SizedBox(width: 14),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            customer.name,
-                            style: AppTypography.bodyLarge
-                                .copyWith(fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              if (compactMicrolending)
-                                Flexible(child: codeText)
-                              else
-                                codeText,
-                              if (customer.routeName != null && !isChit) ...[
-                                const SizedBox(width: 8),
-                                if (compactMicrolending)
-                                  Flexible(child: routeBadge!)
-                                else
-                                  routeBadge!,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _Avatar(
+                                  initials: customer.initials,
+                                  size: 44,
+                                  image: (customer.photoUrl != null &&
+                                          customer.photoUrl!.isNotEmpty)
+                                      ? authedImage(ref, customer.photoUrl!)
+                                      : null,
+                                  statusColor: statusAccent,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        customer.name,
+                                        style: AppTypography.bodyLarge.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Flexible(child: codeText),
+                                          if (customer.routeName != null && !isChit) ...[
+                                            const SizedBox(width: 6),
+                                            Flexible(child: routeBadge!),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                _CardActionIcon(
+                                  tooltip: 'Location / Navigation',
+                                  icon: Icons.near_me_rounded,
+                                  iconColor: const Color(0xFF2563EB),
+                                  bgColor: const Color(0xFFEFF6FF),
+                                  hasCoords: customer.lat != null && customer.lng != null,
+                                  onTap: () => _openLocation(context, customer),
+                                ),
+                                if (customer.phone.isNotEmpty) ...[
+                                  const SizedBox(width: 5),
+                                  _CardActionIcon(
+                                    tooltip: 'WhatsApp',
+                                    icon: Icons.chat_bubble_outline_rounded,
+                                    iconColor: const Color(0xFF16A34A),
+                                    bgColor: const Color(0xFFF0FDF4),
+                                    onTap: () => _openWhatsApp(context, customer),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  _CardActionIcon(
+                                    tooltip: 'Call customer',
+                                    icon: Icons.call_rounded,
+                                    iconColor: AppColors.success,
+                                    bgColor: const Color(0xFFECFDF5),
+                                    onTap: () => _callCustomer(customer),
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    children: snippets,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                AppBadge(
+                                  label: customer.status,
+                                  kind: _kindFor(customer.status),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    if (!compactMicrolending)
-                      AppBadge(
-                        label: customer.status,
-                        kind: _kindFor(customer.status),
-                      ),
                   ],
                 ),
-                if (compactMicrolending) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppBadge(
-                      label: customer.status,
-                      kind: _kindFor(customer.status),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                compactMicrolending
-                    ? Wrap(spacing: 16, runSpacing: 10, children: snippets)
-                    : Row(
-                        mainAxisAlignment: isChit
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.spaceBetween,
-                        children: snippets,
-                      ),
-              ],
+              ),
             ),
           ),
         ),
@@ -198,47 +329,142 @@ class CustomerTile extends ConsumerWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.initials, this.image});
-  final String initials;
-  final ImageProvider? image;
+class _CardActionIcon extends StatelessWidget {
+  const _CardActionIcon({
+    required this.icon,
+    required this.iconColor,
+    required this.bgColor,
+    required this.onTap,
+    this.tooltip,
+    this.hasCoords = false,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final Color bgColor;
+  final VoidCallback onTap;
+  final String? tooltip;
+  final bool hasCoords;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: image == null
-            ? LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        image: image != null
-            ? DecorationImage(image: image!, fit: BoxFit.cover)
-            : null,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withAlpha(60),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: iconColor.withAlpha(50)),
+            ),
+            alignment: Alignment.center,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, size: 16, color: iconColor),
+                if (hasCoords)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2563EB),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
-      alignment: Alignment.center,
-      child: image != null
-          ? null
-          : Text(
-              initials.isEmpty ? '?' : initials,
-              style: AppTypography.bodyLarge.copyWith(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({
+    required this.initials,
+    this.image,
+    this.statusColor,
+    this.size = 44,
+  });
+
+  final String initials;
+  final ImageProvider? image;
+  final Color? statusColor;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: image == null
+                ? LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            image: image != null
+                ? DecorationImage(image: image!, fit: BoxFit.cover)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: (statusColor ?? AppColors.primary).withAlpha(50),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(
+              color: statusColor != null
+                  ? statusColor!.withAlpha(120)
+                  : AppColors.primary.withAlpha(80),
+              width: 1.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: image != null
+              ? null
+              : Text(
+                  initials.isEmpty ? '?' : initials,
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: Colors.white,
+                    fontSize: size * 0.36,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+        if (statusColor != null)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
               ),
             ),
+          ),
+      ],
     );
   }
 }
@@ -258,22 +484,41 @@ class _InfoSnippet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: AppColors.textLight),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: AppTypography.tiny.copyWith(color: AppColors.textLight)),
-            Text(value,
-                style: AppTypography.caption
-                    .copyWith(color: valueColor, fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(180),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border.withAlpha(100)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.textLight),
+          const SizedBox(width: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: AppTypography.extraTiny.copyWith(
+                  color: AppColors.textLight,
+                  fontSize: 9,
+                ),
+              ),
+              Text(
+                value,
+                style: AppTypography.caption.copyWith(
+                  color: valueColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
