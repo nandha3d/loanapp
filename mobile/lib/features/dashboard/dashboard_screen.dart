@@ -3399,12 +3399,6 @@ class _RoutePerformanceList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (summary.routePerformance.isEmpty) return const SizedBox.shrink();
-    final user = ref.watch(authControllerProvider).user;
-    final isAdmin = user != null &&
-        (user.role == UserRole.admin ||
-            user.role == UserRole.superadmin ||
-            user.role == UserRole.developer);
-
     return _Section(
       title: t.x('dash.route_performance'),
       child: Column(

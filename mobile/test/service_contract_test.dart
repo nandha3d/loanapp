@@ -762,17 +762,12 @@ void main() {
           'entryIds': ['entry1', 'entry2']
         },
       );
-      await dio.post<Map<String, dynamic>>(
-        Endpoints.dashboardCollectCash,
-        data: {'action': 'collect-cash', 'routeId': 'route1', 'agentId': 'u1'},
-      );
 
       expect(
         adapter.requests.where((r) => r == 'POST /collection/verify').length,
-        2,
+        1,
       );
       expect(adapter.requestBodies.first, containsPair('action', 'bulk-upi'));
-      expect(adapter.requestBodies.last, containsPair('agentId', 'u1'));
     });
 
     test('MOB-SVC-008 NACH create/cancel routes unwrap mandate data', () async {
