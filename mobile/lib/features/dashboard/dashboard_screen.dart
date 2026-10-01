@@ -105,8 +105,10 @@ class DashboardScreen extends ConsumerWidget {
         child: isChit
             ? chitSummary!.when(
                 loading: () {
-                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
-                  final cached = DashboardRepository.cachedChitSummaryFor(scopeKey);
+                  final scopeKey =
+                      user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached =
+                      DashboardRepository.cachedChitSummaryFor(scopeKey);
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -118,8 +120,10 @@ class DashboardScreen extends ConsumerWidget {
                   return const _LoadingSkeleton();
                 },
                 error: (err, _) {
-                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
-                  final cached = DashboardRepository.cachedChitSummaryFor(scopeKey);
+                  final scopeKey =
+                      user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final cached =
+                      DashboardRepository.cachedChitSummaryFor(scopeKey);
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -139,7 +143,8 @@ class DashboardScreen extends ConsumerWidget {
               )
             : summary!.when(
                 loading: () {
-                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final scopeKey =
+                      user != null ? '${user.tenantSlug}_${user.id}' : null;
                   final cached = DashboardRepository.cachedSummaryFor(scopeKey);
                   if (cached != null) {
                     return _DashboardBody(
@@ -153,7 +158,8 @@ class DashboardScreen extends ConsumerWidget {
                   return const _LoadingSkeleton();
                 },
                 error: (err, _) {
-                  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+                  final scopeKey =
+                      user != null ? '${user.tenantSlug}_${user.id}' : null;
                   final cached = DashboardRepository.cachedSummaryFor(scopeKey);
                   if (cached != null) {
                     return _DashboardBody(
@@ -1440,7 +1446,8 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
         const SizedBox(height: 10),
         async.when(
           loading: () {
-            final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+            final scopeKey =
+                user != null ? '${user.tenantSlug}_${user.id}' : null;
             final cached = cachedCollectionTodayFor(scopeKey);
             if (cached != null && cached.isNotEmpty) {
               return _buildRowsContent(cached, t);
@@ -1449,7 +1456,8 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
           },
           error: (e, st) {
             debugPrint('[UpNextPager] collectionTodayProvider error: $e\n$st');
-            final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+            final scopeKey =
+                user != null ? '${user.tenantSlug}_${user.id}' : null;
             final cached = cachedCollectionTodayFor(scopeKey);
             if (cached != null && cached.isNotEmpty) {
               return _buildRowsContent(cached, t);
@@ -1535,13 +1543,11 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             .toList(growable: false);
 
     // One card per loan. Filter by tab: 0 = Today's scheduled queue, 1 = Overdue queue
-    final pendingRows = freqFiltered
-        .where((r) {
-          if (r.isResolved || r.outstanding <= 0) return false;
-          if (widget.tab == 1) return r.isOverdueBucket;
-          return true;
-        })
-        .toList(growable: false);
+    final pendingRows = freqFiltered.where((r) {
+      if (r.isResolved || r.outstanding <= 0) return false;
+      if (widget.tab == 1) return r.isOverdueBucket;
+      return true;
+    }).toList(growable: false);
     final byLoan = <String, _UpNextEntry>{};
     for (final r in pendingRows) {
       final todayDue = r.todayOutstanding;
@@ -1570,14 +1576,11 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
       }
     }
     for (final entry in byLoan.values) {
-      final loanRows =
-          rows.where((r) => r.loanId == entry.row.loanId).toList();
+      final loanRows = rows.where((r) => r.loanId == entry.row.loanId).toList();
       final bool hasPaidToday = loanRows.any((r) => r.isResolved);
       // When tenure reached, keep extending days only if nothing was collected today yet:
       // today's due continues as the normal installment carved out of overdue.
-      if (!hasPaidToday &&
-          entry.todayTotal == 0 &&
-          entry.overdueTotal > 0) {
+      if (!hasPaidToday && entry.todayTotal == 0 && entry.overdueTotal > 0) {
         final daily = math.min(entry.row.dueAmount, entry.overdueTotal);
         entry.todayTotal = daily;
         entry.overdueTotal = math.max(0, entry.overdueTotal - daily);
@@ -1685,7 +1688,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
     return Column(
       children: [
         SizedBox(
-          height: 220,
+          height: 228,
           child: PageView.builder(
             controller: _ctrl,
             itemCount: pending.length,
@@ -1850,7 +1853,7 @@ class _UpNextCard extends ConsumerWidget {
             offset: const Offset(0, 3),
           ),
           BoxShadow(
-            color: statusAccent.withAlpha(20),
+            color: AppColors.primary.withAlpha(15),
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
@@ -1863,286 +1866,261 @@ class _UpNextCard extends ConsumerWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: statusAccent.withAlpha(50),
+              color: AppColors.primary.withAlpha(35),
               width: 1.2,
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white,
-                statusAccent.withAlpha(10),
+                AppColors.surface,
+                AppColors.primary.withAlpha(10),
               ],
             ),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 5,
-                    color: statusAccent,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _Avatar(
+                      name: row.customerName,
+                      size: 44,
+                      image: row.customerPhoto != null &&
+                              row.customerPhoto!.isNotEmpty
+                          ? authedImage(ref, row.customerPhoto!)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              _Avatar(
-                                name: row.customerName,
-                                size: 44,
-                                image: row.customerPhoto != null &&
-                                        row.customerPhoto!.isNotEmpty
-                                    ? authedImage(ref, row.customerPhoto!)
-                                    : null,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      row.customerName,
-                                      style: AppTypography.bodyLarge.copyWith(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.access_time_rounded,
-                                          size: 11,
-                                          color: AppColors.textLight,
-                                        ),
-                                        const SizedBox(width: 3),
-                                        Flexible(
-                                          child: Text(
-                                            [
-                                              time,
-                                              if (row.loanCode.isNotEmpty)
-                                                row.loanCode,
-                                              if (route != null &&
-                                                  route.isNotEmpty)
-                                                route,
-                                              if (dueCount > 1)
-                                                '$dueCount ${t.x('dash.dues')}',
-                                            ].join(' · '),
-                                            style:
-                                                AppTypography.caption.copyWith(
-                                              fontSize: 11,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: statusAccent.withAlpha(24),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      statusLabel,
-                                      style: AppTypography.extraTiny.copyWith(
-                                        color: statusAccent,
-                                        letterSpacing: 0,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 9.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    fmt.format(due),
-                                    style: AppTypography.moneyLg.copyWith(
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          if (todayDue > 0 || overdueDue > 0) ...[
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                if (todayDue > 0)
-                                  _DueChip(
-                                    icon: Icons.today_rounded,
-                                    label: 'Today',
-                                    value: fmt.format(todayDue),
-                                    color: AppColors.primary,
-                                  ),
-                                if (overdueDue > 0)
-                                  _DueChip(
-                                    icon: Icons.history_rounded,
-                                    label: 'Overdue',
-                                    value: fmt.format(overdueDue),
-                                    color: AppColors.danger,
-                                  ),
-                              ],
+                          Text(
+                            row.customerName,
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
                             ),
-                          ],
-                          const SizedBox(height: 10),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
                           Row(
                             children: [
-                              Expanded(
-                                child: Material(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: () => _openCollect(context, ref),
-                                    child: Container(
-                                      height: 38,
-                                      alignment: Alignment.center,
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.payments_rounded,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Collect now',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 11,
+                                color: AppColors.textLight,
+                              ),
+                              const SizedBox(width: 3),
+                              Flexible(
+                                child: Text(
+                                  [
+                                    time,
+                                    if (row.loanCode.isNotEmpty) row.loanCode,
+                                    if (route != null && route.isNotEmpty)
+                                      route,
+                                    if (dueCount > 1)
+                                      '$dueCount ${t.x('dash.dues')}',
+                                  ].join(' · '),
+                                  style: AppTypography.caption.copyWith(
+                                    fontSize: 11,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Tooltip(
-                                message: 'Location / Navigation',
-                                child: Material(
-                                  color: const Color(0xFFEFF6FF),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: () => _openLocation(context),
-                                    child: Container(
-                                      width: 38,
-                                      height: 38,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: const Color(0xFF2563EB)
-                                              .withAlpha(45),
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.near_me_rounded,
-                                        size: 17,
-                                        color: Color(0xFF2563EB),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (row.customerPhone.isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: 'WhatsApp',
-                                  child: Material(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(10),
-                                      onTap: () => _openWhatsApp(context),
-                                      child: Container(
-                                        width: 38,
-                                        height: 38,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: const Color(0xFF16A34A)
-                                                .withAlpha(45),
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: const Icon(
-                                          Icons.chat_bubble_outline_rounded,
-                                          size: 17,
-                                          color: Color(0xFF16A34A),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: 'Call customer',
-                                  child: Material(
-                                    color: const Color(0xFFECFDF5),
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(10),
-                                      onTap: _callPhone,
-                                      child: Container(
-                                        width: 38,
-                                        height: 38,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: AppColors.success
-                                                .withAlpha(45),
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: const Icon(
-                                          Icons.call_rounded,
-                                          size: 17,
-                                          color: AppColors.success,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ],
                       ),
                     ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusAccent.withAlpha(24),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: AppTypography.extraTiny.copyWith(
+                              color: statusAccent,
+                              letterSpacing: 0,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 9.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          fmt.format(due),
+                          style: AppTypography.moneyLg.copyWith(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (todayDue > 0 || overdueDue > 0) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (todayDue > 0)
+                        _DueChip(
+                          icon: Icons.today_rounded,
+                          label: 'Today',
+                          value: fmt.format(todayDue),
+                          color: AppColors.primary,
+                        ),
+                      if (overdueDue > 0)
+                        _DueChip(
+                          icon: Icons.history_rounded,
+                          label: 'Overdue',
+                          value: fmt.format(overdueDue),
+                          color: AppColors.danger,
+                        ),
+                    ],
                   ),
                 ],
-              ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => _openCollect(context, ref),
+                          child: Container(
+                            height: 38,
+                            alignment: Alignment.center,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.payments_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Collect now',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Location / Navigation',
+                      child: Material(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => _openLocation(context),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0xFF2563EB).withAlpha(45),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.near_me_rounded,
+                              size: 17,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (row.customerPhone.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'WhatsApp',
+                        child: Material(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _openWhatsApp(context),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF16A34A).withAlpha(45),
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 17,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'Call customer',
+                        child: Material(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: _callPhone,
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: AppColors.success.withAlpha(45),
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.call_rounded,
+                                size: 17,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -2709,7 +2687,8 @@ class _RecentActivitiesSectionState
                   subtitle: '${bundle.newLoanItems.length} loans',
                   isSelected: _activeTab == _ActivityCategoryTab.newLoans,
                   onTap: () => setState(
-                      () => _activeTab = _ActivityCategoryTab.newLoans,),
+                    () => _activeTab = _ActivityCategoryTab.newLoans,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 _buildKpiCard(
@@ -2721,7 +2700,8 @@ class _RecentActivitiesSectionState
                   subtitle: 'registered',
                   isSelected: _activeTab == _ActivityCategoryTab.newCustomers,
                   onTap: () => setState(
-                      () => _activeTab = _ActivityCategoryTab.newCustomers,),
+                    () => _activeTab = _ActivityCategoryTab.newCustomers,
+                  ),
                 ),
               ],
             ),

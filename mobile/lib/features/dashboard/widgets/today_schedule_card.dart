@@ -54,7 +54,7 @@ class TodayScheduleCard extends ConsumerWidget {
             offset: const Offset(0, 2),
           ),
           BoxShadow(
-            color: statusAccent.withAlpha(16),
+            color: AppColors.primary.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -67,123 +67,107 @@ class TodayScheduleCard extends ConsumerWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: statusAccent.withAlpha(45),
+              color: AppColors.primary.withAlpha(35),
               width: 1.2,
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white,
-                statusAccent.withAlpha(10),
+                AppColors.surface,
+                AppColors.primary.withAlpha(10),
               ],
             ),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 4.5,
-                    color: statusAccent,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    _ScheduleAvatar(
+                      name: item.customerName,
+                      initials: _initials(item.customerName),
+                      image: (item.customerPhoto != null &&
+                              item.customerPhoto!.isNotEmpty)
+                          ? authedImage(ref, item.customerPhoto!)
+                          : null,
+                      statusColor: statusAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Row(
-                            children: [
-                              _ScheduleAvatar(
-                                name: item.customerName,
-                                initials: _initials(item.customerName),
-                                image: (item.customerPhoto != null &&
-                                        item.customerPhoto!.isNotEmpty)
-                                    ? authedImage(ref, item.customerPhoto!)
-                                    : null,
-                                statusColor: statusAccent,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      item.customerName,
-                                      style: AppTypography.bodyLarge.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13.5,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (item.loanCode.isNotEmpty)
-                                      Text(
-                                        item.loanCode,
-                                        style: AppTypography.caption.copyWith(
-                                          fontFamily: 'monospace',
-                                          color: AppColors.textLight,
-                                          fontSize: 10.5,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                          Text(
+                            item.customerName,
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                fmt.format(item.dueAmount),
-                                style: AppTypography.sectionTitle.copyWith(
-                                  color: AppColors.primaryDark,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              AppBadge(
-                                label: item.status,
-                                kind: _kindFor(item.status),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 34,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: EdgeInsets.zero,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: onCollect,
-                              child: Text(
-                                t.x('btn.collect'),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          if (item.loanCode.isNotEmpty)
+                            Text(
+                              item.loanCode,
+                              style: AppTypography.caption.copyWith(
+                                fontFamily: 'monospace',
+                                color: AppColors.textLight,
+                                fontSize: 10.5,
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      fmt.format(item.dueAmount),
+                      style: AppTypography.sectionTitle.copyWith(
+                        color: AppColors.primaryDark,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    AppBadge(
+                      label: item.status,
+                      kind: _kindFor(item.status),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 34,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: onCollect,
+                    child: Text(
+                      t.x('btn.collect'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
