@@ -100,7 +100,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     recentActivity,
     todayCollectionEntries,
     highestBorrowerResult,
-    bestPayer,
+    bestPayerResult,
     pendingUpiCollections,
     pendingCashCollections,
     todayNewLoans,
@@ -273,20 +273,17 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     prisma.loan.groupBy({
       by: ['customerId'],
-      where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) },
       _sum: { principal: true },
       orderBy: { _sum: { principal: 'desc' } },
-      take: 1
+      take: 1,
     }),
-    prisma.customer.findFirst({
-      where: {
-        tenantId,
-        appType,
-        status: 'active',
-        ...(branchId ? { branchId } : {}),
-        loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } }
-      },
-      include: { loans: true },
+    prisma.collectionEntry.groupBy({
+      by: ['customerId'],
+      where: { tenantId, loan: { appType, ...(branchId ? { branchId } : {}) } },
+      _sum: { receivedAmount: true },
+      orderBy: { _sum: { receivedAmount: 'desc' } },
+      take: 1,
     }),
     prisma.collectionEntry.findMany({
       where: {
@@ -943,10 +940,18 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   });
 
   let highestBorrower = null;
-  if (highestBorrowerResult.length > 0) {
+  if (highestBorrowerResult.length > 0 && highestBorrowerResult[0].customerId) {
     highestBorrower = await prisma.customer.findUnique({
       where: { id: highestBorrowerResult[0].customerId },
-      include: { loans: true }
+      include: { loans: true },
+    });
+  }
+
+  let bestPayer = null;
+  if (bestPayerResult.length > 0 && bestPayerResult[0].customerId) {
+    bestPayer = await prisma.customer.findUnique({
+      where: { id: bestPayerResult[0].customerId },
+      include: { loans: true },
     });
   }
 
