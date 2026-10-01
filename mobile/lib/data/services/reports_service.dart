@@ -75,9 +75,15 @@ class ReportsService {
   }
 
   /// Fetch accounting capital summary.
-  Future<AccountingSummary> fetchAccountingSummary() async {
-    final res =
-        await _dio.get<Map<String, dynamic>>(Endpoints.accountingSummary);
+  /// [from]/[to] = IST business days (yyyy-MM-dd); null = all time (ACC-01).
+  Future<AccountingSummary> fetchAccountingSummary({String? from, String? to}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingSummary,
+      queryParameters: {
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      },
+    );
     return unwrapEnvelope(
       res,
       (dynamic d) => AccountingSummary.fromJson(d as Map<String, dynamic>),

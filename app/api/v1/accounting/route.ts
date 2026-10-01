@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { applyAccountingCashToBranch } from '@/lib/wallet';
+import { getAccountingSummary } from '@/lib/accounting/summary';
 import { autoPostExpense, autoPostCapitalAdd, autoPostCapitalWithdraw } from '@/lib/accounting/autoPost';
 
 export async function GET(req: NextRequest) {
@@ -14,110 +15,35 @@ export async function GET(req: NextRequest) {
     return fail('Forbidden', 403);
   }
 
-  const loanBase: any = {
-    tenantId: ctx.tenantId,
-    appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
-  };
+  // ACC-01 (D1): the same summary the web Accounting page renders — loans in
+  // every status, the full released-to-agents total, optional ?from&to range.
+  const { searchParams } = new URL(req.url);
+  const day = (v: string | null) => (v && v.length === 10 && !Number.isNaN(Date.parse(v)) ? v : null);
+  const range = { from: day(searchParams.get('from')), to: day(searchParams.get('to')) };
 
   try {
-    // All accounting entries for this tenant/branch
-    const entries = await prisma.accountEntry.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
-      },
-      select: { type: true, amount: true },
-    });
-
-    let capitalIn = 0;
-    let capitalOut = 0;
-    let totalDisbursed = 0;
-    let totalCollected = 0;
-    let totalExpenses = 0;
-    let chitPayouts = 0;
-
-    for (const e of entries) {
-      const amt = Number(e.amount);
-      switch (e.type) {
-        case 'capital_add':      capitalIn      += amt; break;
-        case 'capital_withdraw': capitalOut     += amt; break;
-        case 'loan_disburse':    totalDisbursed += amt; break;
-        case 'collection':       totalCollected += amt; break;
-        case 'expense':          totalExpenses  += amt; break;
-        case 'chit_payout':      chitPayouts    += amt; break;
-      }
-    }
-
-    const currentCapital =
-      capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitPayouts;
-
-    // Projected interest from active loans
-    const activeLoans = await prisma.loan.findMany({
-      where: { ...loanBase, status: { in: ['active', 'overdue'] } },
-      select: { principal: true, totalPayable: true, deduction: true },
-    });
-
-    const totalInterest = activeLoans.reduce(
-      (s, l) => s + (Number(l.totalPayable) - Number(l.principal)),
-      0,
-    );
-    const totalDeductions = activeLoans.reduce(
-      (s, l) => s + Number(l.deduction),
-      0,
-    );
-    const projectedRevenue = totalInterest + totalDeductions;
-    const netProfit = projectedRevenue - totalExpenses;
-
-    // Real cash + receivable (parity with the web Accounting dashboard).
-    // Liquid Cash = branch pool + agent floats; Net Worth = Liquid + outstanding.
-    const branchScopeId = ctx.branchId || null;
-    const agentIds = branchScopeId
-      ? (
-          await prisma.user.findMany({
-            where: { tenantId: ctx.tenantId, branchId: branchScopeId, role: 'agent' },
-            select: { id: true },
-          })
-        ).map((r) => r.id)
-      : null;
-    const [branchCashAgg, agentFloatAgg, outstandingAgg] = await Promise.all([
-      prisma.branchCashAccount.aggregate({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, ...(branchScopeId ? { branchId: branchScopeId } : {}) },
-        _sum: { balance: true },
-      }),
-      prisma.agentAccount.aggregate({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
-        _sum: { balance: true },
-      }),
-      prisma.instalment.aggregate({
-        where: { loan: { ...loanBase, status: { in: ['active', 'overdue'] } } },
-        _sum: { dueAmount: true, receivedAmount: true },
-      }),
-    ]);
-    const branchCashAvailable = Number(branchCashAgg._sum.balance ?? 0);
-    const agentFloat = Number(agentFloatAgg._sum.balance ?? 0);
-    const liquidCash = branchCashAvailable + agentFloat;
-    const loanOutstanding = Math.max(
-      0,
-      Number(outstandingAgg._sum.dueAmount ?? 0) - Number(outstandingAgg._sum.receivedAmount ?? 0),
-    );
-    const netWorth = liquidCash + loanOutstanding;
-
+    const summary = await getAccountingSummary(ctx.tenantId, ctx.appType, ctx.branchId, range);
+    const m = summary.metrics;
     return ok({
-      totalCollected,
-      totalDisbursed,
-      totalExpenses,
-      currentCapital,
-      liquidCash,
-      loanOutstanding,
-      netWorth,
-      branchCashAvailable,
-      agentFloat,
-      netProfit,
-      projectedRevenue,
-      capitalIn,
-      capitalOut,
+      // Range KPIs (web Accounting cards).
+      totalCollected: m.totalCollected,
+      totalDisbursed: m.totalDisbursed,
+      totalExpenses: m.totalExpenses,
+      currentCapital: m.currentCapital,
+      capitalIn: m.capitalIn,
+      capitalOut: m.capitalOut,
+      releasedToAgents: m.releasedToAgents,
+      totalDeductions: m.totalDeductions,
+      totalInterest: m.totalInterest,
+      projectedRevenue: m.projectedRevenue,
+      netProfit: m.projectedProfit,
+      // Position (not ranged).
+      liquidCash: summary.liquidCash,
+      loanOutstanding: summary.loanOutstanding,
+      netWorth: summary.netWorth,
+      branchCashAvailable: summary.branchCashAvailable,
+      agentFloat: summary.agentFloat,
+      range,
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Accounting summary failed', 500);

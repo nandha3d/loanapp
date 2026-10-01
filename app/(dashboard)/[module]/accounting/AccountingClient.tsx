@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { addAccountEntry } from './actions';
 import Modal from '@/components/Modal';
 import { calculateChitAccountingMetrics } from '@/lib/accounting/chitSummary';
@@ -46,6 +47,12 @@ export default function AccountingClient({
     }>;
     loans: any[];
     entries: any[];
+    metrics: {
+      capitalIn: number; capitalOut: number; totalDisbursed: number; totalCollected: number;
+      totalExpenses: number; releasedToAgents: number; currentCapital: number; totalDeductions: number;
+      totalInterest: number; projectedRevenue: number; projectedProfit: number;
+    };
+    range?: { from?: string | null; to?: string | null };
     chitGroups?: any[];
     chitSubscriptions?: any[];
     chitAuctions?: any[];
@@ -91,8 +98,16 @@ export default function AccountingClient({
   const [modalType, setModalType] = useState('capital_add');
   const [loading, setLoading] = useState(false);
 
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>(summary.range?.from ?? '');
+  const [toDate, setToDate] = useState<string>(summary.range?.to ?? '');
+  const router = useRouter();
+  useEffect(() => {
+    if ((summary.range?.from ?? '') === fromDate && (summary.range?.to ?? '') === toDate) return;
+    const p = new URLSearchParams();
+    if (fromDate) p.set('from', fromDate);
+    if (toDate) p.set('to', toDate);
+    router.replace(`?${p.toString()}`);
+  }, [fromDate, toDate, router, summary.range?.from, summary.range?.to]);
   const [ledgerFrom, setLedgerFrom] = useState<string>('');
   const [ledgerTo, setLedgerTo] = useState<string>('');
   const [ledgerPage, setLedgerPage] = useState(1);
@@ -153,81 +168,10 @@ export default function AccountingClient({
     });
   }, [summary.releaseEntries, fromDate, toDate]);
 
-  const filteredLoans = useMemo(() => {
-    return (summary.loans || []).filter((loan: any) => {
-      const d = new Date(loan.startDate);
-      d.setHours(0, 0, 0, 0);
-      if (fromDate) {
-        const start = new Date(fromDate);
-        start.setHours(0, 0, 0, 0);
-        if (d < start) return false;
-      }
-      if (toDate) {
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        if (d > end) return false;
-      }
-      return true;
-    });
-  }, [summary.loans, fromDate, toDate]);
 
-  const metrics = useMemo(() => {
-    let capitalIn = 0;
-    let capitalOut = 0;
-    let totalDisbursed = 0;
-    let totalCollected = 0;
-    let totalExpenses = 0;
-    let releasedToAgents = 0;
-    let chitOutflows = 0;
-
-    for (const entry of filteredEntries) {
-      const amt = Number(entry.amount);
-      switch (entry.type) {
-        case 'capital_add':
-          capitalIn += amt;
-          break;
-        case 'capital_withdraw':
-          capitalOut += amt;
-          break;
-        case 'loan_disburse':
-          totalDisbursed += amt;
-          break;
-        case 'collection':
-          totalCollected += amt;
-          break;
-        case 'expense':
-          totalExpenses += amt;
-          break;
-        case 'chit_payout':
-        case 'chit_dividend_payout':
-          chitOutflows += amt;
-          break;
-      }
-    }
-    for (const release of filteredReleases) {
-      releasedToAgents += Math.abs(Number(release.amount));
-    }
-
-    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitOutflows;
-    const totalDeductions = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.deduction), 0);
-    const totalInterest = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.totalPayable) - Number(loan.principal), 0);
-    const projectedRevenue = totalDeductions + totalInterest;
-    const projectedProfit = projectedRevenue - totalExpenses;
-
-    return {
-      capitalIn,
-      capitalOut,
-      totalDisbursed,
-      totalCollected,
-      totalExpenses,
-      releasedToAgents,
-      currentCapital,
-      totalDeductions,
-      totalInterest,
-      projectedRevenue,
-      projectedProfit,
-    };
-  }, [filteredEntries, filteredLoans, filteredReleases]);
+  // ACC-01: KPI figures come from the server (lib/accounting/summary.ts) for the
+  // selected range — the same numbers mobile shows (MONEY-1).
+  const metrics = summary.metrics;
 
   const chitMetrics = useMemo(() => calculateChitAccountingMetrics({
     groups: summary.chitGroups || [],

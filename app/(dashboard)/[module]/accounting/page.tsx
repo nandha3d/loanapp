@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
 import AccountingClient from './AccountingClient';
-import { getAccountingSummary } from './actions';
+import { getAccountingSummary } from '@/lib/accounting/summary';
 import { getActiveBranchId } from '@/lib/branch';
 import { modulePath } from '@/types/modules';
 import { getDictionary } from '@/lib/i18n';
@@ -10,10 +10,16 @@ import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 
 export default async function AccountingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ module: string }>;
+  searchParams?: Promise<{ from?: string; to?: string }>;
 }) {
   const { module } = await params;
+  // ACC-01: the date filter lives in the URL so the server computes the KPIs.
+  const sp = (await searchParams) ?? {};
+  const isDay = (v?: string) => (v && v.length === 10 && !Number.isNaN(Date.parse(v)) ? v : null);
+  const range = { from: isDay(sp.from), to: isDay(sp.to) };
   const session = await auth();
   const role = (session?.user as any)?.role;
   const appType = await getUserAppType();
@@ -25,7 +31,7 @@ export default async function AccountingPage({
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const activeBranchId = await getActiveBranchId();
   const dict = await getDictionary(tenantId);
-  const summary = await getAccountingSummary(tenantId, appType, activeBranchId);
+  const summary = await getAccountingSummary(tenantId, appType, activeBranchId, range);
 
   // Serialize Decimal fields
   const serializedSummary = JSON.parse(JSON.stringify(summary));

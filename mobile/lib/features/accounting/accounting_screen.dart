@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
@@ -25,9 +26,17 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
+/// Date range for the summary KPIs (null = all time), sent to the server.
+final _accountingRangeProvider = StateProvider.autoDispose<DateTimeRange?>((ref) => null);
+
 final _accountingSummaryProvider =
     FutureProvider.autoDispose<AccountingSummary>((ref) {
-  return ref.watch(reportsServiceProvider).fetchAccountingSummary();
+  final range = ref.watch(_accountingRangeProvider);
+  final f = DateFormat('yyyy-MM-dd');
+  return ref.watch(reportsServiceProvider).fetchAccountingSummary(
+        from: range == null ? null : f.format(range.start),
+        to: range == null ? null : f.format(range.end),
+      );
 });
 
 final _cashflowProvider =
@@ -148,6 +157,41 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ACC-01: date range for the KPIs (server-computed).
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.date_range, size: 18),
+                  label: Text(() {
+                    final r = ref.watch(_accountingRangeProvider);
+                    if (r == null) return t.x('acc.all_time');
+                    final f = DateFormat('dd MMM yyyy');
+                    return '${f.format(r.start)} – ${f.format(r.end)}';
+                  }()),
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(now.year - 5),
+                      lastDate: now,
+                      initialDateRange: ref.read(_accountingRangeProvider),
+                    );
+                    if (picked != null) {
+                      ref.read(_accountingRangeProvider.notifier).state = picked;
+                    }
+                  },
+                ),
+              ),
+              if (ref.watch(_accountingRangeProvider) != null)
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () =>
+                      ref.read(_accountingRangeProvider.notifier).state = null,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Metrics Summary
           _SummarySection(summaryAsync: summaryAsync),
           const SizedBox(height: 16),
@@ -400,6 +444,9 @@ class _SummaryBody extends ConsumerWidget {
           (t.x('acc.net_worth'), summary.netWorth),
           (t.x('acc.capital_in'), summary.capitalIn),
           (t.x('acc.capital_out'), summary.capitalOut),
+          (t.x('acc.released_to_agents'), summary.releasedToAgents),
+          (t.x('acc.total_deductions'), summary.totalDeductions),
+          (t.x('acc.total_interest'), summary.totalInterest),
           (t.x('acc.projected_revenue'), summary.projectedRevenue),
         ]) ...[
           const _Divider(),

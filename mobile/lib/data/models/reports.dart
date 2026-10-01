@@ -100,8 +100,15 @@ class AccountingSummary {
     required this.projectedRevenue,
     required this.capitalIn,
     required this.capitalOut,
+    this.releasedToAgents = 0,
+    this.totalDeductions = 0,
+    this.totalInterest = 0,
   });
 
+  // ACC-01: same KPI set as the web Accounting page.
+  final double releasedToAgents;
+  final double totalDeductions;
+  final double totalInterest;
   final double totalCollected;
   final double totalDisbursed;
   final double totalExpenses;
@@ -134,6 +141,9 @@ class AccountingSummary {
       projectedRevenue: n(json['projectedRevenue']),
       capitalIn:        n(json['capitalIn']),
       capitalOut:       n(json['capitalOut']),
+      releasedToAgents: n(json['releasedToAgents']),
+      totalDeductions:  n(json['totalDeductions']),
+      totalInterest:    n(json['totalInterest']),
     );
   }
 }
