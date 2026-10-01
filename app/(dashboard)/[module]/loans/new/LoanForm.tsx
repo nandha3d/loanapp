@@ -59,6 +59,7 @@ export default function LoanForm({
   interestOnlyEnabled,
   bulletTermEnabled,
   agentFloatBalance,
+  bypassLoanApproval = true,
 }: {
   customers: any[];
   packages: any[];
@@ -77,6 +78,7 @@ export default function LoanForm({
   /** Opt-in per tenant — see lib/features.ts. Hides the single-payment term when off. */
   bulletTermEnabled?: boolean;
   agentFloatBalance?: number | null;
+  bypassLoanApproval?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -524,7 +526,7 @@ export default function LoanForm({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div className="card" style={{ border: '1px solid var(--border)' }}>
           <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px', margin: 0 }}>
-            <h3 style={{ margin: 0 }}>📝 {dict.loans.createTitle}</h3>
+            <h3 style={{ margin: 0 }}>📝 {bypassLoanApproval ? dict.loans.createTitle : (dict.loans.requestTitle || 'Request Loan')}</h3>
             <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
               <option value="">{dict.loans.premadeTemplate || 'Premade Template'}</option>
               {localPackages.map(pkg => (
@@ -1443,7 +1445,7 @@ export default function LoanForm({
             <div className="form-actions" style={{ marginTop: '20px' }}>
               <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span> 
-                {loading ? dict.loans.creating : dict.loans.submit}
+                {loading ? dict.loans.creating : (bypassLoanApproval ? dict.loans.submit : (dict.loans.requestLoan || 'Request Loan'))}
               </button>
               <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
             </div>

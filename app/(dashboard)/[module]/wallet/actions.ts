@@ -7,7 +7,6 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch } from '@/lib/wallet';
 import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
-import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
 

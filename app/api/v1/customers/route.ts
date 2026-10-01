@@ -14,6 +14,8 @@ import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { notifyApprovers } from '@/lib/notify/approvers';
 import { modulePath } from '@/types/modules';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { getBranding } from '@/lib/tenant';
+import { getAgentRouteIds } from '@/lib/access';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);

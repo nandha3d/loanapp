@@ -79,6 +79,12 @@ export function maskAadharNumber(value: string | null | undefined): string | nul
   return `XXXX XXXX ${lastFour}`;
 }
 
+export function isMaskedAadharNumber(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return /^X{4}\s*X{4}\s*\d{4}$/i.test(trimmed) || /^X{6,}/i.test(trimmed);
+}
+
 export function maskPan(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();

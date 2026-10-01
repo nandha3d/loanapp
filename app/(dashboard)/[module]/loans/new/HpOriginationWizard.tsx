@@ -55,6 +55,7 @@ export default function HpOriginationWizard({
   agents = [],
   dict,
   viewerRole,
+  bypassLoanApproval = true,
 }: {
   customers: any[];
   brokers: Partner[];
@@ -66,6 +67,7 @@ export default function HpOriginationWizard({
   agents?: any[];
   dict: any;
   viewerRole?: string;
+  bypassLoanApproval?: boolean;
 }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -188,7 +190,7 @@ export default function HpOriginationWizard({
     <div className="grid-60-40" style={{ alignItems: 'start' }}>
       <div className="card">
         <div className="card-header">
-          <h3>🚗 New Hire-Purchase Ledger</h3>
+          <h3>🚗 {bypassLoanApproval ? 'New Hire-Purchase Ledger' : 'Request Hire-Purchase Ledger'}</h3>
           <span className="badge badge-info">Step {step} of 4</span>
         </div>
 
@@ -649,7 +651,7 @@ export default function HpOriginationWizard({
               </button>
             ) : (
               <button type="submit" className="btn btn-primary" disabled={loading || !quote}>
-                {loading ? 'Creating…' : 'Create HP Ledger'}
+                {loading ? (bypassLoanApproval ? 'Creating…' : 'Submitting…') : (bypassLoanApproval ? 'Create HP Ledger' : 'Request HP Ledger')}
               </button>
             )}
           </div>

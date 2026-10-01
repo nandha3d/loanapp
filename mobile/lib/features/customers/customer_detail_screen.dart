@@ -506,7 +506,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                             extra: c,
                           ),
                           icon: const Icon(Icons.add_card_rounded, size: 18),
-                          label: const Text('New Loan'),
+                          label: Text(
+                            (ref.watch(authControllerProvider).user?.bypassLoanApproval ?? false)
+                                ? t.x('title.new_loan')
+                                : t.x('title.request_loan'),
+                          ),
                         ),
                       ),
                     ],

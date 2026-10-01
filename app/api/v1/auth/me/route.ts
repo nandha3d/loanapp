@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
     status: user.status,
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant.slug,
+    bypassLoanApproval: user.role === 'agent' ? Boolean(user.bypassLoanApproval) : true,
     enabledModules: enabledModulesForRole(user.role),
   });
 }

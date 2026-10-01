@@ -795,12 +795,21 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       if (!mounted) return;
       ref.invalidate(loansProvider);
       final t = T.of(ref);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}'),
-        ),
-      );
-      context.go('/loans');
+      if (loan.status == 'pending_review') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t.x('msg.loan_request_submitted')),
+          ),
+        );
+        context.go('/approvals');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}'),
+          ),
+        );
+        context.go('/loans');
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -811,9 +820,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
+    final canBypass = ref.watch(authControllerProvider).user?.bypassLoanApproval ?? false;
     return Scaffold(
       appBar: AppBar(
-        title: Text(t.x('title.new_loan')),
+        title: Text(canBypass ? t.x('title.new_loan') : t.x('title.request_loan')),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

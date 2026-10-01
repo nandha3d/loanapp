@@ -138,7 +138,9 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
       ),
       floatingActionButton: FabExtended(
         icon: Icons.add,
-        label: t.x('title.new_loan'),
+        label: (ref.watch(authControllerProvider).user?.bypassLoanApproval ?? false)
+            ? t.x('title.new_loan')
+            : t.x('title.request_loan'),
         onPressed: () => context.push('/loans/new'),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/loans'),

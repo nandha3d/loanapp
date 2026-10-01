@@ -163,6 +163,9 @@ export async function createLoan(formData: FormData) {
 
     const createdLoan = res.data;
     revalidatePath(modulePath(appType, '/loans'));
+    if (createdLoan?.status === 'pending_review') {
+      redirect(modulePath(appType, '/approvals'));
+    }
     redirect(modulePath(appType, `/loans/${createdLoan.loanCode}`));
   } catch (e: any) {
     if (e.message && e.message.includes('NEXT_REDIRECT')) {
@@ -289,6 +292,9 @@ export async function createHpLoan(formData: FormData) {
     const createdLoan = res.data;
     revalidatePath(modulePath(appType, '/loans'));
     revalidatePath(modulePath(appType, '/vehicles'));
+    if (createdLoan?.status === 'pending_review') {
+      redirect(modulePath(appType, '/approvals'));
+    }
     redirect(modulePath(appType, `/loans/${createdLoan.loanCode}`));
   } catch (e: any) {
     if (e.message && e.message.includes('NEXT_REDIRECT')) throw e;

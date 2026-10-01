@@ -180,8 +180,8 @@ export async function notify(params: NotifyParams): Promise<void> {
       ? interpolateTemplate(smsBodyTemplate, enrichedData)
       : defaultSmsMessage;
 
-    let resolvedAppType = meta?.appType;
-    let resolvedBranchId = meta?.branchId;
+    let resolvedAppType: string | null | undefined = meta?.appType;
+    let resolvedBranchId: string | null | undefined = meta?.branchId;
 
     if (!resolvedAppType || !resolvedBranchId) {
       if (meta?.entityType === 'loan' && meta?.entityId) {

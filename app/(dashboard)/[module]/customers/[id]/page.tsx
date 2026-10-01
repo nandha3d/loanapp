@@ -17,7 +17,13 @@ export default async function CustomerProfilePage({
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
   const session = await auth();
-  const userRole = (session?.user as any)?.role || 'agent';
+  const userId = session?.user?.id;
+  const user = userId ? await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, bypassLoanApproval: true }
+  }) : null;
+  const userRole = user?.role || (session?.user as any)?.role || 'agent';
+  const bypassLoanApproval = userRole === 'agent' ? Boolean(user?.bypassLoanApproval) : true;
   const dict = await getDictionary(tenantId);
   
   let customer: any = null;
@@ -98,6 +104,7 @@ export default async function CustomerProfilePage({
       appType={appType}
       chitSummary={chitProfile.summary}
       chitMemberships={chitProfile.memberships}
+      bypassLoanApproval={bypassLoanApproval}
     />
   );
 }

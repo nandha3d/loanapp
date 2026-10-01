@@ -2458,6 +2458,14 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಹೊಸ ಸಾಲ',
     'ml': 'പുതിയ വായ്പ',
   },
+  'title.request_loan': {
+    'en': 'Request Loan',
+    'ta': 'கடன் கோரிக்கை',
+    'hi': 'ऋण अनुरोध',
+    'te': 'రుణ అభ్యర్థన',
+    'kn': 'ಸಾಲ ವಿನಂತಿ',
+    'ml': 'വായ്പ അഭ്യർത്ഥന',
+  },
   'loans.show_closed': {
     'en': 'Show closed loans',
     'ta': 'மூடிய கடன்களைக் காட்டு',
@@ -6803,6 +6811,14 @@ const Map<String, Map<String, String>> kStrings = {
     'te': 'సృష్టించబడింది',
     'kn': 'ರಚಿಸಲಾಗಿದೆ',
     'ml': 'സൃഷ്ടിച്ചു',
+  },
+  'msg.loan_request_submitted': {
+    'en': 'Loan request submitted for approval',
+    'ta': 'கடன் கோரிக்கை ஒப்புதலுக்கு அனுப்பப்பட்டது',
+    'hi': 'ऋण अनुरोध अनुमोदन के लिए भेजा गया',
+    'te': 'రుణ అభ్యర్థన ఆమోదం కోసం సమర్పించబడింది',
+    'kn': 'ಸಾಲ ವಿನಂತಿಯನ್ನು ಅನುಮೋದನೆಗಾಗಿ ಸಲ್ಲಿಸಲಾಗಿದೆ',
+    'ml': 'വായ്പ അഭ്യർത്ഥന അംഗീകാരത്തിനായി സമർപ്പിച്ചു',
   },
   'rev.customer': {
     'en': 'Customer',

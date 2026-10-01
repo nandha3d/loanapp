@@ -21,7 +21,13 @@ export default async function NewLoanPage({
   if (appType === 'chitfunds') notFound();
   const dict = await getDictionary(tenantId);
   const session = await auth();
-  const userRole = (session?.user as any)?.role || 'agent';
+  const userId = session?.user?.id;
+  const user = userId ? await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, bypassLoanApproval: true }
+  }) : null;
+  const userRole = user?.role || (session?.user as any)?.role || 'agent';
+  const bypassLoanApproval = userRole === 'agent' ? Boolean(user?.bypassLoanApproval) : true;
   
   const [customersRes, rawPackagesRes, defaultPenalty, currencySymbol, routesRes, agentsRes, goldMasterRes, goldConfigRes, interestOnlyEnabled, bulletTermEnabled] = await Promise.all([
     serverFetch<any>('/customers?status=active&page=1&limit=1000'),
@@ -82,6 +88,7 @@ export default async function NewLoanPage({
         agents={agents}
         dict={dict}
         viewerRole={userRole}
+        bypassLoanApproval={bypassLoanApproval}
       />
     );
   }
@@ -114,6 +121,7 @@ export default async function NewLoanPage({
       interestOnlyEnabled={interestOnlyEnabled}
       bulletTermEnabled={bulletTermEnabled}
       agentFloatBalance={agentFloatBalance}
+      bypassLoanApproval={bypassLoanApproval}
     />
   );
 }

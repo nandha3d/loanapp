@@ -50,6 +50,7 @@ export default function CustomerProfileClient({
   appType,
   chitSummary,
   chitMemberships = [],
+  bypassLoanApproval = true,
 }: {
   customer: any;
   currencySymbol: string;
@@ -77,6 +78,7 @@ export default function CustomerProfileClient({
     outstandingSubscriptionDue: number;
     hasWon: boolean;
   }>;
+  bypassLoanApproval?: boolean;
 }) {
   const router = useRouter();
   useRegisterBreadcrumbLabel(customer.customerCode, customer.name);
@@ -488,9 +490,9 @@ export default function CustomerProfileClient({
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
               {d.collectionReceipt || 'Collection Receipt'}
             </a>
-            {userRole !== 'agent' && loansEnabled && (
+            {loansEnabled && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.newLoan}
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {bypassLoanApproval ? d.newLoan : (d.requestLoan || 'Request Loan')}
               </Link>
             )}
           </div>

@@ -321,6 +321,10 @@ export async function PATCH(
         }
       });
 
+      if (result && typeof result === 'object' && 'isStale' in result && (result as any).isStale) {
+        return ok({ isStale: true, status: 'rejected', message: 'Rejected as stale: another queued edit was already approved.' });
+      }
+
       await prisma.auditLog.create({
         data: {
           tenantId: ctx.tenantId,
@@ -465,8 +469,6 @@ export async function PATCH(
               link: '/loans',
             },
           }).catch(() => {});
-        if (result && typeof result === 'object' && 'isStale' in result && (result as any).isStale) {
-          return ok({ isStale: true, status: 'rejected', message: 'Rejected as stale: another queued edit was already approved.' });
         }
 
         return ok({ status: 'approved' });

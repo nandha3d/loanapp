@@ -30,7 +30,13 @@ export default async function LoansPage({
   searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
   const session = await auth();
-  const userRole = (session?.user as any)?.role || 'agent';
+  const userId = session?.user?.id;
+  const user = userId ? await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, bypassLoanApproval: true }
+  }) : null;
+  const userRole = user?.role || (session?.user as any)?.role || 'agent';
+  const bypassLoanApproval = userRole === 'agent' ? Boolean(user?.bypassLoanApproval) : true;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   // Chitfunds is chit-only — no loan origination.
@@ -141,7 +147,7 @@ export default async function LoansPage({
       <div className="card-header">
         <h3>💰 {dict.loansList.title}</h3>
         <Link href="/loans/new" className="btn btn-primary btn-sm">
-          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> {dict.loansList.newLoan}
+          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> {bypassLoanApproval ? dict.loansList.newLoan : (dict.loansList.requestLoan || dict.loans.requestLoan || 'Request Loan')}
         </Link>
       </div>
 

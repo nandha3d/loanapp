@@ -102,6 +102,7 @@ class User {
     this.premiumAccountingEnabled = false,
     this.whatsappSmsEnabled = false,
     this.foreclosureEnabled = false,
+    this.bypassLoanApproval = true,
     this.verticals = const [],
   });
 
@@ -115,6 +116,7 @@ class User {
   final String appType; // See AppType constants.
   final String status; // "active" | "suspended"
   final bool totpEnabled;
+  final bool bypassLoanApproval;
 
   /// Server-driven module visibility list (spec §5).
   final List<String> enabledModules;
@@ -197,6 +199,7 @@ class User {
     bool? premiumAccountingEnabled,
     bool? whatsappSmsEnabled,
     bool? foreclosureEnabled,
+    bool? bypassLoanApproval,
     List<String>? verticals,
   }) {
     return User(
@@ -224,6 +227,7 @@ class User {
           premiumAccountingEnabled ?? this.premiumAccountingEnabled,
       whatsappSmsEnabled: whatsappSmsEnabled ?? this.whatsappSmsEnabled,
       foreclosureEnabled: foreclosureEnabled ?? this.foreclosureEnabled,
+      bypassLoanApproval: bypassLoanApproval ?? this.bypassLoanApproval,
     );
   }
 
@@ -258,6 +262,8 @@ class User {
           (json['premiumAccountingEnabled'] as bool?) ?? false,
       whatsappSmsEnabled: (json['whatsappSmsEnabled'] as bool?) ?? false,
       foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
+      bypassLoanApproval: (json['bypassLoanApproval'] as bool?) ??
+          (json['role'] != 'agent'),
     );
   }
 
@@ -281,6 +287,7 @@ class User {
         'kycEnabled': kycEnabled,
         'kycMethod': kycMethod,
         'bureauEnabled': bureauEnabled,
+        'bypassLoanApproval': bypassLoanApproval,
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,
         'foreclosureEnabled': foreclosureEnabled,
