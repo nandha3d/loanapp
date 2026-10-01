@@ -3,30 +3,16 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
-import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
+import {
+  getPeriodKey,
+  getFiscalYear,
+  getFyStartMonth,
+  assertPeriodOpen,
+  assignNextEntryNo,
+  PeriodLockedError,
+} from '@/lib/accounting/premium';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
 import { validateManualJournalLines } from '@/lib/accounting/journalInput';
-
-async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
-  const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
-  const fy = getFiscalYear(entryDate, fyStartMonth);
-  const fyKey = fy.replace('-', '');
-  const startMonth = fyStartMonth - 1; // JS Date month index
-  const fyStart = entryDate.getMonth() >= startMonth
-    ? new Date(entryDate.getFullYear(), startMonth, 1)
-    : new Date(entryDate.getFullYear() - 1, startMonth, 1);
-  const existing = await prisma.journalEntry.findMany({
-    where: { tenantId, entryNo: { startsWith: `JE-${fyKey}-` }, entryDate: { gte: fyStart } },
-    select: { entryNo: true },
-    orderBy: { entryNo: 'desc' },
-    take: 50,
-  });
-  const max = existing.reduce((highest, entry) => {
-    const next = Number(entry.entryNo?.match(/^JE-\d{6,8}-(\d+)$/)?.[1] ?? 0);
-    return Number.isFinite(next) && next > highest ? next : highest;
-  }, 0);
-  return `JE-${fyKey}-${String(max + 1).padStart(4, '0')}`;
-}
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
@@ -129,12 +115,11 @@ export async function POST(req: NextRequest) {
       return fail('empty_entry', 400);
     }
 
-    const periodKey = getPeriodKey(entryDate);
-    const period = await prisma.accountingPeriod.findFirst({
-      where: { tenantId: ctx.tenantId, appType: ctx.appType, periodKey },
-    });
-    if (period && ['locked', 'closed'].includes(period.status) && ctx.role !== 'developer') {
-      return fail('period_locked', 400);
+    try {
+      await assertPeriodOpen(ctx.tenantId, ctx.appType, entryDate, ctx.role);
+    } catch (e) {
+      if (e instanceof PeriodLockedError) return fail('period_locked', 400);
+      throw e;
     }
 
     // Save as draft

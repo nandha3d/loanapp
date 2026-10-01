@@ -103,3 +103,55 @@ export async function writeAuditLog(params: {
     },
   });
 }
+
+export class PeriodLockedError extends Error {
+  code = 'period_locked';
+  constructor(message = 'Accounting period is locked or closed') {
+    super(message);
+    this.name = 'PeriodLockedError';
+  }
+}
+
+/**
+ * Period lock check: throws PeriodLockedError if the period for date is locked/closed.
+ * Developer role bypasses the period lock.
+ */
+export async function assertPeriodOpen(
+  tenantId: string,
+  appType: string,
+  date: Date,
+  role?: string,
+): Promise<void> {
+  const periodKey = getPeriodKey(date);
+  const period = await prisma.accountingPeriod.findFirst({
+    where: { tenantId, appType, periodKey },
+  });
+  if (period && ['locked', 'closed'].includes(period.status) && role !== 'developer') {
+    throw new PeriodLockedError();
+  }
+}
+
+/**
+ * Compute the next journal entry number for a tenant and entry date based on fiscal year.
+ */
+export async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
+  const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
+  const fy = getFiscalYear(entryDate, fyStartMonth);
+  const fyKey = fy.replace('-', '');
+  const startMonth = fyStartMonth - 1; // JS Date month index
+  const fyStart = entryDate.getMonth() >= startMonth
+    ? new Date(entryDate.getFullYear(), startMonth, 1)
+    : new Date(entryDate.getFullYear() - 1, startMonth, 1);
+  const existing = await prisma.journalEntry.findMany({
+    where: { tenantId, entryNo: { startsWith: `JE-${fyKey}-` }, entryDate: { gte: fyStart } },
+    select: { entryNo: true },
+    orderBy: { entryNo: 'desc' },
+    take: 50,
+  });
+  const max = existing.reduce((highest, entry) => {
+    const next = Number(entry.entryNo?.match(/^JE-\d{6,8}-(\d+)$/)?.[1] ?? 0);
+    return Number.isFinite(next) && next > highest ? next : highest;
+  }, 0);
+  return `JE-${fyKey}-${String(max + 1).padStart(4, '0')}`;
+}
+

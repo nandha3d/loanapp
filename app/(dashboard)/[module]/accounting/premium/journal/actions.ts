@@ -7,33 +7,19 @@ import { getPremiumTenantId as getDefaultTenantId } from '../access';
 import { getActiveBranchId } from '@/lib/branch';
 import { revalidatePath } from 'next/cache';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
-import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
+import {
+  getPeriodKey,
+  getFiscalYear,
+  getFyStartMonth,
+  assertPeriodOpen,
+  assignNextEntryNo,
+  PeriodLockedError,
+} from '@/lib/accounting/premium';
 import { writePremiumAuditLog as writeAuditLog } from '../access';
 import { validateManualJournalLines } from '@/lib/accounting/journalInput';
 
 function requireRole(role: string, allowed: string[]) {
   if (!allowed.includes(role)) throw new Error('Unauthorized');
-}
-
-async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
-  const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
-  const fy = getFiscalYear(entryDate, fyStartMonth);
-  const fyKey = fy.replace('-', '');
-  const startMonth = fyStartMonth - 1; // JS Date month index
-  const fyStart = entryDate.getMonth() >= startMonth
-    ? new Date(entryDate.getFullYear(), startMonth, 1)
-    : new Date(entryDate.getFullYear() - 1, startMonth, 1);
-  const existing = await prisma.journalEntry.findMany({
-    where: { tenantId, entryNo: { startsWith: `JE-${fyKey}-` }, entryDate: { gte: fyStart } },
-    select: { entryNo: true },
-    orderBy: { entryNo: 'desc' },
-    take: 50,
-  });
-  const max = existing.reduce((highest, entry) => {
-    const next = Number(entry.entryNo?.match(/^JE-\d{6,8}-(\d+)$/)?.[1] ?? 0);
-    return Number.isFinite(next) && next > highest ? next : highest;
-  }, 0);
-  return `JE-${fyKey}-${String(max + 1).padStart(4, '0')}`;
 }
 
 export async function listJournalEntries(filter?: { from?: string; to?: string; status?: string; search?: string; page?: number }) {
@@ -96,9 +82,12 @@ export async function postEntry(input: { entryDate: string; narration?: string; 
   if (Math.abs(totalDr - totalCr) > 0.01) return { error: 'not_balanced' };
   if (totalDr === 0) return { error: 'empty_entry' };
   if (input.lines.length < 2) return { error: 'min_lines' };
-  const periodKey = getPeriodKey(entryDate);
-  const period = await prisma.accountingPeriod.findFirst({ where: { tenantId, appType, periodKey } });
-  if (period && ['locked', 'closed'].includes(period.status) && role !== 'developer') return { error: 'period_locked' };
+  try {
+    await assertPeriodOpen(tenantId, appType, entryDate, role);
+  } catch (e) {
+    if (e instanceof PeriodLockedError) return { error: 'period_locked' };
+    throw e;
+  }
   const settings = await prisma.accountingSettings.findUnique({ where: { tenantId } });
   const cap = role === 'admin' ? Number(settings?.adminJeCap ?? 50000) : Infinity;
   if (totalDr > cap) {
@@ -163,9 +152,12 @@ export async function postDraftEntry(id: string) {
   if (Math.abs(totalDr - totalCr) > 0.01) return { error: 'not_balanced' };
   if (totalDr === 0) return { error: 'empty_entry' };
   if (draft.lines.length < 2) return { error: 'min_lines' };
-  const periodKey = getPeriodKey(draft.entryDate);
-  const period = await prisma.accountingPeriod.findFirst({ where: { tenantId, appType, periodKey } });
-  if (period && ['locked', 'closed'].includes(period.status) && role !== 'developer') return { error: 'period_locked' };
+  try {
+    await assertPeriodOpen(tenantId, appType, draft.entryDate, role);
+  } catch (e) {
+    if (e instanceof PeriodLockedError) return { error: 'period_locked' };
+    throw e;
+  }
   const settings = await prisma.accountingSettings.findUnique({ where: { tenantId } });
   const cap = role === 'admin' ? Number(settings?.adminJeCap ?? 50000) : Infinity;
   if (totalDr > cap) {
@@ -215,9 +207,12 @@ export async function reverseEntry(id: string, reason: string) {
   if (!original) return { error: 'not_found' };
   const entryDate = new Date();
   const entryNo = await assignNextEntryNo(tenantId, entryDate);
-  const periodKey = getPeriodKey(entryDate);
-  const period = await prisma.accountingPeriod.findFirst({ where: { tenantId, appType, periodKey } });
-  if (period && ['locked', 'closed'].includes(period.status) && role !== 'developer') return { error: 'period_locked' };
+  try {
+    await assertPeriodOpen(tenantId, original.appType, entryDate, role);
+  } catch (e) {
+    if (e instanceof PeriodLockedError) return { error: 'period_locked' };
+    throw e;
+  }
   const reversal = await prisma.$transaction(async (tx) => {
     const rev = await tx.journalEntry.create({ data: { tenantId, appType: original.appType, branchId: original.branchId, entryNo, entryDate, narration: `Reversal of ${original.entryNo ?? id}: ${reason}`, status: 'posted', sourceType: 'reversal', sourceId: original.id, dedupKey: `reversal:${original.id}`, totalDebit: original.totalCredit, totalCredit: original.totalDebit, createdById: userId, approvedById: userId, approvedAt: new Date(), lines: { create: original.lines.map(l => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, description: l.description, lineNo: l.lineNo })) } }, include: { lines: true } });
     await tx.journalEntry.update({ where: { id }, data: { status: 'reversed', reversedById: rev.id } });
@@ -244,6 +239,12 @@ export async function approveEntry(id: string) {
   const branchId = await getActiveBranchId();
   const entry = await prisma.journalEntry.findFirst({ where: { id, tenantId, appType, ...(branchId ? { branchId } : {}), status: 'pending_approval' }, include: { lines: true } });
   if (!entry) return { error: 'not_found' };
+  try {
+    await assertPeriodOpen(tenantId, appType, entry.entryDate, role);
+  } catch (e) {
+    if (e instanceof PeriodLockedError) return { error: 'period_locked' };
+    throw e;
+  }
   const entryNo = await assignNextEntryNo(tenantId, entry.entryDate);
   await prisma.$transaction(async (tx) => {
     await tx.journalEntry.update({ where: { id }, data: { status: 'posted', entryNo, approvedById: userId, approvedAt: new Date() } });

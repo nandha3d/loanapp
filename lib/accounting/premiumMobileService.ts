@@ -11,6 +11,8 @@ import {
   getOrCreateAccountingSettings,
   getPeriodKey,
   isPremiumAccountingEnabled,
+  assertPeriodOpen,
+  assignNextEntryNo,
 } from '@/lib/accounting/premium';
 
 const ACCOUNTING_ROLES = new Set(['admin', 'superadmin', 'developer']);
@@ -215,9 +217,13 @@ export async function reviewPremiumApproval(
     if (approval.entityType === 'journal_entry') {
       const je = await tx.journalEntry.findFirst({ where: targetWhere, include: { lines: true } });
       if (!je) throw new PremiumAccountingServiceError('Already processed', 400);
-      const count = await tx.journalEntry.count({ where: { tenantId: actor.tenantId } });
-      const fyKey = `${je.entryDate.getFullYear()}${String(je.entryDate.getFullYear() + 1).slice(-2)}`;
-      const posted = await tx.journalEntry.updateMany({ where: targetWhere, data: { status: 'posted', entryNo: `JE-${fyKey}-${String(count).padStart(4, '0')}`, approvedById: actor.userId, approvedAt: new Date() } });
+      try {
+        await assertPeriodOpen(actor.tenantId, actor.appType, je.entryDate, actor.role);
+      } catch {
+        throw new PremiumAccountingServiceError('period_locked', 400);
+      }
+      const entryNo = await assignNextEntryNo(actor.tenantId, je.entryDate);
+      const posted = await tx.journalEntry.updateMany({ where: targetWhere, data: { status: 'posted', entryNo, approvedById: actor.userId, approvedAt: new Date() } });
       if (posted.count !== 1) throw new PremiumAccountingServiceError('Already processed', 400);
       for (const line of je.lines) await bumpAccountBalance(tx, line.accountId, je.entryDate, line.debit, line.credit);
     } else if (approval.entityType === 'bill') {
