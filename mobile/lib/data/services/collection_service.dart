@@ -64,7 +64,7 @@ class CollectionService {
         'idempotencyKey': idempotencyKey,
         if (remarks != null) 'remarks': remarks,
         if (collectionDate != null)
-          'collectionDate': collectionDate.toIso8601String(),
+          'collectionDate': collectionDate.toUtc().toIso8601String(),
         if (gps != null) 'gps': gps,
       },
     );
@@ -96,7 +96,7 @@ class CollectionService {
         if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
         if (remarks != null) 'remarks': remarks,
         if (collectionDate != null)
-          'collectionDate': collectionDate.toIso8601String(),
+          'collectionDate': collectionDate.toUtc().toIso8601String(),
         if (gps != null) 'gps': gps,
       },
     );

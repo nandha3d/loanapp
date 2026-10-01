@@ -5,6 +5,7 @@ import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:intl/intl.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
 class LoanService {
@@ -93,9 +94,9 @@ class LoanService {
         'interestType': interestType,
         'tenure': tenure,
         'frequency': frequency,
-        'startDate': startDate.toIso8601String(),
+        'startDate': DateFormat('yyyy-MM-dd').format(startDate),
         if (dueDay != null) 'dueDay': dueDay,
-        if (endDate != null) 'endDate': endDate.toIso8601String(),
+        if (endDate != null) 'endDate': DateFormat('yyyy-MM-dd').format(endDate),
       },
     );
     return unwrapEnvelope(
@@ -133,13 +134,13 @@ class LoanService {
         'deductionType': deductionType,
         'tenure': tenure,
         'frequency': frequency,
-        'startDate': startDate.toIso8601String(),
+        'startDate': DateFormat('yyyy-MM-dd').format(startDate),
         if (penaltyRate != null) 'penaltyRate': penaltyRate,
         'loanType': loanType,
         if (collateralDetails != null) 'collateralDetails': collateralDetails,
         if (voucherRef != null) 'voucherRef': voucherRef,
         if (dueDay != null) 'dueDay': dueDay,
-        if (endDate != null) 'endDate': endDate.toIso8601String(),
+        if (endDate != null) 'endDate': DateFormat('yyyy-MM-dd').format(endDate),
         if (guarantor != null) 'guarantor': guarantor,
         if (securityCheques != null) 'securityCheques': securityCheques,
         if (goldCollateral != null) 'goldCollateral': goldCollateral,

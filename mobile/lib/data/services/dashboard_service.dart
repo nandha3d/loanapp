@@ -29,8 +29,8 @@ class DashboardService {
 
   Future<TodaysActivityBundle> getActivities({DateTime? from, DateTime? to}) async {
     final queryParams = <String, dynamic>{};
-    if (from != null) queryParams['from'] = from.toIso8601String();
-    if (to != null) queryParams['to'] = to.toIso8601String();
+    if (from != null) queryParams['from'] = from.toUtc().toIso8601String();
+    if (to != null) queryParams['to'] = to.toUtc().toIso8601String();
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.dashboardActivities,
       queryParameters: queryParams.isEmpty ? null : queryParams,

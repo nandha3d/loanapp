@@ -45,7 +45,7 @@ class QueuedCollection {
         'instalmentId': instalmentId,
         'receivedAmount': receivedAmount,
         'paymentMode': paymentMode,
-        'collectionDate': collectionDate.toIso8601String(),
+        'collectionDate': collectionDate.toUtc().toIso8601String(),
         'status': status,
         'loanId': loanId,
         'failureReason': failureReason,
