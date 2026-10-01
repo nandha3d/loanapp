@@ -70,6 +70,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   late final bool _canViewCatalog;
+  bool get _canViewOverdue => _canViewCatalog;
 
   @override
   void initState() {
@@ -78,7 +79,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     _canViewCatalog = role == UserRole.admin ||
         role == UserRole.superadmin ||
         role == UserRole.developer;
-    _tabs = TabController(length: _canViewCatalog ? 3 : 2, vsync: this);
+    final tabCount = (_canViewOverdue ? 1 : 0) + 1 + (_canViewCatalog ? 1 : 0);
+    _tabs = TabController(length: tabCount, vsync: this);
   }
 
   @override
@@ -109,7 +111,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
           labelStyle: AppTypography.label,
           unselectedLabelStyle: AppTypography.label,
           tabs: [
-            Tab(text: t.x('rep.overdueTab')),
+            if (_canViewOverdue) Tab(text: t.x('rep.overdueTab')),
             Tab(text: t.x('rep.agentPerfTab')),
             if (_canViewCatalog) Tab(text: t.x('rep.catalogTab')),
           ],
@@ -118,7 +120,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
       body: TabBarView(
         controller: _tabs,
         children: [
-          const _OverdueTab(),
+          if (_canViewOverdue) const _OverdueTab(),
           const _AgentPerfTab(),
           if (_canViewCatalog) const _CatalogTab(),
         ],
