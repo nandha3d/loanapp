@@ -221,7 +221,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     final queue = ref.read(collectionQueueProvider);
 
     try {
-      final customerRows = _customerRows.isEmpty ? [widget.row] : _customerRows;
+
 
       // Actual collection: keep the entered money on the collection-date row.
       // Distributed schedule is only a projection, so the offline queue also
@@ -231,30 +231,19 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               ? widget.row
               : (_overdueInstalment ?? widget.row));
 
-      // Never collect more than the total outstanding across the loaded dues.
-      final totalRoom = customerRows.fold<double>(
-        0,
-        (s, r) => s + (r.outstanding > 0 ? r.outstanding : 0),
-      );
-      final appliedTotal = amt > totalRoom ? totalRoom : amt;
-
-      if (appliedTotal <= 0) {
-        setState(() {
-          _submitting = false;
-          _error = t.x('err.enter_valid_amount');
-        });
-        return;
-      }
+      // MON-06: no client-side cap — the server caps at loan remaining and
+      // returns the actual applied amount. A ₹300 advance on a ₹100 row is
+      // valid; the agent holds the cash and the server records what it can.
 
       if (!sync.online) {
         // Generate key once per user action — same key goes to online + replay.
-        final key = _idempotencyKey(targetInst.instalmentId, appliedTotal);
+        final key = _idempotencyKey(targetInst.instalmentId, amt);
         await queue.add(
           QueuedCollection(
             idempotencyKey: key,
             instalmentId: targetInst.instalmentId,
             loanId: widget.row.loanId,
-            receivedAmount: appliedTotal,
+            receivedAmount: amt,
             paymentMode: _mode,
             collectionDate: today,
             status: 'pending',
@@ -302,11 +291,12 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       // collection-date row for Actual. No client-side splitting.
       // Generate one key per user action so online + retry share the same
       // idempotency key (MON-05).
-      final submitKey = _idempotencyKey(targetInst.instalmentId, appliedTotal);
+      final submitKey = _idempotencyKey(targetInst.instalmentId, amt);
+      double serverApplied = amt;
       try {
-        await svc.collectLoan(
+        serverApplied = await svc.collectLoan(
           loanId: widget.row.loanId,
-          amount: appliedTotal,
+          amount: amt,
           paymentMode: _mode,
           idempotencyKey: submitKey,
           gps: gps,
@@ -319,7 +309,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
             idempotencyKey: submitKey,
             instalmentId: targetInst.instalmentId,
             loanId: widget.row.loanId,
-            receivedAmount: appliedTotal,
+            receivedAmount: amt,
             paymentMode: _mode,
             collectionDate: today,
             status: 'pending',
@@ -333,12 +323,12 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         return;
       }
 
-      ref.speak('Collected ${_speakAmount(appliedTotal)}');
+      ref.speak('Collected ${_speakAmount(serverApplied)}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              '${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}',),
+              '${t.x('msg.collected_from')} ₹${serverApplied.round()} — ${widget.row.customerName}',),
           backgroundColor: AppColors.success,
         ),
       );
