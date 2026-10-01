@@ -208,7 +208,7 @@ export async function reverseEntry(id: string, reason: string) {
   const entryDate = new Date();
   const entryNo = await assignNextEntryNo(tenantId, entryDate);
   try {
-    await assertPeriodOpen(tenantId, original.appType, entryDate, role);
+    await assertPeriodOpen(tenantId, original.appType ?? appType, entryDate, role);
   } catch (e) {
     if (e instanceof PeriodLockedError) return { error: 'period_locked' };
     throw e;

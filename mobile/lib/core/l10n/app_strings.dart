@@ -3705,6 +3705,22 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಸ್ನೇಹಿತ',
     'ml': 'സുഹൃത്ത്',
   },
+  'rel.relative': {
+    'en': 'Relative',
+    'ta': 'உறவினர்',
+    'hi': 'रिश्तेदार',
+    'te': 'బంధువు',
+    'kn': 'ಸಂಬಂಧಿ',
+    'ml': 'ബന്ധു',
+  },
+  'rel.business_partner': {
+    'en': 'Business Partner',
+    'ta': 'வணிக கூட்டாளி',
+    'hi': 'व्यापार भागीदार',
+    'te': 'వ్యాపార భాగస్వామి',
+    'kn': 'ವ್ಯವಹಾರ ಪಾಲುದಾರ',
+    'ml': 'ബിസിനസ്സ് പങ്കാളി',
+  },
   'rel.other': {
     'en': 'Other',
     'ta': 'மற்றவை',

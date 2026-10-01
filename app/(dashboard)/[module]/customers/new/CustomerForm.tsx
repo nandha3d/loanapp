@@ -658,14 +658,21 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Relation</label>
+                    <label className="form-label">{dict.customers.relation || 'Relation'}</label>
                     <select name={`guarantorRelation_${index}`} className="form-control" value={g.relation}
                       onChange={e => updateGuarantor(g.id, 'relation', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
-                      <option value="">Select Relation</option>
-                      <option value="friend">Friend</option>
-                      <option value="relative">Relative</option>
-                      <option value="business_partner">Business Partner</option>
-                      <option value="other">Other</option>
+                      <option value="">{dict.customers.selectRelation || 'Select Relation'}</option>
+                      <option value="father">{dict.customers.father || 'Father'}</option>
+                      <option value="mother">{dict.customers.mother || 'Mother'}</option>
+                      <option value="spouse">{dict.customers.spouse || 'Spouse'}</option>
+                      <option value="sibling">{dict.customers.sibling || 'Sibling'}</option>
+                      <option value="relative">{dict.customers.relative || 'Relative'}</option>
+                      <option value="friend">{dict.customers.friend || 'Friend'}</option>
+                      <option value="business_partner">{dict.customers.businessPartner || 'Business Partner'}</option>
+                      <option value="other">{dict.customers.other || 'Other'}</option>
+                      {g.relation && !['father', 'mother', 'spouse', 'sibling', 'relative', 'friend', 'business_partner', 'other'].includes(g.relation) && (
+                        <option value={g.relation}>{g.relation}</option>
+                      )}
                     </select>
                   </div>
                   <div className="form-group">

@@ -188,6 +188,7 @@ export async function requestPenaltyWaiver(formData: FormData) {
         const tenantId = await getCurrentTenantId();
         const appType = await getUserAppType();
         await ensurePendingPenaltiesForMissedLoans({ tenantId, appType, loanId });
+        const { default: prisma } = await import('@/lib/db');
         const p = await prisma.penalty.findFirst({
           where: { loanId, status: { in: ['pending', 'partial'] } },
           orderBy: { createdAt: 'desc' },

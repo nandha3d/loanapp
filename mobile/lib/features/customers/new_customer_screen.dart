@@ -2052,7 +2052,9 @@ class _GuarantorTile extends ConsumerWidget {
       ('mother', t.x('rel.mother')),
       ('spouse', t.x('rel.spouse')),
       ('sibling', t.x('rel.sibling')),
+      ('relative', t.x('rel.relative')),
       ('friend', t.x('rel.friend')),
+      ('business_partner', t.x('rel.business_partner')),
       ('other', t.x('rel.other')),
     ];
     return Container(
@@ -2171,12 +2173,21 @@ class _GuarantorTile extends ConsumerWidget {
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusSm),
                           style: AppTypography.body,
-                          items: relations
-                              .map((r) => DropdownMenuItem(
-                                    value: r.$1,
-                                    child: Text(r.$2),
-                                  ),)
-                              .toList(),
+                          items: [
+                            ...relations.map(
+                              (r) => DropdownMenuItem(
+                                value: r.$1,
+                                child: Text(r.$2),
+                              ),
+                            ),
+                            if (entry.relation != null &&
+                                entry.relation!.isNotEmpty &&
+                                !relations.any((r) => r.$1 == entry.relation))
+                              DropdownMenuItem(
+                                value: entry.relation,
+                                child: Text(entry.relation!),
+                              ),
+                          ],
                           onChanged: (v) {
                             entry.relation = v;
                             onChanged();
