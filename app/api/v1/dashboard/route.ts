@@ -834,6 +834,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // DASH-10: cash collected today per route (web dashboard routeCollections).
+    const routeCollections = routes.map((route) => ({
+      routeId: route.id,
+      collected: todayActivityRows
+        .filter((e: any) => e.customer?.route?.id === route.id)
+        .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0),
+    }));
+
     const todayPendingDues = mappedTodayInstalments
       .filter((inst) => outstanding(inst) > 0 && (inst as any).loan?.status !== 'closed')
       .map((inst) => ({
@@ -958,6 +966,7 @@ export async function GET(req: NextRequest) {
       todayInstalments: mappedTodayInstalments,
       defaulterAlerts,
       routePerformance,
+      routeCollections,
       recentActivity,
       // Group the raw entries into one activity line per collection action: a
       // single payment is distributed into many instalment rows (all written in

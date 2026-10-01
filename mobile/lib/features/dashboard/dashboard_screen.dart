@@ -3481,6 +3481,21 @@ class _RoutePerformanceList extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
+                        fmt.format(summary.routeCollections[rp.id] ?? 0),
+                        style: AppTypography.label
+                            .copyWith(color: AppColors.success),
+                      ),
+                      Text(
+                        t.x('dash.collected_today'),
+                        style: AppTypography.extraTiny,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
                         fmt.format(rp.overdue),
                         style: AppTypography.label
                             .copyWith(color: AppColors.danger),

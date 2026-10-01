@@ -200,6 +200,7 @@ class DashboardSummary {
     this.pendingApprovals = 0,
     this.pendingFieldFloat = 0.0,
     this.upiManualVerification = false,
+    this.routeCollections = const {},
     required this.activeAgents,
     required this.recentLoans,
     required this.todayInstalments,
@@ -247,6 +248,8 @@ class DashboardSummary {
   final int pendingApprovals;
   final double pendingFieldFloat;
   final bool upiManualVerification;
+  /// routeId → amount collected today (server figure, DASH-10).
+  final Map<String, double> routeCollections;
   final int activeAgents;
   final List<RecentLoan> recentLoans;
   final List<TodayInstalment> todayInstalments;
@@ -298,6 +301,11 @@ class DashboardSummary {
       pendingApprovals: toNum(json['pendingApprovals']).toInt(),
       pendingFieldFloat: toNum(json['pendingFieldFloat']),
       upiManualVerification: json['upiManualVerification'] == true,
+      routeCollections: {
+        for (final r in (json['routeCollections'] as List<dynamic>? ?? const []))
+          if (r is Map<String, dynamic> && r['routeId'] is String)
+            r['routeId'] as String: toNum(r['collected']),
+      },
       activeAgents: (json['activeAgents'] as num?)?.toInt() ?? 0,
       recentLoans: (json['recentLoans'] as List<dynamic>? ?? const [])
           .map((dynamic e) => RecentLoan.fromJson(e as Map<String, dynamic>))
