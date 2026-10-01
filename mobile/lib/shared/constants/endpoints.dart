@@ -56,6 +56,7 @@ class Endpoints {
   // Collection
   static const String collectionToday = '/collection/today';
   static const String collectionDashboard = '/collection/dashboard';
+  static const String collectionHandover = '/collection/handover';
   static String collectionByDate(String date) => '/collection/$date';
   static const String collectionEntry = '/collection/entry';
   static const String collectionCollect = '/collection/collect';

@@ -544,6 +544,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                         t: t,
                         responsive: isMicrolending,
                       ),
+                      if (user?.role == UserRole.agent &&
+                          dash.dailyCollected > 0) ...[
+                        const SizedBox(height: 10),
+                        _DailyHandoverBar(dash: dash, fmt: fmt, t: t),
+                      ],
                       const SizedBox(height: 14),
                       if (isMicrolending) ...[
                         _CadenceFilterPills(
@@ -1270,6 +1275,75 @@ class _CollectionMenuItem extends StatelessWidget {
           Flexible(child: Text(label)),
         ],
       );
+}
+
+/// Agent's end-of-day handover, same states and action as web Collection
+/// Entry: open → Submit handover; pending_handover / settled → badge (COL-03).
+class _DailyHandoverBar extends ConsumerStatefulWidget {
+  const _DailyHandoverBar({required this.dash, required this.fmt, required this.t});
+  final CollectionDashboard dash;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  ConsumerState<_DailyHandoverBar> createState() => _DailyHandoverBarState();
+}
+
+class _DailyHandoverBarState extends ConsumerState<_DailyHandoverBar> {
+  bool _busy = false;
+
+  Future<void> _submit() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(collectionServiceProvider).requestDailyHandover();
+      ref.invalidate(collectionDashboardProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.t.x('coll.handover_pending'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.danger),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final status = widget.dash.dailyStatus;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '${t.x('dash.collected_today')}: ${widget.fmt.format(widget.dash.dailyCollected)}',
+            style: AppTypography.label,
+          ),
+        ),
+        if (status == 'open')
+          FilledButton.icon(
+            onPressed: _busy ? null : _submit,
+            icon: const Icon(Icons.payments_outlined, size: 18),
+            label: Text(t.x('coll.submit_handover')),
+          )
+        else if (status == 'pending_handover')
+          Chip(
+            label: Text(t.x('coll.handover_pending')),
+            backgroundColor: AppColors.warningBg,
+          )
+        else if (status == 'settled')
+          Chip(
+            label: Text(t.x('coll.handover_settled')),
+            backgroundColor: AppColors.successBg,
+          ),
+      ],
+    );
+  }
 }
 
 class _CollectionSummaryHeader extends StatelessWidget {

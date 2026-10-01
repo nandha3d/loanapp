@@ -205,11 +205,16 @@ class CollectionDashboard {
     required this.rows,
     required this.summary,
     required this.summaryByRoute,
+    this.dailyStatus,
+    this.dailyCollected = 0,
   });
   final List<CollectionRow> rows;
   final CollectionSummary summary;
   /// routeId ('' = no route) → summary.
   final Map<String, CollectionSummary> summaryByRoute;
+  /// Agent's DailyCollection for today: open | pending_handover | settled (COL-03).
+  final String? dailyStatus;
+  final double dailyCollected;
 
   factory CollectionDashboard.fromJson(Map<String, dynamic> json) {
     final seen = <String>{};
@@ -233,6 +238,11 @@ class CollectionDashboard {
         json['collectionSummary'] as Map<String, dynamic>?,
       ),
       summaryByRoute: byRoute,
+      dailyStatus: (json['dailyCollection'] as Map?)?['status']?.toString(),
+      dailyCollected: double.tryParse(
+            '${(json['dailyCollection'] as Map?)?['totalCollected'] ?? 0}',
+          ) ??
+          0,
     );
   }
 }

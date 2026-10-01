@@ -22,6 +22,13 @@ class CollectionService {
 
   Future<List<CollectionRow>> today() async => (await dashboard()).rows;
 
+  /// End-of-day cash handover — same POST /collection/handover as web (COL-03).
+  Future<void> requestDailyHandover() async {
+    final res =
+        await _dio.post<Map<String, dynamic>>(Endpoints.collectionHandover);
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<List<SelfPayQueueItem>> selfPayQueue() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.selfPayQueue);
     return unwrapEnvelope(res, (dynamic d) {
