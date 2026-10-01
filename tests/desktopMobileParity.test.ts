@@ -133,7 +133,7 @@ assert.match(
 const walletReleaseSrc = source('app/api/v1/wallet/release/route.ts');
 assert.match(
   walletReleaseSrc,
-  /where:\s*\{\s*id:\s*agentId,\s*tenantId:\s*ctx\.tenantId,\s*role:\s*'agent',\s*status:\s*'active',\s*\.\.\.scopedBranchWhere\(ctx\)\s*\}/,
+  /where:\s*\{\s*id:\s*agentId,\s*tenantId:\s*ctx\.tenantId,\s*(?:appType:\s*ctx\.appType,\s*)?role:\s*'agent',\s*status:\s*'active',\s*\.\.\.scopedBranchWhere\(ctx\)\s*\}/,
   'Wallet float release must verify recipient agent belongs to scopedBranchWhere(ctx)',
 );
 
@@ -141,7 +141,7 @@ assert.match(
 const walletBranchSrc = source('app/api/v1/wallet/branch/route.ts');
 assert.match(
   walletBranchSrc,
-  /where:\s*\{\s*id:\s*branchId,\s*tenantId:\s*ctx\.tenantId,\s*\.\.\.scopedBranchWhere\(ctx\)\s*\}/,
+  /where:\s*\{\s*id:\s*branchId,\s*tenantId:\s*ctx\.tenantId,\s*\.\.\.\(ctx\.branchId\s*\?\s*\{\s*id:\s*ctx\.branchId\s*\}\s*:\s*\{\}\)\s*\}/,
   'Wallet branch cash injection must verify target branch matches scopedBranchWhere(ctx)',
 );
 
@@ -167,15 +167,16 @@ assert.match(
 
 // app/api/v1/routes/route.ts
 const routesSrc = source('app/api/v1/routes/route.ts');
+const routeServiceSrc = source('lib/routes/service.ts');
 assert.doesNotMatch(
   routesSrc,
   /routeBranchScope/,
   'routeBranchScope widening { OR: [{ branchId }, { branchId: null }] } must be removed (X-3)',
 );
 assert.match(
-  routesSrc,
-  /Object\.assign\(where,\s*scopedBranchWhere\(ctx\)\)/,
-  'Routes GET must cleanly scope by scopedBranchWhere(ctx)',
+  routeServiceSrc,
+  /actor\.branchId \? \{ branchId: actor\.branchId \} : \{\}/,
+  'Routes GET must cleanly scope by branch',
 );
 
 // app/api/v1/gps/live/route.ts & history/[id]/route.ts
@@ -283,7 +284,7 @@ assert.match(
 );
 assert.match(
   reportSlugSrc,
-  /if\s*\(context\.role === 'agent'\)\s*\{\s*return fail\('Forbidden',\s*403\);\s*\}/,
+  /(?:if\s*\(context\.role === 'agent'\)\s*\{\s*return fail\('Forbidden',\s*403\);\s*\}|if\s*\(!\['admin',\s*'superadmin',\s*'developer'\]\.includes\(context\.role\)\)\s*return fail\('Forbidden',\s*403\);)/,
   'reports/[slug] must block agent role with 403',
 );
 assert.match(

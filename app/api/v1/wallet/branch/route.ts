@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext } from '@/lib/api/v1-auth';
 import { injectBranchCash } from '@/lib/wallet';
 import { writeAudit } from '@/lib/audit';
 
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const branches = await prisma.branch.findMany({
-      where: { tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
+      where: { tenantId: ctx.tenantId, ...(ctx.branchId ? { id: ctx.branchId } : {}) },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     const branch = await prisma.branch.findFirst({
-      where: { id: branchId, tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
+      where: { id: branchId, tenantId: ctx.tenantId, ...(ctx.branchId ? { id: ctx.branchId } : {}) },
       select: { id: true },
     });
     if (!branch) return fail('Branch not found', 404);

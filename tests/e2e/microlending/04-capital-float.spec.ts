@@ -231,6 +231,7 @@ test('[ML-104] Wallet page is branch-scoped, with no superadmin exemption', asyn
     token: owner.token,
     branchId: s.tenantA.branches.erode,
   });
+  expect(erodeApi.status, 'the branch wallet API returned 200').toBe(200);
   const ids = (payload: any) =>
     (Array.isArray(payload) ? payload : payload?.items ?? payload?.branches ?? []).map(
       (row: any) => row.branchId ?? row.id,
