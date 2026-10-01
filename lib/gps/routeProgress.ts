@@ -29,6 +29,20 @@ function minutesSince(date: Date | null | undefined) {
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
 }
 
+/**
+ * RTE-01: the route-tracker alerts, shared by the web tracker and
+ * GET /api/v1/gps/live. `lastPingAt` = the agent's last ping today (null when
+ * none today); `mismatchCount` = today's collections with locationStatus mismatch.
+ */
+export function routeAlerts(input: { lastPingAt: Date | null | undefined; mismatchCount: number }): string[] {
+  const lastSeenMinutes = minutesSince(input.lastPingAt);
+  return [
+    lastSeenMinutes !== null && lastSeenMinutes >= 120 ? 'not_moved_2h' : null,
+    lastSeenMinutes !== null && lastSeenMinutes >= 30 ? 'offline_30m' : null,
+    input.mismatchCount >= 3 ? 'multiple_mismatches' : null,
+  ].filter((x): x is string => Boolean(x));
+}
+
 export async function getRouteProgressForBranch(input: {
   tenantId: string;
   appType: string;
@@ -79,11 +93,7 @@ export async function getRouteProgressForBranch(input: {
     const agentEntries = entries.filter((entry) => entry.agentId === agent.id);
     const mismatchCount = agentEntries.filter((entry) => entry.locationStatus === 'mismatch').length;
     const lastSeenMinutes = minutesSince(last?.capturedAt);
-    const alerts = [
-      lastSeenMinutes !== null && lastSeenMinutes >= 120 ? 'not_moved_2h' : null,
-      lastSeenMinutes !== null && lastSeenMinutes >= 30 ? 'offline_30m' : null,
-      mismatchCount >= 3 ? 'multiple_mismatches' : null,
-    ].filter((x): x is string => Boolean(x));
+    const alerts = routeAlerts({ lastPingAt: last?.capturedAt, mismatchCount });
 
     return {
       agentId: agent.id,

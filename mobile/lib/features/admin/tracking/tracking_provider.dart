@@ -26,23 +26,33 @@ typedef AgentCollectionsQuery = ({String agentId, DateTime from, DateTime to});
 final agentHistoryProvider = FutureProvider.autoDispose
     .family<List<AgentPing>, AgentCollectionsQuery>((ref, q) async {
   final dio = ref.watch(dioProvider);
-  final res = await dio.get<Map<String, dynamic>>(
-    Endpoints.gpsHistory(q.agentId),
-    queryParameters: {
-      'from': q.from.toIso8601String(),
-      'to': q.to.toIso8601String(),
-      'limit': 500,
-    },
-  );
-  return unwrapEnvelope(
-    res,
-    (dynamic data) {
-      final list = data as List<dynamic>? ?? [];
-      return list
+  // RTE-01: follow nextCursor so a busy day is not cut at the first page
+  // (same loop as LoanService.list); a page cap bounds it.
+  final all = <AgentPing>[];
+  String? cursor;
+  for (var page = 0; page < 20; page++) {
+    final res = await dio.get<Map<String, dynamic>>(
+      Endpoints.gpsHistory(q.agentId),
+      queryParameters: {
+        'from': q.from.toIso8601String(),
+        'to': q.to.toIso8601String(),
+        'limit': 500,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final rows = unwrapEnvelope(
+      res,
+      (dynamic data) => (data as List<dynamic>? ?? [])
           .map((dynamic e) => AgentPing.fromJson(e as Map<String, dynamic>))
-          .toList();
-    },
-  );
+          .toList(),
+    );
+    all.addAll(rows);
+    final pagination = res.data?['pagination'] as Map<String, dynamic>?;
+    final next = pagination?['nextCursor'] as String?;
+    if (next == null || rows.isEmpty) break;
+    cursor = next;
+  }
+  return all;
 });
 
 /// Collection entries for a single agent over a date range

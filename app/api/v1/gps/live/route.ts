@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
-import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
+import { gpsAgentWhere, gpsEntryWhere, routeAlerts } from '@/lib/gps/routeProgress';
 import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
@@ -73,13 +73,14 @@ export async function GET(req: NextRequest) {
     };
     const entries = await prisma.collectionEntry.findMany({
       where: entryWhere,
-      select: { agentId: true, receivedAmount: true },
+      select: { agentId: true, receivedAmount: true, locationStatus: true },
     });
-    const collMap = new Map<string, { total: number; count: number }>();
+    const collMap = new Map<string, { total: number; count: number; mismatches: number }>();
     for (const e of entries) {
-      const c = collMap.get(e.agentId) ?? { total: 0, count: 0 };
+      const c = collMap.get(e.agentId) ?? { total: 0, count: 0, mismatches: 0 };
       c.total += Number(e.receivedAmount);
       c.count += 1;
+      if (e.locationStatus === 'mismatch') c.mismatches += 1;
       collMap.set(e.agentId, c);
     }
 
@@ -103,6 +104,11 @@ export async function GET(req: NextRequest) {
         online,
         todayCollected: coll?.total ?? 0,
         todayEntries: coll?.count ?? 0,
+        // RTE-01: same alerts as the web route tracker (today's pings only).
+        alerts: routeAlerts({
+          lastPingAt: ping && ping.capturedAt >= todayStart ? ping.capturedAt : null,
+          mismatchCount: coll?.mismatches ?? 0,
+        }),
       };
     });
     // Online first, then most-recently-seen.

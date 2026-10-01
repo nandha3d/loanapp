@@ -13,8 +13,11 @@ class AgentLocation {
     this.lat,
     this.lng,
     this.capturedAt,
+    this.alerts = const [],
   });
 
+  /// RTE-01: route-tracker alerts (not_moved_2h / offline_30m / multiple_mismatches).
+  final List<String> alerts;
   final String agentId;
   final String agentName;
   final String agentPhone;
@@ -40,6 +43,9 @@ class AgentLocation {
       capturedAt: json['capturedAt'] == null
           ? null
           : DateTime.parse(json['capturedAt'] as String).toLocal(),
+      alerts: (json['alerts'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => '$e')
+          .toList(growable: false),
     );
   }
 }
@@ -57,8 +63,11 @@ class AgentCollection {
     this.customerPhoto,
     this.lat,
     this.lng,
+    this.locationStatus,
   });
 
+  /// RTE-01: verified / mismatch / not_captured.
+  final String? locationStatus;
   final String id;
   final String customerName;
   final String customerCode;
@@ -87,6 +96,7 @@ class AgentCollection {
       customerPhoto: json['customerPhoto'] as String?,
       lat: _dOrNull(json['lat']),
       lng: _dOrNull(json['lng']),
+      locationStatus: json['locationStatus'] as String?,
     );
   }
 }
@@ -100,7 +110,11 @@ class AgentPing {
     this.accuracyM,
     this.speedMps,
     this.isMocked = false,
+    this.pingType,
   });
+
+  /// RTE-01: heartbeat / collection / … as stored by the ping route.
+  final String? pingType;
 
   final double lat;
   final double lng;
@@ -117,6 +131,7 @@ class AgentPing {
       accuracyM: _dOrNull(json['accuracyM']),
       speedMps: _dOrNull(json['speedMps']),
       isMocked: (json['isMocked'] as bool?) ?? false,
+      pingType: json['pingType'] as String?,
     );
   }
 }

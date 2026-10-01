@@ -901,7 +901,12 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                 ),
                 const Spacer(),
                 Text(
-                  '${trail.length} ${t.x('admin.points')}',
+                  // RTE-01: say when the log is a slice of the trail.
+                  trail.length > rows.length
+                      ? t.x('rte.showing_of')
+                          .replaceAll('{shown}', '${rows.length}')
+                          .replaceAll('{total}', '${trail.length}')
+                      : '${trail.length} ${t.x('admin.points')}',
                   style: AppTypography.caption
                       .copyWith(color: AppColors.textSecondary),
                 ),
@@ -949,6 +954,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                           Text(
                             '${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}'
                             '${p.accuracyM != null ? ' · ±${p.accuracyM!.round()}m' : ''}'
+                            '${p.pingType != null ? ' · ${p.pingType}' : ''}'
                             '${p.isMocked ? ' · FAKE GPS' : ''}',
                             style: AppTypography.extraTiny.copyWith(
                               color: p.isMocked
@@ -1180,6 +1186,19 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                                     ),
                                     if (r.customerCode.isNotEmpty)
                                       Text(r.customerCode, style: AppTypography.extraTiny),
+                                    // RTE-01: location status chip, as on the web tracker.
+                                    if (r.locationStatus != null)
+                                      Text(
+                                        t.x('rte.loc_${r.locationStatus}'),
+                                        style: AppTypography.extraTiny.copyWith(
+                                          color: r.locationStatus == 'verified'
+                                              ? AppColors.success
+                                              : r.locationStatus == 'mismatch'
+                                                  ? AppColors.danger
+                                                  : AppColors.textLight,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -1327,6 +1346,24 @@ class _AgentCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Expanded(child: Text(lastSeen, style: AppTypography.caption, overflow: TextOverflow.ellipsis)),
                     ],),
+                    // RTE-01: the web route-tracker alerts.
+                    if (agent.alerts.isNotEmpty)
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          for (final a in agent.alerts)
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.dangerBg,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(t.x('rte.alert_$a'),
+                                  style: AppTypography.extraTiny.copyWith(color: AppColors.dangerText)),
+                            ),
+                        ],
+                      ),
                   ],
                 ),
               ),

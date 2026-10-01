@@ -64,6 +64,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         submittedAt: true,
         lat: true,
         lng: true,
+        locationStatus: true,
         customerId: true,
         customer: { select: { name: true, customerCode: true, profilePhoto: true } },
       },
@@ -84,6 +85,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         // agent-tracking map.
         lat: e.lat,
         lng: e.lng,
+        // RTE-01: verified / mismatch / not_captured, as on the web tracker.
+        locationStatus: e.locationStatus,
       })),
     );
   } catch (e: any) {
