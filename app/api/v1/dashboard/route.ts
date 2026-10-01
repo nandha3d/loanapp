@@ -288,7 +288,7 @@ export async function GET(req: NextRequest) {
       prisma.collectionEntry.findMany({
         where: {
           tenantId: ctx.tenantId,
-          paymentMode: 'upi',
+          paymentMode: { in: ['upi', 'online'] },
           verificationStatus: 'pending',
           loan: baseLoan,
         },
@@ -574,7 +574,7 @@ export async function GET(req: NextRequest) {
     });
     const topOverdue = topOverdueCustomers(overdueRows, 6);
 
-    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups] = await Promise.all([
+    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups, upiManualVerifySetting] = await Promise.all([
       getSetting(ctx.tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
       prisma.loan.count({ where: { ...baseLoan, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
       topOverdue.length > 0
@@ -598,7 +598,9 @@ export async function GET(req: NextRequest) {
           }),
         ),
       ),
+      getSetting(ctx.tenantId, 'upi_manual_verification', 'false'),
     ]);
+    const upiManualVerification = upiManualVerifySetting === 'true';
 
     overdueAgeing = buildOverdueAgeing(overdueRows, parseAgeingEdges(ageingSetting));
     const topCustomerById = new Map(topOverdueCustomerRows.map((c) => [c.id, c]));
@@ -1017,6 +1019,7 @@ export async function GET(req: NextRequest) {
       overdueCustomerCount: allOverdueCustomers.size,
       pendingApprovals: pendingApprovalsCount,
       pendingFieldFloat,
+      upiManualVerification,
       pendingUpiCollections: pendingUpiCollections.map((e) => ({
         id: e.id,
         amount: Number(e.receivedAmount),

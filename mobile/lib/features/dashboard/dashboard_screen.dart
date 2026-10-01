@@ -245,7 +245,8 @@ class _DashboardBody extends ConsumerWidget {
           const SizedBox(height: 18),
           _ModeSplitCard(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
-          if (summary.pendingUpiCollections.isNotEmpty) ...[
+          if (summary.upiManualVerification &&
+              summary.pendingUpiCollections.isNotEmpty) ...[
             _PendingUpiList(summary: summary, fmt: fmt),
             const SizedBox(height: 18),
           ],
@@ -3699,7 +3700,9 @@ class _PendingUpiList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = summary.pendingUpiCollections;
-    if (pending.isEmpty) return const SizedBox.shrink();
+    if (!summary.upiManualVerification || pending.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),

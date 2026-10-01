@@ -227,6 +227,7 @@ class DashboardSummary {
     this.overdueCustomerCount = 0,
     this.pendingApprovals = 0,
     this.pendingFieldFloat = 0.0,
+    this.upiManualVerification = false,
     this.pendingUpiCollections = const [],
     this.pendingCashCollections = const [],
     this.todayByMode = const {},
@@ -273,6 +274,7 @@ class DashboardSummary {
   final int overdueCustomerCount;
   final int pendingApprovals;
   final double pendingFieldFloat;
+  final bool upiManualVerification;
   final List<TodayActivity> pendingUpiCollections;
   final List<TodayActivity> pendingCashCollections;
   final Map<String, double> todayByMode;
@@ -345,6 +347,7 @@ class DashboardSummary {
           (json['overdueCustomerCount'] as num?)?.toInt() ?? 0,
       pendingApprovals: (json['pendingApprovals'] as num?)?.toInt() ?? 0,
       pendingFieldFloat: toNum(json['pendingFieldFloat']),
+      upiManualVerification: json['upiManualVerification'] == true,
       pendingUpiCollections: (json['pendingUpiCollections'] as List<dynamic>? ??
               const [])
           .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
