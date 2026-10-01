@@ -63,21 +63,30 @@ export function calculateProvisioning(
  */
 export async function getTenantProvisioningSummary(
   tenantId: string,
-  asOfDate: Date = new Date()
+  asOfDate: Date = new Date(),
+  scope?: { appType?: string | null; branchId?: string | null },
 ): Promise<ProvisioningSummary> {
   const startOfDay = new Date(asOfDate);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(asOfDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const snapshots = await prisma.loanProvisioning.findMany({
-    where: {
-      tenantId,
-      snapshotDate: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
+  const where: any = {
+    tenantId,
+    snapshotDate: {
+      gte: startOfDay,
+      lte: endOfDay,
     },
+  };
+  if (scope?.appType || scope?.branchId) {
+    where.loan = {
+      ...(scope.appType ? { appType: scope.appType } : {}),
+      ...(scope.branchId ? { branchId: scope.branchId } : {}),
+    };
+  }
+
+  const snapshots = await prisma.loanProvisioning.findMany({
+    where,
   });
 
   const summary: ProvisioningSummary = {

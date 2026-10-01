@@ -42,7 +42,10 @@ export async function assertNpaAccess(actor: NpaActor): Promise<void> {
 export async function getNpaSummary(actor: NpaActor, input: { asOfDate?: Date | string | null } = {}) {
   await assertNpaAccess(actor);
   const asOfDate = input.asOfDate ? new Date(input.asOfDate) : new Date();
-  const summary = await getTenantProvisioningSummary(actor.tenantId, asOfDate);
+  const summary = await getTenantProvisioningSummary(actor.tenantId, asOfDate, {
+    appType: actor.appType,
+    branchId: actor.branchId,
+  });
 
   const npaOutstanding =
     summary.sub_standard.outstanding +
