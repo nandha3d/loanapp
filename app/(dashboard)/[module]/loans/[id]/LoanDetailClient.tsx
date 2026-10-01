@@ -17,6 +17,7 @@ import { precloseOutstanding } from '@/lib/loanPreclosePolicy';
 import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
+import { formatBusinessDate } from '@/lib/businessTime';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
   const gauge = getCreditScoreGaugePresentation(score, grade);
@@ -461,11 +462,11 @@ export default function LoanDetailClient({
   const [collectRemarks, setCollectRemarks] = useState('');
   const [collectDate, setCollectDate] = useState<string | null>(null);
 
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = formatBusinessDate(new Date());
   // Today's due across this loan = outstanding on the instalment dated today.
   const todayDueForLoan = useMemo(() => {
     const rawToday = loan.instalments.reduce((sum: number, inst: any) => {
-      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      const due = formatBusinessDate(new Date(inst.dueDate));
       if (due !== todayISO) return sum;
       return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
     }, 0);
@@ -482,7 +483,7 @@ export default function LoanDetailClient({
   // due. The amount field stays editable for an early full settlement.
   const dueTillTodayForLoan = useMemo(() => {
     return loan.instalments.reduce((sum: number, inst: any) => {
-      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      const due = formatBusinessDate(new Date(inst.dueDate));
       if (due > todayISO) return sum; // future instalment — not due yet
       return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
     }, 0);
@@ -496,7 +497,7 @@ export default function LoanDetailClient({
     setCollectAmount(defaultAmt);
     setCollectMode('cash');
     setCollectRemarks('');
-    setCollectDate(targetDate ? new Date(targetDate).toISOString().slice(0, 10) : null);
+    setCollectDate(targetDate ? formatBusinessDate(new Date(targetDate)) : null);
     setCollectOpen(true);
   };
 
