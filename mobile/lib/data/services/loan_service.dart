@@ -192,6 +192,24 @@ class LoanService {
     unwrapEnvelope(res, (_) => null);
   }
 
+  /// DEC-01: the server preclose quote (payoff, penalty due, line items).
+  Future<Map<String, dynamic>> foreclosureQuote(String id, {double discount = 0}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '${Endpoints.loans}/$id/foreclosure-calc',
+      queryParameters: {'discount': discount},
+    );
+    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  /// DEC-01: admin preclose; returns `{ success, penaltyOutcome }`.
+  Future<Map<String, dynamic>?> preclose(String id, Map<String, dynamic> body) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.loans}/$id/preclose',
+      data: body,
+    );
+    return unwrapEnvelope(res, (dynamic d) => d == null ? null : Map<String, dynamic>.from(d as Map));
+  }
+
   Future<List<int>> statementPdf(String loanId) async {
     final res = await _dio.get<List<int>>(
       '${Endpoints.loans}/$loanId/statement',

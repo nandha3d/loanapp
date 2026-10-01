@@ -369,6 +369,24 @@ export async function fullCloseLoan(formData: FormData) {
   return serviceInterestOnlyPrincipal(formData, 'close');
 }
 
+/** DEC-01: the server preclose quote (GET /api/v1/loans/[id]/foreclosure-calc). */
+export async function getForeclosureQuote(loanId: string, discount = 0) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/loans/${loanId}/foreclosure-calc?discount=${Math.max(0, Number(discount) || 0)}`, apiContext);
+    if (res.error) return { success: false as const, error: res.error };
+    return { success: true as const, data: res.data };
+  } catch (err: any) {
+    return { success: false as const, error: err.message || 'Quote failed' };
+  }
+}
+
+function parsePenaltyResolution(formData: FormData) {
+  const raw = formData.get('penaltyResolution');
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try { return JSON.parse(raw); } catch { return undefined; }
+}
+
 export async function precloseLoanAdmin(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();
@@ -385,7 +403,7 @@ export async function precloseLoanAdmin(formData: FormData) {
 
     const res = await apiFetch<any>(`/loans/${loanId}/preclose`, {
       method: 'POST',
-      body: JSON.stringify({ amount, paymentMode, remarks, discount, markChequesReturned }),
+      body: JSON.stringify({ amount, paymentMode, remarks, discount, markChequesReturned, penaltyResolution: parsePenaltyResolution(formData) }),
       ...apiContext,
     });
 
@@ -396,7 +414,7 @@ export async function precloseLoanAdmin(formData: FormData) {
     }
     revalidatePath('/loans');
     revalidatePath('/dashboard');
-    return { success: true };
+    return { success: true, penaltyOutcome: res.data?.penaltyOutcome ?? null };
   } catch (err: any) {
     return { success: false, error: err.message || 'Preclose failed' };
   }
@@ -408,7 +426,8 @@ export async function requestLoanPreclose(formData: FormData) {
     const res = await apiFetch<any>('/approvals', {
       ...apiContext, method: 'POST',
       body: JSON.stringify({ requestType: 'loan_preclose', entityType: 'loan', entityId: formData.get('loanId'),
-        requestedChanges: { amount: Number(formData.get('amount')), paymentMode: formData.get('paymentMode'), remarks: formData.get('remarks') || '' },
+        requestedChanges: { amount: Number(formData.get('amount')), paymentMode: formData.get('paymentMode'), remarks: formData.get('remarks') || '',
+          penaltyResolution: parsePenaltyResolution(formData) },
         reason: formData.get('reason') }),
     });
     if (res.error) return { success: false, error: res.error };

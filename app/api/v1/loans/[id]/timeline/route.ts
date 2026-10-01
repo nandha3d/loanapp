@@ -145,12 +145,39 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (loan.closedAt) {
+    // DEC-01: the preclose audit row carries the penalty popup outcome.
+    let penaltyOutcome: { due?: number; paid?: number; discount?: number; waived?: number; action?: string } | null = null;
+    if (loan.closureType === 'foreclosure') {
+      const payments = await prisma.payment.findMany({
+        where: { loanId: id, tenantId: actor.tenantId, referenceNumber: { startsWith: 'PRECLOSE-' } },
+        select: { id: true },
+      });
+      const audit = payments.length
+        ? await prisma.auditLog.findFirst({
+            where: { tenantId: actor.tenantId, entityType: 'payment', entityId: { in: payments.map((p) => p.id) } },
+            orderBy: { createdAt: 'desc' },
+            select: { newValue: true },
+          })
+        : null;
+      try { penaltyOutcome = audit?.newValue ? JSON.parse(audit.newValue).penaltyOutcome ?? null : null; } catch { penaltyOutcome = null; }
+    }
     events.push({
       at: loan.closedAt.toISOString(),
       type: 'closed',
       title: loan.closureType === 'foreclosure' ? 'Loan foreclosed' : 'Loan closed',
       amount: loan.foreclosureAmount ? Number(loan.foreclosureAmount) : undefined,
-      meta: { closureType: loan.closureType },
+      meta: {
+        closureType: loan.closureType,
+        ...(penaltyOutcome
+          ? {
+              penaltyAction: penaltyOutcome.action ?? null,
+              penaltyDue: Number(penaltyOutcome.due ?? 0),
+              penaltyPaid: Number(penaltyOutcome.paid ?? 0),
+              penaltyDiscount: Number(penaltyOutcome.discount ?? 0),
+              penaltyWaived: Number(penaltyOutcome.waived ?? 0),
+            }
+          : {}),
+      },
     });
   }
 

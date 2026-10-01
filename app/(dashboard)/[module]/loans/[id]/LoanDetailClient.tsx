@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, requestPenaltyWaiver, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, requestPenaltyWaiver, closeLoan, renewLoan, precloseLoanAdmin, getForeclosureQuote, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,8 @@ import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import NachPanel from './NachPanel';
 import LoanPrecloseRequest from './LoanPrecloseRequest';
-import { precloseOutstanding } from '@/lib/loanPreclosePolicy';
+import Modal from '@/components/Modal';
+import PenaltyResolutionModal, { penaltyOutcomeText, type PenaltyOutcome, type PenaltyResolution } from './PenaltyResolutionModal';
 import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
@@ -341,6 +342,9 @@ export default function LoanDetailClient({
   const [chequeReturned, setChequeReturned] = useState(false);
   const [foreclosureCalc, setForeclosureCalc] = useState<any>(null);
   const [foreclosureDiscount, setForeclosureDiscount] = useState<number>(0);
+  // DEC-01: penalty popup before submit, outcome popup after.
+  const [penaltyPopup, setPenaltyPopup] = useState(false);
+  const [penaltyOutcome, setPenaltyOutcome] = useState<PenaltyOutcome | null>(null);
   const [foreclosureLoading, setForeclosureLoading] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
 
@@ -695,8 +699,8 @@ export default function LoanDetailClient({
     setPayMode('cash');
     setPayRemarks('Preclosure Full Settlement');
     try {
-      const res = await fetch(`/api/loans/${loan.id}/foreclosure-calc?discount=0`);
-      const json = await res.json();
+      // DEC-01: one server quote (v1), same as mobile.
+      const json = await getForeclosureQuote(loan.id, 0);
       if (json.success && json.data) {
         setForeclosureCalc(json.data);
         setPayAmount(json.data.totalSettlementAmount);
@@ -716,8 +720,7 @@ export default function LoanDetailClient({
   const handleDiscountChange = async (val: number) => {
     setForeclosureDiscount(val);
     try {
-      const res = await fetch(`/api/loans/${loan.id}/foreclosure-calc?discount=${val}`);
-      const json = await res.json();
+      const json = await getForeclosureQuote(loan.id, val);
       if (json.success && json.data) {
         setForeclosureCalc(json.data);
         setPayAmount(json.data.totalSettlementAmount);
@@ -731,9 +734,18 @@ export default function LoanDetailClient({
     e.preventDefault();
     const minRequired = foreclosureCalc ? foreclosureCalc.totalSettlementAmount : outstanding;
     if (payAmount < minRequired) {
-      alert(`Preclose requires the full settlement amount of ${formatCurrency(minRequired, currencySymbol)}`);
+      alert(dict.precloseRequest.belowSettlement.replace('{required}', formatCurrency(minRequired, currencySymbol)));
       return;
     }
+    if (Number(foreclosureCalc?.penaltyDue ?? 0) > 0) {
+      setPenaltyPopup(true);
+      return;
+    }
+    await submitPreclose(null);
+  };
+
+  const submitPreclose = async (resolution: PenaltyResolution | null) => {
+    setPenaltyPopup(false);
     setLoading(true);
     const fd = new FormData();
     fd.set('loanId', loan.id);
@@ -742,11 +754,13 @@ export default function LoanDetailClient({
     fd.set('paymentMode', payMode);
     fd.set('remarks', payRemarks);
     fd.set('markChequesReturned', chequeReturned ? '1' : '0');
+    if (resolution) fd.set('penaltyResolution', JSON.stringify(resolution));
 
     const result = await precloseLoanAdmin(fd);
     setLoading(false);
     if (result.success) {
       setPrecloseModal(false);
+      if ((result as any).penaltyOutcome) setPenaltyOutcome((result as any).penaltyOutcome);
       router.refresh();
     } else {
       alert((result as any).error || d.failedToPrecloseLoan);
@@ -1543,7 +1557,7 @@ export default function LoanDetailClient({
                   {isAdmin ? d.editLoan : 'Request Loan Edit'}
                 </Link>
                 {agentPrecloseEnabled && (
-                  <LoanPrecloseRequest loanId={loan.id} amount={precloseOutstanding(loan)} currencySymbol={currencySymbol} dict={dict} request={precloseRequest} />
+                  <LoanPrecloseRequest loanId={loan.id} currencySymbol={currencySymbol} dict={dict} request={precloseRequest} />
                 )}
                 {isAdmin && (
                   <>
@@ -2028,7 +2042,7 @@ export default function LoanDetailClient({
                       style={{ fontSize: '.95rem', padding: '10px' }}
                       value={foreclosureDiscount || ''}
                       min={0}
-                      max={foreclosureCalc ? foreclosureCalc.principalOutstanding + foreclosureCalc.netPenaltyDue : outstanding}
+                      max={foreclosureCalc ? foreclosureCalc.principalOutstanding : outstanding}
                       placeholder="0"
                       onChange={(e) => handleDiscountChange(Number(e.target.value) || 0)}
                     />
@@ -2102,6 +2116,24 @@ export default function LoanDetailClient({
             </div>
           </div>
         </div>
+      )}
+
+      <PenaltyResolutionModal
+        isOpen={penaltyPopup}
+        penaltyDue={Number(foreclosureCalc?.penaltyDue ?? 0)}
+        missedDays={Number(foreclosureCalc?.penaltyMissedDays ?? 0)}
+        currencySymbol={currencySymbol}
+        dict={dict}
+        onCancel={() => setPenaltyPopup(false)}
+        onConfirm={(r) => submitPreclose(r)}
+      />
+      {penaltyOutcome && (
+        <Modal isOpen onClose={() => setPenaltyOutcome(null)} title={dict.precloseRequest.outcomeTitle}>
+          <p>{penaltyOutcomeText(penaltyOutcome, dict, (n) => formatCurrency(n, currencySymbol))}</p>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-primary" onClick={() => setPenaltyOutcome(null)}>{dict.precloseRequest.continue}</button>
+          </div>
+        </Modal>
       )}
 
       {/* Close Loan Modal */}

@@ -337,12 +337,16 @@ netPenaltyDue = max(0, Σ grossPenalty − Σ settledAmount − Σ waivedAmount)
 
 ```
 principalOutstanding = interest_only ? outstandingPrincipal
-                                     : max(0, principal − totalCollected)
-netPenaltyDue        = max(0, gross − settled − waived)
-maxDiscount          = principalOutstanding + netPenaltyDue
+                                     : max(0, totalPayable − totalCollected)   (the payoff, DEC-01)
+netPenaltyDue        = max(0, gross − settled − waived)                     (= penaltyDue)
+maxDiscount          = principalOutstanding
 safeDiscount         = min(max(0, discount), maxDiscount)
 totalSettlement      = max(0, maxDiscount − safeDiscount)
 ```
+
+- The pending penalty is **not** part of the settlement (DEC-01, PRECLOSE-8/9):
+  it is returned as `penaltyDue` and resolved in the preclose penalty popup
+  (paid / discount / waived) (`CALC-FCL-001/012/013`).
 
 - A discount beyond the balance is **clamped**; a settlement never goes negative
   (`CALC-FCL-003`), and a negative discount is treated as zero (`CALC-FCL-004`).

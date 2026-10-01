@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from './db';
 import { startOfBusinessDayUtc } from './businessTime';
 import { computeExtendedSchedule, pairEntriesWithInstalments, pastTermMissedDays } from './restructure';
@@ -251,6 +252,127 @@ export function penaltyCashBookCategory(paymentMode: string): 'cash' | 'upi' | '
   return paymentMode === 'cash' ? 'cash' : paymentMode === 'upi' ? 'upi' : 'bank';
 }
 
+type SettleTxInput = {
+  tenantId: string;
+  appType: string;
+  userId: string;
+  penaltyId: string;
+  amount: number;
+  paymentMode: string;
+  collectedById: string;
+  notes?: string | null;
+  loan: { branchId: string | null; loanCode: string };
+};
+
+/**
+ * The money part of a penalty settle, inside the caller's transaction (MONEY-18).
+ * Re-reads the row and writes it conditionally so concurrent settles cannot both
+ * pass the remaining check (MONEY-28). Returns the cash-book row; the caller posts
+ * the GL after commit with `postPenaltyCollection` (ACC-7).
+ */
+export async function settlePenaltyInTx(tx: Prisma.TransactionClient, input: SettleTxInput) {
+  const { tenantId, appType, userId, penaltyId, amount, paymentMode, collectedById, notes, loan } = input;
+  const cur = await tx.penalty.findUnique({
+    where: { id: penaltyId },
+    select: { grossPenalty: true, settledAmount: true, waivedAmount: true },
+  });
+  if (!cur) throw new Error('Penalty not found');
+  const curGross = Number(cur.grossPenalty);
+  const curSettled = Number(cur.settledAmount);
+  const curWaived = Number(cur.waivedAmount);
+  const curRemaining = curGross - curSettled - curWaived;
+  if (!(amount > 0) || amount > curRemaining + 0.005) {
+    throw new Error(`Invalid settle amount: must be > 0 and <= ${curRemaining}`);
+  }
+
+  const nextSettled = curSettled + amount;
+  const isFullySettled = (nextSettled + curWaived) >= curGross - 0.005;
+  const nextStatus = isFullySettled ? 'settled' : 'partial';
+
+  const moved = await tx.penalty.updateMany({
+    where: { id: penaltyId, settledAmount: cur.settledAmount, waivedAmount: cur.waivedAmount },
+    data: {
+      settledAmount: nextSettled,
+      status: nextStatus,
+      settledById: userId,
+      settledAt: isFullySettled ? new Date() : null,
+      notes: notes ?? undefined,
+    },
+  });
+  if (moved.count !== 1) throw new Error('Invalid settle amount: penalty changed, please retry');
+
+  const updated = await tx.penalty.findUnique({ where: { id: penaltyId }, include: { loan: true } });
+
+  // DEC-06: a penalty collection is money in — cash book now, float for cash
+  // (MONEY-17), GL after commit (ACC-6/ACC-7). Loan totals are not touched.
+  const category = penaltyCashBookCategory(paymentMode);
+  const accountEntry = await tx.accountEntry.create({
+    data: {
+      tenantId,
+      appType,
+      branchId: loan.branchId,
+      entryDate: new Date(),
+      type: 'penalty_collection',
+      category,
+      amount,
+      description: `Penalty collected — ${loan.loanCode}`,
+      referenceType: 'penalty',
+      referenceId: penaltyId,
+      createdBy: userId,
+    },
+  });
+
+  // Same rule and same best-effort guard as a loan collection's float credit.
+  if (paymentMode === 'cash') {
+    try {
+      await creditPenaltyCollection(tx, { tenantId, appType, agentId: collectedById, amount, accountEntryId: accountEntry.id });
+    } catch (err) {
+      console.error('[wallet] penalty collection credit failed:', err);
+    }
+  }
+
+  await tx.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'settle',
+      entityType: 'penalty',
+      entityId: penaltyId,
+      newValue: JSON.stringify({
+        action: 'settle',
+        amount,
+        settledAmount: nextSettled,
+        status: nextStatus,
+        paymentMode,
+        collectedById,
+        accountEntryId: accountEntry.id,
+      }),
+    },
+  });
+
+  return { updated, accountEntry: { ...accountEntry, loanCode: loan.loanCode } };
+}
+
+/** GL for a settled penalty, after the transaction commits (ACC-7). */
+export async function postPenaltyCollection(
+  tenantId: string,
+  appType: string,
+  userId: string,
+  entry: { id: string; amount: unknown; entryDate: Date; branchId: string | null; category: string; loanCode: string },
+) {
+  await autoPostPenaltyCollection({
+    tenantId,
+    appType,
+    entryId: entry.id,
+    loanCode: entry.loanCode,
+    amount: Number(entry.amount),
+    date: entry.entryDate,
+    branchId: entry.branchId,
+    createdById: userId,
+    paymentMode: entry.category,
+  });
+}
+
 export async function settlePenalty(input: {
   tenantId: string;
   appType: string;
@@ -307,104 +429,104 @@ export async function settlePenalty(input: {
     throw new Error(`Invalid settle amount: must be > 0 and <= ${remaining}`);
   }
 
-  const category = penaltyCashBookCategory(paymentMode);
+  const { updated, accountEntry } = await prisma.$transaction((tx) =>
+    settlePenaltyInTx(tx, {
+      tenantId, appType, userId, penaltyId, amount, paymentMode, collectedById, notes,
+      loan: { branchId: penalty.loan.branchId, loanCode: penalty.loan.loanCode },
+    }),
+  );
 
-  const { updated, accountEntry } = await prisma.$transaction(async (tx) => {
-    // Re-read inside the transaction and guard the write on what was read, so
-    // two concurrent settles cannot both pass the remaining check (MONEY-28).
-    const cur = await tx.penalty.findUnique({
-      where: { id: penaltyId },
-      select: { grossPenalty: true, settledAmount: true, waivedAmount: true },
-    });
-    if (!cur) throw new Error('Penalty not found');
-    const curGross = Number(cur.grossPenalty);
-    const curSettled = Number(cur.settledAmount);
-    const curWaived = Number(cur.waivedAmount);
-    const curRemaining = curGross - curSettled - curWaived;
-    if (amount > curRemaining) {
-      throw new Error(`Invalid settle amount: must be > 0 and <= ${curRemaining}`);
-    }
-
-    const nextSettled = curSettled + amount;
-    const isFullySettled = (nextSettled + curWaived) >= curGross;
-    const nextStatus = isFullySettled ? 'settled' : 'partial';
-
-    const moved = await tx.penalty.updateMany({
-      where: { id: penaltyId, settledAmount: cur.settledAmount, waivedAmount: cur.waivedAmount },
-      data: {
-        settledAmount: nextSettled,
-        status: nextStatus,
-        settledById: userId,
-        settledAt: isFullySettled ? new Date() : null,
-        notes: notes ?? undefined,
-      },
-    });
-    if (moved.count !== 1) throw new Error('Invalid settle amount: penalty changed, please retry');
-
-    const row = await tx.penalty.findUnique({ where: { id: penaltyId }, include: { loan: true } });
-
-    // DEC-06: a penalty collection is money in — cash book now, float for cash
-    // (MONEY-17), GL after commit (ACC-6/ACC-7). Loan totals are not touched.
-    const entry = await tx.accountEntry.create({
-      data: {
-        tenantId,
-        appType,
-        branchId: penalty.loan.branchId,
-        entryDate: new Date(),
-        type: 'penalty_collection',
-        category,
-        amount,
-        description: `Penalty collected — ${penalty.loan.loanCode}`,
-        referenceType: 'penalty',
-        referenceId: penaltyId,
-        createdBy: userId,
-      },
-    });
-
-    // Same rule and same best-effort guard as a loan collection's float credit.
-    if (paymentMode === 'cash') {
-      try {
-        await creditPenaltyCollection(tx, { tenantId, appType, agentId: collectedById, amount, accountEntryId: entry.id });
-      } catch (err) {
-        console.error('[wallet] penalty collection credit failed:', err);
-      }
-    }
-
-    await tx.auditLog.create({
-      data: {
-        tenantId,
-        userId,
-        action: 'settle',
-        entityType: 'penalty',
-        entityId: penaltyId,
-        newValue: JSON.stringify({
-          action: 'settle',
-          amount,
-          settledAmount: nextSettled,
-          status: nextStatus,
-          paymentMode,
-          collectedById,
-          accountEntryId: entry.id,
-        }),
-      },
-    });
-
-    return { updated: row, accountEntry: entry };
-  });
-
-  await autoPostPenaltyCollection({
-    tenantId,
-    appType,
-    entryId: accountEntry.id,
-    loanCode: penalty.loan.loanCode,
-    amount,
-    date: accountEntry.entryDate,
-    branchId: penalty.loan.branchId,
-    createdById: userId,
-    paymentMode: category,
-  });
+  await postPenaltyCollection(tenantId, appType, userId, accountEntry);
 
   return updated;
+}
+
+/** DEC-01: how the pending penalty is resolved during a preclose. */
+export type PenaltyResolution = { action: 'paid' | 'discount' | 'waived'; amount: number; paymentMode?: string | null };
+
+export class PenaltyResolutionError extends Error {
+  constructor(message: string, public status: number = 400) { super(message); }
+}
+
+/**
+ * Validates a preclose penalty resolution against the penalty due:
+ * paid → amount = due; discount → 0 < amount < due; waived → amount = 0;
+ * a payment mode is required whenever money is collected.
+ */
+export function validatePenaltyResolution(raw: unknown, penaltyDue: number): PenaltyResolution | null {
+  if (!(penaltyDue > 0)) return null;
+  if (!raw || typeof raw !== 'object') throw new PenaltyResolutionError('penalty_resolution_required');
+  const r = raw as Record<string, unknown>;
+  const action = r.action;
+  const amount = Math.round(Number(r.amount ?? 0) * 100) / 100;
+  const due = Math.round(penaltyDue * 100) / 100;
+  const paymentMode = typeof r.paymentMode === 'string' ? r.paymentMode : null;
+  const ok =
+    (action === 'paid' && Math.abs(amount - due) < 0.005) ||
+    (action === 'discount' && amount > 0 && amount < due) ||
+    (action === 'waived' && amount === 0);
+  if (!ok) throw new PenaltyResolutionError('penalty_resolution_invalid');
+  if (amount > 0 && !(paymentMode && (PENALTY_PAYMENT_MODES as readonly string[]).includes(paymentMode))) {
+    throw new PenaltyResolutionError('penalty_resolution_invalid');
+  }
+  return { action, amount, paymentMode } as PenaltyResolution;
+}
+
+/**
+ * Applies a validated resolution inside the preclose transaction: collect the
+ * amount across the loan's open penalties oldest-first (DEC-06 money posting),
+ * then waive what is left. Returns the outcome and the cash-book rows whose GL
+ * the caller posts after commit.
+ */
+export async function resolvePreclosePenaltiesInTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    tenantId: string;
+    appType: string;
+    userId: string;
+    role: string;
+    loan: { id: string; branchId: string | null; loanCode: string };
+    resolution: PenaltyResolution;
+  },
+) {
+  const { tenantId, appType, userId, role, loan, resolution } = input;
+  const open = (await tx.penalty.findMany({ where: { loanId: loan.id }, orderBy: { createdAt: 'asc' } }))
+    .map((p) => ({ id: p.id, net: Number(p.grossPenalty) - Number(p.settledAmount) - Number(p.waivedAmount) }))
+    .filter((p) => p.net > 0.005);
+  const due = open.reduce((s, p) => s + p.net, 0);
+
+  const entries: Array<Awaited<ReturnType<typeof settlePenaltyInTx>>['accountEntry']> = [];
+  let toCollect = resolution.amount;
+  for (const p of open) {
+    if (toCollect <= 0.005) break;
+    const pay = Math.round(Math.min(toCollect, p.net) * 100) / 100;
+    const { accountEntry } = await settlePenaltyInTx(tx, {
+      tenantId, appType, userId, penaltyId: p.id, amount: pay,
+      paymentMode: resolution.paymentMode || 'cash', collectedById: userId,
+      notes: 'Preclose penalty collected', loan,
+    });
+    entries.push(accountEntry);
+    p.net -= pay;
+    toCollect -= pay;
+  }
+
+  let waived = 0;
+  const reason = resolution.action === 'waived' ? 'preclose_waived' : 'preclose_discount';
+  for (const p of open) {
+    if (p.net <= 0.005) continue;
+    await waivePenalty({ tenantId, appType, userId, role, penaltyId: p.id, reason, prismaClient: tx });
+    waived += p.net;
+  }
+
+  const paid = Math.round((resolution.amount - Math.max(0, toCollect)) * 100) / 100;
+  const outcome = {
+    due: Math.round(due * 100) / 100,
+    paid,
+    discount: resolution.action === 'discount' ? Math.round(waived * 100) / 100 : 0,
+    waived: resolution.action === 'waived' ? Math.round(waived * 100) / 100 : 0,
+    action: resolution.action,
+  };
+  return { outcome, entries };
 }
 
 export async function waivePenalty(input: {

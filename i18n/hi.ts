@@ -24,7 +24,21 @@ export const hi = {
     "amountChanged": "निपटान राशि वर्तमान बकाया के बराबर होनी चाहिए। ऋण पृष्ठ रीफ्रेश करके नया अनुरोध भेजें; पहले पुराना लंबित अनुरोध अस्वीकार करें।",
     "loanCode": "ऋण संख्या",
     "paymentMode": "भुगतान का तरीका",
-    "remarks": "टिप्पणी"
+    "remarks": "टिप्पणी",
+    "penaltyTitle": "लंबित दंड का निपटारा करें",
+    "penaltyDue": "देय दंड",
+    "penaltyDays": "छूटे दिन",
+    "optPaid": "पूरा भुगतान",
+    "optDiscount": "छूट (आंशिक वसूली)",
+    "optWaived": "माफ़",
+    "collected": "वसूल राशि",
+    "penaltyRequired": "आगे बढ़ने के लिए लंबित दंड का निपटारा करें।",
+    "outcomeTitle": "प्रीक्लोज़ पूरा",
+    "outcomePaid": "दंड {due} पूरा चुकाया गया",
+    "outcomeDiscount": "दंड {due}: भुगतान {paid}, छूट {discount}",
+    "outcomeWaived": "दंड {due} माफ़ किया गया",
+    "continue": "जारी रखें",
+    "belowSettlement": "राशि निपटान राशि {required} से कम है।"
 },
   dashboard: {
     title: 'डैशबोर्ड',

@@ -24,7 +24,21 @@ export const ml = {
     "amountChanged": "തീർപ്പാക്കൽ തുക നിലവിലെ ബാക്കിക്ക് തുല്യമായിരിക്കണം. വായ്പ പേജ് പുതുക്കി പുതിയ അഭ്യർത്ഥന അയയ്ക്കുക; പഴയ തീർപ്പാകാത്ത അഭ്യർത്ഥന ആദ്യം നിരസിക്കുക.",
     "loanCode": "വായ്പ നമ്പർ",
     "paymentMode": "പണമടയ്ക്കൽ രീതി",
-    "remarks": "കുറിപ്പുകൾ"
+    "remarks": "കുറിപ്പുകൾ",
+    "penaltyTitle": "ബാക്കി പിഴ തീർപ്പാക്കുക",
+    "penaltyDue": "അടയ്‌ക്കേണ്ട പിഴ",
+    "penaltyDays": "നഷ്ടമായ ദിവസങ്ങൾ",
+    "optPaid": "പൂർണ്ണമായും അടച്ചു",
+    "optDiscount": "ഇളവ് (ഭാഗികമായി പിരിച്ചു)",
+    "optWaived": "ഒഴിവാക്കി",
+    "collected": "പിരിച്ച തുക",
+    "penaltyRequired": "തുടരാൻ ബാക്കി പിഴ തീർപ്പാക്കുക.",
+    "outcomeTitle": "പ്രീക്ലോസ് പൂർത്തിയായി",
+    "outcomePaid": "പിഴ {due} പൂർണ്ണമായും അടച്ചു",
+    "outcomeDiscount": "പിഴ {due}: അടച്ചത് {paid}, ഇളവ് {discount}",
+    "outcomeWaived": "പിഴ {due} ഒഴിവാക്കി",
+    "continue": "തുടരുക",
+    "belowSettlement": "തുക സെറ്റിൽമെന്റ് തുകയായ {required}-ൽ കുറവാണ്."
 },
   dashboard: {
     title: 'ഡാഷ്ബോർഡ്',

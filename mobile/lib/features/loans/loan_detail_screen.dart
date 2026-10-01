@@ -1183,6 +1183,101 @@ Future<void> _collectPenaltyDialog(BuildContext context, WidgetRef ref, Loan loa
   }
 }
 
+/// DEC-01: the preclose penalty popup — paid / discount / waived. Returns the
+/// `penaltyResolution` body or null when cancelled. The server re-checks it.
+Future<Map<String, dynamic>?> _penaltyResolutionSheet(
+    BuildContext context, WidgetRef ref, double due, int days) {
+  final t = T.of(ref);
+  final fmt = ref.read(currencyFmtProvider);
+  var action = 'paid';
+  var mode = 'cash';
+  final ctrl = TextEditingController();
+  return showModalBottomSheet<Map<String, dynamic>>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) {
+        final collected = double.tryParse(ctrl.text.trim()) ?? 0;
+        final amount = action == 'paid' ? due : action == 'discount' ? collected : 0.0;
+        final valid = action != 'discount' || (collected > 0 && collected < due);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t.x('prc.penalty_title'), style: AppTypography.sectionTitle),
+              const SizedBox(height: 8),
+              Text('${t.x('prc.penalty_due')}: ${fmt.format(due)} ($days ${t.x('prc.penalty_days')})',
+                  style: AppTypography.bodyLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final opt in const ['paid', 'discount', 'waived'])
+                    ChoiceChip(
+                      label: Text(t.x('prc.opt_$opt')),
+                      selected: action == opt,
+                      onSelected: (_) => setLocal(() => action = opt),
+                    ),
+                ],
+              ),
+              if (action == 'discount')
+                TextField(
+                  controller: ctrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(labelText: t.x('prc.collected')),
+                  onChanged: (_) => setLocal(() {}),
+                ),
+              if (amount > 0)
+                DropdownButtonFormField<String>(
+                  initialValue: mode,
+                  decoration: InputDecoration(labelText: t.x('loan.payment_mode')),
+                  items: [
+                    DropdownMenuItem(value: 'cash', child: Text(t.x('coll.cash'))),
+                    DropdownMenuItem(value: 'upi', child: Text(t.x('coll.upi'))),
+                    DropdownMenuItem(value: 'bank_transfer', child: Text(t.x('loan.bank_transfer'))),
+                    DropdownMenuItem(value: 'cheque', child: Text(t.x('mode.cheque'))),
+                  ],
+                  onChanged: (v) => mode = v ?? 'cash',
+                ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: valid
+                      ? () => Navigator.pop(ctx, <String, dynamic>{
+                            'action': action,
+                            'amount': amount,
+                            'paymentMode': amount > 0 ? mode : null,
+                          })
+                      : null,
+                  child: Text(t.x('prc.continue')),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  ).whenComplete(ctrl.dispose);
+}
+
+/// The outcome sentence after a preclose (same wording as web).
+String _penaltyOutcomeText(T t, NumberFormat fmt, Map<String, dynamic> o) {
+  double n(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  final key = o['action'] == 'waived'
+      ? 'prc.outcome_waived'
+      : o['action'] == 'discount'
+          ? 'prc.outcome_discount'
+          : 'prc.outcome_paid';
+  return t
+      .x(key)
+      .replaceAll('{due}', fmt.format(n(o['due'])))
+      .replaceAll('{paid}', fmt.format(n(o['paid'])))
+      .replaceAll('{discount}', fmt.format(n(o['discount'])));
+}
+
 Future<void> _requestPenaltyWaiverDialog(
   BuildContext context,
   WidgetRef ref,
@@ -2797,7 +2892,19 @@ class _LoanBottomBar extends ConsumerWidget {
   Future<void> _requestPreclose(BuildContext context, WidgetRef ref) async {
     final t = T.of(ref);
     final fmt = ref.read(currencyFmtProvider);
-    final amount = double.tryParse('${loan.agentPreclose?['amount'] ?? 0}') ?? 0;
+    // DEC-01: amount and penalty from the server quote.
+    Map<String, dynamic> quote;
+    try {
+      quote = await ref.read(loanServiceProvider).foreclosureQuote(loan.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    final amount = double.tryParse('${quote['totalSettlementAmount'] ?? 0}') ?? 0;
+    final penaltyDue = double.tryParse('${quote['penaltyDue'] ?? 0}') ?? 0;
     final reasonCtrl = TextEditingController();
     final remarksCtrl = TextEditingController();
     var mode = 'cash';
@@ -2855,6 +2962,12 @@ class _LoanBottomBar extends ConsumerWidget {
       }
       return;
     }
+    Map<String, dynamic>? resolution;
+    if (penaltyDue > 0) {
+      resolution = await _penaltyResolutionSheet(context, ref, penaltyDue,
+          (double.tryParse('${quote['penaltyMissedDays'] ?? 0}') ?? 0).toInt());
+      if (resolution == null || !context.mounted) return;
+    }
     try {
       await ref.read(approvalServiceProvider).request(
             requestType: 'loan_preclose',
@@ -2864,6 +2977,7 @@ class _LoanBottomBar extends ConsumerWidget {
               'amount': amount,
               'paymentMode': mode,
               'remarks': remarksCtrl.text.trim(),
+              if (resolution != null) 'penaltyResolution': resolution,
             },
             reason: reason,
           );
@@ -2979,12 +3093,166 @@ class _LoanBottomBar extends ConsumerWidget {
     );
   }
 
+  /// DEC-01: admin preclose from the server quote (GET .../foreclosure-calc) —
+  /// line items, discount, minimum amount and the penalty popup, as on web.
+  Future<void> _precloseWithQuote(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
+    final fmt = ref.read(currencyFmtProvider);
+    final svc = ref.read(loanServiceProvider);
+    Map<String, dynamic> quote;
+    try {
+      quote = await svc.foreclosureQuote(loan.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    double n(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+    var paymentMode = 'cash';
+    var discount = 0.0;
+    final amountCtrl = TextEditingController(text: n(quote['totalSettlementAmount']).toStringAsFixed(2));
+    final discountCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController(text: 'Preclosure Full Settlement');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final items = (quote['lineItems'] as List<dynamic>? ?? const [])
+              .map((dynamic e) => Map<String, dynamic>.from(e as Map));
+          return AlertDialog(
+            title: Text(t.x('loan.preclose')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final item in items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text('${item['label']}', style: AppTypography.caption)),
+                          Text(
+                            '${n(item['amount']) < 0 ? '− ' : ''}${fmt.format(n(item['amount']).abs())}',
+                            style: TextStyle(fontWeight: item['highlight'] == true ? FontWeight.w700 : FontWeight.w400),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: discountCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(labelText: t.x('prc.settlement_discount')),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final d = double.tryParse(discountCtrl.text.trim()) ?? 0;
+                          try {
+                            final q = await svc.foreclosureQuote(loan.id, discount: d);
+                            setLocal(() {
+                              quote = q;
+                              discount = n(q['discount']);
+                              amountCtrl.text = n(q['totalSettlementAmount']).toStringAsFixed(2);
+                            });
+                          } catch (_) {}
+                        },
+                        child: Text(t.x('prc.apply')),
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(labelText: t.x('preclose.settlement_amount')),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: paymentMode,
+                    decoration: InputDecoration(labelText: t.x('loan.payment_mode')),
+                    items: [
+                      DropdownMenuItem(value: 'cash', child: Text(t.x('coll.cash'))),
+                      DropdownMenuItem(value: 'upi', child: Text(t.x('coll.upi'))),
+                      DropdownMenuItem(value: 'bank_transfer', child: Text(t.x('loan.bank_transfer'))),
+                      DropdownMenuItem(value: 'cheque', child: Text(t.x('mode.cheque'))),
+                    ],
+                    onChanged: (v) => paymentMode = v ?? 'cash',
+                  ),
+                  TextField(
+                    controller: remarksCtrl,
+                    decoration: InputDecoration(labelText: t.x('loan.remarks')),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.x('common.cancel'))),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.x('coll.confirm'))),
+            ],
+          );
+        },
+      ),
+    );
+    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    final remarks = remarksCtrl.text;
+    amountCtrl.dispose();
+    discountCtrl.dispose();
+    remarksCtrl.dispose();
+    if (ok != true || !context.mounted) return;
+    final required = n(quote['totalSettlementAmount']);
+    if (amount < required - 0.005) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(t.x('prc.below_settlement').replaceAll('{required}', fmt.format(required)))));
+      return;
+    }
+    Map<String, dynamic>? resolution;
+    final penaltyDue = n(quote['penaltyDue']);
+    if (penaltyDue > 0) {
+      resolution = await _penaltyResolutionSheet(
+          context, ref, penaltyDue, n(quote['penaltyMissedDays']).toInt());
+      if (resolution == null || !context.mounted) return;
+    }
+    try {
+      final res = await svc.preclose(loan.id, {
+        'amount': amount,
+        'discount': discount,
+        'paymentMode': paymentMode,
+        'remarks': remarks,
+        if (resolution != null) 'penaltyResolution': resolution,
+      });
+      ref.invalidate(loanDetailProvider(loan.id));
+      if (!context.mounted) return;
+      final outcome = res?['penaltyOutcome'];
+      if (outcome is Map) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(t.x('prc.outcome_title')),
+            content: Text(_penaltyOutcomeText(t, fmt, Map<String, dynamic>.from(outcome))),
+            actions: [
+              FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(t.x('prc.continue'))),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(t.x('prc.preclosed')), backgroundColor: AppColors.success));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$e'), backgroundColor: AppColors.danger));
+      }
+    }
+  }
+
   void _confirmAction(BuildContext context, WidgetRef ref, String action) {
     final t = T.of(ref);
-    final fmt = ref.watch(currencyFmtProvider);
-    final totalCollected = loan.totalCollected;
-    final totalRepayable = loan.totalPayable;
-    final outstanding = totalRepayable - totalCollected;
 
     if (action == 'close') {
       final hasActiveCheques =
@@ -3065,137 +3333,7 @@ class _LoanBottomBar extends ConsumerWidget {
         },
       );
     } else if (action == 'preclose') {
-      showDialog<void>(
-        context: context,
-        builder: (ctx) {
-          String paymentMode = 'cash';
-          final amountController =
-              TextEditingController(text: outstanding.toStringAsFixed(2));
-          final remarksController =
-              TextEditingController(text: 'Preclosure Full Settlement');
-          final formKey = GlobalKey<FormState>();
-
-          return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: Text(t.x('loan.preclose')),
-                content: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Preclosing will collect the payoff amount and close the loan. All other unpaid instalments will be waived.',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: amountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration: InputDecoration(
-                            labelText: 'Payoff Amount (${fmt.currencySymbol})',
-                            border: const OutlineInputBorder(),
-                          ),
-                          validator: (val) {
-                            if (val == null || val.isEmpty) return 'Required';
-                            final parsed = double.tryParse(val);
-                            if (parsed == null || parsed <= 0)
-                              return 'Enter a valid amount';
-                            if (parsed < outstanding) {
-                              return 'Must be at least the outstanding: ${fmt.format(outstanding)}';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: paymentMode,
-                          decoration: InputDecoration(
-                            labelText: t.x('loan.payment_mode'),
-                            border: const OutlineInputBorder(),
-                          ),
-                          items: [
-                            DropdownMenuItem(
-                                value: 'cash', child: Text(t.x('coll.cash'))),
-                            DropdownMenuItem(
-                                value: 'upi', child: Text(t.x('coll.upi'))),
-                            DropdownMenuItem(
-                                value: 'bank_transfer',
-                                child: Text(t.x('loan.bank_transfer'))),
-                            DropdownMenuItem(
-                                value: 'cheque',
-                                child: Text(t.x('mode.cheque'))),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                paymentMode = val;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: remarksController,
-                          decoration: InputDecoration(
-                            labelText: t.x('loan.remarks'),
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: Text(t.x('common.cancel')),
-                  ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary),
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      Navigator.pop(ctx);
-                      try {
-                        await ref.read(loanServiceProvider).performAction(
-                          loan.id,
-                          'preclose',
-                          data: {
-                            'amount': double.parse(amountController.text),
-                            'paymentMode': paymentMode,
-                            'remarks': remarksController.text,
-                          },
-                        );
-                        ref.invalidate(loanDetailProvider(loan.id));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Loan preclosed successfully'),
-                                backgroundColor: AppColors.success),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('Failed: $e'),
-                                backgroundColor: AppColors.danger),
-                          );
-                        }
-                      }
-                    },
-                    child: Text(t.x('coll.confirm')),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
+      _precloseWithQuote(context, ref);
     } else {
       final title = action == 'renew' ? 'Renew Loan' : 'Confirm Action';
       final desc = action == 'renew'

@@ -1,14 +1,21 @@
 import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { reallocateLoanRepayments } from './repayments';
+import { buildForeclosureCalculation, loadForeclosureSnapshot } from './foreclosure';
+import { resolvePreclosePenaltiesInTx, validatePenaltyResolution } from './penalties';
+
+/** DEC-01: amount below the server quote → 409 with the required figure. */
+export class PrecloseQuoteError extends Error {
+  constructor(message: string, public status: number, public data?: Record<string, unknown>) { super(message); }
+}
 
 // Existing admin settlement, shared with approval execution (STRUCT-3).
 // Keep its allocation and accounting behavior unchanged.
 export async function precloseLoanInTx(
   tx: Prisma.TransactionClient,
-  ctx: { tenantId: string; userId: string },
+  ctx: { tenantId: string; userId: string; role?: string },
   loan: { id: string; appType: string; branchId: string | null; customerId: string; customer: { name: string } },
-  input: { amount: number; paymentMode: string; remarks: string; discount?: number; notes?: string; markChequesReturned?: boolean },
+  input: { amount: number; paymentMode: string; remarks: string; discount?: number; notes?: string; markChequesReturned?: boolean; penaltyResolution?: unknown },
 ) {
   const id = loan.id;
   const { amount, paymentMode, remarks } = input;
@@ -17,6 +24,18 @@ export async function precloseLoanInTx(
   if (loan.appType === 'microlending') {
     await tx.$queryRaw`SELECT id FROM loans WHERE id = ${id} AND tenant_id = ${ctx.tenantId} AND app_type = ${loan.appType} FOR UPDATE`;
   }
+  // DEC-01: one server quote (lib/foreclosure.ts). The amount may not be below
+  // its payoff, and a pending penalty must come with a resolution.
+  const snapshot = await loadForeclosureSnapshot(tx, id, ctx.tenantId);
+  const quote = snapshot ? buildForeclosureCalculation(snapshot, input.discount ?? 0) : null;
+  let resolution: ReturnType<typeof validatePenaltyResolution> = null;
+  if (quote?.canForeclose) {
+    if (amount < quote.totalSettlementAmount - 0.005) {
+      throw new PrecloseQuoteError('amount_below_settlement', 409, { required: quote.totalSettlementAmount });
+    }
+    resolution = validatePenaltyResolution(input.penaltyResolution, quote.penaltyDue);
+  }
+
   // Find all instalments for the loan
   const allInstalments = await tx.instalment.findMany({
     where: { loanId: id },
@@ -190,6 +209,19 @@ export async function precloseLoanInTx(
     },
   });
 
+  // DEC-01: resolve the pending penalty as chosen in the popup — collected part
+  // posts like a penalty collection (DEC-06), the rest is waived.
+  const penaltyRun = resolution
+    ? await resolvePreclosePenaltiesInTx(tx, {
+        tenantId: ctx.tenantId,
+        appType: loan.appType,
+        userId: ctx.userId,
+        role: ctx.role ?? 'admin',
+        loan: { id, branchId: loan.branchId, loanCode: snapshot?.loanCode ?? '' },
+        resolution,
+      })
+    : null;
+
   // Settle any pending penalties for the loan
   await tx.penalty.updateMany({
     where: { loanId: id, status: 'pending' },
@@ -223,7 +255,13 @@ export async function precloseLoanInTx(
         paymentMode,
         discount: input.discount || 0,
         allocations: allocationsDesc.join(', '),
+        ...(penaltyRun ? { penaltyOutcome: penaltyRun.outcome } : {}),
       }),
     },
   });
+
+  return {
+    penaltyOutcome: penaltyRun?.outcome ?? null,
+    penaltyEntries: penaltyRun?.entries ?? [],
+  };
 }

@@ -24,7 +24,21 @@ export const kn = {
     "amountChanged": "ಇತ್ಯರ್ಥ ಮೊತ್ತವು ಪ್ರಸ್ತುತ ಬಾಕಿಗೆ ಸಮನಾಗಿರಬೇಕು. ಸಾಲ ಪುಟವನ್ನು ನವೀಕರಿಸಿ ಹೊಸ ವಿನಂತಿ ಕಳುಹಿಸಿ; ಹಳೆಯ ಬಾಕಿ ವಿನಂತಿಯನ್ನು ಮೊದಲು ತಿರಸ್ಕರಿಸಿ.",
     "loanCode": "ಸಾಲ ಸಂಖ್ಯೆ",
     "paymentMode": "ಪಾವತಿ ವಿಧಾನ",
-    "remarks": "ಟಿಪ್ಪಣಿಗಳು"
+    "remarks": "ಟಿಪ್ಪಣಿಗಳು",
+    "penaltyTitle": "ಬಾಕಿ ದಂಡವನ್ನು ಇತ್ಯರ್ಥಗೊಳಿಸಿ",
+    "penaltyDue": "ಬಾಕಿ ದಂಡ",
+    "penaltyDays": "ತಪ್ಪಿದ ದಿನಗಳು",
+    "optPaid": "ಪೂರ್ಣವಾಗಿ ಪಾವತಿಸಲಾಗಿದೆ",
+    "optDiscount": "ರಿಯಾಯಿತಿ (ಭಾಗಶಃ ಸಂಗ್ರಹ)",
+    "optWaived": "ಮನ್ನಾ",
+    "collected": "ಸಂಗ್ರಹಿಸಿದ ಮೊತ್ತ",
+    "penaltyRequired": "ಮುಂದುವರಿಯಲು ಬಾಕಿ ದಂಡವನ್ನು ಇತ್ಯರ್ಥಗೊಳಿಸಿ.",
+    "outcomeTitle": "ಪ್ರೀಕ್ಲೋಸ್ ಪೂರ್ಣ",
+    "outcomePaid": "ದಂಡ {due} ಪೂರ್ಣವಾಗಿ ಪಾವತಿಯಾಗಿದೆ",
+    "outcomeDiscount": "ದಂಡ {due}: ಪಾವತಿ {paid}, ರಿಯಾಯಿತಿ {discount}",
+    "outcomeWaived": "ದಂಡ {due} ಮನ್ನಾ ಮಾಡಲಾಗಿದೆ",
+    "continue": "ಮುಂದುವರಿಸಿ",
+    "belowSettlement": "ಮೊತ್ತವು ಇತ್ಯರ್ಥ ಮೊತ್ತ {required} ಕ್ಕಿಂತ ಕಡಿಮೆ."
 },
   dashboard: {
     title: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್',

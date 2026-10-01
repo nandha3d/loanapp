@@ -7,7 +7,9 @@ import { branchScopeWhere } from './branchScope';
 import { notifyApprovers } from './notify/approvers';
 import { notifyUser } from './notify/userNotify';
 import { modulePath } from '@/types/modules';
-import { precloseLoanInTx } from './loanPreclose';
+import { precloseLoanInTx, PrecloseQuoteError } from './loanPreclose';
+import { buildForeclosureCalculation, loadForeclosureSnapshot } from './foreclosure';
+import { ensurePendingPenaltiesForMissedLoans, PenaltyResolutionError, postPenaltyCollection, validatePenaltyResolution } from './penalties';
 import { AGENT_PRECLOSE_FLAG, LOAN_PRECLOSE_REQUEST, canRequestLoanPreclose, isPrecloseRequestLoan, isValidPrecloseAmount, precloseOutstanding } from './loanPreclosePolicy';
 
 export class PrecloseRequestError extends Error {
@@ -24,11 +26,13 @@ export async function submitLoanPrecloseRequest(ctx: MobileTokenClaims, body: Re
   if (body.entityType !== 'loan' || typeof body.entityId !== 'string' ||
       !changes || typeof changes !== 'object' || Array.isArray(changes) ||
       typeof body.reason !== 'string' || !body.reason.trim()) throw new PrecloseRequestError(d.invalid, 400);
-  const { amount, paymentMode, remarks = '' } = changes as Record<string, unknown>;
+  const { amount, paymentMode, remarks = '', penaltyResolution } = changes as Record<string, unknown>;
   if (typeof paymentMode !== 'string' || !['cash', 'upi', 'cheque', 'bank_transfer'].includes(paymentMode) ||
       typeof remarks !== 'string') throw new PrecloseRequestError(d.invalid, 400);
   const entityId = body.entityId;
   const reason = body.reason.trim();
+  // DEC-01: the penalty the agent resolves is the one the quote shows.
+  await ensurePendingPenaltiesForMissedLoans({ tenantId: ctx.tenantId, appType: ctx.appType, loanId: entityId });
   const result = await prisma.$transaction(async tx => {
     // ApprovalRequest has no partial unique index for pending requests. Lock the
     // subject to serialize submissions without changing the loan or its terms.
@@ -42,6 +46,12 @@ export async function submitLoanPrecloseRequest(ctx: MobileTokenClaims, body: Re
     if (!isPrecloseRequestLoan(loan)) throw new PrecloseRequestError(d.ineligible, 409);
     const outstanding = precloseOutstanding(loan);
     if (!isValidPrecloseAmount(amount, outstanding)) throw new PrecloseRequestError(d.amountChanged, 409);
+    // DEC-01 (D6): the agent's proposed penalty resolution is stored, not applied.
+    const snapshot = await loadForeclosureSnapshot(tx, loan.id, ctx.tenantId);
+    const penaltyDue = snapshot ? buildForeclosureCalculation(snapshot).penaltyDue : 0;
+    let resolution;
+    try { resolution = validatePenaltyResolution(penaltyResolution, penaltyDue); }
+    catch (e) { if (e instanceof PenaltyResolutionError) throw new PrecloseRequestError(e.message, 400); throw e; }
     const pending = await tx.approvalRequest.findFirst({
       where: { tenantId: ctx.tenantId, appType: ctx.appType, requestType: LOAN_PRECLOSE_REQUEST,
         entityType: 'loan', entityId, status: 'pending' },
@@ -50,7 +60,7 @@ export async function submitLoanPrecloseRequest(ctx: MobileTokenClaims, body: Re
     const request = await tx.approvalRequest.create({ data: {
       tenantId: ctx.tenantId, appType: ctx.appType, requestType: LOAN_PRECLOSE_REQUEST,
       entityType: 'loan', entityId, requestedById: ctx.userId, reason,
-      requestedChanges: JSON.stringify({ loanCode: loan.loanCode, amount, paymentMode, remarks }),
+      requestedChanges: JSON.stringify({ loanCode: loan.loanCode, amount, paymentMode, remarks, ...(resolution ? { penaltyResolution: resolution } : {}) }),
     } });
     await tx.auditLog.create({ data: { tenantId: ctx.tenantId, userId: ctx.userId, action: 'create',
       entityType: 'approval_request', entityId: request.id,
@@ -79,6 +89,11 @@ export async function reviewLoanPrecloseRequest(ctx: MobileTokenClaims, requestI
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role) || ctx.appType !== 'microlending') throw new PrecloseRequestError(d.unavailable, 403);
   if (action !== 'approve' && action !== 'reject') throw new PrecloseRequestError(d.invalid, 400);
   if (action === 'approve' && await getSetting(ctx.tenantId, AGENT_PRECLOSE_FLAG, '0') !== '1') throw new PrecloseRequestError(d.unavailable, 403);
+  if (action === 'approve') {
+    const subject = await prisma.approvalRequest.findFirst({ where: { id: requestId, tenantId: ctx.tenantId, appType: ctx.appType }, select: { entityId: true } });
+    if (subject) await ensurePendingPenaltiesForMissedLoans({ tenantId: ctx.tenantId, appType: ctx.appType, loanId: subject.entityId });
+  }
+  let penaltyEntries: Awaited<ReturnType<typeof precloseLoanInTx>>['penaltyEntries'] = [];
   const result = await prisma.$transaction(async tx => {
     const request = await tx.approvalRequest.findFirst({ where: { id: requestId, tenantId: ctx.tenantId, appType: ctx.appType,
       requestType: LOAN_PRECLOSE_REQUEST, entityType: 'loan', status: 'pending' } });
@@ -95,13 +110,19 @@ export async function reviewLoanPrecloseRequest(ctx: MobileTokenClaims, requestI
       if (!isPrecloseRequestLoan(loan)) throw new PrecloseRequestError(d.ineligible, 409);
       if (!isValidPrecloseAmount(changes.amount, precloseOutstanding(loan))) throw new PrecloseRequestError(d.amountChanged, 409);
       if (!['cash', 'upi', 'cheque', 'bank_transfer'].includes(changes.paymentMode) || typeof changes.remarks !== 'string') throw new PrecloseRequestError(d.invalid, 400);
-      await precloseLoanInTx(tx, ctx, loan, changes);
+      try {
+        penaltyEntries = (await precloseLoanInTx(tx, ctx, loan, changes)).penaltyEntries;
+      } catch (e) {
+        if (e instanceof PenaltyResolutionError || e instanceof PrecloseQuoteError) throw new PrecloseRequestError(d.amountChanged, 409);
+        throw e;
+      }
     }
     await tx.auditLog.create({ data: { tenantId: ctx.tenantId, userId: ctx.userId, action,
       entityType: 'loan', entityId: loan.id,
       newValue: JSON.stringify({ requestId, requestType: LOAN_PRECLOSE_REQUEST, requestedById: request.requestedById, reviewNotes }) } });
     return { request, loan };
   }, { isolationLevel: 'ReadCommitted' });
+  for (const entry of penaltyEntries) await postPenaltyCollection(ctx.tenantId, ctx.appType, ctx.userId, entry);
   await notifyUser({ tenantId: ctx.tenantId, appType: ctx.appType, branchId: result.loan.branchId,
     targetUserId: result.request.requestedById, targetRole: 'agent', type: `request_${action === 'approve' ? 'approved' : 'rejected'}`,
     icon: action === 'approve' ? 'check_circle' : 'cancel', title: d.title,

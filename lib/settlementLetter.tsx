@@ -189,22 +189,15 @@ export function SettlementLetterPDF({
         {/* Calculation table */}
         <View style={S.section}>
           <Text style={S.sHead}>Settlement Calculation</Text>
-          <View style={S.row}>
-            <Text style={S.label}>Original principal amount</Text>
-            <Text style={S.value}>{fmt(calc.originalPrincipal, currencySymbol)}</Text>
-          </View>
-          <View style={S.row}>
-            <Text style={S.label}>Amount collected to date ({calc.paidInstalments} instalments)</Text>
-            <Text style={S.value}>{fmt(calc.totalCollected, currencySymbol)}</Text>
-          </View>
-          <View style={S.row}>
-            <Text style={S.label}>Principal outstanding</Text>
-            <Text style={{ ...S.value, fontFamily: 'Helvetica-Bold' }}>{fmt(calc.principalOutstanding, currencySymbol)}</Text>
-          </View>
-          <View style={S.row}>
-            <Text style={S.label}>Penalty charges ({calc.missedInstalments} missed payments)</Text>
-            <Text style={S.value}>{fmt(calc.netPenaltyDue, currencySymbol)}</Text>
-          </View>
+          {/* DEC-01: the quote's own lines — payoff, and the penalty shown as settled separately. */}
+          {calc.lineItems.slice(0, -1).filter((item) => item.label !== 'Settlement discount applied').map((item, i) => (
+            <View style={S.row} key={i}>
+              <Text style={S.label}>{item.label}</Text>
+              <Text style={item.highlight ? { ...S.value, fontFamily: 'Helvetica-Bold' } : S.value}>
+                {item.amount < 0 ? '− ' : ''}{fmt(Math.abs(item.amount), currencySymbol)}
+              </Text>
+            </View>
+          ))}
           {calc.discount > 0 ? (
             <View style={S.row}>
               <Text style={S.label}>Settlement discount / rebate applied</Text>

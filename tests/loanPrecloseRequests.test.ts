@@ -69,7 +69,12 @@ const stubs: Record<string, any> = {
     assert.equal(transaction, tx); assert.equal(inTransaction, true);
     if (failSettlement) throw Error('simulated settlement failure');
     settlements.push({ ctx, loanId: subject.id, ...input }); loan.status = 'closed'; loan.totalCollected += input.amount;
-  } },
+    return { penaltyOutcome: null, penaltyEntries: [] };
+  }, PrecloseQuoteError: class extends Error {} },
+  // DEC-01: no open penalty in this fixture, so no resolution is needed.
+  './foreclosure': { loadForeclosureSnapshot: async () => null, buildForeclosureCalculation: () => ({ penaltyDue: 0 }) },
+  './penalties': { ensurePendingPenaltiesForMissedLoans: async () => ({}), validatePenaltyResolution: () => null,
+    PenaltyResolutionError: class extends Error {}, postPenaltyCollection: async () => {} },
 };
 const loader = (Module as any)._load;
 (Module as any)._load = function(name: string, parent: any, ...args: any[]) {

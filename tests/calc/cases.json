@@ -2244,9 +2244,10 @@
   {
     "id": "CALC-FCL-001",
     "group": "foreclosure",
-    "title": "settlement = principal outstanding + net penalty, with collections netted off principal",
+    "title": "settlement = totalPayable − collected; the pending penalty is settled separately (DEC-01)",
     "rules": [
-      "MONEY-4"
+      "MONEY-4",
+      "PRECLOSE-8"
     ],
     "op": "foreclosure.build",
     "input": {
@@ -2303,14 +2304,15 @@
             "settledAmount": 200,
             "waivedAmount": 100
           }
-        ]
+        ],
+        "totalPayable": 50000
       }
     },
     "expect": {
       "canForeclose": true,
       "principalOutstanding": 30000,
       "netPenaltyDue": 700,
-      "totalSettlementAmount": 30700,
+      "totalSettlementAmount": 30000,
       "paidInstalments": 5,
       "missedInstalments": 2,
       "remainingInstalments": 3
@@ -2348,12 +2350,13 @@
             "settledAmount": 200,
             "waivedAmount": 100
           }
-        ]
+        ],
+        "totalPayable": 50000
       }
     },
     "expect": {
       "discount": 700,
-      "totalSettlementAmount": 30000
+      "totalSettlementAmount": 29300
     }
   },
   {
@@ -2391,11 +2394,12 @@
             "settledAmount": 200,
             "waivedAmount": 100
           }
-        ]
+        ],
+        "totalPayable": 50000
       }
     },
     "expect": {
-      "discount": 30700,
+      "discount": 30000,
       "totalSettlementAmount": 0
     }
   },
@@ -2425,7 +2429,8 @@
             "status": "paid"
           }
         ],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 10000
       }
     },
     "expect": {
@@ -2458,7 +2463,8 @@
             "status": "paid"
           }
         ],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 10000
       }
     },
     "expect": {
@@ -2506,7 +2512,8 @@
             "status": "upcoming"
           }
         ],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 100000
       }
     },
     "expect": {
@@ -2547,7 +2554,8 @@
             "status": "paid"
           }
         ],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 100000
       }
     },
     "expect": {
@@ -2575,7 +2583,8 @@
           "phone": "9000000002"
         },
         "instalments": [],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 10000
       }
     },
     "expect": {
@@ -2607,7 +2616,8 @@
           "phone": "9000000003"
         },
         "instalments": [],
-        "penalties": []
+        "penalties": [],
+        "totalPayable": 10000
       }
     },
     "expect": {
@@ -2649,20 +2659,21 @@
             "settledAmount": 0,
             "waivedAmount": 0
           }
-        ]
+        ],
+        "totalPayable": 20000
       }
     },
     "expect": {
       "canForeclose": true,
       "principalOutstanding": 15000,
       "netPenaltyDue": 300,
-      "totalSettlementAmount": 15300
+      "totalSettlementAmount": 15000
     }
   },
   {
     "id": "CALC-FCL-011",
     "group": "foreclosure",
-    "title": "a fully waived penalty adds nothing to the settlement",
+    "title": "a fully waived penalty leaves no penalty due",
     "rules": [
       "MONEY-15"
     ],
@@ -2693,7 +2704,8 @@
             "settledAmount": 400,
             "waivedAmount": 500
           }
-        ]
+        ],
+        "totalPayable": 20000
       }
     },
     "expect": {
@@ -2707,7 +2719,7 @@
   {
     "id": "CALC-FCL-012",
     "group": "foreclosure",
-    "title": "penalties across several rows aggregate before netting",
+    "title": "penalties across several rows aggregate into penaltyDue, outside the settlement",
     "op": "foreclosure.build",
     "input": {
       "now": "2026-06-10",
@@ -2740,7 +2752,8 @@
             "settledAmount": 0,
             "waivedAmount": 50
           }
-        ]
+        ],
+        "totalPayable": 20000
       }
     },
     "expect": {
@@ -2748,7 +2761,55 @@
       "settledPenalty": 100,
       "waivedPenalty": 50,
       "netPenaltyDue": 650,
-      "totalSettlementAmount": 20650
+      "totalSettlementAmount": 20000
+    }
+  },
+  {
+    "id": "CALC-FCL-013",
+    "group": "foreclosure",
+    "title": "₹10,000 at 20% emi_flat (payable ₹12,000) with ₹3,000 collected pays off ₹9,000",
+    "rules": [
+      "PRECLOSE-8"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "discount": 0,
+      "loan": {
+        "id": "L13",
+        "loanCode": "DL0013",
+        "status": "active",
+        "principal": 10000,
+        "totalPayable": 12000,
+        "totalCollected": 3000,
+        "totalInstalments": 10,
+        "deductionType": "emi_flat",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          },
+          {
+            "status": "upcoming"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 500,
+            "settledAmount": 0,
+            "waivedAmount": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "principalOutstanding": 9000,
+      "totalSettlementAmount": 9000,
+      "netPenaltyDue": 500
     }
   },
   {

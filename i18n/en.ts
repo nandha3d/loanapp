@@ -24,7 +24,21 @@ export const en = {
     "amountChanged": "The settlement must match the current outstanding balance. Refresh the loan and submit a new request; reject any stale pending request first.",
     "loanCode": "Loan number",
     "paymentMode": "Payment mode",
-    "remarks": "Remarks"
+    "remarks": "Remarks",
+    "penaltyTitle": "Resolve pending penalty",
+    "penaltyDue": "Penalty due",
+    "penaltyDays": "missed days",
+    "optPaid": "Paid completely",
+    "optDiscount": "Discount (part collected)",
+    "optWaived": "Waived",
+    "collected": "Amount collected",
+    "penaltyRequired": "Resolve the pending penalty to continue.",
+    "outcomeTitle": "Preclose complete",
+    "outcomePaid": "Penalty {due} paid in full",
+    "outcomeDiscount": "Penalty {due}: paid {paid}, discount {discount}",
+    "outcomeWaived": "Penalty {due} waived",
+    "continue": "Continue",
+    "belowSettlement": "Amount is below the settlement amount of {required}."
 },
   dashboard: {
     title: 'Dashboard',

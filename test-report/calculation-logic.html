@@ -112,15 +112,15 @@
   <p class="lede">Every figure the module puts in front of a borrower, an agent or an auditor — the formula, and the cases that pin it. Pure arithmetic: no database, no server.</p>
 
   <ul class="runmeta">
-    <li>Cases <code>184</code></li>
-    <li>Last run <time>2026-10-01T14:11:16.190Z</time></li>
-    <li>Node <code>v23.11.1</code></li><li>TZ <code>Asia/Calcutta</code> (UTC+330m)</li>
+    <li>Cases <code>185</code></li>
+    <li>Last run <time>2026-10-01T19:15:29.942Z</time></li>
+    <li>Node <code>v24.21.0</code></li><li>TZ <code>Asia/Calcutta</code> (UTC+330m)</li>
     <li>Run with <code>npm run test:calc</code></li>
   </ul>
 
   <div class="summary">
-    <div class="card"><div class="n">184</div><div class="l">Cases</div></div>
-    <div class="card pass"><div class="n">184</div><div class="l">Passed</div></div>
+    <div class="card"><div class="n">185</div><div class="l">Cases</div></div>
+    <div class="card pass"><div class="n">185</div><div class="l">Passed</div></div>
     <div class="card fail"><div class="n">0</div><div class="l">Failed</div></div>
     <div class="card notrun"><div class="n">0</div><div class="l">Not run</div></div>
     <div class="card"><div class="n">12</div><div class="l">Areas</div></div>
@@ -3232,7 +3232,7 @@ netPenaltyDue  = max(0, Σ gross − Σ settled − Σ waived)</pre>
 </details></div>
 </section>
 <section class="grp" data-group="foreclosure">
-  <h2>Foreclosure settlement <span class="gcount">12 cases</span></h2>
+  <h2>Foreclosure settlement <span class="gcount">13 cases</span></h2>
   <p class="blurb">What the borrower hands over to close today.</p>
   <pre class="formula">principalOutstanding = interest_only ? outstandingPrincipal
                                      : max(0, principal − totalCollected)
@@ -3244,9 +3244,9 @@ only active and overdue loans can be foreclosed</pre>
   <div class="cases"><details class="tc v-passed" id="CALC-FCL-001" data-verdict="passed">
   <summary>
     <span class="tid">CALC-FCL-001</span>
-    <span class="ttl">settlement = principal outstanding + net penalty, with collections netted off principal</span>
+    <span class="ttl">settlement = totalPayable − collected; the pending penalty is settled separately (DEC-01)</span>
     <span class="spacer"></span>
-    <span class="rule">MONEY-4</span>
+    <span class="rule">MONEY-4</span> <span class="rule">PRECLOSE-8</span>
     <span class="verdict verdict-passed">passed</span>
   </summary>
   <div class="body">
@@ -3306,7 +3306,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 200,
         &quot;waivedAmount&quot;: 100
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 50000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3314,7 +3315,7 @@ only active and overdue loans can be foreclosed</pre>
   &quot;canForeclose&quot;: true,
   &quot;principalOutstanding&quot;: 30000,
   &quot;netPenaltyDue&quot;: 700,
-  &quot;totalSettlementAmount&quot;: 30700,
+  &quot;totalSettlementAmount&quot;: 30000,
   &quot;paidInstalments&quot;: 5,
   &quot;missedInstalments&quot;: 2,
   &quot;remainingInstalments&quot;: 3
@@ -3361,13 +3362,14 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 200,
         &quot;waivedAmount&quot;: 100
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 50000
   }
 }</pre>
     <h4>Expected</h4>
     <pre class="code">{
   &quot;discount&quot;: 700,
-  &quot;totalSettlementAmount&quot;: 30000
+  &quot;totalSettlementAmount&quot;: 29300
 }</pre>
     
     
@@ -3411,12 +3413,13 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 200,
         &quot;waivedAmount&quot;: 100
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 50000
   }
 }</pre>
     <h4>Expected</h4>
     <pre class="code">{
-  &quot;discount&quot;: 30700,
+  &quot;discount&quot;: 30000,
   &quot;totalSettlementAmount&quot;: 0
 }</pre>
     
@@ -3455,7 +3458,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;status&quot;: &quot;paid&quot;
       }
     ],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 10000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3498,7 +3502,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;status&quot;: &quot;paid&quot;
       }
     ],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 10000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3551,7 +3556,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;status&quot;: &quot;upcoming&quot;
       }
     ],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 100000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3599,7 +3605,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;status&quot;: &quot;paid&quot;
       }
     ],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 100000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3637,7 +3644,8 @@ only active and overdue loans can be foreclosed</pre>
       &quot;phone&quot;: &quot;9000000002&quot;
     },
     &quot;instalments&quot;: [],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 10000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3676,7 +3684,8 @@ only active and overdue loans can be foreclosed</pre>
       &quot;phone&quot;: &quot;9000000003&quot;
     },
     &quot;instalments&quot;: [],
-    &quot;penalties&quot;: []
+    &quot;penalties&quot;: [],
+    &quot;totalPayable&quot;: 10000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3728,7 +3737,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 0,
         &quot;waivedAmount&quot;: 0
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 20000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3736,7 +3746,7 @@ only active and overdue loans can be foreclosed</pre>
   &quot;canForeclose&quot;: true,
   &quot;principalOutstanding&quot;: 15000,
   &quot;netPenaltyDue&quot;: 300,
-  &quot;totalSettlementAmount&quot;: 15300
+  &quot;totalSettlementAmount&quot;: 15000
 }</pre>
     
     
@@ -3745,7 +3755,7 @@ only active and overdue loans can be foreclosed</pre>
 <details class="tc v-passed" id="CALC-FCL-011" data-verdict="passed">
   <summary>
     <span class="tid">CALC-FCL-011</span>
-    <span class="ttl">a fully waived penalty adds nothing to the settlement</span>
+    <span class="ttl">a fully waived penalty leaves no penalty due</span>
     <span class="spacer"></span>
     <span class="rule">MONEY-15</span>
     <span class="verdict verdict-passed">passed</span>
@@ -3779,7 +3789,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 400,
         &quot;waivedAmount&quot;: 500
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 20000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3797,7 +3808,7 @@ only active and overdue loans can be foreclosed</pre>
 <details class="tc v-passed" id="CALC-FCL-012" data-verdict="passed">
   <summary>
     <span class="tid">CALC-FCL-012</span>
-    <span class="ttl">penalties across several rows aggregate before netting</span>
+    <span class="ttl">penalties across several rows aggregate into penaltyDue, outside the settlement</span>
     <span class="spacer"></span>
     
     <span class="verdict verdict-passed">passed</span>
@@ -3836,7 +3847,8 @@ only active and overdue loans can be foreclosed</pre>
         &quot;settledAmount&quot;: 0,
         &quot;waivedAmount&quot;: 50
       }
-    ]
+    ],
+    &quot;totalPayable&quot;: 20000
   }
 }</pre>
     <h4>Expected</h4>
@@ -3845,7 +3857,62 @@ only active and overdue loans can be foreclosed</pre>
   &quot;settledPenalty&quot;: 100,
   &quot;waivedPenalty&quot;: 50,
   &quot;netPenaltyDue&quot;: 650,
-  &quot;totalSettlementAmount&quot;: 20650
+  &quot;totalSettlementAmount&quot;: 20000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-013</span>
+    <span class="ttl">₹10,000 at 20% emi_flat (payable ₹12,000) with ₹3,000 collected pays off ₹9,000</span>
+    <span class="spacer"></span>
+    <span class="rule">PRECLOSE-8</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;discount&quot;: 0,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L13&quot;,
+    &quot;loanCode&quot;: &quot;DL0013&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 10000,
+    &quot;totalPayable&quot;: 12000,
+    &quot;totalCollected&quot;: 3000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;emi_flat&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 500,
+        &quot;settledAmount&quot;: 0,
+        &quot;waivedAmount&quot;: 0
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;principalOutstanding&quot;: 9000,
+  &quot;totalSettlementAmount&quot;: 9000,
+  &quot;netPenaltyDue&quot;: 500
 }</pre>
     
     
