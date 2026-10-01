@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
           entityId: cust.id,
           requestedById: cust.agentId || '',
           requestedChanges: JSON.stringify({
+            customerCode: cust.customerCode,
             name: cust.name,
             phone: cust.phone,
             address: cust.address,
@@ -101,7 +102,7 @@ export async function GET(req: NextRequest) {
           ...branchScope,
         },
         include: {
-          customer: { select: { name: true } },
+          customer: { select: { name: true, customerCode: true } },
           createdBy: { select: { id: true, name: true, role: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -131,6 +132,7 @@ export async function GET(req: NextRequest) {
         const changesPayload: Record<string, unknown> = {
           loanCode: loan.loanCode,
           customer: loan.customer?.name || 'Unknown',
+          customerCode: loan.customer?.customerCode ?? null,
           principal: Number(loan.principal),
           tenure: loan.tenure,
           frequency: loan.frequency,

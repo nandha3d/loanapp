@@ -10,6 +10,8 @@ class Approval {
     required this.requestedByName,
     required this.createdAt,
     this.reviewNote,
+    this.reason,
+    this.reviewedByName,
     this.insufficientFloat = false,
     this.agentFloat,
     this.floatDeficit,
@@ -24,6 +26,8 @@ class Approval {
   final String requestedByName;
   final DateTime createdAt;
   final String? reviewNote;
+  final String? reason;
+  final String? reviewedByName;
   final bool insufficientFloat;
   final double? agentFloat;
   final double? floatDeficit;
@@ -67,6 +71,8 @@ class Approval {
           ? DateTime.now()
           : DateTime.tryParse(json['createdAt'] as String)?.toLocal() ?? DateTime.now(),
       reviewNote: (json['reviewNotes'] as String?) ?? (json['reviewNote'] as String?),
+      reason: json['reason'] as String?,
+      reviewedByName: (json['reviewedBy'] as Map<String, dynamic>?)?['name'] as String?,
       insufficientFloat: insufficient,
       agentFloat: agentF,
       floatDeficit: deficit,

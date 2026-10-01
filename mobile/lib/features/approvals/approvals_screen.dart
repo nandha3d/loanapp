@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -17,7 +19,8 @@ import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _approvalsProvider = FutureProvider.autoDispose<List<Approval>>((ref) {
-  return ref.watch(approvalServiceProvider).list(status: 'pending');
+  // APR-01: every status, like web; pending ones carry the actions.
+  return ref.watch(approvalServiceProvider).list();
 });
 
 /// IDs currently being approved/rejected — prevents double-tap (MON-04).
@@ -97,19 +100,27 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen>
           ),
         ),
         data: (list) {
-          final customers = list.where((a) => a.entityType == 'customer').toList();
-          final loans = list.where((a) => a.entityType == 'loan').toList();
+          // APR-01: Customers / Loans tabs are new-record approvals only;
+          // every other request (edits, preclose, handover…) is General, as web.
+          final customers = list
+              .where((a) => a.entityType == 'customer' && a.action == 'create')
+              .toList();
+          final loans = list
+              .where((a) => a.entityType == 'loan' && a.action == 'create')
+              .toList();
           final other = list
-              .where((a) => a.entityType != 'customer' && a.entityType != 'loan')
+              .where((a) => !((a.entityType == 'customer' || a.entityType == 'loan') && a.action == 'create'))
               .toList();
           void refresh() => ref.invalidate(_approvalsProvider);
 
           if (widget.initialId != null && !_handledInitialAction) {
             final target = list.where((a) => a.id == widget.initialId).firstOrNull;
             if (target != null) {
-              final tabIdx = target.entityType == 'customer'
-                  ? 0
-                  : (target.entityType == 'loan' ? 1 : 2);
+              final tabIdx = target.action != 'create'
+                  ? 2
+                  : target.entityType == 'customer'
+                      ? 0
+                      : (target.entityType == 'loan' ? 1 : 2);
               if (_tabController.index != tabIdx) {
                 _tabController.index = tabIdx;
               }
@@ -253,8 +264,13 @@ class _ApprovalCard extends ConsumerWidget {
     } else if (approval.action == 'delete') {
       actionLabel = t.x('act.delete');
     } else {
-      actionLabel = approval.action;
+      // Known request types get a label; anything else shows readable text.
+      final key = 'appr.type_${approval.action}';
+      final label = t.x(key);
+      actionLabel = label == key ? approval.action.replaceAll('_', ' ') : label;
     }
+    final role = ref.watch(authControllerProvider).user?.role;
+    final canReview = approval.status == 'pending' && role != UserRole.agent;
 
     IconData entityIcon;
     Color entityColor;
@@ -311,12 +327,32 @@ class _ApprovalCard extends ConsumerWidget {
                           _Tag(label: entityLabel, color: entityColor, bg: entityBg),
                           const SizedBox(width: 6),
                           _Tag(label: actionLabel, color: AppColors.textSecondary, bg: AppColors.background),
+                          const SizedBox(width: 6),
+                          _Tag(
+                            label: t.x('status.${approval.status}'),
+                            color: approval.status == 'approved'
+                                ? AppColors.success
+                                : approval.status == 'rejected'
+                                    ? AppColors.danger
+                                    : AppColors.warning,
+                            bg: AppColors.background,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text('${t.x('appr.by')} ${approval.requestedByName}', style: AppTypography.bodyLarge),
                       const SizedBox(height: 2),
                       Text(fmt.format(approval.createdAt), style: AppTypography.caption),
+                      if ((approval.reason ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text('${t.x('preclose.reason')}: ${approval.reason}',
+                            style: AppTypography.body, maxLines: 3, overflow: TextOverflow.ellipsis),
+                      ],
+                      if (approval.reviewedByName != null) ...[
+                        const SizedBox(height: 2),
+                        Text('${t.x('appr.reviewed_by')} ${approval.reviewedByName}',
+                            style: AppTypography.caption),
+                      ],
                       if (approval.reviewNote != null) ...[
                         const SizedBox(height: 4),
                         Text(
@@ -363,8 +399,8 @@ class _ApprovalCard extends ConsumerWidget {
               ),
             ),
           ],
-          const Divider(height: 1, color: AppColors.border),
-          Padding(
+          if (canReview) const Divider(height: 1, color: AppColors.border),
+          if (canReview) Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Row(
               children: [

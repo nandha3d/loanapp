@@ -596,7 +596,8 @@ bool _moduleBlocked(String location, User user) {
     return false;
   }
   String? required;
-  if (location.startsWith('/approvals')) required = ModuleKey.approvals;
+  // APR-01: agents open Approvals to follow their own requests (read-only).
+  if (location.startsWith('/approvals')) return false;
   if (location.startsWith('/analytics')) required = ModuleKey.analytics;
   if (location.startsWith('/chits')) required = ModuleKey.chits;
   if (location.startsWith('/accounting')) required = ModuleKey.accounting;

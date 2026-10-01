@@ -183,7 +183,9 @@ bool _canAccess(_ModuleItem item, User user) {
 
   // Core features are role-gated, not subscription-gated.
   switch (key) {
+    // APR-01: agents see their own requests (read-only; server scopes them).
     case 'approvals':
+      return true;
     case 'analytics':
     case 'accounting':
     case 'npa':

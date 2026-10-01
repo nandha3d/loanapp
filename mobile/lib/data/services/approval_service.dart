@@ -9,10 +9,11 @@ class ApprovalService {
   ApprovalService(this._dio);
   final Dio _dio;
 
-  Future<List<Approval>> list({String status = 'pending'}) async {
+  /// [status] null = every status (APR-01: history with reviewer shown).
+  Future<List<Approval>> list({String? status}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.approvals,
-      queryParameters: {'status': status},
+      queryParameters: {if (status != null) 'status': status},
     );
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
