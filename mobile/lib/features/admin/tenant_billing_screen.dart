@@ -242,7 +242,7 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
           else
             ...invoices.map((inv) {
               final id = inv['id'] as String? ?? '';
-              final amt = inv['amount'] as num? ?? 0;
+              final amt = num.tryParse('${inv['amount']}') ?? 0;
               final invStatus = inv['status'] as String? ?? 'paid';
               final createdAtStr = inv['createdAt'] as String?;
               final invDate = createdAtStr != null

@@ -39,8 +39,10 @@ class Approval {
             : '{}';
     bool insufficient = json['insufficientFloat'] == true;
     String? warning = json['floatWarning'] as String?;
-    double? agentF = json['agentFloat'] != null ? (json['agentFloat'] as num).toDouble() : null;
-    double? deficit = json['floatDeficit'] != null ? (json['floatDeficit'] as num).toDouble() : null;
+    double? toD(dynamic v) =>
+        v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+    double? agentF = toD(json['agentFloat']);
+    double? deficit = toD(json['floatDeficit']);
 
     if (!insufficient && payloadStr.isNotEmpty && payloadStr != '{}') {
       try {
@@ -48,8 +50,8 @@ class Approval {
         if (parsed is Map<String, dynamic>) {
           if (parsed['insufficientFloat'] == true) insufficient = true;
           if (warning == null && parsed['floatWarning'] != null) warning = parsed['floatWarning'] as String;
-          if (agentF == null && parsed['agentFloat'] != null) agentF = (parsed['agentFloat'] as num).toDouble();
-          if (deficit == null && parsed['floatDeficit'] != null) deficit = (parsed['floatDeficit'] as num).toDouble();
+          if (agentF == null && parsed['agentFloat'] != null) agentF = toD(parsed['agentFloat']);
+          if (deficit == null && parsed['floatDeficit'] != null) deficit = toD(parsed['floatDeficit']);
         }
       } catch (_) {}
     }

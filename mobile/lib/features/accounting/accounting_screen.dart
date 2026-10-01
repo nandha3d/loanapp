@@ -1840,7 +1840,7 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
         final p = _periods[index];
         final status = p['status'] as String? ?? 'open';
         final isClosed = status == 'closed';
-        final profit = p['netProfit'] as num? ?? 0.0;
+        final profit = _num(p['netProfit']);
 
         return InkWell(
           onTap: () => _showPeriodActions(p),
@@ -1986,9 +1986,9 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     if (_pnlData == null) return const SizedBox();
     final income = _pnlData!['incomeAccounts'] as List<dynamic>? ?? [];
     final expenses = _pnlData!['expenseAccounts'] as List<dynamic>? ?? [];
-    final totalIn = _pnlData!['totalIncome'] as num? ?? 0.0;
-    final totalEx = _pnlData!['totalExpense'] as num? ?? 0.0;
-    final net = _pnlData!['netProfit'] as num? ?? 0.0;
+    final totalIn = _num(_pnlData!['totalIncome']);
+    final totalEx = _num(_pnlData!['totalExpense']);
+    final net = _num(_pnlData!['netProfit']);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -2002,7 +2002,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
         ...income.map((i) => _ReportRow(
             name: i['name'] as String,
             code: i['code'] as String,
-            amount: i['amount'] as num)),
+            amount: _num(i['amount']))),
         _ReportRow(
             name: 'TOTAL REVENUE', code: '', amount: totalIn, isBold: true),
         const SizedBox(height: 20),
@@ -2015,7 +2015,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
         ...expenses.map((e) => _ReportRow(
             name: e['name'] as String,
             code: e['code'] as String,
-            amount: e['amount'] as num)),
+            amount: _num(e['amount']))),
         _ReportRow(
             name: 'TOTAL EXPENSES', code: '', amount: totalEx, isBold: true),
         const Divider(height: 32, thickness: 2),
@@ -2036,9 +2036,9 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     final liabilities = groups['liability'] as List<dynamic>? ?? [];
     final equity = groups['equity'] as List<dynamic>? ?? [];
 
-    final totA = _balanceData!['totalAssets'] as num? ?? 0.0;
-    final totL = _balanceData!['totalLiabilities'] as num? ?? 0.0;
-    final totE = _balanceData!['totalEquity'] as num? ?? 0.0;
+    final totA = _num(_balanceData!['totalAssets']);
+    final totL = _num(_balanceData!['totalLiabilities']);
+    final totE = _num(_balanceData!['totalEquity']);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -2049,7 +2049,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
         ...assets.map((a) => _ReportRow(
             name: a['name'] as String,
             code: a['code'] as String,
-            amount: a['amount'] as num)),
+            amount: _num(a['amount']))),
         _ReportRow(name: 'TOTAL ASSETS', code: '', amount: totA, isBold: true),
         const SizedBox(height: 20),
         const Text('Liabilities',
@@ -2058,7 +2058,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
         ...liabilities.map((l) => _ReportRow(
             name: l['name'] as String,
             code: l['code'] as String,
-            amount: l['amount'] as num)),
+            amount: _num(l['amount']))),
         _ReportRow(
             name: 'TOTAL LIABILITIES', code: '', amount: totL, isBold: true),
         const SizedBox(height: 20),
@@ -2068,7 +2068,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
         ...equity.map((eq) => _ReportRow(
             name: eq['name'] as String,
             code: eq['code'] as String,
-            amount: eq['amount'] as num)),
+            amount: _num(eq['amount']))),
         _ReportRow(name: 'TOTAL EQUITY', code: '', amount: totE, isBold: true),
       ],
     );
@@ -2077,8 +2077,8 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
   Widget _buildTrialReport() {
     if (_trialData == null) return const SizedBox();
     final rows = _trialData!['rows'] as List<dynamic>? ?? [];
-    final totDr = _trialData!['totalDebit'] as num? ?? 0.0;
-    final totCr = _trialData!['totalCredit'] as num? ?? 0.0;
+    final totDr = _num(_trialData!['totalDebit']);
+    final totCr = _num(_trialData!['totalCredit']);
 
     return Column(
       children: [

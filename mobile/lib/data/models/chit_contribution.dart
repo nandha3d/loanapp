@@ -4,7 +4,8 @@
 // lib/chits/paymentIntents.ts's serialized shapes. fromJson-only, matching
 // the rest of this package's null-safe model style.
 
-double _num(dynamic v) => v == null ? 0 : (v as num).toDouble();
+double _num(dynamic v) =>
+    v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
 
 class ChitContribution {
   const ChitContribution({

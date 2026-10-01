@@ -1,3 +1,7 @@
+double? _dOrNull(dynamic v) =>
+    v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+double _d(dynamic v) => _dOrNull(v) ?? 0.0;
+
 class AgentLocation {
   const AgentLocation({
     required this.agentId,
@@ -24,16 +28,15 @@ class AgentLocation {
   bool get hasLocation => lat != null && lng != null;
 
   factory AgentLocation.fromJson(Map<String, dynamic> json) {
-    double? d(dynamic v) => v == null ? null : (v as num).toDouble();
     return AgentLocation(
       agentId: json['agentId'] as String,
       agentName: (json['agentName'] as String?) ?? '—',
       agentPhone: (json['agentPhone'] as String?) ?? '',
       online: (json['online'] as bool?) ?? false,
-      todayCollected: (json['todayCollected'] as num?)?.toDouble() ?? 0,
+      todayCollected: _d(json['todayCollected']),
       todayEntries: (json['todayEntries'] as num?)?.toInt() ?? 0,
-      lat: d(json['lat']),
-      lng: d(json['lng']),
+      lat: _dOrNull(json['lat']),
+      lng: _dOrNull(json['lng']),
       capturedAt: json['capturedAt'] == null
           ? null
           : DateTime.parse(json['capturedAt'] as String).toLocal(),
@@ -71,23 +74,19 @@ class AgentCollection {
   bool get hasLocation => lat != null && lng != null;
 
   factory AgentCollection.fromJson(Map<String, dynamic> json) {
-    double n(dynamic v) => v == null
-        ? 0
-        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
-    double? d(dynamic v) => v == null ? null : (v as num).toDouble();
     return AgentCollection(
       id: json['id'] as String,
       customerName: (json['customerName'] as String?) ?? '—',
       customerCode: (json['customerCode'] as String?) ?? '',
-      dueAmount: n(json['dueAmount']),
-      receivedAmount: n(json['receivedAmount']),
+      dueAmount: _d(json['dueAmount']),
+      receivedAmount: _d(json['receivedAmount']),
       paymentMode: json['paymentMode'] as String?,
       submittedAt: json['submittedAt'] == null
           ? null
           : DateTime.parse(json['submittedAt'] as String).toLocal(),
       customerPhoto: json['customerPhoto'] as String?,
-      lat: d(json['lat']),
-      lng: d(json['lng']),
+      lat: _dOrNull(json['lat']),
+      lng: _dOrNull(json['lng']),
     );
   }
 }
@@ -111,13 +110,12 @@ class AgentPing {
   final bool isMocked;
 
   factory AgentPing.fromJson(Map<String, dynamic> json) {
-    double? d(dynamic v) => v == null ? null : (v as num).toDouble();
     return AgentPing(
-      lat: (json['lat'] as num).toDouble(),
-      lng: (json['lng'] as num).toDouble(),
+      lat: _d(json['lat']),
+      lng: _d(json['lng']),
       capturedAt: DateTime.parse(json['capturedAt'] as String).toLocal(),
-      accuracyM: d(json['accuracyM']),
-      speedMps: d(json['speedMps']),
+      accuracyM: _dOrNull(json['accuracyM']),
+      speedMps: _dOrNull(json['speedMps']),
       isMocked: (json['isMocked'] as bool?) ?? false,
     );
   }

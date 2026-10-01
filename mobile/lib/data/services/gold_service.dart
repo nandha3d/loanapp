@@ -46,18 +46,22 @@ class GoldServicingSummary {
 
   bool get isClosed => status == 'closed';
 
-  factory GoldServicingSummary.fromJson(Map<String, dynamic> j) => GoldServicingSummary(
-        loanCode: (j['loanCode'] ?? '') as String,
-        status: (j['status'] ?? '') as String,
-        outstandingPrincipal: (j['outstandingPrincipal'] ?? 0) as num,
-        monthlyInterest: (j['monthlyInterest'] ?? 0) as num,
-        monthsDue: (j['monthsDue'] ?? 0) as num,
-        interestDue: (j['interestDue'] ?? 0) as num,
-        redemptionAmount: (j['redemptionAmount'] ?? 0) as num,
-        payments: (j['payments'] as List<dynamic>? ?? [])
-            .map((e) => (e as Map).cast<String, dynamic>())
-            .toList(),
-      );
+  factory GoldServicingSummary.fromJson(Map<String, dynamic> j) {
+    num toNum(dynamic v) =>
+        v is num ? v : num.tryParse(v?.toString() ?? '') ?? 0;
+    return GoldServicingSummary(
+      loanCode: (j['loanCode'] ?? '') as String,
+      status: (j['status'] ?? '') as String,
+      outstandingPrincipal: toNum(j['outstandingPrincipal']),
+      monthlyInterest: toNum(j['monthlyInterest']),
+      monthsDue: toNum(j['monthsDue']),
+      interestDue: toNum(j['interestDue']),
+      redemptionAmount: toNum(j['redemptionAmount']),
+      payments: (j['payments'] as List<dynamic>? ?? [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList(),
+    );
+  }
 }
 
 class GoldService {

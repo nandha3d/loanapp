@@ -1,3 +1,7 @@
+double _toNum(dynamic v) => v == null
+    ? 0
+    : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+
 /// Payload of GET /api/v1/dashboard/chits — the chit-funds home dashboard.
 /// Chit tenants land here instead of the lending DashboardSummary.
 class ChitDashboardSummary {
@@ -34,19 +38,16 @@ class ChitDashboardSummary {
   final List<ChitGroupBrief> groups;
 
   factory ChitDashboardSummary.fromJson(Map<String, dynamic> json) {
-    double toNum(dynamic v) => v == null
-        ? 0
-        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return ChitDashboardSummary(
       activeGroups: (json['activeGroups'] as num?)?.toInt() ?? 0,
       totalMembers: (json['totalMembers'] as num?)?.toInt() ?? 0,
       auctionsThisMonth: (json['auctionsThisMonth'] as num?)?.toInt() ?? 0,
       pendingApprovals: (json['pendingApprovals'] as num?)?.toInt() ?? 0,
-      todayExpected: toNum(json['todayExpected']),
-      todayCollected: toNum(json['todayCollected']),
-      todayGap: toNum(json['todayGap']),
-      hitRate: toNum(json['hitRate']),
-      totalOverdueAmount: toNum(json['totalOverdueAmount']),
+      todayExpected: _toNum(json['todayExpected']),
+      todayCollected: _toNum(json['todayCollected']),
+      todayGap: _toNum(json['todayGap']),
+      hitRate: _toNum(json['hitRate']),
+      totalOverdueAmount: _toNum(json['totalOverdueAmount']),
       overdueMembersCount: (json['overdueMembersCount'] as num?)?.toInt() ?? 0,
       overdueSubscriptions:
           (json['overdueSubscriptions'] as List<dynamic>? ?? const [])
@@ -106,7 +107,7 @@ class ChitOverdueSubscription {
       chitGroupId: json['chitGroupId'] as String? ?? '',
       chitGroupName: json['chitGroupName'] as String? ?? '',
       periodNumber: (json['periodNumber'] as num?)?.toInt() ?? 0,
-      overdueAmount: (json['overdueAmount'] as num?)?.toDouble() ?? 0,
+      overdueAmount: _toNum(json['overdueAmount']),
       daysOverdue: (json['daysOverdue'] as num?)?.toInt() ?? 0,
       dueDate: json['dueDate'] == null
           ? null
@@ -143,7 +144,7 @@ class ChitAuctionBrief {
       id: json['id'] as String? ?? '',
       chitGroupId: json['chitGroupId'] as String? ?? '',
       chitGroupName: json['chitGroupName'] as String? ?? '',
-      chitValue: (json['chitValue'] as num?)?.toDouble() ?? 0,
+      chitValue: _toNum(json['chitValue']),
       periodNumber: (json['periodNumber'] as num?)?.toInt() ?? 0,
       roomStatus: json['roomStatus'] as String? ?? 'scheduled',
       auctionDate: json['auctionDate'] == null
@@ -191,8 +192,8 @@ class ChitGroupBrief {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       groupCode: json['groupCode'] as String?,
-      chitValue: (json['chitValue'] as num?)?.toDouble() ?? 0,
-      monthlyContrib: (json['monthlyContrib'] as num?)?.toDouble() ?? 0,
+      chitValue: _toNum(json['chitValue']),
+      monthlyContrib: _toNum(json['monthlyContrib']),
       totalMembers: (json['totalMembers'] as num?)?.toInt() ?? 0,
       membersCount: (json['membersCount'] as num?)?.toInt() ?? 0,
       durationMonths: (json['durationMonths'] as num?)?.toInt() ?? 0,

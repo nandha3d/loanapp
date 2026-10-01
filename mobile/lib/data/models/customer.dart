@@ -110,16 +110,19 @@ class Customer {
                 (l['status'] == 'active' || l['status'] == 'overdue'))
             .length ??
         0;
-    final activePrincipal =
-        (json['activeLoanPrincipal'] as num?)?.toDouble() ?? 0.0;
+    double? toDoubleNullable(dynamic v) =>
+        v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+    double toDouble(dynamic v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
+    final activePrincipal = toDouble(json['activeLoanPrincipal']);
     return Customer(
       id: json['id'] as String,
       customerCode: json['customerCode'] as String,
       name: json['name'] as String,
       phone: json['phone'] as String,
       address: json['address'] as String?,
-      lat: json['lat'] == null ? null : (json['lat'] as num).toDouble(),
-      lng: json['lng'] == null ? null : (json['lng'] as num).toDouble(),
+      lat: toDoubleNullable(json['lat']),
+      lng: toDoubleNullable(json['lng']),
       status: (json['status'] as String?) ?? 'pending_review',
       routeId: json['routeId'] as String?,
       agentId: json['agentId'] as String?,
@@ -138,9 +141,7 @@ class Customer {
       email: json['email'] as String?,
       pan: json['pan'] as String?,
       occupation: json['occupation'] as String?,
-      monthlyIncome: json['monthlyIncome'] == null
-          ? null
-          : (json['monthlyIncome'] as num).toDouble(),
+      monthlyIncome: toDoubleNullable(json['monthlyIncome']),
       companyName: json['companyName'] as String?,
       companyType: json['companyType'] as String?,
       businessType: json['businessType'] as String?,

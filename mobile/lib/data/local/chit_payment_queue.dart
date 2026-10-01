@@ -61,7 +61,9 @@ final chitPaymentQueueProvider = Provider<OfflineQueue>((ref) {
           payload['groupId'] as String,
           memberId: payload['memberId'] as String,
           periodNumber: (payload['periodNumber'] as num).toInt(),
-          amount: (payload['amount'] as num).toDouble(),
+          amount: payload['amount'] is num
+              ? (payload['amount'] as num).toDouble()
+              : double.tryParse(payload['amount']?.toString() ?? '') ?? 0,
           paymentMode: payload['paymentMode'] as String,
           mode: (payload['mode'] as String?) ?? 'ADD_PAYMENT',
           idempotencyKey: mutation.id,

@@ -80,7 +80,8 @@ class _AffiliateAdminScreenState extends ConsumerState<AffiliateAdminScreen> wit
     final totalReferrals = referrals.length;
     final totalConversions = referrals.where((r) => r['status'] == 'subscribed').length;
     final pendingRewards = rewards.where((rw) => rw['status'] == 'pending');
-    final pendingPayout = pendingRewards.fold<double>(0, (sum, rw) => sum + (rw['amount'] as num? ?? 0));
+    final pendingPayout = pendingRewards.fold<double>(
+        0, (sum, rw) => sum + (num.tryParse('${rw['amount']}') ?? 0));
 
     return Scaffold(
       backgroundColor: AppColors.background,

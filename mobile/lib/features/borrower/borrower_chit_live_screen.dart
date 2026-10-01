@@ -1185,20 +1185,20 @@ class _SummarySheetState extends ConsumerState<_SummarySheet> {
                           );
                         },),
                         DividendBreakdown(
-                          chitValue: (_summary!['chitValue'] as num).toDouble(),
-                          prizeAmount: (_summary!['prizeAmount'] as num).toDouble(),
-                          bidDiscount: (_summary!['bidDiscount'] as num).toDouble(),
-                          commissionPct: (_summary!['commissionPct'] as num).toDouble(),
+                          chitValue: _toNum(_summary!['chitValue']),
+                          prizeAmount: _toNum(_summary!['prizeAmount']),
+                          bidDiscount: _toNum(_summary!['bidDiscount']),
+                          commissionPct: _toNum(_summary!['commissionPct']),
                           commissionBasis: _summary!['commissionBasis'] as String,
-                          commission: (_summary!['commission'] as num).toDouble(),
-                          gstPct: (_summary!['gstPct'] as num?)?.toDouble(),
-                          gstAmount: (_summary!['gstAmount'] as num).toDouble(),
+                          commission: _toNum(_summary!['commission']),
+                          gstPct: _toNumOrNull(_summary!['gstPct']),
+                          gstAmount: _toNum(_summary!['gstAmount']),
                           distributableDividend:
-                              (_summary!['distributableDividend'] as num).toDouble(),
+                              _toNum(_summary!['distributableDividend']),
                           dividendEligibleMembers:
-                              _summary!['dividendEligibleMembers'] as int,
-                          dividend: (_summary!['dividend'] as num).toDouble(),
-                          roundingIncome: (_summary!['roundingIncome'] as num).toDouble(),
+                              (_summary!['dividendEligibleMembers'] as num?)?.toInt() ?? 0,
+                          dividend: _toNum(_summary!['dividend']),
+                          roundingIncome: _toNum(_summary!['roundingIncome']),
                           dividendPolicy: _summary!['dividendPolicy'] as String,
                           dividendDistribution: _summary!['dividendDistribution'] as String,
                           fmt: fmt,
@@ -1292,3 +1292,7 @@ class _MessagesCard extends StatelessWidget {
     );
   }
 }
+
+double? _toNumOrNull(dynamic v) =>
+    v == null ? null : (v is num ? v.toDouble() : double.tryParse(v.toString()));
+double _toNum(dynamic v) => _toNumOrNull(v) ?? 0.0;

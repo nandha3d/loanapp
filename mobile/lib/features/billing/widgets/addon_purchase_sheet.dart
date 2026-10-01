@@ -296,7 +296,7 @@ class _AddonPurchaseBottomSheetState
 
       final orderId = checkout['orderId'] as String;
       final keyId = checkout['keyId'] as String;
-      final amount = checkout['amount'] as num;
+      final amount = num.tryParse('${checkout['amount']}') ?? 0;
       final isMock = checkout['mock'] == true;
       _pendingOrderId = orderId;
 

@@ -56,7 +56,9 @@ class QueuedCollection {
   factory QueuedCollection.fromJson(Map<String, dynamic> j) => QueuedCollection(
         idempotencyKey: j['idempotencyKey'] as String,
         instalmentId: j['instalmentId'] as String,
-        receivedAmount: (j['receivedAmount'] as num).toDouble(),
+        receivedAmount: j['receivedAmount'] is num
+            ? (j['receivedAmount'] as num).toDouble()
+            : double.tryParse(j['receivedAmount']?.toString() ?? '') ?? 0,
         paymentMode: j['paymentMode'] as String,
         collectionDate: DateTime.parse(j['collectionDate'] as String),
         status: j['status'] as String,
