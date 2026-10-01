@@ -11,6 +11,8 @@ import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
 import { disburseFromAgent, disburseFromBranch, collectFromAgentInTx } from '@/lib/wallet';
 import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
+import { modulePath } from '@/types/modules';
+import { notifyUser } from '@/lib/notify/userNotify';
 
 
 const LOAN_EDIT_ALLOW_LIST = new Set([
@@ -191,7 +193,10 @@ export async function PATCH(
           });
           if (!loan) throw new Error('Target loan not found');
 
-          const changes = JSON.parse(request.requestedChanges);
+          // APR-02: only allow-listed loan fields are applied (as declared).
+          const changes: Record<string, any> = Object.fromEntries(
+            Object.entries(JSON.parse(request.requestedChanges || '{}')).filter(([k]) => LOAN_EDIT_ALLOW_LIST.has(k)),
+          );
           const principal = changes.principal !== undefined ? Number(changes.principal) : Number(loan.principal);
           const interestType = changes.deductionType !== undefined ? changes.deductionType : loan.deductionType;
           const rate = changes.deduction !== undefined ? Number(changes.deduction) : Number(loan.deduction);
@@ -358,6 +363,21 @@ export async function PATCH(
         },
       });
 
+      // APR-02: tell the requester, same as the web reviewRequest.
+      if (request.requestedById) {
+        await notifyUser({
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          targetUserId: request.requestedById,
+          targetRole: 'agent',
+          type: 'request_approved',
+          icon: 'check_circle',
+          title: 'Request approved',
+          message: `Your ${request.requestType.replace(/_/g, ' ')} request has been approved.${note ? ` Note: ${note}` : ''}`,
+          link: modulePath(ctx.appType, '/approvals'),
+        }).catch(() => {});
+      }
+
       return ok({ status: 'approved' });
     }
 
@@ -396,7 +416,7 @@ export async function PATCH(
             icon: 'check_circle',
             title: 'Customer approved',
             message: `Your customer ${customer.name} has been approved and is now active.`,
-            link: '/customers',
+            link: modulePath(ctx.appType, '/customers'),
           },
         }).catch(() => {});
       }
@@ -488,7 +508,7 @@ export async function PATCH(
               icon: 'check_circle',
               title: 'Loan approved',
               message: `Loan ${loan.loanCode} has been approved.`,
-              link: '/loans',
+              link: modulePath(ctx.appType, '/loans'),
             },
           }).catch(() => {});
         }
@@ -508,7 +528,7 @@ export async function PATCH(
               icon: 'account_balance_wallet',
               title: '⚠️ Insufficient Float Cash',
               message: `Cannot disburse loan ${loan.loanCode}: Float balance ₹${Number(err.available).toLocaleString('en-IN')} is insufficient for required ₹${Number(err.required).toLocaleString('en-IN')}`,
-              link: '/wallet',
+              link: modulePath(ctx.appType, '/wallet'),
               data: {
                 available: String(err.available),
                 required: String(err.required),

@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { modulePath } from '@/types/modules';
+import { notifyUser } from '@/lib/notify/userNotify';
 
 export async function PATCH(
   req: NextRequest,
@@ -69,12 +71,27 @@ export async function PATCH(
         data: {
           tenantId: ctx.tenantId,
           userId: ctx.userId,
-          action: 'rejected',
+          action: 'reject',
           entityType: request.entityType,
           entityId: request.entityId,
           newValue: JSON.stringify({ requestId: id, note }),
         },
       });
+
+      // APR-02: tell the requester, same as the web reviewRequest.
+      if (request.requestedById) {
+        await notifyUser({
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          targetUserId: request.requestedById,
+          targetRole: 'agent',
+          type: 'request_rejected',
+          icon: 'cancel',
+          title: 'Request rejected',
+          message: `Your ${request.requestType.replace(/_/g, ' ')} request has been rejected.${note ? ` Note: ${note}` : ''}`,
+          link: modulePath(ctx.appType, '/approvals'),
+        }).catch(() => {});
+      }
 
       return ok(updated);
     }
@@ -85,9 +102,10 @@ export async function PATCH(
     });
 
     if (customer) {
+      // APR-02: a rejected registration becomes 'inactive' — the value web writes.
       await prisma.customer.update({
         where: { id },
-        data: { status: 'rejected' },
+        data: { status: 'inactive' },
       });
 
       await prisma.auditLog.create({
@@ -97,7 +115,7 @@ export async function PATCH(
           action: 'reject',
           entityType: 'customer',
           entityId: id,
-          newValue: JSON.stringify({ action: 'reject_creation', status: 'rejected', note }),
+          newValue: JSON.stringify({ action: 'reject_creation', status: 'inactive', note }),
         },
       });
 
@@ -113,7 +131,7 @@ export async function PATCH(
             icon: 'cancel',
             title: 'Customer rejected',
             message: `Your customer ${customer.name} was not approved.${note ? ` Note: ${note}` : ''}`,
-            link: '/customers',
+            link: modulePath(ctx.appType, '/customers'),
           },
         }).catch(() => {});
       }
@@ -155,7 +173,7 @@ export async function PATCH(
             icon: 'cancel',
             title: 'Loan rejected',
             message: `Loan ${loan.loanCode} has been rejected.${note ? ` Note: ${note}` : ''}`,
-            link: '/loans',
+            link: modulePath(ctx.appType, '/loans'),
           },
         }).catch(() => {});
       }
