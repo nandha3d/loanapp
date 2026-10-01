@@ -51,8 +51,9 @@ export async function PATCH(
     }
 
     if (request) {
-      const updated = await prisma.approvalRequest.update({
-        where: { id },
+      // Atomically claim — prevents reject overwriting approve (MON-04).
+      const claimed = await prisma.approvalRequest.updateMany({
+        where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' },
         data: {
           status: 'rejected',
           reviewedById: ctx.userId,
@@ -60,6 +61,9 @@ export async function PATCH(
           reviewedAt: new Date(),
         },
       });
+      if (claimed.count === 0) throw new Error('already_processed');
+
+      const updated = await prisma.approvalRequest.findUnique({ where: { id } });
 
       await prisma.auditLog.create({
         data: {
@@ -161,6 +165,7 @@ export async function PATCH(
 
     return fail('Approval target not found or already processed', 404);
   } catch (e: any) {
+    if (e?.message === 'already_processed') return fail('Request already processed', 409);
     return fail(e?.message ?? 'Review failed', e instanceof PrecloseRequestError ? e.status : 500);
   }
 }

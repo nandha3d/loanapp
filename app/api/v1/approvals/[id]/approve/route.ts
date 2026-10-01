@@ -72,8 +72,9 @@ export async function PATCH(
 
     if (request) {
       const result = await prisma.$transaction(async (tx) => {
-        await tx.approvalRequest.update({
-          where: { id: request.id },
+        // Atomically claim — prevents double-approve debiting agent float twice (MON-04).
+        const claimed = await tx.approvalRequest.updateMany({
+          where: { id: request.id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' },
           data: {
             status: 'approved',
             reviewedById: ctx.userId,
@@ -81,6 +82,7 @@ export async function PATCH(
             reviewNotes: note,
           },
         });
+        if (claimed.count === 0) throw new Error('already_processed');
 
         if (request.requestType === 'customer_edit' && request.entityType === 'customer') {
           // Verify target customer belongs to tenant + appType
@@ -505,6 +507,7 @@ export async function PATCH(
 
     return fail('Approval target not found or already processed', 404);
   } catch (e: any) {
+    if (e?.message === 'already_processed') return fail('Request already processed', 409);
     return fail(e?.message ?? 'Review failed', e instanceof PrecloseRequestError ? e.status : 500);
   }
 }

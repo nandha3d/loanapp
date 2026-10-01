@@ -20,6 +20,9 @@ final _approvalsProvider = FutureProvider.autoDispose<List<Approval>>((ref) {
   return ref.watch(approvalServiceProvider).list(status: 'pending');
 });
 
+/// IDs currently being approved/rejected — prevents double-tap (MON-04).
+final _processingIdsProvider = StateProvider.autoDispose<Set<String>>((ref) => {});
+
 class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key, this.initialId, this.initialAction});
 
@@ -377,7 +380,9 @@ class _ApprovalCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
-                    onPressed: () => showActionDialog(context, ref, approval, false, onAction),
+                    onPressed: ref.watch(_processingIdsProvider).contains(approval.id)
+                        ? null
+                        : () => showActionDialog(context, ref, approval, false, onAction),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -392,7 +397,9 @@ class _ApprovalCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
-                    onPressed: () => showActionDialog(context, ref, approval, true, onAction, isUnderfunded: insufficientFloat),
+                    onPressed: ref.watch(_processingIdsProvider).contains(approval.id)
+                        ? null
+                        : () => showActionDialog(context, ref, approval, true, onAction, isUnderfunded: insufficientFloat),
                   ),
                 ),
               ],
@@ -474,6 +481,8 @@ class _ApprovalCard extends ConsumerWidget {
     if (ok == true && context.mounted) {
       final note = noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim();
       final svc = ref.read(approvalServiceProvider);
+      // Disable buttons while the request is in flight (MON-04).
+      ref.read(_processingIdsProvider.notifier).update((s) => {...s, approval.id});
       try {
         if (approve) {
           await svc.approve(approval.id, note: note);
@@ -510,6 +519,8 @@ class _ApprovalCard extends ConsumerWidget {
             ),
           );
         }
+      } finally {
+        ref.read(_processingIdsProvider.notifier).update((s) => {...s}..remove(approval.id));
       }
     }
   }
