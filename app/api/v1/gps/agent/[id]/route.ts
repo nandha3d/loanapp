@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { gpsAgentWhere } from '@/lib/gps/routeProgress';
+import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
 
 /**
  * GET /api/v1/gps/agent/:id
@@ -13,6 +14,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (auth.response) return auth.response;
   if (!['admin', 'superadmin', 'developer'].includes(auth.context.role)) {
     return fail('Forbidden', 403);
+  }
+  if (!(await isGpsTrackingEnabled(auth.context.tenantId))) {
+    return fail('GPS tracking not enabled', 403);
   }
   const { id } = await ctx.params;
 

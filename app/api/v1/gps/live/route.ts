@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
+import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
 
 /**
  * GET /api/v1/gps/live
@@ -14,6 +15,10 @@ export async function GET(req: NextRequest) {
 
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
+  }
+
+  if (!(await isGpsTrackingEnabled(ctx.tenantId))) {
+    return fail('GPS tracking not enabled', 403);
   }
 
   try {
