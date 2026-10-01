@@ -25,7 +25,8 @@ const CUSTOMER_EDIT_ALLOW_LIST = new Set([
 const LOAN_EDIT_ALLOW_LIST = new Set([
   'principal', 'deductionType', 'deduction', 'frequency', 'tenure', 
   'startDate', 'penaltyRate', 'voucherRef', 'loanType', 'collateralDetails',
-  'guarantorName', 'guarantorPhone', 'guarantorAadhar', 'guarantorAddress', 'guarantorRelation'
+  'dueDay',
+  'guarantorName', 'guarantorPhone', 'guarantorAadhar', 'guarantorAddress', 'guarantorRelation', 'guarantorId',
 ]);
 
 // Fields allowed for collection edit requests

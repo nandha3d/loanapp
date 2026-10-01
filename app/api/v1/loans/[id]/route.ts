@@ -267,8 +267,21 @@ const LOAN_EDIT_SCALAR_FIELDS = [
   'loanType',
   'collateralDetails',
   'dueDay',
+  'guarantorName',
+  'guarantorPhone',
+  'guarantorAadhar',
+  'guarantorAddress',
+  'guarantorRelation',
+  'guarantorId',
 ] as const;
-const LOAN_EDIT_CORE_FIELDS = ['principal', 'tenure', 'frequency', 'startDate'] as const;
+const LOAN_EDIT_CORE_FIELDS = [
+  'principal',
+  'tenure',
+  'frequency',
+  'startDate',
+  'deductionType',
+  'deduction',
+] as const;
 
 export async function PATCH(
   req: NextRequest,
@@ -293,6 +306,7 @@ export async function PATCH(
 
   const loan = await prisma.loan.findFirst({
     where: patchWhere,
+    include: { guarantor: true, customer: { select: { phone: true } } },
   });
   if (!loan) return fail('Loan not found', 404);
 
@@ -308,13 +322,21 @@ export async function PATCH(
   // Scalar (non-schedule) fields — safe to change without regenerating instalments.
   for (const f of LOAN_EDIT_SCALAR_FIELDS) {
     if (body[f] === undefined) continue;
-    const current = (loan as any)[f];
+    let current: any;
+    if (f === 'guarantorName') current = loan.guarantor?.name;
+    else if (f === 'guarantorPhone') current = loan.guarantor?.phone;
+    else if (f === 'guarantorAadhar') current = loan.guarantor?.aadharNumber;
+    else if (f === 'guarantorAddress') current = loan.guarantor?.address;
+    else if (f === 'guarantorRelation') current = loan.guarantor?.relation;
+    else if (f === 'guarantorId') current = loan.guarantorId;
+    else current = (loan as any)[f];
+
     const next = body[f];
     const changed =
       f === 'penaltyRate' || f === 'dueDay'
         ? Number(current ?? 0) !== Number(next ?? 0)
         : String(current ?? '') !== String(next ?? '');
-    if (changed) proposed[f] = f === 'penaltyRate' || f === 'dueDay' ? Number(next) : next;
+    if (changed) proposed[f] = f === 'penaltyRate' || f === 'dueDay' ? (next === null ? null : Number(next)) : next;
   }
 
   // Core schedule fields — guard against loans with recorded activity.
@@ -324,13 +346,17 @@ export async function PATCH(
     const current = f === 'startDate' ? new Date(loan.startDate).toISOString().slice(0, 10) : (loan as any)[f];
     const next = f === 'startDate' ? String(body[f]).slice(0, 10) : body[f];
     const changed =
-      f === 'frequency' || f === 'startDate'
+      f === 'frequency' || f === 'startDate' || f === 'deductionType'
         ? String(current ?? '') !== String(next ?? '')
         : Number(current ?? 0) !== Number(next ?? 0);
     if (changed) {
-      proposed[f] = f === 'principal' || f === 'tenure' ? Number(next) : next;
+      proposed[f] = f === 'principal' || f === 'tenure' || f === 'deduction' ? Number(next) : next;
       coreChanged = true;
     }
+  }
+
+  if (proposed.dueDay !== undefined && Number(loan.dueDay ?? 0) !== Number(proposed.dueDay)) {
+    coreChanged = true;
   }
 
   if (coreChanged) {
@@ -340,6 +366,31 @@ export async function PATCH(
         'Schedule cannot be regenerated: loan has recorded repayments. Close & renew instead.',
         409,
       );
+    }
+  }
+
+  const principal = proposed.principal !== undefined ? Number(proposed.principal) : Number(loan.principal);
+  const rate = proposed.deduction !== undefined ? Number(proposed.deduction) : Number(loan.deduction);
+  const tenure = proposed.tenure !== undefined ? Number(proposed.tenure) : Number(loan.tenure);
+  const penaltyRate = proposed.penaltyRate !== undefined ? Number(proposed.penaltyRate) : Number(loan.penaltyRate);
+
+  const numericValidation = validateLoanNumericInputs({ principal, rate, tenure, penaltyRate });
+  if (!numericValidation.valid) {
+    return fail(numericValidation.error, 400);
+  }
+
+  const effectiveDeductionType = String(proposed.deductionType ?? loan.deductionType);
+  if (isInterestOnly(effectiveDeductionType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
+    return fail('Interest-Only is not enabled for this account', 403);
+  }
+
+  if (proposed.guarantorPhone) {
+    const guarantorPhoneValidation = validateGuarantorPhone({
+      customerPhone: loan.customer?.phone,
+      guarantorPhone: String(proposed.guarantorPhone),
+    });
+    if (!guarantorPhoneValidation.valid) {
+      return fail(guarantorPhoneValidation.error, 400);
     }
   }
 
