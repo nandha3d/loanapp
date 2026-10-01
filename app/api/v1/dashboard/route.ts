@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
         where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, ...scopedBranchWhere(ctx) } },
         orderBy: { createdAt: 'desc' },
         take: 8,
-        include: { user: true },
+        include: { user: { select: { name: true } } },
       }),
       // Actual cash collected today — ALL collection entries submitted today,
       // regardless of which instalment (today's, overdue, or future) they hit.
