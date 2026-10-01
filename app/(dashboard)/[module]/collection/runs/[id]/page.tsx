@@ -1,7 +1,8 @@
 import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import RunSheetClient from './RunSheetClient';
 
@@ -25,6 +26,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const { run, sheet } = runData;
+  const dict = await getDictionary(await getDefaultTenantId());
 
   const runJson = {
     id: run.id,
@@ -58,6 +60,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       run={runJson}
       sheet={sheetJson}
       backPath={modulePath(appType, '/collection/runs')}
+      labels={{ payLink: dict.loanDetail.selfPayLink, payLinkFailed: dict.loanDetail.couldNotCreatePaymentLink }}
     />
   );
 }

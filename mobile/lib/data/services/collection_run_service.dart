@@ -10,6 +10,22 @@ class CollectionRunService {
   CollectionRunService(this._dio);
   final Dio _dio;
 
+  /// RUN-01: active routes + the last 50 runs, one call (same as web).
+  Future<({List<({String id, String name})> routes, List<CollectionRun> runs})> listRuns() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.runList);
+    return unwrapEnvelope(res, (dynamic d) {
+      final m = d as Map<String, dynamic>;
+      return (
+        routes: (m['routes'] as List<dynamic>? ?? const [])
+            .map((dynamic r) => (id: '${(r as Map)['id']}', name: '${r['name']}'))
+            .toList(),
+        runs: (m['runs'] as List<dynamic>? ?? const [])
+            .map((dynamic r) => CollectionRun.fromJson(Map<String, dynamic>.from(r as Map)))
+            .toList(),
+      );
+    });
+  }
+
   Future<CollectionRun> openRun({
     required String routeId,
     double? lat,

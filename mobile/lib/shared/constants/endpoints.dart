@@ -66,6 +66,7 @@ class Endpoints {
       '/customers/$customerId/collection-receipt';
 
   // mCollect — route batch collection runs
+  static const String runList = '/collection/run';
   static const String runOpen = '/collection/run/open';
   static String runSheet(String id) => '/collection/run/$id/sheet';
   static String runCollect(String id) => '/collection/run/$id/collect';

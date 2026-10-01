@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
-import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/models/collection_run.dart';
 import 'package:zolofund/data/services/collection_run_service.dart';
-import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
-final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
-  return ref.watch(settingsServiceProvider).routes();
+/// RUN-01: active routes + last 50 runs from GET /collection/run (web parity).
+final _runsProvider = FutureProvider.autoDispose((ref) {
+  return ref.watch(collectionRunServiceProvider).listRuns();
 });
 
 /// mCollect-A — pick a route and open a batch collection run.
@@ -28,12 +29,14 @@ class CollectionRunsScreen extends ConsumerStatefulWidget {
 class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
   String? _openingRouteId;
 
-  Future<void> _start(AppRoute route) async {
-    setState(() => _openingRouteId = route.id);
+  Future<void> _start(String routeId) async {
+    setState(() => _openingRouteId = routeId);
     try {
+      // RUN-01: the open position travels with the run, as on web.
+      final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
       final run = await ref
           .read(collectionRunServiceProvider)
-          .openRun(routeId: route.id);
+          .openRun(routeId: routeId, lat: pos?.latitude, lng: pos?.longitude);
       if (!mounted) return;
       context.push('/collection/runs/${run.id}');
     } catch (e) {
@@ -49,15 +52,15 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final routesAsync = ref.watch(_routesProvider);
+    final runsAsync = ref.watch(_runsProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Collection Runs'), centerTitle: true),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          ref.invalidate(_routesProvider);
-          await ref.read(_routesProvider.future);
+          ref.invalidate(_runsProvider);
+          await ref.read(_runsProvider.future);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -77,22 +80,36 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
             const SizedBox(height: 16),
             Text('Your routes', style: AppTypography.sectionTitle),
             const SizedBox(height: 8),
-            routesAsync.when(
+            runsAsync.when(
               loading: () => const Skeleton(height: 160),
               error: (e, _) => Text(e.toString(),
                   style: AppTypography.body.copyWith(color: AppColors.danger),),
-              data: (routes) => routes.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.route_outlined, title: 'No routes assigned',)
-                  : Column(
-                      children: routes
-                          .map((r) => _RouteTile(
-                                route: r,
-                                busy: _openingRouteId == r.id,
-                                onTap: () => _start(r),
-                              ),)
-                          .toList(),
-                    ),
+              data: (data) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (data.routes.isEmpty)
+                    const EmptyState(
+                        icon: Icons.route_outlined, title: 'No routes assigned',)
+                  else
+                    ...data.routes.map((r) => _RouteTile(
+                          name: r.name,
+                          busy: _openingRouteId == r.id,
+                          onTap: () => _start(r.id),
+                        ),),
+                  if (data.runs.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text('Recent runs', style: AppTypography.sectionTitle),
+                    const SizedBox(height: 8),
+                    ...data.runs.map((run) => _RunTile(
+                          run: run,
+                          routeName: data.routes
+                              .where((r) => r.id == run.routeId)
+                              .map((r) => r.name)
+                              .firstOrNull,
+                        ),),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
@@ -102,10 +119,31 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
   }
 }
 
+class _RunTile extends StatelessWidget {
+  const _RunTile({required this.run, this.routeName});
+  final CollectionRun run;
+  final String? routeName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        title: Text('${run.day}${routeName != null ? ' · $routeName' : ''}',
+            style: AppTypography.bodyLarge),
+        subtitle: Text('${run.status} · ${run.stopsCollected}/${run.stopsExpected}',
+            style: AppTypography.caption),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/collection/runs/${run.id}'),
+      ),
+    );
+  }
+}
+
 class _RouteTile extends StatelessWidget {
   const _RouteTile(
-      {required this.route, required this.busy, required this.onTap,});
-  final AppRoute route;
+      {required this.name, required this.busy, required this.onTap,});
+  final String name;
   final bool busy;
   final VoidCallback onTap;
 
@@ -124,9 +162,7 @@ class _RouteTile extends StatelessWidget {
           backgroundColor: AppColors.primaryLight,
           child: Icon(Icons.route_rounded, color: AppColors.primary),
         ),
-        title: Text(route.name, style: AppTypography.bodyLarge),
-        subtitle: Text('${route.customerCount} customers',
-            style: AppTypography.caption,),
+        title: Text(name, style: AppTypography.bodyLarge),
         trailing: busy
             ? const SizedBox(
                 width: 20,

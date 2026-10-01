@@ -42,9 +42,9 @@ class _LoanGroup {
       rows.fold(0, (m, r) => r.daysOverdue > m ? r.daysOverdue : m);
   bool get overdue => rows.any((r) => r.overdue);
 
-  /// Oldest-first: most overdue instalment gets paid before newer ones.
-  List<RunSheetRow> get oldestFirst =>
-      [...rows]..sort((a, b) => b.daysOverdue.compareTo(a.daysOverdue));
+  /// Rows in the server's MONEY-10 order (today's due first, then overdue
+  /// oldest-first) from GET /api/v1/collection/run/:id/sheet.
+  List<RunSheetRow> get serverOrder => rows;
 }
 
 List<_LoanGroup> _groupByLoan(List<RunSheetRow> rows) {
@@ -87,7 +87,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
       var remaining = double.tryParse(_ctrl(g.key).text.trim()) ?? 0;
       if (remaining <= 0) continue;
       final mode = _modes[g.key] ?? 'cash';
-      for (final r in g.oldestFirst) {
+      for (final r in g.serverOrder) {
         if (remaining <= 0) break;
         final toPay = remaining < r.outstanding ? remaining : r.outstanding;
         if (toPay <= 0) continue;
@@ -138,7 +138,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
     try {
       final url = await ref
           .read(collectionRunServiceProvider)
-          .selfPayLink(g.oldestFirst.first.instalmentId);
+          .selfPayLink(g.serverOrder.first.instalmentId);
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
@@ -189,13 +189,14 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
                               onFill: () => setState(() {
                                 _ctrl(groups[i].key).text = groups[i]
                                     .totalOutstanding
-                                    .toStringAsFixed(0);
+                                    .toStringAsFixed(2);
                               }),
                               onPayLink: () => _sendPayLink(groups[i]),
                             ),
                           ),
               ),
-              if (!run.isLocked && groups.isNotEmpty)
+              // RUN-01: a run can be closed even when nothing is left to collect.
+              if (!run.isLocked)
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -203,7 +204,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: _busy ? null : () => _collect(groups),
+                            onPressed: _busy || groups.isEmpty ? null : () => _collect(groups),
                             icon: const Icon(Icons.check_rounded),
                             label: Text(_busy ? 'Posting…' : 'Collect'),
                           ),
@@ -252,7 +253,7 @@ class _Header extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Run · ${run.date}', style: AppTypography.sectionTitle),
+              Text('Run · ${run.day}', style: AppTypography.sectionTitle),
               Chip(
                 label: Text(run.status, style: AppTypography.caption),
                 backgroundColor: AppColors.primaryLight,

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
-import { collectRunAction, closeRunAction, reconcileRunAction } from '../../runActions';
+import { collectRunAction, closeRunAction, reconcileRunAction, createSelfPayLinkAction } from '../../runActions';
 
 type SheetRow = {
   stopSeq: number;
@@ -37,10 +37,12 @@ export default function RunSheetClient({
   run,
   sheet,
   backPath,
+  labels,
 }: {
   run: Run;
   sheet: SheetRow[];
   backPath: string;
+  labels: { payLink: string; payLinkFailed: string };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -80,6 +82,18 @@ export default function RunSheetClient({
         setMsg(`Posted ${res.posted.length} collection(s)${skipped ? `, ${skipped} skipped` : ''}.`);
         router.refresh();
       } else setMsg(('error' in res && res.error) || 'Failed');
+    });
+  }
+
+  // RUN-01: same self-pay link the mobile run sheet sends.
+  function sendPayLink(instalmentId: string) {
+    start(async () => {
+      const res = await createSelfPayLinkAction(instalmentId);
+      if (res.success && 'link' in res && res.link) {
+        const url = res.link.payUrl;
+        setMsg(`${labels.payLink}: ${url}`);
+        try { await navigator.clipboard?.writeText(url); } catch { /* clipboard optional */ }
+      } else setMsg(labels.payLinkFailed);
     });
   }
 
@@ -140,10 +154,11 @@ export default function RunSheetClient({
                 <th style={th}>Due</th>
                 <th style={th}>Amount</th>
                 <th style={th}>Mode</th>
+                <th style={th}></th>
               </tr>
             </thead>
             <tbody>
-              {sheet.length === 0 && <tr><td style={td} colSpan={6}>Nothing due on this route.</td></tr>}
+              {sheet.length === 0 && <tr><td style={td} colSpan={7}>Nothing due on this route.</td></tr>}
               {sheet.map((r) => (
                 <tr key={r.instalmentId} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={td}>{r.stopSeq === 9999 ? '–' : r.stopSeq}</td>
@@ -179,6 +194,11 @@ export default function RunSheetClient({
                       <option value="upi">UPI</option>
                       <option value="cheque">Cheque</option>
                     </select>
+                  </td>
+                  <td style={td}>
+                    <button className="btn btn-sm" title={labels.payLink} onClick={() => sendPayLink(r.instalmentId)} disabled={pending}>
+                      <span className="material-icons-outlined" style={{ fontSize: 16 }}>link</span>
+                    </button>
                   </td>
                 </tr>
               ))}

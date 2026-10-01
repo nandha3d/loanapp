@@ -72,7 +72,8 @@ export type RunSheetRow = {
 
 /**
  * Builds the ordered collection sheet for a route: one row per due/overdue
- * instalment, ordered by the route's walking sequence then due date.
+ * instalment, ordered by the route's walking sequence, then today's due
+ * before overdue (oldest first) — MONEY-10.
  */
 export async function buildRouteSheet(
   actor: Pick<RunActor, 'tenantId' | 'appType'>,
@@ -150,7 +151,13 @@ export async function buildRouteSheet(
       };
     })
     .filter((r) => r.outstanding > 0)
-    .sort((a, b) => a.stopSeq - b.stopSeq || a.dueDate.getTime() - b.dueDate.getTime());
+    // MONEY-10 (RUN-01): within a stop, today's due first, then overdue
+    // oldest-first. The sheet only holds rows due on or before today.
+    .sort((a, b) =>
+      a.stopSeq - b.stopSeq ||
+      Number(a.overdue) - Number(b.overdue) ||
+      a.dueDate.getTime() - b.dueDate.getTime() ||
+      a.instalmentNo - b.instalmentNo);
 
   return rows;
 }

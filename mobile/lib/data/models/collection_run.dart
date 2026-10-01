@@ -12,7 +12,10 @@ class CollectionRun {
     required this.stopsCollected,
     this.cashDeposited,
     this.varianceAmount,
+    this.routeId,
   });
+
+  final String? routeId;
 
   final String id;
   final String status; // open | collecting | closed | reconciled
@@ -45,10 +48,14 @@ class CollectionRun {
       cashDeposited: j['cashDeposited'] == null ? null : _d(j['cashDeposited']),
       varianceAmount:
           j['varianceAmount'] == null ? null : _d(j['varianceAmount']),
+      routeId: j['routeId'] as String?,
     );
   }
 
   bool get isLocked => status == 'closed' || status == 'reconciled';
+
+  /// RUN-01: business date only (the API sends an ISO timestamp).
+  String get day => date.length >= 10 ? date.substring(0, 10) : date;
 }
 
 class RunSheetRow {

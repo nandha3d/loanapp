@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (msg === 'not_run_owner') return fail('Only the assigned agent can reconcile this run', 403);
     if (msg === 'run_not_closed') return fail('Close the run before reconciling', 409);
     if (msg === 'already_reconciled') return fail('Run already reconciled', 409);
-    if (msg === 'insufficient_float') return fail('Deposit exceeds cash on hand', 402);
+    if (msg === 'insufficient_float') return fail('Deposit exceeds cash on hand', 409); // MONEY-16
     return fail(msg || 'Reconcile failed', 500);
   }
 }

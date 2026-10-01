@@ -18,7 +18,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(ctx, id) });
     if (!run) return fail('Run not found', 404);
-    if (ctx.role === 'agent' && run.agentId !== ctx.userId) return fail('Forbidden', 403);
+    // RUN-01: another agent's run does not exist for this agent.
+    if (ctx.role === 'agent' && run.agentId !== ctx.userId) return fail('Run not found', 404);
     if (!run.routeId) return ok({ run, sheet: [] });
 
     const sheet = await buildRouteSheet(

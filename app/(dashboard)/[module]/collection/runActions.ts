@@ -43,6 +43,21 @@ export async function startRunAction(routeId: string, lat?: number, lng?: number
   }
 }
 
+/** RUN-01: lib/collectionRun error codes → messages (same as the v1 routes). */
+function runError(msg: string, fallback: string) {
+  const map: Record<string, string> = {
+    run_not_found: 'Run not found',
+    run_closed: 'Run is closed',
+    forbidden: 'Forbidden',
+    not_run_owner: 'Only the assigned agent can act on this run',
+    run_reconciled: 'Run already reconciled',
+    already_reconciled: 'Run already reconciled',
+    run_not_closed: 'Close the run before reconciling',
+    insufficient_float: 'Deposit exceeds cash on hand',
+  };
+  return map[msg] ?? (msg || fallback);
+}
+
 export async function collectRunAction(runId: string, lines: RunCollectLine[]) {
   const actor = await actorOrError();
   if ('error' in actor) return { success: false, error: actor.error };
@@ -54,8 +69,7 @@ export async function collectRunAction(runId: string, lines: RunCollectLine[]) {
     return { success: true, ...result };
   } catch (e: any) {
     const msg = e?.message ?? '';
-    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can collect on this run' };
-    return { success: false, error: msg || 'Collection failed' };
+    return { success: false, error: runError(msg, 'Collection failed') };
   }
 }
 
@@ -68,8 +82,7 @@ export async function closeRunAction(runId: string) {
     return { success: true };
   } catch (e: any) {
     const msg = e?.message ?? '';
-    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can close this run' };
-    return { success: false, error: msg || 'Failed to close run' };
+    return { success: false, error: runError(msg, 'Failed to close run') };
   }
 }
 
@@ -87,8 +100,7 @@ export async function reconcileRunAction(
     return { success: true, variance: Number(run.varianceAmount ?? 0) };
   } catch (e: any) {
     const msg = e?.message ?? '';
-    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can reconcile this run' };
-    return { success: false, error: msg || 'Reconcile failed' };
+    return { success: false, error: runError(msg, 'Reconcile failed') };
   }
 }
 
