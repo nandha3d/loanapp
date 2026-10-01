@@ -72,3 +72,14 @@ export function parseBusinessDayUtc(dateStr?: string | null, fallbackNow: Date =
   return startOfBusinessDayUtc(fallbackNow);
 }
 
+/**
+ * Formats a Date into YYYY-MM-DD representing its calendar date in IST.
+ */
+export function formatBusinessDate(date: Date): string {
+  const ist = new Date(date.getTime() + IST_OFFSET_MS);
+  const yyyy = ist.getUTCFullYear();
+  const mm = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(ist.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+

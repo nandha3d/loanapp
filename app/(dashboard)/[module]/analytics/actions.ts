@@ -1,12 +1,16 @@
 'use server';
 
 import prisma from '@/lib/db';
+import {
+  startOfBusinessToday,
+  startOfBusinessTomorrow,
+  startOfBusinessDayUtc,
+  formatBusinessDate,
+} from '@/lib/businessTime';
 
 // ─── Helpers ────────────────────────────────────────
 function startOfDay(date = new Date()) {
-  const v = new Date(date);
-  v.setHours(0, 0, 0, 0);
-  return v;
+  return startOfBusinessDayUtc(date);
 }
 
 function daysBetween(from: Date, to: Date) {
@@ -15,14 +19,6 @@ function daysBetween(from: Date, to: Date) {
 
 function outstanding(inst: { dueAmount: unknown; receivedAmount: unknown }) {
   return Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
-}
-
-function getLocalDateString(date: Date) {
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 // ─── Types ──────────────────────────────────────────
@@ -84,12 +80,16 @@ export async function getAnalyticsData(
   appType: string,
   branchId?: string | null
 ): Promise<AnalyticsData> {
-  const today = startOfDay();
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-  const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - 6);
-  const prevWeekStart = new Date(today); prevWeekStart.setDate(prevWeekStart.getDate() - 13);
-  const next7 = new Date(today); next7.setDate(next7.getDate() + 8);
-  const next30 = new Date(today); next30.setDate(next30.getDate() + 30);
+  const today = startOfBusinessDayUtc();
+  const tomorrow = new Date(today); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const next7 = new Date(today); next7.setUTCDate(next7.getUTCDate() + 8);
+  const next30 = new Date(today); next30.setUTCDate(next30.getUTCDate() + 30);
+
+  const todaySubmittedStart = startOfBusinessToday();
+  const todaySubmittedEnd = startOfBusinessTomorrow();
+  const weekSubmittedStart = new Date(todaySubmittedStart); weekSubmittedStart.setDate(weekSubmittedStart.getDate() - 6);
+  const prevWeekSubmittedStart = new Date(todaySubmittedStart); prevWeekSubmittedStart.setDate(prevWeekSubmittedStart.getDate() - 13);
 
   const bf = branchId ? { branchId } : {};
   const lw: any = { tenantId, appType, ...bf };
@@ -160,7 +160,7 @@ export async function getAnalyticsData(
     // Previous week collections for WoW comparison
     prisma.collectionEntry.findMany({
       // SCOPE-3: CollectionEntry has no branchId; scope through its required loan.
-      where: { loan: { ...lw }, submittedAt: { gte: prevWeekStart, lt: weekStart } },
+      where: { loan: { ...lw }, submittedAt: { gte: prevWeekSubmittedStart, lt: weekSubmittedStart } },
       select: { receivedAmount: true },
     }),
     // Future 7 days
@@ -182,12 +182,12 @@ export async function getAnalyticsData(
     }),
     // Today's collection entries
     prisma.collectionEntry.findMany({
-      where: { loan: { ...lw }, submittedAt: { gte: today, lt: tomorrow } },
+      where: { loan: { ...lw }, submittedAt: { gte: todaySubmittedStart, lt: todaySubmittedEnd } },
       select: { receivedAmount: true, paymentMode: true, agentId: true, customer: { select: { routeId: true } } },
     }),
     // This week collection entries for agent leaderboard and trend
     prisma.collectionEntry.findMany({
-      where: { loan: { ...lw }, submittedAt: { gte: weekStart, lt: tomorrow } },
+      where: { loan: { ...lw }, submittedAt: { gte: weekSubmittedStart, lt: todaySubmittedEnd } },
       select: { receivedAmount: true, agentId: true, agent: { select: { id: true, name: true } }, submittedAt: true },
     }),
     // Account entries for capital
@@ -320,12 +320,12 @@ export async function getAnalyticsData(
   // 4. Trend 7 days
   const trend7d: TrendDay[] = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    const dk = getLocalDateString(d);
-    const rows = weekInstalments.filter(r => getLocalDateString(r.dueDate) === dk);
-    const cols = weekCollections.filter(c => getLocalDateString(c.submittedAt) === dk);
+    d.setUTCDate(weekStart.getUTCDate() + i);
+    const dk = formatBusinessDate(d);
+    const rows = weekInstalments.filter(r => formatBusinessDate(r.dueDate) === dk);
+    const cols = weekCollections.filter(c => formatBusinessDate(c.submittedAt) === dk);
     return {
-      label: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      label: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }),
       dateKey: dk,
       expected: rows.reduce((s, r) => s + Number(r.dueAmount), 0),
       collected: cols.reduce((s, r) => s + Number(r.receivedAmount), 0),
@@ -374,14 +374,14 @@ export async function getAnalyticsData(
   const cashflowForecast7d: ForecastDay[] = [];
   let cumulative = 0;
   for (let i = 1; i <= 7; i++) {
-    const d = new Date(today); d.setDate(today.getDate() + i);
-    const dk = getLocalDateString(d);
+    const d = new Date(today); d.setUTCDate(today.getUTCDate() + i);
+    const dk = formatBusinessDate(d);
     const dayAmt = future7dInstalments
-      .filter(r => getLocalDateString(r.dueDate) === dk)
+      .filter(r => formatBusinessDate(r.dueDate) === dk)
       .reduce((s, r) => s + Number(r.dueAmount), 0);
     cumulative += dayAmt;
     cashflowForecast7d.push({
-      label: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      label: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }),
       expected: dayAmt,
       cumulative,
     });
