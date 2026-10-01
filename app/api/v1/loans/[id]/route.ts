@@ -191,11 +191,12 @@ export async function GET(
   const payableInsts = countedInsts.filter((i) => i.status !== 'waived');
   const pastDueInsts = payableInsts.filter((i) => new Date(i.dueDate) < today);
   const extendedMissed = extendedSchedule.extendedRows
-    .filter((r) => r.status === 'missed' || r.status === 'partial').length;
-  const missedCount = pastDueInsts.filter((i) => i.status === 'missed' || i.status === 'partial').length
+    .filter((r) => r.status === 'missed').length;
+  const rawMissedCount = pastDueInsts.filter((i) => i.status === 'missed').length
     + extendedMissed;
   const overdueAmount = pastDueInsts.reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
   const totalOutstanding = Math.max(0, Number(loan.totalPayable) - Number(loan.totalCollected));
+  const missedCount = (loan.status === 'closed' || totalOutstanding <= 0) ? 0 : rawMissedCount;
   const metrics = {
     totalOutstanding,
     overdueAmount: Math.min(overdueAmount, totalOutstanding),

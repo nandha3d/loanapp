@@ -460,7 +460,9 @@ export async function getAnalyticsData(
           const outstandingAmt = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
           if (inst.dueDate < today && inst.status !== 'paid') {
             overdueAmount += outstandingAmt;
-            missedCount++;
+            if (inst.status === 'missed') {
+              missedCount++;
+            }
           }
         }
       }
@@ -531,7 +533,7 @@ function computeBorrowerSegments(customers: any[], today: Date): Segment[] {
     if (c.createdAt >= thirtyDaysAgo) { newBorrower++; continue; }
     if (c.loans.length === 0) { reliable++; continue; }
     const totalMissed = c.loans.reduce((s: number, l: any) => {
-      const missedInsts = l.instalments?.filter((inst: any) => inst.status === 'missed' || (inst.dueDate < today && inst.status !== 'paid')) || [];
+      const missedInsts = l.instalments?.filter((inst: any) => inst.status === 'missed') || [];
       return s + missedInsts.length;
     }, 0);
     const totalPrincipal = c.loans.reduce((s: number, l: any) => s + Number(l.principal), 0);

@@ -354,4 +354,34 @@ assert.match(
   'web LoanDetailClient must support server-supplied penaltySummary',
 );
 
-console.log('All mobile parity audit validation tests passed successfully! [10/10]');
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. DEC-02: One "missed" definition (MONEY-25)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('  Testing 11. Missed count contract (DEC-02 / MONEY-25)...');
+
+assert.match(
+  loanDetailRouteSrc,
+  /extendedSchedule\.extendedRows\s*\.filter\(\(r\)\s*=>\s*r\.status\s*===\s*'missed'\)\.length/,
+  'app/api/v1/loans/[id]/route.ts must count only status === "missed" on extended rows',
+);
+assert.match(
+  loanDetailRouteSrc,
+  /pastDueInsts\.filter\(\(i\)\s*=>\s*i\.status\s*===\s*'missed'\)\.length/,
+  'app/api/v1/loans/[id]/route.ts must count only status === "missed" on past due instalments',
+);
+assert.match(
+  loanDetailRouteSrc,
+  /missedCount\s*=\s*\(loan\.status\s*===\s*'closed'\s*\|\|\s*totalOutstanding\s*<=\s*0\)\s*\?\s*0\s*:\s*rawMissedCount/,
+  'app/api/v1/loans/[id]/route.ts must clamp missedCount to 0 for closed or zero-balance loans',
+);
+
+// Unit logic: part-paid instalment must have missedCount = 0
+const sampleInsts = [
+  { status: 'paid', dueAmount: 100, receivedAmount: 100 },
+  { status: 'partial', dueAmount: 100, receivedAmount: 50 },
+  { status: 'upcoming', dueAmount: 100, receivedAmount: 0 },
+];
+const unitMissedCount = sampleInsts.filter((i) => i.status === 'missed').length;
+assert.equal(unitMissedCount, 0, 'part-paid row must not count as a missed day');
+
+console.log('All mobile parity audit validation tests passed successfully! [11/11]');

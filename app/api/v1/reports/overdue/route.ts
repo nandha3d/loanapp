@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
             status: { in: ['missed', 'upcoming', 'partial'] },
             dueDate: { lt: new Date() },
           },
-          select: { id: true, dueDate: true, dueAmount: true, receivedAmount: true },
+          select: { id: true, dueDate: true, dueAmount: true, receivedAmount: true, status: true },
         },
       },
     });
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
           customer: l.customer,
           overdueAmount,
           overdueDays,
-          missedCount: l.instalments.length,
+          missedCount: l.instalments.filter((i) => i.status === 'missed').length,
         };
       })
       .filter((i) => i.overdueAmount > 0)
