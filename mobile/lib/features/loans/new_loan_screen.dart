@@ -256,10 +256,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   }
 
   // Step 2 — principal/terms
-  final _principal = TextEditingController(text: '30000');
+  // LOAN-03: start blank (web has no invented amounts).
+  final _principal = TextEditingController();
   String _deductionType = 'upfront_fixed';
-  final _deduction = TextEditingController(text: '3000');
-  final _tenure = TextEditingController(text: '100');
+  final _deduction = TextEditingController();
+  final _tenure = TextEditingController();
   String _frequency = 'daily';
   DateTime _customEndDate = DateTime.now().add(const Duration(days: 30));
   int? _dueDay; // day-of-month (monthly) / day-of-week (weekly); null for daily
@@ -1452,6 +1453,33 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             });
           },
         ),
+        // LOAN-03: EMI family offers flat / floating / interest-only (gated), as web.
+        if (!_deductionType.startsWith('upfront')) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final opt in [
+                'emi_flat',
+                'emi_floating',
+                if (ref.watch(authControllerProvider).user?.interestOnlyEnabled ?? false)
+                  'interest_only',
+              ])
+                ChoiceChip(
+                  label: Text(tr.x('plan.$opt')),
+                  selected: _deductionType == opt,
+                  onSelected: (_) {
+                    setState(() {
+                      _deductionType = opt;
+                      // Interest-only bills monthly (web parity).
+                      if (opt == 'interest_only') _frequency = 'monthly';
+                    });
+                    _recalc();
+                  },
+                ),
+            ],
+          ),
+        ],
         if (_deductionType.startsWith('upfront')) ...[
           const SizedBox(height: 10),
           Row(
@@ -1506,6 +1534,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           items: [
             DropdownMenuItem(value: 'daily', child: Text(tr.x('plan.daily'))),
             DropdownMenuItem(value: 'weekly', child: Text(tr.x('plan.weekly'))),
+            DropdownMenuItem(value: 'biweekly', child: Text(tr.x('plan.biweekly'))),
             DropdownMenuItem(value: 'monthly', child: Text(tr.x('plan.monthly'))),
             // LOAN-02 (D3): custom shapes grouped under one header, as on web.
             DropdownMenuItem(

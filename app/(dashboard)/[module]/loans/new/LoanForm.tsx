@@ -432,6 +432,9 @@ export default function LoanForm({
       setInterestType('upfront_fixed');
       if (pkg.deduction !== undefined) setInterestRate(pkg.deduction);
       setPrincipal(pkg.principal);
+      // LOAN-03: same as mobile — package penalty applies, due day is re-picked.
+      if (pkg.penaltyRate !== undefined && pkg.penaltyRate !== null) setPenalty(Number(pkg.penaltyRate));
+      setDueDay('');
     }
   };
 

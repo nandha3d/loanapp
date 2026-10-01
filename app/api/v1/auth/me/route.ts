@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
     kycMethod,
     // LOAN-02: mobile shows the Bullet option only when the tenant enabled it.
     bulletTermEnabled: await (await import('@/lib/features')).isBulletTermEnabled(user.tenantId),
+    // LOAN-03: mobile offers Interest-Only only when the tenant enabled it.
+    interestOnlyEnabled: await (await import('@/lib/features')).isInterestOnlyEnabled(user.tenantId),
     // CUST-07: country code for wa.me links (setting phone_country_code, default 91).
     phoneCountryCode: await getSetting(user.tenantId, 'phone_country_code', '91'),
     bureauEnabled: Boolean(subscription?.bureauEnabled),

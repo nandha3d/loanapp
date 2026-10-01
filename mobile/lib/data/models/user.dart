@@ -105,6 +105,7 @@ class User {
     this.foreclosureEnabled = false,
     this.bypassLoanApproval = true,
     this.bulletTermEnabled = false,
+    this.interestOnlyEnabled = false,
     this.verticals = const [],
   });
 
@@ -121,6 +122,7 @@ class User {
   final bool bypassLoanApproval;
   /// Tenant offers Bullet loans (feature flag bullet_term_enabled, LOAN-02).
   final bool bulletTermEnabled;
+  final bool interestOnlyEnabled;
 
   /// Server-driven module visibility list (spec §5).
   final List<String> enabledModules;
@@ -208,6 +210,7 @@ class User {
     bool? foreclosureEnabled,
     bool? bypassLoanApproval,
     bool? bulletTermEnabled,
+    bool? interestOnlyEnabled,
     List<String>? verticals,
   }) {
     return User(
@@ -238,6 +241,7 @@ class User {
       foreclosureEnabled: foreclosureEnabled ?? this.foreclosureEnabled,
       bypassLoanApproval: bypassLoanApproval ?? this.bypassLoanApproval,
       bulletTermEnabled: bulletTermEnabled ?? this.bulletTermEnabled,
+      interestOnlyEnabled: interestOnlyEnabled ?? this.interestOnlyEnabled,
     );
   }
 
@@ -274,6 +278,7 @@ class User {
       whatsappSmsEnabled: (json['whatsappSmsEnabled'] as bool?) ?? false,
       foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
       bulletTermEnabled: json['bulletTermEnabled'] == true,
+      interestOnlyEnabled: json['interestOnlyEnabled'] == true,
       bypassLoanApproval: (json['bypassLoanApproval'] as bool?) ??
           (json['role'] != 'agent'),
     );
@@ -302,6 +307,7 @@ class User {
         'bureauEnabled': bureauEnabled,
         'bypassLoanApproval': bypassLoanApproval,
         'bulletTermEnabled': bulletTermEnabled,
+        'interestOnlyEnabled': interestOnlyEnabled,
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,
         'foreclosureEnabled': foreclosureEnabled,

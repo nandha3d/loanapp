@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +31,55 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
   );
   late final _voucherRef = TextEditingController(text: widget.loan.voucherRef ?? '');
   late final _collateralDetails = TextEditingController(text: widget.loan.collateralDetails ?? '');
+  late final Map<String, TextEditingController> _col = () {
+    Map<String, dynamic> parsed = const {};
+    try {
+      final d = jsonDecode(widget.loan.collateralDetails ?? '');
+      if (d is Map<String, dynamic>) parsed = d;
+    } catch (_) {}
+    return {
+      for (final k in const ['bankName', 'chequeNumber', 'chequeAmount', 'grams', 'carat', 'items', 'type', 'value', 'address'])
+        k: TextEditingController(text: '${parsed[k] ?? ''}'),
+    };
+  }();
+  List<String> get _collateralKeys => switch (_loanType) {
+        'gold' => const ['grams', 'carat', 'items'],
+        'property' => const ['type', 'value', 'address'],
+        'other' => const [],
+        _ => const ['bankName', 'chequeNumber', 'chequeAmount'],
+      };
+  String _collateralJson() {
+    final storedRaw = widget.loan.collateralDetails ?? '';
+    if (_collateralKeys.isEmpty) return _collateralDetails.text.trim();
+    Map<String, dynamic> stored = const {};
+    try {
+      final d = jsonDecode(storedRaw);
+      if (d is Map<String, dynamic>) stored = d;
+    } catch (_) {}
+    // Start from what is stored (keeps keys this form does not edit), then
+    // apply the visible fields; an emptied field removes its key.
+    final m = Map<String, dynamic>.of(stored);
+    var changed = false;
+    for (final k in _collateralKeys) {
+      final text = _col[k]!.text.trim();
+      final Object? next = text.isEmpty
+          ? null
+          : (const {'chequeAmount', 'grams', 'value'}.contains(k)
+              ? (num.tryParse(text) ?? text)
+              : text);
+      if ('${stored[k] ?? ''}' == '${next ?? ''}') continue;
+      changed = true;
+      if (next == null) {
+        m.remove(k);
+      } else {
+        m[k] = next;
+      }
+    }
+    // Untouched form → the stored string, so no collateral change is filed.
+    if (!changed) return storedRaw;
+    return m.isEmpty ? '' : jsonEncode(m);
+  }
+
   static const _weekdays = [
     'Sunday',
     'Monday',
@@ -106,7 +157,7 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
         changes['loanType'] = _loanType;
       }
 
-      final newCollateral = _collateralDetails.text.trim();
+      final newCollateral = _collateralJson();
       if (newCollateral != (widget.loan.collateralDetails ?? '')) {
         changes['collateralDetails'] = newCollateral;
       }
@@ -214,14 +265,25 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
             const SizedBox(height: 12),
             Text(t.x('fld.frequency'), style: AppTypography.label),
             const SizedBox(height: 6),
-            SegmentedButton<String>(
-              segments: [
-                ButtonSegment(value: 'daily', label: Text(t.x('plan.daily'))),
-                ButtonSegment(value: 'weekly', label: Text(t.x('plan.weekly'))),
-                ButtonSegment(value: 'monthly', label: Text(t.x('plan.monthly'))),
+            // LOAN-03: every frequency (a biweekly / single-payment loan no
+            // longer breaks the selector).
+            DropdownButtonFormField<String>(
+              initialValue: _frequency,
+              isExpanded: true,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
+                isDense: true,
+              ),
+              items: [
+                for (final f in {
+                  'daily', 'weekly', 'biweekly', 'monthly',
+                  'single_payment', 'custom_duration', widget.loan.frequency,
+                })
+                  DropdownMenuItem(value: f, child: Text(t.x('plan.$f'))),
               ],
-              selected: {_frequency},
-              onSelectionChanged: (s) => setState(() => _frequency = s.first),
+              onChanged: (v) => setState(() => _frequency = v ?? _frequency),
             ),
             const SizedBox(height: 12),
             Text(t.x('loan.lbl_start_date'), style: AppTypography.label),
@@ -310,11 +372,24 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            AppTextField(
-              label: t.x('loan.fld_collateral'),
-              controller: _collateralDetails,
-              maxLines: 2,
-            ),
+            // LOAN-03: structured collateral fields, same keys as the web form.
+            if (_collateralKeys.isEmpty)
+              AppTextField(
+                label: t.x('loan.fld_collateral'),
+                controller: _collateralDetails,
+                maxLines: 2,
+              )
+            else
+              for (final k in _collateralKeys) ...[
+                AppTextField(
+                  label: t.x('col.$k'),
+                  controller: _col[k]!,
+                  keyboardType: const {'chequeAmount', 'grams', 'value'}.contains(k)
+                      ? TextInputType.number
+                      : TextInputType.text,
+                ),
+                const SizedBox(height: 8),
+              ],
 
             const SizedBox(height: 24),
             Text('Approval Request', style: AppTypography.sectionTitle),
