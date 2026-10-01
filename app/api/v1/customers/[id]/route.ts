@@ -222,9 +222,10 @@ export async function PATCH(
         create: gs,
       };
     }
-    if (Array.isArray(body.kycDocs)) {
+    if (Array.isArray(body.kycDocs) && body.kycDocs.length > 0) {
+      // MON-09: append-only — no deleteMany. Web used to send kycDocs: []
+      // which wiped all documents on every edit.
       data.kycDocuments = {
-        deleteMany: {},
         create: body.kycDocs.map((d: any) => ({
           docType: d.type || 'other',
           filePath: d.url,
