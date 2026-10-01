@@ -641,15 +641,15 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   double _netDisbursed() => _calc?.disbursedAmount ?? 0;
 
   static const _weekdays = [
+    'Sunday',
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
     'Saturday',
-    'Sunday',
   ];
-  String _weekdayLabel(int d) => _weekdays[(d - 1).clamp(0, 6)];
+  String _weekdayLabel(int d) => _weekdays[d.clamp(0, 6)];
 
   Future<void> _recalc() async {
     final isSingle = _frequency == 'single_payment';
@@ -905,6 +905,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       case 0:
         return _customer == null ? null : () => _go(1);
       case 1:
+        if ((_frequency == 'weekly' || _frequency == 'biweekly' || _frequency == 'monthly') && _dueDay == null) {
+          return null;
+        }
         return () => _go(2);
       case 2:
         return _principalNum <= 0 || _tenureNum <= 0
@@ -1518,12 +1521,12 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             _recalc();
           },
         ),
-        if (_frequency == 'weekly' || _frequency == 'monthly') ...[
+        if (_frequency == 'weekly' || _frequency == 'biweekly' || _frequency == 'monthly') ...[
           const SizedBox(height: 12),
-          Text(tr.x('fld.due_day'), style: AppTypography.label),
+          Text('${tr.x('fld.due_day')} *', style: AppTypography.label),
           const SizedBox(height: 6),
           DropdownButtonFormField<int>(
-            key: ValueKey(_dueDay),
+            key: ValueKey('${_frequency}_$_dueDay'),
             initialValue: _dueDay,
             isExpanded: true,
             decoration: InputDecoration(
@@ -1533,16 +1536,16 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 borderRadius: BorderRadius.circular(AppTokens.radiusSm),
               ),
             ),
-            items: _frequency == 'weekly'
+            items: (_frequency == 'weekly' || _frequency == 'biweekly')
                 ? [
-                    for (var d = 1; d <= 7; d++)
+                    for (var d = 0; d <= 6; d++)
                       DropdownMenuItem(
                         value: d,
                         child: Text(_weekdayLabel(d)),
                       ),
                   ]
                 : [
-                    for (var d = 1; d <= 31; d++)
+                    for (var d = 1; d <= 28; d++)
                       DropdownMenuItem(value: d, child: Text('$d')),
                   ],
             onChanged: (v) {

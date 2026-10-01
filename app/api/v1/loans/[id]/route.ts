@@ -343,6 +343,23 @@ export async function PATCH(
     }
   }
 
+  const effectiveFrequency = String(proposed.frequency ?? loan.frequency);
+  const effectiveDueDay = proposed.dueDay !== undefined ? proposed.dueDay : (body.dueDay !== undefined ? body.dueDay : undefined);
+  if (effectiveDueDay !== undefined && effectiveDueDay !== null) {
+    const dueDayNum = Number(effectiveDueDay);
+    if (effectiveFrequency === 'weekly' || effectiveFrequency === 'biweekly') {
+      if (!Number.isInteger(dueDayNum) || dueDayNum < 0 || dueDayNum > 6) {
+        return fail('dueDay must be an integer between 0 and 6 for weekly/biweekly loans', 400);
+      }
+    } else if (effectiveFrequency === 'monthly') {
+      if (!Number.isInteger(dueDayNum) || dueDayNum < 1 || dueDayNum > 28) {
+        return fail('dueDay must be an integer between 1 and 28 for monthly loans', 400);
+      }
+    }
+  } else if ((effectiveFrequency === 'weekly' || effectiveFrequency === 'biweekly' || effectiveFrequency === 'monthly') && proposed.frequency !== undefined && effectiveDueDay === null) {
+    return fail(`dueDay is required for ${effectiveFrequency} loans`, 400);
+  }
+
   if (Object.keys(proposed).length === 0) return fail('No changes detected', 400);
 
   await prisma.approvalRequest.create({

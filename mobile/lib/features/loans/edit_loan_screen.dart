@@ -29,9 +29,16 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
   );
   late final _voucherRef = TextEditingController(text: widget.loan.voucherRef ?? '');
   late final _collateralDetails = TextEditingController(text: widget.loan.collateralDetails ?? '');
-  late final _dueDay = TextEditingController(
-    text: widget.loan.dueDay == null ? '' : widget.loan.dueDay.toString(),
-  );
+  static const _weekdays = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  late int? _dueDay = widget.loan.dueDay;
   late String _loanType = widget.loan.loanType ?? 'cheque';
 
   // Core fields
@@ -51,7 +58,6 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
     _penaltyRate.dispose();
     _voucherRef.dispose();
     _collateralDetails.dispose();
-    _dueDay.dispose();
     _principal.dispose();
     _tenure.dispose();
     _reason.dispose();
@@ -105,10 +111,20 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
         changes['collateralDetails'] = newCollateral;
       }
 
-      final newDueDayText = _dueDay.text.trim();
-      final newDueDay = newDueDayText.isEmpty ? null : int.tryParse(newDueDayText);
-      if (newDueDay != widget.loan.dueDay) {
-        changes['dueDay'] = newDueDay;
+      if (_frequency == 'weekly' || _frequency == 'biweekly') {
+        if (_dueDay == null || _dueDay! < 0 || _dueDay! > 6) {
+          setState(() => _error = 'Due day (Sun–Sat) is required for ${_frequency} loans');
+          return;
+        }
+      } else if (_frequency == 'monthly') {
+        if (_dueDay == null || _dueDay! < 1 || _dueDay! > 28) {
+          setState(() => _error = 'Due day (1–28) is required for monthly loans');
+          return;
+        }
+      }
+
+      if (_dueDay != widget.loan.dueDay) {
+        changes['dueDay'] = _dueDay;
       }
 
       // Core diff
@@ -263,12 +279,36 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
               ],
               onChanged: (v) => setState(() => _loanType = v ?? 'cheque'),
             ),
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Due Day (Optional)',
-              controller: _dueDay,
-              keyboardType: TextInputType.number,
-            ),
+            if (_frequency == 'weekly' || _frequency == 'biweekly' || _frequency == 'monthly') ...[
+              const SizedBox(height: 12),
+              Text('${t.x('fld.due_day')} *', style: AppTypography.label),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<int>(
+                key: ValueKey('dueDay_${_frequency}_$_dueDay'),
+                initialValue: _dueDay,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                  isDense: true,
+                  hintText: t.x('fld.due_day_hint'),
+                ),
+                items: (_frequency == 'weekly' || _frequency == 'biweekly')
+                    ? [
+                        for (var d = 0; d <= 6; d++)
+                          DropdownMenuItem(
+                            value: d,
+                            child: Text(_weekdays[d.clamp(0, 6)]),
+                          ),
+                      ]
+                    : [
+                        for (var d = 1; d <= 28; d++)
+                          DropdownMenuItem(value: d, child: Text('$d')),
+                      ],
+                onChanged: (v) => setState(() => _dueDay = v),
+              ),
+            ],
             const SizedBox(height: 12),
             AppTextField(
               label: t.x('loan.fld_collateral'),

@@ -251,6 +251,16 @@ export async function POST(req: NextRequest) {
     });
     if (!numeric.valid) return fail(numeric.error, 400);
 
+    if (frequency === 'weekly' || frequency === 'biweekly') {
+      if (dueDay == null || !Number.isInteger(dueDay) || dueDay < 0 || dueDay > 6) {
+        return fail('dueDay must be an integer between 0 and 6 for weekly/biweekly loans', 400);
+      }
+    } else if (frequency === 'monthly') {
+      if (dueDay == null || !Number.isInteger(dueDay) || dueDay < 1 || dueDay > 28) {
+        return fail('dueDay must be an integer between 1 and 28 for monthly loans', 400);
+      }
+    }
+
     // Interest-Only is opt-in per tenant. Enforced here and not only in the UI —
     // the form is one of several ways into this route (mobile, API clients).
     if (isInterestOnly(deductionType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
