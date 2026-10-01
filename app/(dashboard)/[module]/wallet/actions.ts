@@ -7,7 +7,9 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch } from '@/lib/wallet';
 import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
+import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
+import { getActiveBranchId } from '@/lib/branch';
 
 async function requirePrivileged() {
   const session = await auth();
@@ -18,7 +20,8 @@ async function requirePrivileged() {
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  return { role, userId, tenantId, appType };
+  const branchId = await getActiveBranchId();
+  return { role, userId, tenantId, appType, branchId };
 }
 
 async function requireAgent() {
@@ -32,7 +35,7 @@ async function requireAgent() {
 }
 
 export async function releaseFundsAction(formData: FormData) {
-  const { userId, tenantId, appType } = await requirePrivileged();
+  const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
@@ -42,7 +45,14 @@ export async function releaseFundsAction(formData: FormData) {
   if (!agentId || !(amount > 0)) throw new Error('agentId and a positive amount are required');
 
   const agent = await prisma.user.findFirst({
-    where: { id: agentId, tenantId, role: 'agent' },
+    where: {
+      id: agentId,
+      tenantId,
+      role: 'agent',
+      status: 'active',
+      appType,
+      ...(branchId ? { branchId } : {}),
+    },
     select: { id: true, branchId: true },
   });
   if (!agent) throw new Error('Agent not found');
@@ -126,14 +136,19 @@ export async function releaseFundsAction(formData: FormData) {
 }
 
 export async function injectBranchAction(formData: FormData) {
-  const { userId, tenantId, appType } = await requirePrivileged();
+  const { userId, tenantId, appType, branchId: activeBranchId } = await requirePrivileged();
   const branchId = String(formData.get('branchId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
   if (!branchId || !(amount > 0)) throw new Error('branchId and a positive amount are required');
 
   const branch = await prisma.branch.findFirst({
-    where: { id: branchId, tenantId },
+    where: {
+      id: branchId,
+      tenantId,
+      status: 'active',
+      ...(activeBranchId ? { id: activeBranchId } : {}),
+    },
     select: { id: true },
   });
   if (!branch) throw new Error('Branch not found');
@@ -190,12 +205,20 @@ export async function requestFloatHandoverAction(formData: FormData) {
 /** Admin collects/settles a pending handover: debits the agent float, credits
  *  the branch pool, marks the handover confirmed. */
 export async function collectHandoverAction(formData: FormData) {
-  const { userId, tenantId, appType } = await requirePrivileged();
+  const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
 
   const ho = await prisma.cashHandover.findFirst({
-    where: { id: handoverId, tenantId, status: 'pending' },
+    where: {
+      id: handoverId,
+      tenantId,
+      status: 'pending',
+      agent: {
+        appType,
+        ...(branchId ? { branchId } : {}),
+      },
+    },
     include: { agent: { select: { id: true, branchId: true } } },
   });
   if (!ho) throw new Error('Handover not found or already settled');
@@ -227,12 +250,26 @@ export async function collectHandoverAction(formData: FormData) {
 
 /** Admin rejects a pending handover request (no cash movement). */
 export async function rejectHandoverAction(formData: FormData) {
-  const { userId, tenantId, appType } = await requirePrivileged();
+  const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
 
+  const ho = await prisma.cashHandover.findFirst({
+    where: {
+      id: handoverId,
+      tenantId,
+      status: 'pending',
+      agent: {
+        appType,
+        ...(branchId ? { branchId } : {}),
+      },
+    },
+    select: { id: true },
+  });
+  if (!ho) throw new Error('Handover not found or already settled');
+
   const updated = await prisma.cashHandover.updateMany({
-    where: { id: handoverId, tenantId, status: 'pending' },
+    where: { id: ho.id, tenantId, status: 'pending' },
     data: { status: 'rejected', adminId: userId, confirmedAt: new Date() },
   });
   if (updated.count === 0) throw new Error('Handover not found or already settled');
@@ -243,14 +280,21 @@ export async function rejectHandoverAction(formData: FormData) {
 /** Admin-initiated direct collection from an agent (no prior request), e.g. the
  *  agent hands cash over in person. Settles immediately and records it. */
 export async function collectFromAgentAction(formData: FormData) {
-  const { userId, tenantId, appType } = await requirePrivileged();
+  const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
   if (!agentId || !(amount > 0)) throw new Error('agentId and a positive amount are required');
 
   const agent = await prisma.user.findFirst({
-    where: { id: agentId, tenantId, role: 'agent' },
+    where: {
+      id: agentId,
+      tenantId,
+      role: 'agent',
+      status: 'active',
+      appType,
+      ...(branchId ? { branchId } : {}),
+    },
     select: { id: true, branchId: true },
   });
   if (!agent) throw new Error('Agent not found');

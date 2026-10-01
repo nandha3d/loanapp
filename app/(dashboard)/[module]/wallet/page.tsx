@@ -128,7 +128,10 @@ export default async function WalletPage() {
     where: {
       tenantId,
       status: 'pending',
-      ...(branchScope ? { agent: { branchId: branchScope } } : {}),
+      agent: {
+        appType,
+        ...(branchScope ? { branchId: branchScope } : {}),
+      },
     },
     orderBy: { requestedAt: 'asc' },
     include: { agent: { select: { name: true } } },
