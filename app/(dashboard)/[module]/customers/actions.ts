@@ -107,23 +107,6 @@ export async function saveCustomer(formData: FormData) {
       g++;
     }
 
-    // Process cheques
-    const securityCheques = [];
-    let i = 0;
-    while (formData.has(`bankName_${i}`)) {
-      const bankName = formData.get(`bankName_${i}`) as string;
-      const chequeNumber = formData.get(`chequeNumber_${i}`) as string;
-      const file = formData.get(`chequeImage_${i}`) as File | null;
-      let imageUrl = null;
-      if (file && file.size > 0) {
-        imageUrl = await uploadFileHelper(file, apiContext);
-      }
-      if (bankName && chequeNumber) {
-        securityCheques.push({ bankName, chequeNumber, imageUrl });
-      }
-      i++;
-    }
-
     // Process collection points
     const collectionPointsRaw = formData.get('collectionPoints') as string;
     const collectionPoints = collectionPointsRaw ? JSON.parse(collectionPointsRaw) : [];
@@ -157,7 +140,6 @@ export async function saveCustomer(formData: FormData) {
       companyLogo: companyLogoUrl || undefined,
       kycDocs,
       guarantors,
-      securityCheques,
       collectionPoints
     };
 

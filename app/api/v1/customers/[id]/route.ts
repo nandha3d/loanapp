@@ -234,7 +234,7 @@ export async function PATCH(
       };
     }
 
-    if (Array.isArray(body.securityCheques)) {
+    if (Array.isArray(body.securityCheques) && body.securityCheques.length > 0) {
       data.securityCheques = {
         deleteMany: {},
         create: body.securityCheques
