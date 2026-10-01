@@ -2,17 +2,12 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { PENDING_KYC_STATUSES } from '@/lib/kyc';
 
 /**
  * GET /api/v1/kyc/queue — customers awaiting KYC review (admin only).
  * Returns those whose KYC isn't yet verified/rejected, with a document count.
  */
-const PENDING_KYC_STATUSES = [
-  'pending',
-  'otp_initiated',
-  'video_submitted',
-  'video_under_review',
-] as const;
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);

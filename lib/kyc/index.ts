@@ -37,9 +37,17 @@ async function assertScopedCustomer(actor: KycActor, customerId: string) {
   return customer;
 }
 
-// ── Helper: Gating Check ──────────────────────────────────────────────────────
+// ── Helper: Gating Check & Pending Statuses ───────────────────────────────────
 
-async function assertKycSubscription(tenantId: string) {
+export const PENDING_KYC_STATUSES = [
+  'video_under_review',
+  'video_submitted',
+  'otp_initiated',
+] as const;
+
+export type PendingKycStatus = (typeof PENDING_KYC_STATUSES)[number];
+
+export async function assertKycSubscription(tenantId: string) {
   const sub = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
     select: { kycEnabled: true },

@@ -375,6 +375,7 @@ export async function createCustomerFixture(
     status?: string;
     phoneOffset: number;
     appType?: string;
+    kycStatus?: string;
   },
 ) {
   const prisma = getPrisma();
@@ -390,7 +391,7 @@ export async function createCustomerFixture(
     address: `${scenario.runId} Address ${input.key}`,
     status: input.status ?? 'active',
     appType: input.appType ?? APP_TYPE,
-    kycStatus: 'pending',
+    kycStatus: input.kycStatus ?? 'pending',
     pan: `${scenario.runId}-${input.key}-PAN`.toUpperCase().slice(0, 20),
   };
 

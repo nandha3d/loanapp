@@ -7,6 +7,7 @@ import { modulePath } from '@/types/modules';
 import KycReviewClient from './KycReviewClient';
 import { getActiveBranchId } from '@/lib/branch';
 import { branchScopeWhere } from '@/lib/branchScope';
+import { PENDING_KYC_STATUSES } from '@/lib/kyc';
 
 export default async function KycReviewPage({
   params,
@@ -47,7 +48,7 @@ export default async function KycReviewPage({
       appType,
       ...branchScopeWhere(activeBranchId),
       kycStatus: {
-        in: ['video_under_review', 'video_submitted', 'otp_initiated']
+        in: [...PENDING_KYC_STATUSES]
       }
     },
     include: {

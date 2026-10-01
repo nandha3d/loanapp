@@ -170,7 +170,11 @@ test('CUST-005 duplicate phone is blocked without creating a second customer', a
 });
 
 test('CUST-009/CUST-010 KYC queue, review, and invalid upload validation use actual routes', async () => {
-  const customer = await createCustomerFixture(scenario, { key: 'kyc-review', phoneOffset: 206 });
+  const customer = await createCustomerFixture(scenario, {
+    key: 'kyc-review',
+    phoneOffset: 206,
+    kycStatus: 'video_submitted',
+  });
 
   const queue = await routeRequest<Envelope<any[]>>({
     importPath: routes.kycQueue,
@@ -196,6 +200,19 @@ test('CUST-009/CUST-010 KYC queue, review, and invalid upload validation use act
     body: { decision: 'verified' },
   });
   assert.equal(expectOk(review, 'kyc review').kycStatus, 'verified');
+
+  const reReview = await routeRequest<Envelope<{ id: string; kycStatus: string }>>({
+    importPath: routes.kycReview,
+    method: 'POST',
+    path: `/api/v1/kyc/${customer.id}/review`,
+    token: adminToken,
+    tenantSlug: scenario.tenantA.slug,
+    branchId: scenario.branchA1.id,
+    appType: APP_TYPE,
+    params: { customerId: customer.id },
+    body: { decision: 'verified' },
+  });
+  expectError(reReview, [409], 'cannot review non-pending kyc');
 
   const previousTrustProxy = process.env.TRUST_PROXY;
   process.env.TRUST_PROXY = 'true';

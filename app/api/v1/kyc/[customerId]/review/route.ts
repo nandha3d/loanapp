@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { assertKycSubscription, PENDING_KYC_STATUSES } from '@/lib/kyc';
 
 /**
  * POST /api/v1/kyc/[customerId]/review — verify or reject a customer's KYC
@@ -21,6 +22,12 @@ export async function POST(
   const { customerId } = await params;
 
   try {
+    try {
+      await assertKycSubscription(ctx.tenantId);
+    } catch (subErr: any) {
+      return fail(subErr?.message || 'KYC Verification module is not enabled for your subscription.', 403);
+    }
+
     const body = (await req.json()) as { decision?: string; reason?: string };
     const decision = String(body.decision || '');
     if (decision !== 'verified' && decision !== 'rejected') {
@@ -38,9 +45,13 @@ export async function POST(
         appType: ctx.appType,
         ...scopedBranchWhere(ctx),
       },
-      select: { id: true },
+      select: { id: true, kycStatus: true },
     });
     if (!customer) return fail('Customer not found', 404);
+
+    if (!PENDING_KYC_STATUSES.includes(customer.kycStatus as any)) {
+      return fail(`Customer KYC status '${customer.kycStatus}' cannot be reviewed`, 409);
+    }
 
     const updated = await prisma.customer.update({
       where: { id: customerId },
