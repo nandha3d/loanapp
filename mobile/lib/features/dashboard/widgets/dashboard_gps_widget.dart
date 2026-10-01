@@ -1602,7 +1602,7 @@ void _showPinSheet(
                             scopeRows: pin.customerRows,
                           ),
                         );
-                        ref.invalidate(collectionTodayProvider);
+                        ref.invalidate(collectionDashboardProvider);
                         ref.invalidate(mapPinsProvider);
                       },
                     ),

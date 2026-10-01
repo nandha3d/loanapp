@@ -631,7 +631,7 @@ class _AuthListenable extends ChangeNotifier {
           _ref.invalidate(dashboardSummaryProvider);
           _ref.invalidate(customerListProvider);
           _ref.invalidate(loansProvider);
-          _ref.invalidate(collectionTodayProvider);
+          _ref.invalidate(collectionDashboardProvider);
         }
         notifyListeners();
       },

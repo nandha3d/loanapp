@@ -335,7 +335,7 @@ class _AgentCustomerMapScreenState extends ConsumerState<AgentCustomerMapScreen>
           scopeRows: pin.allRows,
         ),
       ).then((_) {
-        ref.invalidate(collectionTodayProvider);
+        ref.invalidate(collectionDashboardProvider);
         ref.invalidate(agentCustomerPinsProvider);
       });
     } else {
@@ -397,7 +397,7 @@ class _AgentCustomerMapScreenState extends ConsumerState<AgentCustomerMapScreen>
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
             onPressed: () {
-              ref.invalidate(collectionTodayProvider);
+              ref.invalidate(collectionDashboardProvider);
               ref.invalidate(agentCustomerPinsProvider);
               _fetchAgentLocation();
             },

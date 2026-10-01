@@ -21,6 +21,7 @@ import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/features/collection/collection_screen.dart'
     show
         collectionTodayProvider,
+        collectionDashboardProvider,
         refreshCollectionViews,
         cachedCollectionTodayFor;
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
@@ -1532,7 +1533,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: () => ref.invalidate(collectionTodayProvider),
+                    onPressed: () => ref.invalidate(collectionDashboardProvider),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,

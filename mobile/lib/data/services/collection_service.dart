@@ -9,14 +9,18 @@ class CollectionService {
   CollectionService(this._dio);
   final Dio _dio;
 
-  Future<List<CollectionRow>> today() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.collectionToday);
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .map((dynamic e) => CollectionRow.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false);
-    });
+  /// Today's + overdue worklist with server totals — same endpoint as web
+  /// Collection Entry (COL-01).
+  Future<CollectionDashboard> dashboard() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.collectionDashboard);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => CollectionDashboard.fromJson(d as Map<String, dynamic>),
+    );
   }
+
+  Future<List<CollectionRow>> today() async => (await dashboard()).rows;
 
   Future<List<SelfPayQueueItem>> selfPayQueue() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.selfPayQueue);

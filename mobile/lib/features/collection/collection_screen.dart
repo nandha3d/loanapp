@@ -50,41 +50,53 @@ List<CollectionRow>? cachedCollectionTodayFor(String? scopeKey) {
 List<CollectionRow>? get cachedCollectionToday => null;
 
 void clearCollectionTodayCache() {
+  _cachedCollectionDashboard = null;
   _cachedCollectionToday = null;
   _cachedCollectionScopeKey = null;
 }
 
-final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) async {
+CollectionDashboard? _cachedCollectionDashboard;
+
+/// GET /collection/dashboard — rows plus the server's worklist totals (COL-01).
+/// Invalidate this one to refresh; [collectionTodayProvider] follows it.
+final collectionDashboardProvider =
+    FutureProvider<CollectionDashboard>((ref) async {
   final user = ref.watch(authControllerProvider).user;
   final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+  void remember(CollectionDashboard dash) {
+    _cachedCollectionDashboard = dash;
+    _cachedCollectionToday = dash.rows;
+    if (scopeKey != null) _cachedCollectionScopeKey = scopeKey;
+  }
+
   try {
-    final rows = await ref.watch(collectionServiceProvider).today();
-    if (scopeKey != null) {
-      _cachedCollectionScopeKey = scopeKey;
-      _cachedCollectionToday = rows;
-    }
-    return rows;
+    final dash = await ref.watch(collectionServiceProvider).dashboard();
+    remember(dash);
+    return dash;
   } catch (e) {
+    final cached = _cachedCollectionDashboard;
     if (scopeKey != null &&
         _cachedCollectionScopeKey == scopeKey &&
-        _cachedCollectionToday != null &&
-        _cachedCollectionToday!.isNotEmpty) {
-      return _cachedCollectionToday!;
+        cached != null &&
+        cached.rows.isNotEmpty) {
+      return cached;
     }
     // Retry once after a brief delay if initial fetch fails on startup
     try {
       await Future<void>.delayed(const Duration(milliseconds: 700));
-      final rows = await ref.watch(collectionServiceProvider).today();
-      _cachedCollectionToday = rows;
-      return rows;
+      final dash = await ref.watch(collectionServiceProvider).dashboard();
+      remember(dash);
+      return dash;
     } catch (_) {
-      if (_cachedCollectionToday != null && _cachedCollectionToday!.isNotEmpty) {
-        return _cachedCollectionToday!;
-      }
+      if (cached != null && cached.rows.isNotEmpty) return cached;
       rethrow;
     }
   }
 });
+
+final collectionTodayProvider = FutureProvider<List<CollectionRow>>(
+  (ref) async => (await ref.watch(collectionDashboardProvider.future)).rows,
+);
 
 final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {
   // Refetch on module/branch switch — each emits a new auth state.
@@ -120,7 +132,7 @@ final _allGeoCustomersProvider =
 final _filterProvider = StateProvider.autoDispose<String>((_) => 'pending');
 
 void refreshCollectionViews(WidgetRef ref) {
-  ref.invalidate(collectionTodayProvider);
+  ref.invalidate(collectionDashboardProvider);
   ref.invalidate(dashboardSummaryProvider);
 }
 
@@ -262,7 +274,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(collectionTodayProvider);
+    final async = ref.watch(collectionDashboardProvider);
     final sync = ref.watch(collectionSyncProvider);
     final filter = ref.watch(_filterProvider);
     final t = T.of(ref);
@@ -461,7 +473,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: _CadencePills(
                 current: _cadence,
-                rows: async.valueOrNull!,
+                rows: async.valueOrNull!.rows,
                 onTap: (value) => setState(() => _cadence = value),
                 t: t,
               ),
@@ -480,7 +492,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                 title: t.x('err.could_not_load'),
                 subtitle: e.toString(),
               ),
-              data: (rows) {
+              data: (dash) {
+                final rows = dash.rows;
                 if (rows.isEmpty) {
                   return EmptyState(
                     icon: Icons.calendar_today_outlined,
@@ -493,24 +506,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                 final allGroups =
                     _groupCollectionRows(cadenceRows, byLoan: isMicrolending);
                 final filteredGroups = _applyGroupFilter(allGroups, filter);
-                final todaysRows =
-                    cadenceRows.where((r) => r.isTodayBucket).toList();
-                final overdueRows =
-                    cadenceRows.where((r) => r.isOverdueBucket).toList();
-                final totalDue =
-                    todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
-                final totalCollected = todaysRows.fold<double>(
-                  0,
-                  (s, r) => s + math.min(r.receivedAmount, r.dueAmount),
-                );
-                final pendingCount =
-                    todaysRows.where((r) => !r.isResolved).length;
-                final overdueOutstanding = overdueRows.fold<double>(
-                  0,
-                  (s, r) => s + r.overdueOutstanding,
-                );
-                final overdueCount =
-                    overdueRows.where((r) => !r.isResolved).length;
+                // Header = server worklist totals, same as web (COL-01).
+                final summary = dash.summary;
 
                 // ── Map view ────────────────────────────────────────────────────────
                 if (_showMap) {
@@ -531,18 +528,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                   color: AppColors.primary,
                   onRefresh: () async {
                     refreshCollectionViews(ref);
-                    ref.invalidate(collectionTodayProvider);
+                    ref.invalidate(collectionDashboardProvider);
                     await ref.read(collectionTodayProvider.future);
                   },
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                     children: [
                       _CollectionSummaryHeader(
-                        totalDue: totalDue,
-                        totalCollected: totalCollected,
-                        pendingCount: pendingCount,
-                        overdueOutstanding: overdueOutstanding,
-                        overdueCount: overdueCount,
+                        totalDue: summary.todayExpected,
+                        totalCollected: summary.todayCollected,
+                        pendingCount: summary.todayPendingCount,
+                        overdueOutstanding: summary.overdueOutstanding,
+                        overdueCount: summary.overduePendingCount,
                         fmt: fmt,
                         t: t,
                         responsive: isMicrolending,
@@ -584,7 +581,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                         ).entries.expand(
                               (e) => [
                                 _RouteHeader(
-                                    routeName: e.key, count: e.value.length,),
+                                  routeName: e.key,
+                                  count: e.value.length,
+                                  summary: dash.summaryByRoute[
+                                      e.value.first.primary.routeId ?? ''],
+                                  fmt: fmt,
+                                ),
                                 const SizedBox(height: 8),
                                 for (final g in e.value) ...[
                                   _CollectionCard(
@@ -1150,7 +1152,7 @@ class _CollectionMap extends ConsumerWidget {
                         fmt: fmt,
                         t: t,
                         onCollectDone: () =>
-                            ref.invalidate(collectionTodayProvider),
+                            ref.invalidate(collectionDashboardProvider),
                       ),
                       child: CustomerPhotoMapPin(pin: pin),
                     ),
@@ -1734,9 +1736,17 @@ class _Pill extends StatelessWidget {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Route header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RouteHeader extends StatelessWidget {
-  const _RouteHeader({required this.routeName, required this.count});
+  const _RouteHeader({
+    required this.routeName,
+    required this.count,
+    this.summary,
+    this.fmt,
+  });
   final String routeName;
   final int count;
+  /// Server per-route totals (collectionSummaryByRoute).
+  final CollectionSummary? summary;
+  final NumberFormat? fmt;
 
   @override
   Widget build(BuildContext context) {
@@ -1765,6 +1775,15 @@ class _RouteHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (summary != null && fmt != null) ...[
+            const Spacer(),
+            Text(
+              '${fmt!.format(summary!.todayCollected)} / ${fmt!.format(summary!.todayExpected)}',
+              style: AppTypography.tiny.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1791,16 +1810,9 @@ class _CustomerGroup {
   List<CollectionRow> get _overdueCollectible =>
       _collectible.where((r) => r.isOverdueBucket).toList();
 
-  double get todayDue {
-    final sum = _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
-    if (sum > 0) return sum;
-    // When tenure reached and loan is extended, today's due continues as the normal installment amount
-    if (_overdueCollectible.isNotEmpty) {
-      final per = _overdueCollectible.first.dueAmount;
-      return math.min(per, overdueDue);
-    }
-    return 0.0;
-  }
+  // COL-02: only real rows due today — no invented 'due today' for extended loans.
+  double get todayDue =>
+      _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
 
   double get overdueDue =>
       _overdueCollectible.fold(0.0, (s, r) => s + r.outstanding);

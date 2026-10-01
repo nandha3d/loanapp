@@ -505,7 +505,7 @@ Future<void> showCustomerMapPinSheet({
                           scopeRows: pin.customerRows,
                         ),
                       );
-                      ref.invalidate(collectionTodayProvider);
+                      ref.invalidate(collectionDashboardProvider);
                       onCollectDone?.call();
                     },
                   ),

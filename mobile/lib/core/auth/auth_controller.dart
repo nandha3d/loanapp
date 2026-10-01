@@ -62,7 +62,7 @@ class AuthController extends StateNotifier<AuthState> {
     if (r != null) {
       r.invalidate(dashboardSummaryProvider);
       r.invalidate(chitDashboardSummaryProvider);
-      r.invalidate(collectionTodayProvider);
+      r.invalidate(collectionDashboardProvider);
       r.invalidate(loansProvider);
       r.invalidate(customerListProvider);
     }

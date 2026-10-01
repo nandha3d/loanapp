@@ -47,6 +47,7 @@ class CollectionRow {
     this.lng,
     this.collectionEntryId,
     this.frequency,
+    this.routeId,
   });
 
   final String instalmentId;
@@ -66,6 +67,7 @@ class CollectionRow {
   final double? lng;
   final String? collectionEntryId;
   final String? frequency;
+  final String? routeId;
 
   String get cadence {
     switch (frequency?.toLowerCase()) {
@@ -142,8 +144,95 @@ class CollectionRow {
       status: json['status']?.toString() ?? 'upcoming',
       lat: customer['lat'] == null ? null : n(customer['lat']),
       lng: customer['lng'] == null ? null : n(customer['lng']),
-      collectionEntryId: json['collectionEntryId']?.toString(),
+      // /collection/dashboard nests the receipt entry (COL-01).
+      collectionEntryId: (json['collectionEntry'] is Map
+              ? (json['collectionEntry'] as Map)['id']
+              : json['collectionEntryId'])
+          ?.toString(),
       frequency: loan['frequency']?.toString(),
+      routeId: customer['routeId']?.toString() ??
+          (rawRoute is Map<String, dynamic> ? rawRoute['id']?.toString() : null),
+    );
+  }
+}
+
+/// Server worklist totals (lib/collectionSummary.ts) — rendered as-is, never
+/// recomputed on the device (COL-01, MONEY-1).
+class CollectionSummary {
+  const CollectionSummary({
+    this.todayExpected = 0,
+    this.todayCollected = 0,
+    this.todayOutstanding = 0,
+    this.todayPendingCount = 0,
+    this.todayPaidCount = 0,
+    this.overdueTotalTillToday = 0,
+    this.overdueCollectedToday = 0,
+    this.overdueOutstanding = 0,
+    this.overduePendingCount = 0,
+  });
+  final double todayExpected;
+  final double todayCollected;
+  final double todayOutstanding;
+  final int todayPendingCount;
+  final int todayPaidCount;
+  final double overdueTotalTillToday;
+  final double overdueCollectedToday;
+  final double overdueOutstanding;
+  final int overduePendingCount;
+
+  factory CollectionSummary.fromJson(Map<String, dynamic>? json) {
+    final j = json ?? const <String, dynamic>{};
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return CollectionSummary(
+      todayExpected: n(j['todayExpected']),
+      todayCollected: n(j['todayCollected']),
+      todayOutstanding: n(j['todayOutstanding']),
+      todayPendingCount: n(j['todayPendingCount']).toInt(),
+      todayPaidCount: n(j['todayPaidCount']).toInt(),
+      overdueTotalTillToday: n(j['overdueTotalTillToday']),
+      overdueCollectedToday: n(j['overdueCollectedToday']),
+      overdueOutstanding: n(j['overdueOutstanding']),
+      overduePendingCount: n(j['overduePendingCount']).toInt(),
+    );
+  }
+}
+
+/// GET /api/v1/collection/dashboard — the same payload web Collection Entry uses.
+class CollectionDashboard {
+  const CollectionDashboard({
+    required this.rows,
+    required this.summary,
+    required this.summaryByRoute,
+  });
+  final List<CollectionRow> rows;
+  final CollectionSummary summary;
+  /// routeId ('' = no route) → summary.
+  final Map<String, CollectionSummary> summaryByRoute;
+
+  factory CollectionDashboard.fromJson(Map<String, dynamic> json) {
+    final seen = <String>{};
+    final rows = <CollectionRow>[];
+    for (final key in ['todayInstalments', 'overdueInstalments']) {
+      for (final e in (json[key] as List<dynamic>? ?? const [])) {
+        final row = CollectionRow.fromJson(e as Map<String, dynamic>);
+        if (seen.add(row.instalmentId)) rows.add(row);
+      }
+    }
+    final byRoute = <String, CollectionSummary>{};
+    final rawByRoute = json['collectionSummaryByRoute'];
+    if (rawByRoute is Map) {
+      rawByRoute.forEach((k, v) {
+        if (v is Map<String, dynamic>) byRoute['$k'] = CollectionSummary.fromJson(v);
+      });
+    }
+    return CollectionDashboard(
+      rows: rows,
+      summary: CollectionSummary.fromJson(
+        json['collectionSummary'] as Map<String, dynamic>?,
+      ),
+      summaryByRoute: byRoute,
     );
   }
 }
