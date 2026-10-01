@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
       where: {
         tenantId: isDeveloper ? undefined : ctx.tenantId,
         deletedAt: null,
-        ...(isDeveloper ? {} : { role: { notIn: ['developer', 'DEVELOPER'] } }),
+        ...(isDeveloper
+          ? {}
+          : {
+              role: ctx.role === 'admin' ? 'agent' : { notIn: ['developer', 'DEVELOPER'] },
+              appType: ctx.appType,
+              ...scopedBranchWhere(ctx),
+            }),
       },
       select: {
         id: true,
