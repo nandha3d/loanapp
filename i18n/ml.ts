@@ -1805,6 +1805,8 @@ export const ml = {
     capitalWithdrawn: 'മൂലധനം പിൻവലിച്ചത്',
     totalDeductions: 'ആകെ കിഴിവുകൾ (മുൻകൂർ ഫീസ്)',
     totalInterest: 'ആകെ പലിശ',
+    penaltyIncome: 'പിഴ വരുമാനം',
+    penaltyCollection: 'പിഴ പിരിവ്',
     projectedRevenue: 'പ്രതീക്ഷിത വരുമാനം',
     deductionsInterest: 'കിഴിവുകൾ + പലിശ',
     expenses: 'ചെലവുകൾ',

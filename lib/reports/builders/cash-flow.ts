@@ -2,7 +2,7 @@ import prisma from '../../db';
 import { ReportBuilderParams, ReportPayload } from '../types';
 
 export function classifyCashFlowEntryType(type: string): 'inflow' | 'outflow' | null {
-  if (['collection', 'capital_add'].includes(type)) return 'inflow';
+  if (['collection', 'penalty_collection', 'capital_add'].includes(type)) return 'inflow';
   if (['loan_disburse', 'chit_payout', 'chit_dividend_payout', 'expense', 'capital_withdraw'].includes(type)) {
     return 'outflow';
   }

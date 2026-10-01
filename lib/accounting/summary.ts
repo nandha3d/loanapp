@@ -30,6 +30,7 @@ export function computeAccountingMetrics(
   let totalCollected = 0;
   let totalExpenses = 0;
   let chitOutflows = 0;
+  let penaltyIncome = 0;
   for (const e of input.entries) {
     if (!inRange(e.entryDate, range)) continue;
     const amt = Number(e.amount);
@@ -38,6 +39,8 @@ export function computeAccountingMetrics(
       case 'capital_withdraw': capitalOut += amt; break;
       case 'loan_disburse': totalDisbursed += amt; break;
       case 'collection': totalCollected += amt; break;
+      // DEC-06: penalty collected = cash in and revenue.
+      case 'penalty_collection': penaltyIncome += amt; break;
       case 'expense': totalExpenses += amt; break;
       case 'chit_payout':
       case 'chit_dividend_payout': chitOutflows += amt; break;
@@ -49,7 +52,7 @@ export function computeAccountingMetrics(
   const loans = input.loans.filter((l) => inRange(l.startDate, range));
   const totalDeductions = loans.reduce((sum, l) => sum + Number(l.deduction), 0);
   const totalInterest = loans.reduce((sum, l) => sum + Number(l.totalPayable) - Number(l.principal), 0);
-  const projectedRevenue = totalDeductions + totalInterest;
+  const projectedRevenue = totalDeductions + totalInterest + penaltyIncome;
   return {
     capitalIn,
     capitalOut,
@@ -57,9 +60,10 @@ export function computeAccountingMetrics(
     totalCollected,
     totalExpenses,
     releasedToAgents,
-    currentCapital: capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitOutflows,
+    currentCapital: capitalIn - capitalOut - totalDisbursed + totalCollected + penaltyIncome - totalExpenses - chitOutflows,
     totalDeductions,
     totalInterest,
+    penaltyIncome,
     projectedRevenue,
     projectedProfit: projectedRevenue - totalExpenses,
   };
@@ -96,6 +100,7 @@ export async function getAccountingSummary(
   let totalExpenses = 0;
   let chitPayouts = 0; // prize money paid out to chit winners (cash out)
   let chitDividendPayouts = 0;
+  let penaltyIncome = 0; // DEC-06
 
   for (const entry of entries) {
     const amt = Number(entry.amount);
@@ -112,6 +117,9 @@ export async function getAccountingSummary(
       case 'collection':
         totalCollected += amt;
         break;
+      case 'penalty_collection':
+        penaltyIncome += amt;
+        break;
       case 'expense':
         totalExpenses += amt;
         break;
@@ -126,7 +134,7 @@ export async function getAccountingSummary(
 
   // Capital/cash balance uses NET disbursed (actual cash out). e.g. 10,000 − 900
   // (net out) + 100 (collected) = 9,200. Chit prize payouts are cash out too.
-  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses - chitPayouts - chitDividendPayouts;
+  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected + penaltyIncome - totalExpenses - chitPayouts - chitDividendPayouts;
 
   const loans = isChit ? [] : await prisma.loan.findMany({
     where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
@@ -183,8 +191,8 @@ export async function getAccountingSummary(
     (sum, l) => sum + Number(l.deduction) + Math.max(0, Number(l.totalPayable) - Number(l.principal)),
     0,
   );
-  const grossProfit = interestIncome;
-  const netProfit = interestIncome - totalExpenses;
+  const grossProfit = interestIncome + penaltyIncome;
+  const netProfit = grossProfit - totalExpenses;
   const agentIds = branchId
     ? await prisma.user.findMany({
         where: { tenantId, branchId, role: 'agent' },
@@ -258,6 +266,7 @@ export async function getAccountingSummary(
     netWorth,
     grossProfit,
     netProfit,
+    penaltyIncome,
     releasedToAgents,
     branchCashAvailable,
     agentFloat,

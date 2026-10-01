@@ -123,6 +123,16 @@ knownGap('RISK-GAP-004 penalty settlement route writes non-schema paymentMode fi
   const settled = await getPrisma().penalty.findUniqueOrThrow({ where: { id: settlePenaltyId } });
   assert.equal(settled.status, 'settled');
   assertMoneyEqual(settled.settledAmount, 25, 'settled penalty amount');
+  // DEC-06: cash book row + collector float credit; loan totals untouched.
+  const book = await getPrisma().accountEntry.findFirstOrThrow({ where: { referenceType: 'penalty', referenceId: settlePenaltyId } });
+  assert.equal(book.type, 'penalty_collection');
+  assert.equal(book.category, 'cash');
+  assertMoneyEqual(book.amount, 25, 'penalty cash-book amount');
+  const float = await getPrisma().walletTransaction.findFirstOrThrow({ where: { refType: 'account_entry', refId: book.id } });
+  assert.equal(float.type, 'penalty_collection');
+  assertMoneyEqual(float.amount, 25, 'penalty float credit');
+  const loanAfter = await getPrisma().loan.findUniqueOrThrow({ where: { id: riskLoanId } });
+  assertMoneyEqual(loanAfter.totalCollected, loan.totalCollected, 'loan totals unchanged by penalty');
 });
 
 test('RISK-006/RISK-010 NPA classification, history, summary, and provisioning match DB', async () => {

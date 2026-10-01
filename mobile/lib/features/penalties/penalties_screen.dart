@@ -672,7 +672,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
   }
 
   /// Settles [amount] across the loan's pending penalties, oldest first.
-  Future<void> _settleGroup(_LoanPenaltyGroup g, double amount) async {
+  Future<void> _settleGroup(_LoanPenaltyGroup g, double amount, String paymentMode) async {
     final svc = ref.read(penaltyServiceProvider);
     final pend = [...g.pending]
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -682,7 +682,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
       final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
       if (pNet <= 0) continue;
       final pay = remaining < pNet ? remaining : pNet;
-      await svc.settle(id: p.id, amount: pay);
+      await svc.settle(id: p.id, amount: pay, paymentMode: paymentMode);
       remaining -= pay;
     }
   }
@@ -691,6 +691,8 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     final t = T.of(ref);
     final net = g.net;
     final ctrl = TextEditingController(text: net.toStringAsFixed(2));
+    // DEC-06: the collection posts to wallet / cash book / ledger by mode.
+    var paymentMode = 'cash';
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -737,6 +739,21 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: paymentMode,
+              decoration: InputDecoration(
+                labelText: t.x('pen.payment_mode'),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
+              ),
+              items: [
+                for (final m in const ['cash', 'upi', 'bank_transfer', 'cheque'])
+                  DropdownMenuItem(value: m, child: Text(t.x('pen.mode_$m'))),
+              ],
+              onChanged: (v) => paymentMode = v ?? 'cash',
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -764,7 +781,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                   }
                   Navigator.pop(ctx);
                   try {
-                    await _settleGroup(g, amount);
+                    await _settleGroup(g, amount, paymentMode);
                     if (mounted) {
                       ref.invalidate(_penaltiesProvider);
                     }

@@ -230,6 +230,7 @@ export async function settleLoanPenalty(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();
     const penaltyId = formData.get('penaltyId') as string;
+    const paymentMode = (formData.get('paymentMode') as string) || 'cash';
     const settledAmount = Number(formData.get('settledAmount'));
     const notes = formData.get('notes') as string || '';
     const loanId = formData.get('loanId') as string;
@@ -253,7 +254,7 @@ export async function settleLoanPenalty(formData: FormData) {
 
     const res = await apiFetch<any>(`/penalties/${targetPenaltyId}/settle`, {
       method: 'PATCH',
-      body: JSON.stringify({ action: 'settle', amount: settledAmount, paymentMode: 'cash' }),
+      body: JSON.stringify({ action: 'settle', amount: settledAmount, paymentMode }),
       ...apiContext,
     });
 

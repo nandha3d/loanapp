@@ -61,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         role: context.role,
         penaltyId: id,
         amount,
+        paymentMode: body.paymentMode ? String(body.paymentMode) : 'cash',
         notes: body.notes ? String(body.notes) : null,
       });
       return apiSuccess(updated);

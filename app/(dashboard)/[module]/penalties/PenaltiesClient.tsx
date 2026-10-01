@@ -27,6 +27,8 @@ export default function PenaltiesClient({
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<'enforce' | 'settle' | 'waive'>('enforce');
   const [settleAmount, setSettleAmount] = useState(0);
+  const [paymentMode, setPaymentMode] = useState('cash');
+  const ld = dict.loanDetail;
   const [notes, setNotes] = useState('');
 
   const netOutstanding = kpis.totalGross - kpis.totalSettled - kpis.totalWaived;
@@ -49,6 +51,7 @@ export default function PenaltiesClient({
     let result;
     if (action === 'settle') {
       fd.set('settledAmount', String(settleAmount));
+      fd.set('paymentMode', paymentMode);
       result = await settlePenalty(fd);
     } else if (action === 'waive') {
       result = await waivePenalty(fd);
@@ -203,6 +206,17 @@ export default function PenaltiesClient({
                 <div className="form-group">
                   <label className="form-label">{d.settlementAmount} ({currencySymbol})</label>
                   <input type="number" className="form-control" value={settleAmount} onChange={(e) => setSettleAmount(Number(e.target.value))} min={0} />
+                </div>
+              )}
+              {action === 'settle' && (
+                <div className="form-group">
+                  <label className="form-label">{ld.paymentMode}</label>
+                  <select className="form-control" value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                    <option value="cash">{ld.cash}</option>
+                    <option value="upi">{ld.upi}</option>
+                    <option value="bank_transfer">{ld.bankTransfer}</option>
+                    <option value="cheque">{ld.cheque}</option>
+                  </select>
                 </div>
               )}
               <div className="form-group">

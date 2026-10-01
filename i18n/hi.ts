@@ -1805,6 +1805,8 @@ export const hi = {
     capitalWithdrawn: 'पूंजी निकाली गई',
     totalDeductions: 'कुल कटौतियां (अग्रिम शुल्क)',
     totalInterest: 'कुल ब्याज',
+    penaltyIncome: 'दंड आय',
+    penaltyCollection: 'दंड वसूली',
     projectedRevenue: 'अनुमानित आय',
     deductionsInterest: 'कटौतियां + ब्याज',
     expenses: 'व्यय',

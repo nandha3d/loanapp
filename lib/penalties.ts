@@ -2,6 +2,8 @@ import prisma from './db';
 import { startOfBusinessDayUtc } from './businessTime';
 import { computeExtendedSchedule, pairEntriesWithInstalments, pastTermMissedDays } from './restructure';
 import { buildAgentCustomerAccessWhere } from './loanPolicy';
+import { creditPenaltyCollection } from './wallet';
+import { autoPostPenaltyCollection } from './accounting/autoPost';
 
 export function penaltyListWhere(scope: {
   tenantId: string;
@@ -241,6 +243,14 @@ export async function ensurePendingPenaltiesForMissedLoans(
   };
 }
 
+/** DEC-06: payment modes a penalty can be collected in (same list on web and mobile). */
+export const PENALTY_PAYMENT_MODES = ['cash', 'upi', 'bank_transfer', 'cheque'] as const;
+
+/** Cash-book category for a penalty payment — the buckets a loan collection uses. */
+export function penaltyCashBookCategory(paymentMode: string): 'cash' | 'upi' | 'bank' {
+  return paymentMode === 'cash' ? 'cash' : paymentMode === 'upi' ? 'upi' : 'bank';
+}
+
 export async function settlePenalty(input: {
   tenantId: string;
   appType: string;
@@ -249,10 +259,17 @@ export async function settlePenalty(input: {
   role: string;
   penaltyId: string;
   amount: number;
-  paymentMode?: string;
+  paymentMode: string;
+  /** Whose float receives cash; defaults to the acting user. */
+  collectedById?: string | null;
   notes?: string | null;
 }): Promise<any> {
   const { tenantId, appType, branchId, userId, role, penaltyId, amount, paymentMode, notes } = input;
+  const collectedById = input.collectedById || userId;
+
+  if (!(PENALTY_PAYMENT_MODES as readonly string[]).includes(paymentMode)) {
+    throw new Error(`Invalid settle amount: unknown payment mode ${paymentMode}`);
+  }
 
   const penalty = await prisma.penalty.findUnique({
     where: { id: penaltyId },
@@ -290,13 +307,30 @@ export async function settlePenalty(input: {
     throw new Error(`Invalid settle amount: must be > 0 and <= ${remaining}`);
   }
 
-  return await prisma.$transaction(async (tx) => {
-    const nextSettled = settled + amount;
-    const isFullySettled = (nextSettled + waived) >= gross;
+  const category = penaltyCashBookCategory(paymentMode);
+
+  const { updated, accountEntry } = await prisma.$transaction(async (tx) => {
+    // Re-read inside the transaction and guard the write on what was read, so
+    // two concurrent settles cannot both pass the remaining check (MONEY-28).
+    const cur = await tx.penalty.findUnique({
+      where: { id: penaltyId },
+      select: { grossPenalty: true, settledAmount: true, waivedAmount: true },
+    });
+    if (!cur) throw new Error('Penalty not found');
+    const curGross = Number(cur.grossPenalty);
+    const curSettled = Number(cur.settledAmount);
+    const curWaived = Number(cur.waivedAmount);
+    const curRemaining = curGross - curSettled - curWaived;
+    if (amount > curRemaining) {
+      throw new Error(`Invalid settle amount: must be > 0 and <= ${curRemaining}`);
+    }
+
+    const nextSettled = curSettled + amount;
+    const isFullySettled = (nextSettled + curWaived) >= curGross;
     const nextStatus = isFullySettled ? 'settled' : 'partial';
 
-    const updated = await tx.penalty.update({
-      where: { id: penaltyId },
+    const moved = await tx.penalty.updateMany({
+      where: { id: penaltyId, settledAmount: cur.settledAmount, waivedAmount: cur.waivedAmount },
       data: {
         settledAmount: nextSettled,
         status: nextStatus,
@@ -304,8 +338,37 @@ export async function settlePenalty(input: {
         settledAt: isFullySettled ? new Date() : null,
         notes: notes ?? undefined,
       },
-      include: { loan: true },
     });
+    if (moved.count !== 1) throw new Error('Invalid settle amount: penalty changed, please retry');
+
+    const row = await tx.penalty.findUnique({ where: { id: penaltyId }, include: { loan: true } });
+
+    // DEC-06: a penalty collection is money in — cash book now, float for cash
+    // (MONEY-17), GL after commit (ACC-6/ACC-7). Loan totals are not touched.
+    const entry = await tx.accountEntry.create({
+      data: {
+        tenantId,
+        appType,
+        branchId: penalty.loan.branchId,
+        entryDate: new Date(),
+        type: 'penalty_collection',
+        category,
+        amount,
+        description: `Penalty collected — ${penalty.loan.loanCode}`,
+        referenceType: 'penalty',
+        referenceId: penaltyId,
+        createdBy: userId,
+      },
+    });
+
+    // Same rule and same best-effort guard as a loan collection's float credit.
+    if (paymentMode === 'cash') {
+      try {
+        await creditPenaltyCollection(tx, { tenantId, appType, agentId: collectedById, amount, accountEntryId: entry.id });
+      } catch (err) {
+        console.error('[wallet] penalty collection credit failed:', err);
+      }
+    }
 
     await tx.auditLog.create({
       data: {
@@ -320,12 +383,28 @@ export async function settlePenalty(input: {
           settledAmount: nextSettled,
           status: nextStatus,
           paymentMode,
+          collectedById,
+          accountEntryId: entry.id,
         }),
       },
     });
 
-    return updated;
+    return { updated: row, accountEntry: entry };
   });
+
+  await autoPostPenaltyCollection({
+    tenantId,
+    appType,
+    entryId: accountEntry.id,
+    loanCode: penalty.loan.loanCode,
+    amount,
+    date: accountEntry.entryDate,
+    branchId: penalty.loan.branchId,
+    createdById: userId,
+    paymentMode: category,
+  });
+
+  return updated;
 }
 
 export async function waivePenalty(input: {

@@ -26,6 +26,7 @@ import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/data/models/collection_entry.dart';
 import 'package:zolofund/data/services/approval_service.dart';
 import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/data/services/penalty_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/loans/widgets/loan_heatmap.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
@@ -1080,6 +1081,17 @@ class _PenaltySummaryCard extends ConsumerWidget {
           ),
           if (netPenalty > 0) ...[
             const SizedBox(height: 12),
+            // DEC-06: agents (and staff) collect penalties here; money posts
+            // to wallet / cash book / ledger like a loan collection.
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _collectPenaltyDialog(context, ref, loan),
+                icon: const Icon(Icons.payments_outlined, size: 16),
+                label: Text(T.of(ref).x('pen.collect_penalty')),
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -1094,6 +1106,80 @@ class _PenaltySummaryCard extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// DEC-06: collect [amount] across the loan's open penalty rows, oldest first.
+Future<void> _collectPenaltyDialog(BuildContext context, WidgetRef ref, Loan loan) async {
+  final t = T.of(ref);
+  final open = loan.penalties
+      .where((p) => p.grossPenalty - p.settledAmount - p.waivedAmount > 0)
+      .toList()
+    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  final max = open.fold<double>(
+      0, (s, p) => s + p.grossPenalty - p.settledAmount - p.waivedAmount);
+  if (max <= 0) return;
+  final ctrl = TextEditingController(text: max.toStringAsFixed(2));
+  var paymentMode = 'cash';
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(t.x('pen.collect_penalty')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: ctrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: t.x('pen.amount_rupee')),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: paymentMode,
+            decoration: InputDecoration(labelText: t.x('pen.payment_mode')),
+            items: [
+              for (final m in const ['cash', 'upi', 'bank_transfer', 'cheque'])
+                DropdownMenuItem(value: m, child: Text(t.x('pen.mode_$m'))),
+            ],
+            onChanged: (v) => paymentMode = v ?? 'cash',
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t.x('common.cancel'))),
+        FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(t.x('pen.confirm_settle'))),
+      ],
+    ),
+  );
+  final amount = double.tryParse(ctrl.text.trim()) ?? 0;
+  ctrl.dispose();
+  if (ok != true || amount <= 0 || !context.mounted) return;
+  if (amount > max + 0.001) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            '${t.x('err.enter_valid_amount')} (max ${ref.read(currencyFmtProvider).format(max)})')));
+    return;
+  }
+  try {
+    final svc = ref.read(penaltyServiceProvider);
+    var remaining = amount;
+    for (final p in open) {
+      if (remaining <= 0) break;
+      final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
+      final pay = remaining < pNet ? remaining : pNet;
+      await svc.settle(id: p.id, amount: pay, paymentMode: paymentMode);
+      remaining -= pay;
+    }
+    ref.invalidate(loanDetailProvider(loan.id));
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 }
 

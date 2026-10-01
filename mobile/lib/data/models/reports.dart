@@ -103,7 +103,11 @@ class AccountingSummary {
     this.releasedToAgents = 0,
     this.totalDeductions = 0,
     this.totalInterest = 0,
+    this.penaltyIncome = 0,
   });
+
+  /// DEC-06: penalties collected in range (revenue).
+  final double penaltyIncome;
 
   // ACC-01: same KPI set as the web Accounting page.
   final double releasedToAgents;
@@ -144,6 +148,7 @@ class AccountingSummary {
       releasedToAgents: n(json['releasedToAgents']),
       totalDeductions:  n(json['totalDeductions']),
       totalInterest:    n(json['totalInterest']),
+      penaltyIncome:    n(json['penaltyIncome']),
     );
   }
 }

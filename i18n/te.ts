@@ -1805,6 +1805,8 @@ export const te = {
     capitalWithdrawn: 'మూలధనం ఉపసంహరించబడింది',
     totalDeductions: 'మొత్తం మినహాయింపులు (ముందస్తు రుసుములు)',
     totalInterest: 'మొత్తం వడ్డీ',
+    penaltyIncome: 'జరిమానా ఆదాయం',
+    penaltyCollection: 'జరిమానా వసూలు',
     projectedRevenue: 'అంచనా ఆదాయం',
     deductionsInterest: 'మినహాయింపులు + వడ్డీ',
     expenses: 'వ్యయాలు',

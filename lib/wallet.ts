@@ -23,7 +23,7 @@ export function calculateFloatBalance(
 }
 
 type LedgerMeta = {
-  type: 'release' | 'disburse' | 'collection' | 'inject' | 'deposit' | 'adjustment';
+  type: 'release' | 'disburse' | 'collection' | 'penalty_collection' | 'inject' | 'deposit' | 'adjustment';
   refType?: string | null;
   refId?: string | null;
   note?: string | null;
@@ -401,6 +401,23 @@ export async function creditCollection(
     type: 'collection',
     refType: 'collection_entry',
     refId: input.entryId,
+  });
+}
+
+/**
+ * DEC-06: credits the collector's float for a penalty collected in cash —
+ * a penalty collection works exactly like a loan collection, then the normal
+ * handover. `accountEntryId` is the cash-book `penalty_collection` row.
+ */
+export async function creditPenaltyCollection(
+  tx: Tx,
+  input: { tenantId: string; appType: string; agentId: string; amount: number; accountEntryId: string },
+): Promise<number> {
+  if (!(input.amount > 0)) return 0;
+  return applyAgent(tx, input.tenantId, input.appType, input.agentId, input.amount, {
+    type: 'penalty_collection',
+    refType: 'account_entry',
+    refId: input.accountEntryId,
   });
 }
 

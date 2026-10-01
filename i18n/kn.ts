@@ -1805,6 +1805,8 @@ export const kn = {
     capitalWithdrawn: 'ಬಂಡವಾಳ ಹಿಂಪಡೆಯಲಾಗಿದೆ',
     totalDeductions: 'ಒಟ್ಟು ಕಡಿತ',
     totalInterest: 'ಒಟ್ಟು ಬಡ್ಡಿ',
+    penaltyIncome: 'ದಂಡ ಆದಾಯ',
+    penaltyCollection: 'ದಂಡ ಸಂಗ್ರಹ',
     projectedRevenue: 'ನಿರೀಕ್ಷಿತ ಆದಾಯ',
     deductionsInterest: 'ಕಡಿತ + ಬಡ್ಡಿ',
     expenses: 'ಖರ್ಚುಗಳು',

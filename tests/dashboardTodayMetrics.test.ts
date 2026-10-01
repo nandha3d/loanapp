@@ -17,5 +17,10 @@ assert.deepEqual(summarizeDashboardBookTotals(1500, [
   { type: 'expense', _sum: { amount: 40 } },
   { type: 'capital_withdraw', _sum: { amount: 100 } },
 ]), { currentCapital: 1310, totalDisbursed: 1500, totalCollectedAllTime: 350 });
+// DEC-06: a penalty collection is cash in.
+assert.deepEqual(summarizeDashboardBookTotals(0, [
+  { type: 'capital_add', _sum: { amount: 1000 } },
+  { type: 'penalty_collection', _sum: { amount: 200 } },
+]), { currentCapital: 1200, totalDisbursed: 0, totalCollectedAllTime: 0 });
 assert.deepEqual(summarizeDashboardBookTotals(null, []),
   { currentCapital: 0, totalDisbursed: 0, totalCollectedAllTime: 0 });

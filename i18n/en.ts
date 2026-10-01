@@ -1666,6 +1666,8 @@ export const en = {
     capitalWithdrawn: 'Capital Withdrawn',
     totalDeductions: 'Total Deductions (Upfront Fees)',
     totalInterest: 'Total Interest',
+    penaltyIncome: 'Penalty Income',
+    penaltyCollection: 'Penalty Collected',
     projectedRevenue: 'Projected Revenue',
     deductionsInterest: 'Deductions + Interest',
     expenses: 'Expenses',

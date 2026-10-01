@@ -1666,6 +1666,8 @@ export const ta = {
     capitalWithdrawn: 'மூலதனம் எடுக்கப்பட்டது',
     totalDeductions: 'மொத்த கழிவுகள் (முன்கூட்டிய கட்டணங்கள்)',
     totalInterest: 'மொத்த வட்டி',
+    penaltyIncome: 'அபராத வருமானம்',
+    penaltyCollection: 'அபராதம் வசூல்',
     projectedRevenue: 'திட்டமிட்ட வருவாய்',
     deductionsInterest: 'கழிவுகள் + வட்டி',
     expenses: 'செலவுகள்',

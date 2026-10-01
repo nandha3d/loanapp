@@ -7,6 +7,7 @@
 export const POSTING_DEFAULTS = {
   loan_receivable: '1310',
   interest_income: '4100',
+  penalty_income: '4200',
   processing_fee_income: '4300',
   cash_on_hand: '1100',
   bank_account: '1200',

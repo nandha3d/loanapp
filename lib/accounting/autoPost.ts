@@ -212,6 +212,67 @@ export async function autoPostCollection(opts: {
 }
 
 /**
+ * DEC-06: post JE for a penalty collection — same shape as autoPostCollection.
+ * Dr Cash/Bank (1100/1200, by payment mode) / Cr Penalty Income (4200).
+ * `entryId` is the cash-book AccountEntry id (dedup key, ACC-5).
+ */
+export async function autoPostPenaltyCollection(opts: {
+  tenantId: string;
+  appType: string;
+  entryId: string;
+  loanCode: string;
+  amount: number;
+  date: Date;
+  branchId?: string | null;
+  createdById?: string | null;
+  paymentMode?: string;
+}) {
+  try {
+    const enabled = await isPremiumAccountingEnabled(opts.tenantId);
+    if (!enabled) return;
+
+    const useBank = ['upi','bank','online','neft','rtgs','imps'].includes(opts.paymentMode ?? '');
+    const [cashId, bankId, creditAcctId] = await Promise.all([
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
+      getAcctIdByKey(opts.tenantId, 'penalty_income'),
+    ]);
+
+    const debitAcctId = useBank ? (bankId ?? cashId) : cashId;
+    if (!debitAcctId || !creditAcctId) return;
+
+    const narration = `Penalty collected for loan ${opts.loanCode}`;
+    await prisma.journalEntry.create({
+      data: {
+        tenantId: opts.tenantId,
+        appType: opts.appType,
+        entryDate: opts.date,
+        narration,
+        status: 'posted',
+        sourceType: 'penalty_settlement',
+        sourceId: opts.entryId,
+        dedupKey: buildDedupKey('penalty_collection', opts.tenantId, opts.entryId),
+        voucherType: 'Receipt',
+        branchId: opts.branchId ?? null,
+        createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
+        lines: {
+          create: [
+            { accountId: debitAcctId,  debit: opts.amount, credit: 0,           description: narration, lineNo: 1 },
+            { accountId: creditAcctId, debit: 0,           credit: opts.amount, description: narration, lineNo: 2 },
+          ],
+        },
+      },
+    });
+
+    await bumpAccountBalance(prisma as any, debitAcctId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
+  } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
+    console.error('[autoPost] penalty collection JE failed:', e);
+  }
+}
+
+/**
  * Post JE for an expense.
  * Dr Other Expenses (5900) / Cr Cash (1100)
  */

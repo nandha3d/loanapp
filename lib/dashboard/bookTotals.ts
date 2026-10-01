@@ -7,7 +7,8 @@ export function summarizeDashboardBookTotals(principal: unknown, entries: BookEn
   let totalCollectedAllTime = 0;
   for (const entry of entries) {
     const amount = Number(entry._sum.amount ?? 0);
-    if (entry.type === 'capital_add' || entry.type === 'collection') currentCapital += amount;
+    // DEC-06: a penalty collection is cash in, like a loan collection.
+    if (entry.type === 'capital_add' || entry.type === 'collection' || entry.type === 'penalty_collection') currentCapital += amount;
     else if (entry.type === 'capital_withdraw' || entry.type === 'loan_disburse' || entry.type === 'expense') currentCapital -= amount;
     if (entry.type === 'collection') totalCollectedAllTime = amount;
   }

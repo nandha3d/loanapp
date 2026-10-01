@@ -21,6 +21,7 @@ export async function settlePenalty(formData: FormData) {
   const penaltyId = formData.get('penaltyId') as string;
   const settledAmount = Number(formData.get('settledAmount'));
   const notes = (formData.get('notes') as string) || null;
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
 
   if (!penaltyId || !settledAmount || settledAmount <= 0) {
     return { success: false, error: 'Invalid input' };
@@ -36,6 +37,7 @@ export async function settlePenalty(formData: FormData) {
       role,
       penaltyId,
       amount: settledAmount,
+      paymentMode,
       notes,
     });
 

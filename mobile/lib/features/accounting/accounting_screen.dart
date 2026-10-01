@@ -590,6 +590,7 @@ class _SummaryBody extends ConsumerWidget {
           (t.x('acc.released_to_agents'), summary.releasedToAgents),
           (t.x('acc.total_deductions'), summary.totalDeductions),
           (t.x('acc.total_interest'), summary.totalInterest),
+          (t.x('acc.penalty_income'), summary.penaltyIncome),
           (t.x('acc.projected_revenue'), summary.projectedRevenue),
         ]) ...[
           const _Divider(),

@@ -30,6 +30,7 @@ for (const slug of ['vehicle-hypothecation-report', 'insurance-expiry-report', '
   assert.equal(getReportDefinitionForAppType('microlending', slug), undefined);
 }
 assert.equal(classifyCashFlowEntryType('collection'), 'inflow');
+assert.equal(classifyCashFlowEntryType('penalty_collection'), 'inflow');
 assert.equal(classifyCashFlowEntryType('chit_payout'), 'outflow');
 assert.equal(classifyCashFlowEntryType('chit_dividend_payout'), 'outflow');
 

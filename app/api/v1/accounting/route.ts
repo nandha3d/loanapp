@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       releasedToAgents: m.releasedToAgents,
       totalDeductions: m.totalDeductions,
       totalInterest: m.totalInterest,
+      penaltyIncome: m.penaltyIncome,
       projectedRevenue: m.projectedRevenue,
       netProfit: m.projectedProfit,
       // Position (not ranged).

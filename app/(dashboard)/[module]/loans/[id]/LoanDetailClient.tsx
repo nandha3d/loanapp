@@ -467,6 +467,7 @@ export default function LoanDetailClient({
 
   const [penAction, setPenAction] = useState<'waive' | 'settle' | 'request_waive'>('settle');
   const [penAmount, setPenAmount] = useState(0);
+  const [penPaymentMode, setPenPaymentMode] = useState('cash');
   const [penNotes, setPenNotes] = useState('');
 
   // mCollect-B: generate + share a borrower self-pay link for an instalment.
@@ -591,6 +592,7 @@ export default function LoanDetailClient({
       result = await waiveLoanPenalty(fd);
     } else {
       fd.set('settledAmount', String(penAmount));
+      fd.set('paymentMode', penPaymentMode);
       result = await settleLoanPenalty(fd);
     }
     setLoading(false);
@@ -1834,6 +1836,17 @@ export default function LoanDetailClient({
                 <label className="form-label">{penAction === 'request_waive' ? 'Waiver Amount' : (penAction === 'waive' ? 'Waive' : 'Settlement')} Amount ({currencySymbol})</label>
                 <input type="number" className="form-control" value={penAmount} onChange={(e) => setPenAmount(Number(e.target.value))} min={0} />
               </div>
+              {penAction === 'settle' && (
+                <div className="form-group">
+                  <label className="form-label">{d.paymentMode}</label>
+                  <select className="form-control" value={penPaymentMode} onChange={(e) => setPenPaymentMode(e.target.value)}>
+                    <option value="cash">{d.cash}</option>
+                    <option value="upi">{d.upi}</option>
+                    <option value="bank_transfer">{d.bankTransfer}</option>
+                    <option value="cheque">{d.cheque}</option>
+                  </select>
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">{penAction === 'request_waive' ? `${d.notes || 'Reason'} *` : d.notes}</label>
                 <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder={penAction === 'request_waive' ? 'Reason for waiver request' : d.addNotes} />

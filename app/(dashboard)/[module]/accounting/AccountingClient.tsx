@@ -50,7 +50,7 @@ export default function AccountingClient({
     metrics: {
       capitalIn: number; capitalOut: number; totalDisbursed: number; totalCollected: number;
       totalExpenses: number; releasedToAgents: number; currentCapital: number; totalDeductions: number;
-      totalInterest: number; projectedRevenue: number; projectedProfit: number;
+      totalInterest: number; penaltyIncome?: number; projectedRevenue: number; projectedProfit: number;
     };
     range?: { from?: string | null; to?: string | null };
     chitGroups?: any[];
@@ -86,6 +86,7 @@ export default function AccountingClient({
       case 'loan_disburse': return { label: 'Loan Disbursed', icon: 'account_balance', color: '#E67E22', sign: '-' };
       case 'agent_release': return { label: 'Released to Agent', icon: 'payments', color: '#D97706', sign: '-' };
       case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
+      case 'penalty_collection': return { label: ac.penaltyCollection || 'Penalty Collected', icon: 'gavel', color: 'var(--success)', sign: '+' };
       case 'expense': return { label: ac.expense || 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
       case 'chit_payout': return { label: 'Chit Payout', icon: 'emoji_events', color: '#E67E22', sign: '-' };
       case 'chit_dividend_payout': return { label: 'Chit Dividend Payout', icon: 'redeem', color: '#D97706', sign: '-' };
@@ -395,6 +396,10 @@ export default function AccountingClient({
               {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalInterest || 'Total Interest'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalInterest, currencySymbol)}</div>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.penaltyIncome || 'Penalty Income'}</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.penaltyIncome ?? 0, currencySymbol)}</div>
               </div>}
               {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedRevenue || 'Projected Revenue'}</div>
