@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zolofund/data/models/dashboard_summary.dart';
 import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/features/collection/collection_screen.dart';
 

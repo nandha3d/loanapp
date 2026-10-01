@@ -158,7 +158,7 @@ class User {
       case 'kycenabled':
         return kycEnabled;
       case 'kycmethod':
-        return kycMethod;
+        return kycMethod.isNotEmpty;
       case 'bureau':
       case 'bureauenabled':
         return bureauEnabled;

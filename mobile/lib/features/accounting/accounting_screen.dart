@@ -2193,5 +2193,3 @@ class _ReportRow extends StatelessWidget {
     );
   }
 }
-
-num _num(dynamic v) => v is num ? v : num.tryParse(v?.toString() ?? '') ?? 0;
