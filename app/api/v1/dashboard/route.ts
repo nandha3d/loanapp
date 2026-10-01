@@ -288,7 +288,7 @@ export async function GET(req: NextRequest) {
       prisma.collectionEntry.findMany({
         where: {
           tenantId: ctx.tenantId,
-          paymentMode: 'upi',
+          paymentMode: { in: ['upi', 'online'] },
           verificationStatus: 'pending',
           loan: baseLoan,
         },
@@ -951,6 +951,8 @@ export async function GET(req: NextRequest) {
       overdueCustomerCount,
       pendingApprovals,
       pendingFieldFloat,
+      // DASH-08: the pending UPI panel shows only when the tenant opted into manual review.
+      upiManualVerification: (await getSetting(ctx.tenantId, 'upi_manual_verification', 'false')) === 'true',
       activeAgents,
       recentLoans,
       todayInstalments: mappedTodayInstalments,

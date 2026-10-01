@@ -199,6 +199,7 @@ class DashboardSummary {
     this.overdueCustomerCount = 0,
     this.pendingApprovals = 0,
     this.pendingFieldFloat = 0.0,
+    this.upiManualVerification = false,
     required this.activeAgents,
     required this.recentLoans,
     required this.todayInstalments,
@@ -245,6 +246,7 @@ class DashboardSummary {
   final int overdueCustomerCount;
   final int pendingApprovals;
   final double pendingFieldFloat;
+  final bool upiManualVerification;
   final int activeAgents;
   final List<RecentLoan> recentLoans;
   final List<TodayInstalment> todayInstalments;
@@ -295,6 +297,7 @@ class DashboardSummary {
       overdueCustomerCount: toNum(json['overdueCustomerCount']).toInt(),
       pendingApprovals: toNum(json['pendingApprovals']).toInt(),
       pendingFieldFloat: toNum(json['pendingFieldFloat']),
+      upiManualVerification: json['upiManualVerification'] == true,
       activeAgents: (json['activeAgents'] as num?)?.toInt() ?? 0,
       recentLoans: (json['recentLoans'] as List<dynamic>? ?? const [])
           .map((dynamic e) => RecentLoan.fromJson(e as Map<String, dynamic>))

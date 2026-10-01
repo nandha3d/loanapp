@@ -239,7 +239,8 @@ class _DashboardBody extends ConsumerWidget {
           const SizedBox(height: 18),
           _ModeSplitCard(summary: summary, fmt: fmt),
           const SizedBox(height: 18),
-          if (summary.pendingUpiCollections.isNotEmpty) ...[
+          if (summary.upiManualVerification &&
+              summary.pendingUpiCollections.isNotEmpty) ...[
             _PendingUpiList(summary: summary, fmt: fmt),
             const SizedBox(height: 18),
           ],
