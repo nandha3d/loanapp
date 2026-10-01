@@ -59,20 +59,21 @@ export async function PATCH(req: NextRequest) {
 
   try {
     if (body?.notificationId) {
-      // Mark single notification as read — verify it belongs to this user/tenant.
-      const notif = await prisma.systemNotification.findFirst({
+      // Mark single notification as read — scoped via visibility helper (SEC-10)
+      const res = await prisma.systemNotification.updateMany({
         where: {
           id: body.notificationId,
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          ...buildSystemNotificationWhere({
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            userId: ctx.userId,
+            userRole: ctx.role,
+            activeBranchId: ctx.branchId,
+          }),
         },
-      });
-      if (!notif) return fail('Notification not found', 404);
-
-      await prisma.systemNotification.update({
-        where: { id: body.notificationId },
         data: { isRead: true, readAt: new Date() },
       });
+      if (res.count === 0) return fail('Notification not found', 404);
     } else {
       // Mark all matching notifications as read.
       const where = buildSystemNotificationWhere({
