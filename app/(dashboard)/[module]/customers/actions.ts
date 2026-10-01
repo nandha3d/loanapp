@@ -92,6 +92,7 @@ export async function saveCustomer(formData: FormData) {
     const guarantors = [];
     let g = 0;
     while (formData.has(`guarantorName_${g}`)) {
+      const gId = (formData.get(`guarantorId_${g}`) as string) || undefined;
       const gName = formData.get(`guarantorName_${g}`) as string;
       const gPhone = formData.get(`guarantorPhone_${g}`) as string;
       const gRelation = formData.get(`guarantorRelation_${g}`) as string;
@@ -101,8 +102,10 @@ export async function saveCustomer(formData: FormData) {
       if (gPhotoFile && gPhotoFile.size > 0) {
         gPhoto = await uploadFileHelper(gPhotoFile, apiContext);
       }
+      const existingPhoto = (formData.get(`guarantorExistingPhoto_${g}`) as string) || null;
+      gPhoto ??= existingPhoto;
       if (gName && gPhone) {
-        guarantors.push({ name: gName, phone: gPhone, relation: gRelation, address: gAddress, photoUrl: gPhoto });
+        guarantors.push({ id: gId, name: gName, phone: gPhone, relation: gRelation, address: gAddress, photoUrl: gPhoto });
       }
       g++;
     }

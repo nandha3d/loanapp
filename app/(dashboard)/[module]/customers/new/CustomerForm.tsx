@@ -66,16 +66,24 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
 
 
   // --- Guarantor handlers ---
-  const [guarantors, setGuarantors] = useState<any[]>(customer?.guarantors?.map((g: any) => ({ id: g.id, name: g.name, phone: g.phone, address: g.address, relation: g.relation, photoName: g.photo })) || []);
-  const [guarantorPreviews, setGuarantorPreviews] = useState<Record<number, string>>({});
+  const [guarantors, setGuarantors] = useState<any[]>(customer?.guarantors?.map((g: any) => ({
+    id: g.id,
+    name: g.name,
+    phone: g.phone,
+    address: g.address,
+    relation: g.relation,
+    photoName: g.photo,
+    existingPhoto: g.photo,
+  })) || []);
+  const [guarantorPreviews, setGuarantorPreviews] = useState<Record<string | number, string>>({});
   const addGuarantor = () => {
-    setGuarantors([...guarantors, { id: Date.now(), name: '', phone: '', address: '', relation: '' }]);
+    setGuarantors([...guarantors, { id: Date.now(), name: '', phone: '', address: '', relation: '', existingPhoto: '' }]);
   };
-  const removeGuarantor = (id: number) => setGuarantors(guarantors.filter(g => g.id !== id));
-  const updateGuarantor = (id: number, field: string, value: string) => {
+  const removeGuarantor = (id: number | string) => setGuarantors(guarantors.filter(g => g.id !== id));
+  const updateGuarantor = (id: number | string, field: string, value: string) => {
     setGuarantors(guarantors.map(g => g.id === id ? { ...g, [field]: value } : g));
   };
-  const handleGuarantorPhotoChange = (id: number, file: File | null) => {
+  const handleGuarantorPhotoChange = (id: number | string, file: File | null) => {
     if (file) {
       const url = URL.createObjectURL(file);
       setGuarantorPreviews(prev => ({ ...prev, [id]: url }));
@@ -630,6 +638,8 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
 
             {guarantors.map((g, index) => (
               <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '12px', background: 'var(--bg)' }}>
+                <input type="hidden" name={`guarantorId_${index}`} value={typeof g.id === 'string' && !/^\d+$/.test(g.id) ? g.id : ''} />
+                <input type="hidden" name={`guarantorExistingPhoto_${index}`} value={g.existingPhoto || ''} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <strong style={{ fontSize: '.85rem' }}>Guarantor #{index + 1}</strong>
                   <button type="button" onClick={() => removeGuarantor(g.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -663,8 +673,8 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
                   <div className="form-group">
                     <label className="form-label">Photo</label>
                     <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.85rem' }}>
-                      {guarantorPreviews[g.id] ? (
-                        <img src={guarantorPreviews[g.id]} alt="Guarantor" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
+                      {guarantorPreviews[g.id] || g.existingPhoto ? (
+                        <img src={guarantorPreviews[g.id] || g.existingPhoto} alt="Guarantor" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
                       ) : (
                         <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{g.photoName ? 'check_circle' : 'add_a_photo'}</span>
                       )}

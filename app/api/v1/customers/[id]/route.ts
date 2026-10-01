@@ -17,6 +17,7 @@ import {
 import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { syncGuarantorsInPlace } from '@/lib/customers/guarantors';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -204,24 +205,7 @@ export async function PATCH(
       };
     }
 
-    if (Array.isArray(body.guarantors)) {
-      const gs = body.guarantors
-        .filter((g: any) => g?.name && g?.phone)
-        .map((g: any) => ({
-          name: String(g.name),
-          phone: String(g.phone),
-          relation: g.relation ? String(g.relation) : null,
-          address: g.address ? String(g.address) : null,
-          photo: g.photoUrl ?? g.photo ? String(g.photoUrl ?? g.photo) : null,
-          aadharNumber: g.aadharNumber && !isMaskedAadharNumber(String(g.aadharNumber))
-            ? encryptAadharNumber(String(g.aadharNumber))
-            : null,
-        }));
-      data.guarantors = {
-        deleteMany: {},
-        create: gs,
-      };
-    }
+
     if (Array.isArray(body.kycDocs) && body.kycDocs.length > 0) {
       // MON-09: append-only — no deleteMany. Web used to send kycDocs: []
       // which wiped all documents on every edit.
@@ -278,10 +262,15 @@ export async function PATCH(
       data.geocodedAt = new Date();
     }
 
-    const updated = await prisma.customer.update({
-      where: { id: existing.id },
-      data,
-      include: { collectionPoints: true, guarantors: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      if (Array.isArray(body.guarantors)) {
+        await syncGuarantorsInPlace(tx, existing.id, body.guarantors);
+      }
+      return tx.customer.update({
+        where: { id: existing.id },
+        data,
+        include: { collectionPoints: true, guarantors: true },
+      });
     });
 
     if (data.lat != null && data.lng != null) {
