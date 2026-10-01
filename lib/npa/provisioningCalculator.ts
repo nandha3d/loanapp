@@ -1,5 +1,6 @@
 import type { AssetCategory } from './npaClassifier';
 import prisma from '@/lib/db';
+import { startOfBusinessTomorrow } from '@/lib/businessTime';
 
 export interface ProvisioningResult {
   rate: number;      // percentage (e.g., 15 for 15%)
@@ -66,27 +67,26 @@ export async function getTenantProvisioningSummary(
   asOfDate: Date = new Date(),
   scope?: { appType?: string | null; branchId?: string | null },
 ): Promise<ProvisioningSummary> {
-  const startOfDay = new Date(asOfDate);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(asOfDate);
-  endOfDay.setHours(23, 59, 59, 999);
+  const upperLimit = startOfBusinessTomorrow(asOfDate);
 
-  const where: any = {
+  const baseWhere: any = {
     tenantId,
     snapshotDate: {
-      gte: startOfDay,
-      lte: endOfDay,
+      lt: upperLimit,
     },
   };
   if (scope?.appType || scope?.branchId) {
-    where.loan = {
+    baseWhere.loan = {
       ...(scope.appType ? { appType: scope.appType } : {}),
       ...(scope.branchId ? { branchId: scope.branchId } : {}),
     };
   }
 
-  const snapshots = await prisma.loanProvisioning.findMany({
-    where,
+  // Find the latest snapshot date available for this tenant / scope
+  const latest = await prisma.loanProvisioning.findFirst({
+    where: baseWhere,
+    orderBy: { snapshotDate: 'desc' },
+    select: { snapshotDate: true },
   });
 
   const summary: ProvisioningSummary = {
@@ -97,6 +97,18 @@ export async function getTenantProvisioningSummary(
     loss:         { count: 0, outstanding: 0, provisioning: 0 },
     total:        { count: 0, outstanding: 0, provisioning: 0 },
   };
+
+  if (!latest) {
+    return summary;
+  }
+
+  const snapshots = await prisma.loanProvisioning.findMany({
+    where: {
+      ...baseWhere,
+      snapshotDate: latest.snapshotDate,
+    },
+  });
+
 
   for (const s of snapshots) {
     const bucket = getCategoryBucket(s.category as AssetCategory);
