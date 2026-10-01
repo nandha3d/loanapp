@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/features/customers/widgets/customer_tile.dart';
 import 'package:zolofund/features/customers/widgets/filter_pill.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
@@ -29,6 +31,10 @@ class _StatusOpt {
   final String label;
 }
 
+final _customerRoutesProvider = FutureProvider.autoDispose<List<AppRoute>>(
+  (ref) => ref.watch(settingsServiceProvider).routes(),
+);
+
 class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
@@ -38,6 +44,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     _StatusOpt('active', 'status.active'),
     _StatusOpt('pending_review', 'status.pending'),
     _StatusOpt('suspended', 'status.suspended'),
+    _StatusOpt('inactive', 'status.inactive'),
   ];
 
   @override
@@ -120,6 +127,21 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   ),
                   const SizedBox(width: 8),
                 ],
+                // CUST-03: route filter (server-side routeId), as on web.
+                ...?ref.watch(_customerRoutesProvider).valueOrNull?.expand(
+                      (r) => [
+                        FilterPill(
+                          label: r.name,
+                          selected: filter.routeId == r.id,
+                          onTap: () => ref
+                              .read(customerFilterProvider.notifier)
+                              .update((s) => filter.routeId == r.id
+                                  ? s.copyWith(clearRoute: true)
+                                  : s.copyWith(routeId: r.id)),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
               ],
             ),
           ),

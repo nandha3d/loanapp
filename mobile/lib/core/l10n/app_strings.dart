@@ -10877,4 +10877,12 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಸಕ್ರಿಯ ಅಸಲು',
     'ml': 'സജീവ മുതൽ',
   },
+  'status.inactive': {
+    'en': 'Inactive',
+    'ta': 'செயலற்றது',
+    'hi': 'निष्क्रिय',
+    'te': 'నిష్క్రియ',
+    'kn': 'ನಿಷ್ಕ್ರಿಯ',
+    'ml': 'നിഷ്ക്രിയം',
+  },
 };

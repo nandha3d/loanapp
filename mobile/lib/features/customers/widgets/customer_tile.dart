@@ -122,8 +122,11 @@ class CustomerTile extends ConsumerWidget {
         ),
       ],
     ];
+    // CUST-03: phone beside the code, as on web.
     final codeText = Text(
-      customer.customerCode,
+      customer.phone.isEmpty
+          ? customer.customerCode
+          : '${customer.customerCode} · ${customer.phone}',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: AppTypography.caption.copyWith(
@@ -307,11 +310,11 @@ class CustomerTile extends ConsumerWidget {
     );
   }
 
+  // Same bands as web (CUST-03): ≥750 green, ≥650 amber, else red; unrated grey.
   Color _scoreColor(int score) {
     if (score == 0) return AppColors.textLight;
-    if (score < 500) return AppColors.danger;
-    if (score < 650) return AppColors.warning;
-    if (score < 750) return const Color(0xFFEAB308);
+    if (score < 650) return AppColors.danger;
+    if (score < 750) return AppColors.warning;
     return AppColors.success;
   }
 

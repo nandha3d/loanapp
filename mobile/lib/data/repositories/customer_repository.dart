@@ -13,6 +13,7 @@ class CustomerRepository {
     int? limit,
     bool? hasActiveLoan,
     String? status,
+    String? routeId,
   }) =>
       _service.list(
         query: query,
@@ -20,6 +21,7 @@ class CustomerRepository {
         limit: limit,
         hasActiveLoan: hasActiveLoan,
         status: status,
+        routeId: routeId,
       );
   Future<Customer> getById(String id) => _service.getById(id);
   Future<Customer> create({
@@ -61,39 +63,46 @@ class CustomerListFilter {
     this.query = '',
     this.status = 'all',
     this.hasActiveLoan,
+    this.routeId,
   });
   final String query;
-  final String status; // all | active | pending_review | suspended
+  final String status; // all | active | pending_review | suspended | inactive
   final bool? hasActiveLoan;
+  final String? routeId; // null = all routes
 
   CustomerListFilter copyWith({
     String? query,
     String? status,
     bool? hasActiveLoan,
     bool clearHasActiveLoan = false,
+    String? routeId,
+    bool clearRoute = false,
   }) =>
       CustomerListFilter(
         query: query ?? this.query,
         status: status ?? this.status,
         hasActiveLoan:
             clearHasActiveLoan ? null : (hasActiveLoan ?? this.hasActiveLoan),
+        routeId: clearRoute ? null : (routeId ?? this.routeId),
       );
 }
 
-final customerFilterProvider =
-    StateProvider<CustomerListFilter>((ref) => const CustomerListFilter());
+/// autoDispose so the New Loan customer search never leaks into this list (CUST-03).
+final customerFilterProvider = StateProvider.autoDispose<CustomerListFilter>(
+  (ref) => const CustomerListFilter(),
+);
 
 final customerListProvider =
-    FutureProvider<List<Customer>>((ref) async {
+    FutureProvider.autoDispose<List<Customer>>((ref) async {
   final filter = ref.watch(customerFilterProvider);
+  // Status and route filter on the server, same as web (CUST-03).
   final all = await ref.watch(customerRepositoryProvider).list(
         query: filter.query.isEmpty ? null : filter.query,
         hasActiveLoan: filter.hasActiveLoan,
+        status: filter.status,
+        routeId: filter.routeId,
       );
   var list = all;
-  if (filter.status != 'all') {
-    list = list.where((c) => c.status == filter.status).toList(growable: false);
-  }
   if (filter.hasActiveLoan != null) {
     list = list
         .where((c) => filter.hasActiveLoan! ? c.hasActiveLoan : !c.hasActiveLoan)

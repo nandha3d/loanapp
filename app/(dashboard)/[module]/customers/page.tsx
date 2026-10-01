@@ -73,9 +73,8 @@ export default async function CustomersPage({
           <option value="">{dict.customersList.allStatus}</option>
           <option value="active">{dict.customersList.active}</option>
           <option value="pending_review">{dict.approvals.pendingReview}</option>
-          <option value="overdue">{dict.customersList.overdue}</option>
-          <option value="closed">{dict.customersList.closed}</option>
-          <option value="blacklisted">{dict.customersList.blacklisted}</option>
+          <option value="suspended">{dict.customersList.suspended}</option>
+          <option value="inactive">{dict.customersList.inactive}</option>
         </select>
         <button type="submit" className="btn btn-secondary">{dict.customersList.filter}</button>
         {(q || routeId || status) && (
@@ -124,7 +123,8 @@ export default async function CustomersPage({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ 
                         fontWeight: 700, 
-                        color: score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)' 
+                        // 300–850 scale, same bands as mobile (CUST-03); unrated grey.
+                        color: grade === 'N/A' ? 'var(--text-light)' : score >= 750 ? 'var(--success)' : score >= 650 ? 'var(--warning)' : 'var(--danger)'
                       }}>
                         {score}
                       </span>
