@@ -611,22 +611,27 @@ class _CashflowView extends ConsumerWidget {
     return _AsyncMapView(
       async: async,
       title: t.x('accounting.cashflow_summary'),
-      rows: (data) => [
-        _InfoRow('Inflow', fmt.format(_num(data['totalInflow']))),
-        _InfoRow('Outflow', fmt.format(_num(data['totalOutflow']))),
-        _InfoRow('Net cashflow', fmt.format(_num(data['netCashflow']))),
-        _InfoRow(
-            'Cash/bank balance', fmt.format(_num(data['cashBankBalance']))),
-      ],
-      listTitle: 'Daily cashflow',
-      listItems: (data) => (data['series'] as List<dynamic>? ?? [])
-          .take(14)
-          .map((dynamic row) => Map<String, dynamic>.from(row as Map))
-          .map((row) => _InfoRow(
-                row['date']?.toString() ?? '',
-                '${fmt.format(_num(row['inflow']))} in / ${fmt.format(_num(row['outflow']))} out',
-              ))
-          .toList(),
+      // ACC-02: the web Cash Flow statement (lib/accounting/cashflow.ts).
+      rows: (data) {
+        final s = Map<String, dynamic>.from(
+            (data['statement'] as Map?) ?? const <String, dynamic>{});
+        List<_InfoRow> section(String title, String key, String netKey) => [
+              ...((s[key] as List<dynamic>?) ?? const [])
+                  .map((dynamic r) => Map<String, dynamic>.from(r as Map))
+                  .map((r) => _InfoRow(
+                      '$title · ${r['label'] ?? ''}', fmt.format(_num(r['amount'])))),
+              _InfoRow('${t.x('accounting.cf_net')} $title',
+                  fmt.format(_num(s[netKey]))),
+            ];
+        return [
+          _InfoRow(t.x('accounting.cf_opening'), fmt.format(_num(s['openingCash']))),
+          ...section(t.x('accounting.cf_operating'), 'operating', 'netOperating'),
+          ...section(t.x('accounting.cf_investing'), 'investing', 'netInvesting'),
+          ...section(t.x('accounting.cf_financing'), 'financing', 'netFinancing'),
+          _InfoRow(t.x('accounting.cf_net_change'), fmt.format(_num(s['netChange']))),
+          _InfoRow(t.x('accounting.cf_closing'), fmt.format(_num(s['closingCash']))),
+        ];
+      },
     );
   }
 }
@@ -919,15 +924,11 @@ class _AsyncMapView extends StatelessWidget {
     required this.async,
     required this.title,
     required this.rows,
-    this.listTitle,
-    this.listItems,
   });
 
   final AsyncValue<Map<String, dynamic>> async;
   final String title;
   final List<_InfoRow> Function(Map<String, dynamic>) rows;
-  final String? listTitle;
-  final List<_InfoRow> Function(Map<String, dynamic>)? listItems;
 
   @override
   Widget build(BuildContext context) {
@@ -937,15 +938,7 @@ class _AsyncMapView extends StatelessWidget {
         async.when(
           loading: () => const Skeleton(height: 220),
           error: (e, _) => _InlineError(message: e.toString()),
-          data: (data) => Column(
-            children: [
-              _InfoCard(title: title, rows: rows(data)),
-              if (listTitle != null && listItems != null) ...[
-                const SizedBox(height: 12),
-                _InfoCard(title: listTitle!, rows: listItems!(data)),
-              ],
-            ],
-          ),
+          data: (data) => _InfoCard(title: title, rows: rows(data)),
         ),
       ],
     );

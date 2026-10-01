@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/db';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 import { BillPostingError, postBillInTx } from '@/lib/accounting/bills';
+import { getCashFlowStatement } from '@/lib/accounting/cashflow';
 import {
   getCashBankBalance,
   getDailyCashflowSeries,
@@ -55,11 +56,15 @@ export async function getPremiumCashflow(
   const from = input.from ? new Date(input.from) : new Date(now.getFullYear(), now.getMonth(), 1);
   const to = input.to ? new Date(input.to) : now;
   const branchId = actor.branchId ?? null;
+  // ACC-02: the web Cash Flow statement, same defaults (month start → today).
+  const fromStr = input.from || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const toStr = input.to || now.toISOString().split('T')[0];
 
-  const [series, cashBankBalance, topExpenses] = await Promise.all([
+  const [series, cashBankBalance, topExpenses, statement] = await Promise.all([
     getDailyCashflowSeries(actor.tenantId, branchId, from, to, actor.appType),
     getCashBankBalance(actor.tenantId, branchId, to, actor.appType),
     getTopExpenses(actor.tenantId, branchId, { from, to }, 8, actor.appType),
+    getCashFlowStatement(actor.tenantId, actor.appType, branchId, fromStr, toStr),
   ]);
   const totalInflow = series.reduce((sum, row) => sum + row.inflow, 0);
   const totalOutflow = series.reduce((sum, row) => sum + row.outflow, 0);
@@ -73,6 +78,7 @@ export async function getPremiumCashflow(
     cashBankBalance,
     series,
     topExpenses,
+    statement,
   };
 }
 
