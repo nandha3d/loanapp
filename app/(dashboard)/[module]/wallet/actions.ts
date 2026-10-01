@@ -4,11 +4,12 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
-import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch, checkBranchFloat } from '@/lib/wallet';
+import { releaseToAgent, injectBranchCash, collectFromAgent, applyAccountingCashToBranch, checkBranchFloat } from '@/lib/wallet';
 import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
+import { requestCashHandover } from '@/lib/cashHandover';
 
 async function requirePrivileged() {
   const session = await auth();
@@ -172,32 +173,8 @@ export async function injectBranchAction(formData: FormData) {
 export async function requestFloatHandoverAction(formData: FormData) {
   const { userId, tenantId, appType } = await requireAgent();
   const amount = Number(formData.get('amount'));
-  const remarks = (String(formData.get('note') || '') || null) as string | null;
-  if (!(amount > 0)) throw new Error('A positive amount is required');
-
-  const balance = await getAgentBalance(tenantId, appType, userId);
-  if (amount > balance) throw new Error('Amount exceeds your float balance');
-
-  // Avoid stacking duplicate pending requests.
-  const pending = await prisma.cashHandover.count({ where: { tenantId, agentId: userId, status: 'pending' } });
-  if (pending >= 5) throw new Error('You already have pending handover requests awaiting collection');
-
-  await prisma.cashHandover.create({
-    data: { tenantId, agentId: userId, amount, status: 'pending', remarks },
-  });
-
-  const agent = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, branchId: true } });
-  const { notifyApprovers } = await import('@/lib/notify/approvers');
-  await notifyApprovers({
-    tenantId,
-    branchId: agent?.branchId ?? null,
-    appType,
-    type: 'cash_handover',
-    icon: 'payments',
-    title: 'Cash handover to collect',
-    message: `${agent?.name ?? 'An agent'} is handing over ₹${amount.toLocaleString('en-IN')}.`,
-    link: modulePath(appType, '/wallet'),
-  });
+  const note = (String(formData.get('note') || '') || null) as string | null;
+  await requestCashHandover({ tenantId, appType, userId }, { amount, note });
   revalidatePath(modulePath(appType, '/wallet'));
 }
 

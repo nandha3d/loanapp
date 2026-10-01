@@ -74,7 +74,7 @@ class _AgentWallet extends ConsumerWidget {
                 onPressed:
                     w.balance > 0 ? () => _depositCash(context, ref) : null,
                 icon: const Icon(Icons.upload_rounded, size: 18),
-                label: Text(t.x('wallet.deposit')),
+                label: Text(t.x('wallet.handover')),
               ),
             ),
             const SizedBox(height: 18),
@@ -103,9 +103,9 @@ class _AgentWallet extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (_) => _AmountActionDialog(
-        title: t.x('wallet.deposit_title'),
-        actionLabel: t.x('wallet.deposit'),
-        successMsg: t.x('wallet.deposited'),
+        title: t.x('wallet.handover_title'),
+        actionLabel: t.x('wallet.handover'),
+        successMsg: t.x('wallet.handover_requested'),
         maxBalance: balance,
         balanceLabel: t.x('wallet.cash_in_hand'),
         warningExceeds: t.x('wallet.exceeds_cash'),
