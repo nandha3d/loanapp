@@ -923,8 +923,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
 
   // ─────────────────────── Step 0: Customer ───────────────────────────
   Widget _stepCustomer() {
-    final filter = ref.watch(customerFilterProvider);
-    final async = ref.watch(customerListProvider);
+    final async = ref.watch(loanEligibleCustomersProvider);
     final t = T.of(ref);
 
     return Column(
@@ -937,8 +936,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 child: TextField(
                   controller: _searchCtrl,
                   onChanged: (v) {
-                    ref.read(customerFilterProvider.notifier).state =
-                        filter.copyWith(query: v);
+                    ref.read(loanCustomerSearchProvider.notifier).state = v;
                   },
                   decoration: InputDecoration(
                     hintText: t.x('fld.search_customer'),
@@ -1075,6 +1073,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     final result = await context.push<Object?>('/customers/new?returnTo=loan');
     if (!mounted) return;
     ref.invalidate(customerListProvider);
+    ref.invalidate(loanEligibleCustomersProvider);
     if (result is Customer) {
       setState(() => _customer = result);
       _go(1);

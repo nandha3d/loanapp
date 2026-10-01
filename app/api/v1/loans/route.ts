@@ -278,6 +278,7 @@ export async function POST(req: NextRequest) {
       where: customerWhere,
     });
     if (!customer) return fail('Customer not found', 404);
+    if (customer.status !== 'active') return fail('Customer not active', 400);
 
     if (ctx.role === 'agent') {
       const routeIds = await getAgentRouteIds(ctx.userId);

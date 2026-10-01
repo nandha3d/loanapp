@@ -22,6 +22,7 @@ class CustomerService {
     String? cursor,
     int? limit,
     bool? hasActiveLoan,
+    String? status,
   }) async {
     // If a specific cursor is requested, fetch just that single page
     if (cursor != null && cursor.isNotEmpty) {
@@ -31,6 +32,7 @@ class CustomerService {
         if (limit != null) 'limit': limit,
         if (hasActiveLoan != null)
           'hasActiveLoan': hasActiveLoan ? 'true' : 'false',
+        if (status != null && status != 'all') 'status': status,
       };
       final res = await _dio.get<Map<String, dynamic>>(
         Endpoints.customers,
@@ -54,6 +56,7 @@ class CustomerService {
         if (currentCursor != null) 'cursor': currentCursor,
         if (hasActiveLoan != null)
           'hasActiveLoan': hasActiveLoan ? 'true' : 'false',
+        if (status != null && status != 'all') 'status': status,
       };
       final res = await _dio.get<Map<String, dynamic>>(
         Endpoints.customers,

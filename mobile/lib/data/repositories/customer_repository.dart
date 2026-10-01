@@ -12,12 +12,14 @@ class CustomerRepository {
     String? cursor,
     int? limit,
     bool? hasActiveLoan,
+    String? status,
   }) =>
       _service.list(
         query: query,
         cursor: cursor,
         limit: limit,
         hasActiveLoan: hasActiveLoan,
+        status: status,
       );
   Future<Customer> getById(String id) => _service.getById(id);
   Future<Customer> create({
@@ -103,4 +105,16 @@ final customerListProvider =
 final customerDetailProvider =
     FutureProvider.autoDispose.family<Customer, String>((ref, id) {
   return ref.watch(customerRepositoryProvider).getById(id);
+});
+
+final loanCustomerSearchProvider = StateProvider.autoDispose<String>((ref) => '');
+
+final loanEligibleCustomersProvider =
+    FutureProvider.autoDispose<List<Customer>>((ref) async {
+  final query = ref.watch(loanCustomerSearchProvider);
+  final all = await ref.watch(customerRepositoryProvider).list(
+        query: query.isEmpty ? null : query,
+        status: 'active',
+      );
+  return all.where((c) => c.status == 'active').toList(growable: false);
 });
