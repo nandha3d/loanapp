@@ -164,7 +164,7 @@ class _PenaltiesBody extends ConsumerWidget {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: ['all', 'pending', 'settled', 'waived'].map((s) {
+              children: ['all', 'pending', 'partial', 'settled', 'waived'].map((s) {
                 final active = status == s;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -364,11 +364,12 @@ class _LoanPenaltyGroup {
   String get loanId => primary.loanId;
 
   List<Penalty> get pending =>
-      penalties.where((p) => p.status == 'pending').toList();
+      penalties.where((p) => p.status == 'pending' || p.status == 'partial').toList();
   bool get hasPending => pending.isNotEmpty;
 
   String get status {
-    if (hasPending) return 'pending';
+    if (penalties.any((p) => p.status == 'pending')) return 'pending';
+    if (penalties.any((p) => p.status == 'partial')) return 'partial';
     if (penalties.any((p) => p.status == 'waived')) return 'waived';
     return 'settled';
   }
@@ -487,7 +488,9 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
         ? BadgeKind.active
         : g.status == 'waived'
             ? BadgeKind.waived
-            : BadgeKind.pending;
+            : g.status == 'partial'
+                ? BadgeKind.partial
+                : BadgeKind.pending;
 
     return InkWell(
       onTap: () => _showSkippedDays(g),
