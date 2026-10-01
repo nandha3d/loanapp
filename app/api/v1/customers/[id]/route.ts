@@ -52,6 +52,7 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
     OR: [{ id }, { customerCode: id }],
     tenantId: ctx.tenantId,
     appType: ctx.appType,
+    deletedAt: null,
   };
   if (ctx.role === 'agent') {
     // Agents scope by customer-linkage only, NOT branch (a branch pin 404s their

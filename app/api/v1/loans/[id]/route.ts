@@ -29,6 +29,7 @@ export async function GET(
     ],
     tenantId: ctx.tenantId,
     appType: ctx.appType,
+    deletedAt: null,
   };
   if (ctx.role === 'agent') {
     // Agents see only their own customers' loans (linkage), regardless of branch.
@@ -260,6 +261,7 @@ export async function PATCH(
     id,
     tenantId: ctx.tenantId,
     appType: ctx.appType,
+    deletedAt: null,
   };
   if (ctx.role === 'agent') {
     patchWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });

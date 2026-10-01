@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
+    deletedAt: null,
     AND: [],
   };
 
