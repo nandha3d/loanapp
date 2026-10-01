@@ -123,6 +123,7 @@ class LoanMetrics {
     this.paidPeriod = 0,
     this.remainingActual = 0,
     this.remainingExtended = 0,
+    this.progress,
   });
 
   final double totalOutstanding;
@@ -134,10 +135,13 @@ class LoanMetrics {
   final int paidPeriod;
   final int remainingActual;
   final int remainingExtended;
+  final double? progress;
 
   factory LoanMetrics.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) =>
         (v is num) ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+    double? numOrNull(dynamic v) =>
+        v == null ? null : ((v is num) ? v.toDouble() : double.tryParse(v.toString()));
     return LoanMetrics(
       totalOutstanding: num$(json['totalOutstanding']),
       overdueAmount: num$(json['overdueAmount']),
@@ -147,6 +151,7 @@ class LoanMetrics {
       paidPeriod: num$(json['paidPeriod']).toInt(),
       remainingActual: num$(json['remainingActual']).toInt(),
       remainingExtended: num$(json['remainingExtended']).toInt(),
+      progress: numOrNull(json['progress']),
     );
   }
 }
@@ -289,6 +294,7 @@ class Loan {
     this.deduction,
     this.deductionType,
     this.penaltySummary,
+    this.agentPreclose,
   });
 
   final String id;
@@ -329,6 +335,8 @@ class Loan {
   final double? deduction;
   final String? deductionType;
   final PenaltySummary? penaltySummary;
+  /// Agent preclose-request gate from the server: {enabled, amount, status, reviewNotes} (LD-06).
+  final Map<String, dynamic>? agentPreclose;
 
   factory Loan.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -408,6 +416,7 @@ class Loan {
       penaltySummary: json['penaltySummary'] is Map<String, dynamic>
           ? PenaltySummary.fromJson(json['penaltySummary'] as Map<String, dynamic>)
           : null,
+      agentPreclose: json['agentPreclose'] as Map<String, dynamic>?,
     );
   }
 }

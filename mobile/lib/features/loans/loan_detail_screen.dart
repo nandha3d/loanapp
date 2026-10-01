@@ -176,10 +176,18 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         ref.watch(authControllerProvider).user?.appType == AppType.microlending;
     final compactSchedule =
         isMicrolending && MediaQuery.sizeOf(context).width < 600;
-    // Progress ring = server paid period / total instalments (LD-03).
-    final paid = loan.metrics?.paidPeriod ?? 0;
-    final progress =
-        loan.instalmentCount == 0 ? 0.0 : paid / loan.instalmentCount;
+    // Progress ring = server progress or canonical paid period / total instalments (LD-03).
+    final isClosedOrSettled = loan.status == 'closed' ||
+        (loan.metrics != null && loan.metrics!.totalOutstanding <= 0);
+    final paid = isClosedOrSettled
+        ? loan.instalmentCount
+        : (loan.metrics?.paidPeriod ?? 0);
+    final progress = isClosedOrSettled
+        ? 1.0
+        : (loan.metrics?.progress ??
+            (loan.instalmentCount == 0
+                ? 0.0
+                : (paid / loan.instalmentCount).clamp(0.0, 1.0)));
 
     _tenureOver = loan.extendedSchedule?.scheduleFinished ?? false;
     final displayInstalments = _computeDisplayInstalments(loan);
@@ -1145,7 +1153,7 @@ Future<void> _requestPenaltyWaiverDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: Text(t.x('btn.cancel')),
+          child: Text(t.x('common.cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(ctx, true),
@@ -2673,11 +2681,117 @@ class _LoanBottomBar extends ConsumerWidget {
                   ),
                 ),
               ),
+            ] else if (!isClosed && loan.agentPreclose?['enabled'] == true) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: loan.agentPreclose?['status'] == 'pending'
+                      ? null
+                      : () => _requestPreclose(context, ref),
+                  icon: const Icon(Icons.offline_pin_outlined),
+                  label: Text(loan.agentPreclose?['status'] == 'pending'
+                      ? t.x('preclose.request_pending')
+                      : t.x('preclose.request')),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  /// LD-06: agent files a loan_preclose request (lib/loanPrecloseRequests.ts),
+  /// same as the web LoanPrecloseRequest form. Amount = server figure.
+  Future<void> _requestPreclose(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
+    final fmt = ref.read(currencyFmtProvider);
+    final amount = double.tryParse('${loan.agentPreclose?['amount'] ?? 0}') ?? 0;
+    final reasonCtrl = TextEditingController();
+    final remarksCtrl = TextEditingController();
+    var mode = 'cash';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text(t.x('preclose.request')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.x('preclose.request_hint'), style: AppTypography.caption),
+                const SizedBox(height: 10),
+                Text('${t.x('preclose.settlement_amount')}: ${fmt.format(amount)}',
+                    style: AppTypography.bodyLarge),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: mode,
+                  decoration: InputDecoration(labelText: t.x('loan.payment_mode')),
+                  items: [
+                    DropdownMenuItem(value: 'cash', child: Text(t.x('coll.cash'))),
+                    DropdownMenuItem(value: 'upi', child: Text(t.x('coll.upi'))),
+                    DropdownMenuItem(value: 'cheque', child: Text(t.x('mode.cheque'))),
+                    DropdownMenuItem(value: 'bank_transfer', child: Text(t.x('loan.bank_transfer'))),
+                  ],
+                  onChanged: (v) => setState(() => mode = v ?? 'cash'),
+                ),
+                TextField(
+                  controller: remarksCtrl,
+                  decoration: InputDecoration(labelText: t.x('loan.remarks')),
+                ),
+                TextField(
+                  controller: reasonCtrl,
+                  decoration: InputDecoration(labelText: '${t.x('preclose.reason')} *'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.x('common.cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.x('preclose.send'))),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final reason = reasonCtrl.text.trim();
+    if (reason.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.x('preclose.reason_required'))),
+        );
+      }
+      return;
+    }
+    try {
+      await ref.read(approvalServiceProvider).request(
+            requestType: 'loan_preclose',
+            entityType: 'loan',
+            entityId: loan.id,
+            requestedChanges: {
+              'amount': amount,
+              'paymentMode': mode,
+              'remarks': remarksCtrl.text.trim(),
+            },
+            reason: reason,
+          );
+      ref.invalidate(loanDetailProvider(loan.id));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('preclose.request_pending'))),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _exportStatement(BuildContext context, WidgetRef ref) async {

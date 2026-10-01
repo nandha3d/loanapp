@@ -214,6 +214,12 @@ export async function GET(
     .filter((i) => i.status !== 'waived' && i.status !== 'paid' && new Date(i.dueDate) < new Date(today.getTime() + 24 * 60 * 60 * 1000))
     .reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
   const dueNow = settledOrClosed ? 0 : (dueTillToday > 0 ? dueTillToday : Math.min(perInstalment, totalOutstanding));
+  const totalInstalments = Number(loan.totalInstalments) || 0;
+  const progress = settledOrClosed
+    ? 1.0
+    : totalInstalments > 0
+      ? Math.min(1.0, Math.max(0, paidPeriod / totalInstalments))
+      : 0.0;
   const metrics = {
     totalOutstanding,
     dueNow,
@@ -224,6 +230,7 @@ export async function GET(
     missedCount,
     paidCount: countedInsts.filter((i) => i.status === 'paid').length,
     paidPeriod,
+    progress,
     remainingActual,
     remainingExtended,
   };
@@ -266,6 +273,26 @@ export async function GET(
     delete (customerOut as any).passwordHash;
   }
 
+  // LD-06: the agent "Request preclose" gate and status, same rules as the
+  // web loan page (canRequestLoanPreclose + isPrecloseRequestLoan).
+  let agentPreclose: { enabled: boolean; amount: number; status: string | null; reviewNotes: string | null } | null = null;
+  if (ctx.role === 'agent') {
+    const { getSetting } = await import('@/lib/tenant');
+    const { AGENT_PRECLOSE_FLAG, LOAN_PRECLOSE_REQUEST, canRequestLoanPreclose, isPrecloseRequestLoan, precloseOutstanding } =
+      await import('@/lib/loanPreclosePolicy');
+    const enabled = canRequestLoanPreclose(ctx.role, loan.appType, (await getSetting(ctx.tenantId, AGENT_PRECLOSE_FLAG, '0')) === '1')
+      && isPrecloseRequestLoan(loan);
+    const last = enabled
+      ? await prisma.approvalRequest.findFirst({
+          where: { tenantId: ctx.tenantId, appType: loan.appType, entityType: 'loan', entityId: loan.id,
+            requestType: LOAN_PRECLOSE_REQUEST, requestedById: ctx.userId },
+          orderBy: { createdAt: 'desc' },
+          select: { status: true, reviewNotes: true },
+        })
+      : null;
+    agentPreclose = { enabled, amount: precloseOutstanding(loan), status: last?.status ?? null, reviewNotes: last?.reviewNotes ?? null };
+  }
+
   return ok({
     ...loan,
     customer: customerOut,
@@ -275,6 +302,7 @@ export async function GET(
     extendedSchedule,
     metrics,
     penaltySummary,
+    agentPreclose,
   });
 }
 
