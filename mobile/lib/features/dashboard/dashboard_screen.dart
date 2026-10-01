@@ -35,7 +35,6 @@ import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
-import 'package:zolofund/features/dashboard/widgets/collect_cash_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
@@ -3444,34 +3443,6 @@ class _RoutePerformanceList extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  if (isAdmin) ...[
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: rp.agentId == null
-                          ? null
-                          : () {
-                              showModalBottomSheet<bool>(
-                                context: context,
-                                isScrollControlled: true,
-                                builder: (_) => CollectCashSheet(
-                                  routeId: rp.id,
-                                  routeName: rp.name,
-                                  agentId: rp.agentId!,
-                                  fmt: fmt,
-                                ),
-                              ).then((success) {
-                                if (success == true) {
-                                  ref.invalidate(dashboardSummaryProvider);
-                                }
-                              });
-                            },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.success,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      child: const Text('Collect'),
-                    ),
-                  ],
                 ],
               ),
             ),

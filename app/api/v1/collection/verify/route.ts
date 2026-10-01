@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { autoPostCollection } from '@/lib/accounting/autoPost';
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,11 @@ export async function POST(req: NextRequest) {
 
     if (action === 'upi') {
       const entry = await prisma.collectionEntry.findFirst({
-        where: { id: entryId, tenantId: ctx.tenantId },
+        where: {
+          id: entryId,
+          tenantId: ctx.tenantId,
+          loan: { appType: ctx.appType, ...scopedBranchWhere(ctx) },
+        },
         include: { loan: true }
       });
       if (!entry) return fail('Entry not found', 404);
@@ -74,6 +78,7 @@ export async function POST(req: NextRequest) {
           tenantId: ctx.tenantId,
           paymentMode: 'upi',
           verificationStatus: 'pending',
+          loan: { appType: ctx.appType, ...scopedBranchWhere(ctx) },
         },
         include: { loan: true },
       });
@@ -109,85 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'collect-cash') {
-      if (!routeId || !agentId) {
-        return fail('routeId and agentId are required', 400);
-      }
-
-      let handoverTotal = 0;
-      let handoverBranchId: string | null = null;
-
-      await prisma.$transaction(async (tx) => {
-        const entries = await tx.collectionEntry.findMany({
-          where: {
-            tenantId: ctx.tenantId,
-            agentId,
-            paymentMode: 'cash',
-            verificationStatus: 'pending',
-            customer: { routeId }
-          },
-          include: { loan: true }
-        });
-
-        const totalToCollect = entries.reduce((sum, e) => sum + Number(e.receivedAmount), 0);
-        if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
-
-        const branchId = entries[0]?.loan?.branchId || null;
-        handoverTotal = totalToCollect;
-        handoverBranchId = branchId;
-
-        await tx.collectionEntry.updateMany({
-          where: {
-            id: { in: entries.map(e => e.id) }
-          },
-          data: { verificationStatus: 'verified' }
-        });
-
-        const handover = await tx.cashHandover.create({
-          data: {
-            tenantId: ctx.tenantId,
-            agentId,
-            adminId: ctx.userId,
-            routeId,
-            amount: totalToCollect,
-            status: 'collected',
-            collectedAt: new Date(),
-            confirmedAt: new Date()
-          }
-        });
-
-        await tx.accountEntry.create({
-          data: {
-            tenantId: ctx.tenantId,
-            appType: ctx.appType,
-            entryDate: new Date(),
-            type: 'collection',
-            category: 'cash',
-            amount: totalToCollect,
-            description: `Cash handover collected`,
-            referenceId: handover.id,
-            referenceType: 'payment',
-            createdBy: ctx.userId,
-            branchId,
-          }
-        });
-      });
-
-      if (handoverTotal > 0) {
-        autoPostCollection({
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          entryId: `handover-${routeId}-${agentId}-${Date.now()}`,
-          loanId: routeId,
-          loanCode: `Route/${routeId.slice(0, 8)}`,
-          amount: handoverTotal,
-          date: new Date(),
-          branchId: handoverBranchId,
-          createdById: ctx.userId,
-          paymentMode: 'cash',
-        }).catch(() => {});
-      }
-
-      return ok({ success: true });
+      return fail('Use the wallet handover flow', 410);
     }
 
     return fail('Invalid action', 400);
