@@ -1364,10 +1364,12 @@ export default function CollectionClient({
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>route</span>
               Route Runs
             </Link>
-            <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-              Self-Pay
-            </Link>
+            {agentRole !== 'agent' && (
+              <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+                Self-Pay
+              </Link>
+            )}
             <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
             {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
               <button 

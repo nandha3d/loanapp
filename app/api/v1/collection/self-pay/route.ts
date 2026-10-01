@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     const rows = await listPendingSelfPay(
       ctx.tenantId,
       ctx.branchId, // active branch; already null for "All Branches"
+      ctx.appType,
     );
     return ok({ data: rows });
   } catch (e: any) {

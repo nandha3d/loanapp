@@ -1,12 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireApiContext, AUTHENTICATED_API_ROLES, isApiError } from '@/lib/apiAuth';
+import { requireApiContext, ADMIN_API_ROLES, isApiError } from '@/lib/apiAuth';
 import { reconcileSelfPayToken, rejectSelfPayToken } from '@/lib/selfPay';
 
 /** Staff one-tap confirm of a claimed self-pay → posts the collection. */
 export async function confirmSelfPayAction(token: string) {
-  const res = await requireApiContext(AUTHENTICATED_API_ROLES);
+  const res = await requireApiContext(ADMIN_API_ROLES);
   if (isApiError(res)) return { success: false, error: 'Unauthorized' };
   try {
     const result = await reconcileSelfPayToken({ token, agentId: res.context.userId });
@@ -21,7 +21,7 @@ export async function confirmSelfPayAction(token: string) {
 
 /** Staff reject of a claimed self-pay (money never arrived). */
 export async function rejectSelfPayAction(token: string) {
-  const res = await requireApiContext(AUTHENTICATED_API_ROLES);
+  const res = await requireApiContext(ADMIN_API_ROLES);
   if (isApiError(res)) return { success: false, error: 'Unauthorized' };
   try {
     const result = await rejectSelfPayToken(token);

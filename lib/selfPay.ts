@@ -276,7 +276,7 @@ export async function claimSelfPayToken(token: string): Promise<{ status: string
 }
 
 /** Verification queue: self-pay tokens awaiting staff confirmation. */
-export async function listPendingSelfPay(tenantId: string, branchId?: string | null) {
+export async function listPendingSelfPay(tenantId: string, branchId?: string | null, appType?: string | null) {
   const tokens = await prisma.clientPaymentToken.findMany({
     where: { tenantId, status: { in: ['claimed', 'active'] } },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
@@ -288,11 +288,16 @@ export async function listPendingSelfPay(tenantId: string, branchId?: string | n
   const customerIds = [...new Set(tokens.map((t) => t.customerId))];
   const [loans, customers] = await Promise.all([
     prisma.loan.findMany({
-      where: { id: { in: loanIds }, ...(branchId ? { branchId } : {}) },
+      where: {
+        id: { in: loanIds },
+        tenantId,
+        ...(appType ? { appType } : {}),
+        ...(branchId ? { branchId } : {}),
+      },
       select: { id: true, loanCode: true, branchId: true },
     }),
     prisma.customer.findMany({
-      where: { id: { in: customerIds } },
+      where: { id: { in: customerIds }, tenantId },
       select: { id: true, name: true, phone: true, customerCode: true },
     }),
   ]);
@@ -300,7 +305,7 @@ export async function listPendingSelfPay(tenantId: string, branchId?: string | n
   const custMap = new Map(customers.map((c) => [c.id, c]));
 
   return tokens
-    .filter((t) => loanMap.has(t.loanId)) // branch scope
+    .filter((t) => loanMap.has(t.loanId)) // branch & module scope
     .map((t) => {
       const c = custMap.get(t.customerId);
       return {
