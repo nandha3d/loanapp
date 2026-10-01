@@ -129,6 +129,21 @@ class KycService {
   }
 
   /// decision: 'verified' | 'rejected'. Reason required when rejecting.
+  /// Video KYC decision through the shared lib (POST /kyc/video action review →
+  /// reviewVideoKyc), the same path web uses (KYC-01).
+  Future<void> reviewVideo(String sessionId, String decision, {String? notes}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.kycVideo,
+      data: {
+        'action': 'review',
+        'sessionId': sessionId,
+        'decision': decision, // approved | rejected
+        if (notes != null) 'notes': notes,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<void> review(String customerId, String decision,
       {String? reason,}) async {
     final res = await _dio.post<Map<String, dynamic>>(

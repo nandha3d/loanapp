@@ -279,63 +279,6 @@ class _KycCard extends ConsumerStatefulWidget {
 class _KycCardState extends ConsumerState<_KycCard> {
   bool _busy = false;
 
-  Future<void> _review(String decision) async {
-    final t = T.of(ref);
-    String? reason;
-    if (decision == 'rejected') {
-      reason = await _askReason();
-      if (reason == null) return; // cancelled
-    }
-    setState(() => _busy = true);
-    try {
-      await ref.read(kycServiceProvider).review(widget.item.id, decision, reason: reason);
-      if (!mounted) return;
-      ref.invalidate(kycQueueProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(decision == 'verified' ? t.x('kyc.verified_msg') : t.x('kyc.rejected_msg')),
-          backgroundColor: decision == 'verified' ? AppColors.success : AppColors.danger,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
-  }
-
-  Future<String?> _askReason() async {
-    final t = T.of(ref);
-    final ctrl = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.x('kyc.reject_title')),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: t.x('kyc.reason_hint')),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.x('common.cancel'))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
-              if (ctrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, ctrl.text.trim());
-            },
-            child: Text(t.x('kyc.reject_btn')),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    return reason;
-  }
-
   String _buildVideoUrl(String pathOrUrl) {
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
       return pathOrUrl;
@@ -489,10 +432,10 @@ class _KycCardState extends ConsumerState<_KycCard> {
                                   final messenger = ScaffoldMessenger.of(context);
                                   setSheetState(() => sheetBusy = true);
                                   try {
-                                    await ref.read(kycServiceProvider).review(
-                                      item.id,
+                                    await ref.read(kycServiceProvider).reviewVideo(
+                                      latestSession!.id,
                                       'rejected',
-                                      reason: notesController.text.trim(),
+                                      notes: notesController.text.trim(),
                                     );
                                     navigator.pop();
                                     ref.invalidate(kycQueueProvider);
@@ -522,10 +465,10 @@ class _KycCardState extends ConsumerState<_KycCard> {
                                   final messenger = ScaffoldMessenger.of(context);
                                   setSheetState(() => sheetBusy = true);
                                   try {
-                                    await ref.read(kycServiceProvider).review(
-                                      item.id,
-                                      'verified',
-                                      reason: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                                    await ref.read(kycServiceProvider).reviewVideo(
+                                      latestSession!.id,
+                                      'approved',
+                                      notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
                                     );
                                     navigator.pop();
                                     ref.invalidate(kycQueueProvider);
@@ -624,31 +567,15 @@ class _KycCardState extends ConsumerState<_KycCard> {
               ),
             )
           else
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _review('rejected'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.danger),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: Text(t.x('kyc.reject_btn')),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _review('verified'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: Text(t.x('kyc.verify_btn')),
-                  ),
-                ),
-              ],
+            // KYC-01: non-video rows open the profile (as web); manual KYC
+            // status is set from the customer edit form (CUST-06).
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.person_outline),
+                label: Text(t.x('kyc.view_profile')),
+                onPressed: () => context.push('/customers/${item.id}'),
+              ),
             ),
         ],
       ),
