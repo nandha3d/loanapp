@@ -52,7 +52,7 @@ export default async function NotificationLogPage({ params }: Props) {
             {logs.map(log => (
               <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '12px 8px' }}>
-                  {new Date(log.createdAt).toLocaleString('en-IN')}
+                  {new Date(log.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                 </td>
                 <td style={{ padding: '12px 8px' }}>
                   <span className={`badge ${

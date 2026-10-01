@@ -147,7 +147,7 @@ export default async function AgentDashboardPage({ params }: Props) {
         customerCode: c.customer.customerCode,
         loanCode:     c.loan?.loanCode ?? '',
         amount:       Number(c.receivedAmount),
-        time:         c.submittedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        time:         c.submittedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
         preferredCollectionTime: c.customer.preferredCollectionTime,
       }))}
       currencySymbol={currencySymbol}
