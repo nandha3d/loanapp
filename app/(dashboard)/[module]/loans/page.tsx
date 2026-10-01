@@ -272,7 +272,7 @@ export default async function LoansPage({
           <tbody>
             {loans.map((l: any) => {
               const pct = calcPercentage(l.paidCount, l.totalInstalments);
-              const totalRepayable = Number(l.perInstalment) * l.totalInstalments;
+              const totalRepayable = Number(l.totalPayable);
               const paid = Number(l.totalCollected || 0);
               const initials = (l.customer.name || '?').trim().charAt(0).toUpperCase();
               return (

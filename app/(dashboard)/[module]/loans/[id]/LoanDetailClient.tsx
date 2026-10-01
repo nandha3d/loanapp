@@ -187,7 +187,7 @@ export default function LoanDetailClient({
   useRegisterBreadcrumbLabel(loan.loanCode, loan.customer?.name ? `${loan.loanCode} — ${loan.customer.name}` : loan.loanCode);
   const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userRole === 'developer';
   const totalCollected = Number(loan.totalCollected || 0);
-  const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
+  const totalRepayable = Number(loan.totalPayable);
   const outstanding = totalRepayable - totalCollected;
   
   const [viewMode, setViewMode] = useState<'actual' | 'distributed' | 'recent_first'>('actual');
