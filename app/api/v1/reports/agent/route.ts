@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext } from '@/lib/api/v1-auth';
+import { buildAgentPerformance } from '@/lib/reports/builders/agent-performance';
 
+/**
+ * RPT-01: agent performance = the catalog builder the web report uses
+ * (lib/reports/builders/agent-performance.ts), reshaped for the mobile list.
+ */
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
@@ -13,52 +17,32 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const agentId = searchParams.get('agentId');
-  const from = new Date(searchParams.get('from') ?? new Date(Date.now() - 30 * 86400000));
-  const to = new Date(searchParams.get('to') ?? new Date());
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
+  const day = (d: Date) => d.toISOString().split('T')[0];
+  const from = searchParams.get('from') ?? day(new Date(Date.now() - 30 * 86400000));
+  const to = searchParams.get('to') ?? day(new Date());
+  const agentId = searchParams.get('agentId') ?? undefined;
 
   try {
-    const where: any = {
+    const report = await buildAgentPerformance({
       tenantId: ctx.tenantId,
       appType: ctx.appType,
-      ...scopedBranchWhere(ctx),
-      date: { gte: from, lte: to },
-    };
-    if (agentId) where.agentId = agentId;
-
-    const collections = await prisma.dailyCollection.findMany({
-      where,
-      include: { agent: { select: { id: true, name: true } } },
-      orderBy: { date: 'asc' },
+      from,
+      to,
+      branchId: ctx.branchId,
+      agentId,
     });
-
-    const byAgent = new Map<string, {
-      agentId: string;
-      name: string;
-      expected: number;
-      collected: number;
-      entryCount: number;
-    }>();
-    for (const c of collections) {
-      const prev = byAgent.get(c.agentId) ?? {
-        agentId: c.agentId,
-        name: c.agent.name,
-        expected: 0,
-        collected: 0,
-        entryCount: 0,
-      };
-      prev.expected += Number(c.totalExpected);
-      prev.collected += Number(c.totalCollected);
-      prev.entryCount += c.entriesCount;
-      byAgent.set(c.agentId, prev);
-    }
-
+    const rows = report.rows as Array<Record<string, any>>;
     return ok({
-      from: from.toISOString().split('T')[0],
-      to: to.toISOString().split('T')[0],
-      agents: Array.from(byAgent.values()),
+      from,
+      to,
+      agents: rows.map((r) => ({
+        agentId: r.agentId,
+        name: r.agentName,
+        expected: Number(r.expected ?? 0),
+        collected: Number(r.collected ?? 0),
+        entryCount: Number(r.visits ?? 0),
+        hitRate: Number(r.recovery ?? 0),
+      })),
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Report failed', 500);

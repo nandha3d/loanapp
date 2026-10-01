@@ -640,27 +640,23 @@ class _AgentLeaderboard extends StatelessWidget {
         children: [
           Text('Agent Performance', style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
-          ...agents.map((a) {
-            return ListTile(
+          // RPT-01: web leaderboard — rank + collected, top 5 (no efficiency figure).
+          for (final (i, a) in ([...agents]..sort((x, y) => y.collected.compareTo(x.collected)))
+              .take(5)
+              .indexed)
+            ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(
                 backgroundColor: AppColors.primaryLight,
-                child: Text(a.name.isNotEmpty ? a.name[0].toUpperCase() : 'A',
+                child: Text('#${i + 1}',
                     style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),),
               ),
               title: Text(a.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
-              subtitle: Text('Collected: ${fmt.format(a.collected)}', style: AppTypography.caption),
-              trailing: Text('${a.hitRate}% efficiency',
+              trailing: Text(fmt.format(a.collected),
                   style: AppTypography.body.copyWith(
-                      color: a.hitRate >= 90
-                          ? AppColors.success
-                          : a.hitRate >= 75
-                              ? AppColors.warning
-                              : AppColors.danger,
-                      fontWeight: FontWeight.bold,),),
-            );
-          }),
+                      color: AppColors.success, fontWeight: FontWeight.bold,),),
+            ),
         ],
       ),
     );

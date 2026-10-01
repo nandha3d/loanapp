@@ -150,6 +150,8 @@ export async function buildAgentPerformance(params: ReportBuilderParams): Promis
     grandDistance += distanceKm;
 
     return {
+      agentId: agent.id, // RPT-01: v1 /reports/agent maps rows by agent
+      expected,
       agentName: agent.name,
       customers: custCount,
       collected,
