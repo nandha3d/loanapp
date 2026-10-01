@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
-      prisma.customer.count({ where: { ...baseCustomer, status: { not: 'blacklisted' } } }),
+      prisma.customer.count({ where: { ...baseCustomer, status: 'active' } }),
       prisma.instalment.findMany({
         where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, dueDate: { gte: today, lt: tomorrow } },
         include: {
