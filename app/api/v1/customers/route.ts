@@ -17,6 +17,7 @@ import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { notifyApprovers } from '@/lib/notify/approvers';
 import { modulePath } from '@/types/modules';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { calculateCreditScore } from '@/lib/creditScore';
 import { getBranding } from '@/lib/tenant';
 import { getAgentRouteIds } from '@/lib/access';
 import { mapGuarantorCreateInput } from '@/lib/customers/guarantors';
@@ -137,6 +138,19 @@ export async function GET(req: NextRequest) {
           route: { select: { id: true, name: true } },
           _count: { select: { loans: { where: { status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } } } },
           collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
+          // CUST-02: same loans select as the web (offset) branch, for the credit score.
+          loans: {
+            select: {
+              id: true,
+              loanCode: true,
+              principal: true,
+              status: true,
+              tenure: true,
+              instalments: { select: { status: true, receivedAmount: true } },
+              penalties: { select: { grossPenalty: true, status: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
         orderBy: { id: 'desc' },
         take: limit + 1,
@@ -174,6 +188,7 @@ export async function GET(req: NextRequest) {
           activeLoanCount: c._count.loans,
           activeLoanPrincipal: totalMap.get(c.id) ?? 0,
           outstandingBalance: outstandingMap.get(c.id) ?? 0,
+          creditScore: calculateCreditScore(c.loans),
         };
       });
 
