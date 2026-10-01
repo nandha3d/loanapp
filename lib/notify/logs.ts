@@ -10,6 +10,8 @@ export type NotificationLogFilters = {
   search?: string;
   cursor?: string;
   limit: number;
+  appType?: string;
+  branchId?: string | null;
 };
 
 export async function listNotificationLogs(tenantId: string, filters: NotificationLogFilters) {
@@ -21,6 +23,8 @@ export async function listNotificationLogs(tenantId: string, filters: Notificati
 
   const where: Prisma.NotificationLogWhereInput = {
     tenantId,
+    ...(filters.appType ? { appType: filters.appType } : {}),
+    ...(filters.branchId ? { branchId: filters.branchId } : {}),
     ...(filters.channel ? { channel: filters.channel } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...((from || to) ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } } : {}),
@@ -45,6 +49,7 @@ export async function listNotificationLogs(tenantId: string, filters: Notificati
       id: true, channel: true, recipient: true, status: true,
       errorMessage: true, entityType: true, entityId: true, event: true,
       messageBody: true, provider: true, providerMsgId: true, createdAt: true,
+      appType: true, branchId: true,
     },
   });
   const hasMore = rows.length > filters.limit;

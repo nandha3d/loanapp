@@ -895,6 +895,8 @@ model NotificationTemplate {
 model NotificationLog {
   id            String   @id @default(cuid())
   tenantId      String   @map("tenant_id")
+  appType       String?  @map("app_type")
+  branchId      String?  @map("branch_id")
   channel       String // sms | whatsapp | email | inapp
   recipient     String // phone number or email address
   status        String   @default("pending") // pending | sent | delivered | failed
@@ -910,6 +912,8 @@ model NotificationLog {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, channel, createdAt])
+  @@index([tenantId, appType, createdAt])
+  @@index([tenantId, branchId, createdAt])
   @@index([entityType, entityId])
   @@map("notification_logs")
 }

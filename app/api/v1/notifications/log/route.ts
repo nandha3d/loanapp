@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
   const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 50, maxLimit: 100 });
   try {
     const result = await listNotificationLogs(auth.context.tenantId, {
+      appType: auth.context.appType,
+      branchId: auth.context.branchId || undefined,
       channel: params.get('channel') || undefined,
       status: params.get('status') || undefined,
       from: params.get('from') || undefined,

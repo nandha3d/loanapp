@@ -114,6 +114,8 @@ interface NotifyParams {
   meta?: {
     entityType?: string;
     entityId?:   string;
+    appType?:    string;
+    branchId?:   string;
   };
 }
 
@@ -178,7 +180,37 @@ export async function notify(params: NotifyParams): Promise<void> {
       ? interpolateTemplate(smsBodyTemplate, enrichedData)
       : defaultSmsMessage;
 
-    const notifyMeta = { ...meta, event };
+    let resolvedAppType = meta?.appType;
+    let resolvedBranchId = meta?.branchId;
+
+    if (!resolvedAppType || !resolvedBranchId) {
+      if (meta?.entityType === 'loan' && meta?.entityId) {
+        const ln = await prisma.loan.findUnique({
+          where: { id: meta.entityId },
+          select: { appType: true, branchId: true },
+        });
+        if (ln) {
+          resolvedAppType = resolvedAppType ?? ln.appType;
+          resolvedBranchId = resolvedBranchId ?? ln.branchId;
+        }
+      } else if (meta?.entityType === 'customer' && meta?.entityId) {
+        const cust = await prisma.customer.findUnique({
+          where: { id: meta.entityId },
+          select: { appType: true, branchId: true },
+        });
+        if (cust) {
+          resolvedAppType = resolvedAppType ?? cust.appType;
+          resolvedBranchId = resolvedBranchId ?? cust.branchId;
+        }
+      }
+    }
+
+    const notifyMeta = {
+      ...meta,
+      event,
+      appType: resolvedAppType ?? null,
+      branchId: resolvedBranchId ?? null,
+    };
 
     // Try WhatsApp & SMS if allowed by subscription
     if (sub?.whatsappSmsEnabled) {

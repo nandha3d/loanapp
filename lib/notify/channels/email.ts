@@ -107,7 +107,7 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  meta?: { entityType?: string; entityId?: string; event?: string },
+  meta?: { entityType?: string; entityId?: string; event?: string; appType?: string | null; branchId?: string | null },
   // `system: true` for auth mail (password reset, verification) — uses the
   // platform SMTP and ignores the tenant's notify_channel_email toggle, so
   // critical mail always goes out even if the tenant never set up SMTP.
@@ -171,7 +171,7 @@ async function logNotification(
   html: string,
   result: EmailResult,
   provider: string,
-  meta?: { entityType?: string; entityId?: string; event?: string },
+  meta?: { entityType?: string; entityId?: string; event?: string; appType?: string | null; branchId?: string | null },
 ): Promise<void> {
   await prisma.notificationLog
     .create({
@@ -185,6 +185,8 @@ async function logNotification(
         entityType: meta?.entityType ?? null,
         entityId: meta?.entityId ?? null,
         event: meta?.event ?? null,
+        appType: meta?.appType ?? null,
+        branchId: meta?.branchId ?? null,
         messageBody: `Subject: ${subject}\n\n${html}`,
       },
     })

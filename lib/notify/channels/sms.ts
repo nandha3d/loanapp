@@ -8,7 +8,7 @@ export async function sendSms(
   tenantId: string,
   phone: string,
   message: string,
-  meta?: { entityType?: string; entityId?: string; event?: string }
+  meta?: { entityType?: string; entityId?: string; event?: string; appType?: string | null; branchId?: string | null }
 ): Promise<SmsResult> {
   // 1. Load tenant SMS settings
   const [authKey, senderId, enabled] = await Promise.all([
@@ -58,6 +58,8 @@ export async function sendSms(
       entityType: meta?.entityType ?? null,
       entityId:   meta?.entityId   ?? null,
       event:      meta?.event      ?? null,
+      appType:    meta?.appType    ?? null,
+      branchId:   meta?.branchId   ?? null,
     },
   }).catch((e) => {
     console.error('Failed to log SMS notification:', e);

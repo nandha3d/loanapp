@@ -657,6 +657,7 @@ Dispatch order, per call:
 - **NOTIF-1** — `notify()` is fire-and-forget and **never throws**. Notification failure must never roll back or fail a money operation. Call it *after* the transaction commits, never inside it.
 - **NOTIF-2** — Never call a provider SDK from a route handler or action. Go through `notify()` and the channel adapters in `lib/notify/channels/`.
 - **NOTIF-3** — A new event means: add the `EventKey`, a message in `MESSAGES` (at minimum `en`), and a `WA_TEMPLATES` entry — and register the WhatsApp template in the provider dashboard, or WhatsApp sends will fail and silently fall back to SMS.
+- **NOTIF-13** — `NotificationLog` delivery attempts are stamped with `appType` and `branchId` (resolved automatically from the loan/customer meta). Delivery logs are scoped to the active module and branch (`listNotificationLogs`); legacy unscoped records (`appType: null`) are hidden from module views (SCOPE-17.6 precedent).
 
 ### 12.2 Staff-facing — `notifyUser()` / `notifyApprovers()` in `lib/notify/`
 

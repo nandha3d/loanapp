@@ -2,6 +2,7 @@ import { listNotificationLogs } from '@/lib/notify/logs';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
 
 interface Props {
   params: Promise<{ module: string }>;
@@ -16,8 +17,13 @@ export default async function NotificationLogPage({ params }: Props) {
   }
 
   const tenantId = await getDefaultTenantId();
+  const branchId = await getActiveBranchId();
 
-  const { data: logs } = await listNotificationLogs(tenantId, { limit: 200 });
+  const { data: logs } = await listNotificationLogs(tenantId, {
+    limit: 200,
+    appType: module,
+    branchId: branchId || undefined,
+  });
 
   return (
     <div className="page-content">

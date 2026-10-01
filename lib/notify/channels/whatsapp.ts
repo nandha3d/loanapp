@@ -9,7 +9,7 @@ export async function sendWhatsApp(
   phone: string,
   templateName: string,
   variables: string[],
-  meta?: { entityType?: string; entityId?: string; event?: string }
+  meta?: { entityType?: string; entityId?: string; event?: string; appType?: string | null; branchId?: string | null }
 ): Promise<WaResult> {
   const [authKey, waNumber, enabled] = await Promise.all([
     getSetting(tenantId, 'msg91_auth_key', ''),
@@ -66,6 +66,8 @@ export async function sendWhatsApp(
       entityType: meta?.entityType ?? null,
       entityId:   meta?.entityId   ?? null,
       event:      meta?.event      ?? null,
+      appType:    meta?.appType    ?? null,
+      branchId:   meta?.branchId   ?? null,
       messageBody: `Template: ${templateName}. Variables: ${variables.join(', ')}`,
     },
   }).catch((e) => {
