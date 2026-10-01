@@ -493,7 +493,8 @@ export async function approveCustomerCreation(customerId: string) {
 }
 
 // Fields an agent is allowed to request edits for
-const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'lat', 'lng'];
+// D5: agents never set KYC status — not even through an edit request.
+const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'lat', 'lng'];
 
 /**
  * Submitted by an agent from the customer profile page.

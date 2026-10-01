@@ -929,17 +929,24 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     ),
                   ),
 
-                  if (_isEdit) ...[
+                  // CUST-06 (D5): only admins set KYC status from the form.
+                  if (_isEdit && !_agentEdit) ...[
                     const SizedBox(height: 16),
                     _LabeledField(
                       label: t.x('fld.kyc'),
                       child: _AppDropdown<String>(
                         value: _kycStatus,
                         hint: 'Select KYC Status',
-                        items: const [
-                          DropdownMenuItem(value: 'pending', child: Text('PENDING')),
-                          DropdownMenuItem(value: 'verified', child: Text('VERIFIED')),
-                          DropdownMenuItem(value: 'rejected', child: Text('REJECTED')),
+                        items: [
+                          // Current value stays selectable (no assert on e.g. video_submitted).
+                          if (_kycStatus != null &&
+                              !const ['pending', 'verified', 'rejected']
+                                  .contains(_kycStatus))
+                            DropdownMenuItem(
+                                value: _kycStatus, child: Text(_kycStatus!.toUpperCase())),
+                          const DropdownMenuItem(value: 'pending', child: Text('PENDING')),
+                          const DropdownMenuItem(value: 'verified', child: Text('VERIFIED')),
+                          const DropdownMenuItem(value: 'rejected', child: Text('REJECTED')),
                         ],
                         onChanged: (v) => setState(() => _kycStatus = v),
                       ),

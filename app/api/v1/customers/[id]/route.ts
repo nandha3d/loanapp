@@ -269,6 +269,8 @@ export async function PATCH(
       const changes: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
         if (!CUSTOMER_EDIT_ALLOW_LIST.has(key)) continue;
+        // D5: KYC status is set by admins only, never by an agent request.
+        if (key === 'kycStatus') continue;
         const current = key === 'aadharNumber'
           ? decryptAadharNumber((existing as any).aadharNumber)
           : (existing as any)[key === 'photo' || key === 'photoUrl' ? 'profilePhoto' : key];
@@ -335,6 +337,16 @@ export async function PATCH(
 
     if (data.lat !== undefined && data.lng !== undefined && data.lat !== null && data.lng !== null) {
       data.geocodedAt = new Date();
+    }
+    // CUST-06 (D5): admins may set KYC status from the edit form; a manual
+    // 'verified' records who verified it and when (audited below with data).
+    if (data.kycStatus !== undefined && data.kycStatus !== (existing as any).kycStatus) {
+      if (data.kycStatus === 'verified') {
+        data.kycVerifiedById = ctx.userId;
+        data.kycVerifiedAt = new Date();
+      }
+    } else {
+      delete data.kycStatus;
     }
 
     const updated = await prisma.$transaction(async (tx) => {

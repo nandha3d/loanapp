@@ -136,6 +136,8 @@ export async function saveCustomer(formData: FormData) {
       companyEmail,
       designation,
       preferredCollectionTime,
+      // CUST-06: only rendered for admins in edit mode; the API ignores it otherwise.
+      kycStatus: (formData.get('kycStatus') as string) || undefined,
       lat,
       lng,
       photoUrl: photoUrl || undefined,

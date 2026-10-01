@@ -360,6 +360,20 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
                     <option value="night">Night (after 8pm)</option>
                   </select>
                 </div>
+                {/* CUST-06 (D5): admins set KYC status directly when editing. */}
+                {customer && !isAgentViewer && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">{dict.customerProfile?.kycStatus}</label>
+                    <select name="kycStatus" className="form-control" defaultValue={customer.kycStatus || 'pending'} style={{ fontSize: '1rem', padding: '12px' }}>
+                      {!['pending', 'verified', 'rejected'].includes(customer.kycStatus) && customer.kycStatus && (
+                        <option value={customer.kycStatus}>{customer.kycStatus}</option>
+                      )}
+                      <option value="pending">{dict.customerProfile?.pending}</option>
+                      <option value="verified">{dict.customerProfile?.verified}</option>
+                      <option value="rejected">{dict.customerProfile?.rejected}</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           </div>

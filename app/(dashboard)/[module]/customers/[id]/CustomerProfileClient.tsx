@@ -500,7 +500,7 @@ export default function CustomerProfileClient({
       </div>
 
       {/* Module-aware customer summary */}
-      <div className="stats-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="stats-grid" style={{ marginBottom: '20px', gridTemplateColumns: isChit ? 'repeat(4, 1fr)' : 'repeat(5, 1fr)' }}>
         {isChit ? (
           <>
             <div className="card" style={{ textAlign: 'center' }}>
@@ -528,6 +528,10 @@ export default function CustomerProfileClient({
         <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary-dark)' }}>{formatCurrency(stats.totalBorrowed, currencySymbol)}</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{d.totalBorrowed}</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--warning, #d97706)' }}>{formatCurrency(stats.outstanding ?? 0, currencySymbol)}</div>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{d.outstanding}</div>
         </div>
         <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{stats.punctuality}%</div>
@@ -1158,14 +1162,6 @@ export default function CustomerProfileClient({
                     <label className="form-label">Longitude</label>
                     <input type="number" step="any" name="lng" className="form-control" defaultValue={customer.lng != null ? customer.lng : ''} placeholder="e.g. 80.2707" />
                   </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{d.kycStatus}</label>
-                  <select name="kycStatus" className="form-control" defaultValue={customer.kycStatus}>
-                    <option value="pending">{d.pending}</option>
-                    <option value="verified">{d.verified}</option>
-                    <option value="rejected">{d.rejected}</option>
-                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">{d.reasonForChange} <span style={{ color: 'var(--danger)' }}>*</span></label>
