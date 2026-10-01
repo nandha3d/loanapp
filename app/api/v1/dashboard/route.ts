@@ -636,12 +636,12 @@ export async function GET(req: NextRequest) {
         allOverdueLoans.add(loanId);
         overdueFreqLoans[freq].total.add(loanId);
         overdueFreqLoans[freq][statusKey].add(loanId);
-        if (custId) {
-          overdueLoansByStatus[statusKey].customers.add(custId);
-          allOverdueCustomers.add(custId);
-          overdueFreqCustomers[freq].total.add(custId);
-          overdueFreqCustomers[freq][statusKey].add(custId);
-        }
+      }
+      if (m.overdueOutstanding > 0 && custId) {
+        overdueLoansByStatus[statusKey].customers.add(custId);
+        allOverdueCustomers.add(custId);
+        overdueFreqCustomers[freq].total.add(custId);
+        overdueFreqCustomers[freq][statusKey].add(custId);
       }
 
       overdueFrequencyBreakdown[freq].total.totalOverdue += m.overdueTotalTillToday;
