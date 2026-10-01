@@ -1096,16 +1096,22 @@ export default function LoanForm({
               </div>
             )}
 
-            <input type="hidden" name="termType" value={frequency === 'single_payment' ? 'bullet' : 'scheduled'} />
+            <input type="hidden" name="termType" value={frequency === 'single_payment' || isBulletPlan ? 'bullet' : 'scheduled'} />
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">{dict.loans.frequency} *</label>
                 <select 
                   name="frequency" 
                   className="form-control" 
-                  value={frequency} 
+                  value={isBulletPlan && frequency !== 'single_payment' ? 'bullet' : frequency} 
                   onChange={e => { 
                     const newFreq = e.target.value;
+                    if (newFreq === 'bullet') {
+                      // LOAN-02: Bullet = one payment termDays after the start (no cadence).
+                      setFrequency('daily');
+                      setTermShape('bullet');
+                      return;
+                    }
                     setFrequency(newFreq); 
                     setDueDay(''); 
                     if (newFreq === 'single_payment') {
@@ -1125,8 +1131,14 @@ export default function LoanForm({
                   {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
                   {!isInterestOnlyPlan && <option value="biweekly">{dict.loans.biWeekly}</option>}
                   <option value="monthly">{dict.creditInsights.monthly}</option>
-                  {!isInterestOnlyPlan && <option value="single_payment">{dict.loans.singlePayment}</option>}
-                  {!isInterestOnlyPlan && <option value="custom_duration">{dict.loans.customDuration}</option>}
+                  {/* LOAN-02 (D3): custom shapes grouped, same as mobile. */}
+                  {!isInterestOnlyPlan && (
+                    <optgroup label={dict.loans.customLoans}>
+                      <option value="single_payment">{dict.loans.singlePayment}</option>
+                      {bulletTermEnabled && <option value="bullet">{dict.loans.bullet}</option>}
+                      <option value="custom_duration">{dict.loans.customDuration}</option>
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -1175,7 +1187,24 @@ export default function LoanForm({
                 </div>
               )}
 
-              {frequency !== 'single_payment' && frequency !== 'custom_duration' && (
+              {isBulletPlan && frequency !== 'single_payment' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.termDays} *</label>
+                  <input type="hidden" name="tenure" value={1} />
+                  <input
+                    type="number"
+                    name="termDays"
+                    min={1}
+                    className="form-control"
+                    value={termDays}
+                    onChange={e => setTermDays(e.target.value ? Number(e.target.value) : '')}
+                    required
+                    style={{ fontSize: '1.1rem', padding: '12px' }}
+                  />
+                </div>
+              )}
+
+              {frequency !== 'single_payment' && frequency !== 'custom_duration' && !isBulletPlan && (
                 <div className="form-group">
                   <label className="form-label">{dict.loans.tenure} *</label>
                   <input 

@@ -651,11 +651,16 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   ];
   String _weekdayLabel(int d) => _weekdays[d.clamp(0, 6)];
 
+  // LOAN-02: 'bullet' is a UI choice — one payment termDays (the tenure field)
+  // after the start; sent as frequency daily + termType bullet, as web does.
+  bool get _isBullet => _frequency == 'bullet';
+  String get _apiFrequency => _isBullet ? 'daily' : _frequency;
+
   Future<void> _recalc() async {
     final isSingle = _frequency == 'single_payment';
     final isCustom = _frequency == 'custom_duration';
-    final tenureVal = isSingle ? 1 : _tenureNum;
-    if (_principalNum <= 0 || tenureVal <= 0) return;
+    final tenureVal = isSingle || _isBullet ? 1 : _tenureNum;
+    if (_principalNum <= 0 || tenureVal <= 0 || (_isBullet && _tenureNum <= 0)) return;
     setState(() => _calculating = true);
     try {
       _calc = await ref.read(loanServiceProvider).calculate(
@@ -663,10 +668,12 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             interestRate: _deductionNum,
             interestType: _deductionType,
             tenure: tenureVal,
-            frequency: _frequency,
+            frequency: _apiFrequency,
             startDate: _startDate,
-            dueDay: (_frequency == 'daily' || isSingle || isCustom) ? null : _dueDay,
+            dueDay: (_frequency == 'daily' || isSingle || isCustom || _isBullet) ? null : _dueDay,
             endDate: (isSingle || isCustom) ? _customEndDate : null,
+            termType: _isBullet ? 'bullet' : null,
+            termDays: _isBullet ? _tenureNum : null,
           );
     } catch (e) {
       _error = e.toString();
@@ -757,17 +764,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
 
       final isSingle = _frequency == 'single_payment';
       final isCustom = _frequency == 'custom_duration';
-      final tenureVal = isSingle ? 1 : _tenureNum;
+      final tenureVal = isSingle || _isBullet ? 1 : _tenureNum;
 
       final loan = await ref.read(loanServiceProvider).create(
+            termType: _isBullet ? 'bullet' : null,
+            termDays: _isBullet ? _tenureNum : null,
             customerId: _customer!.id,
             principal: _principalNum,
             deduction: _deductionNum,
             deductionType: _deductionType,
             tenure: tenureVal,
-            frequency: _frequency,
+            frequency: _apiFrequency,
             startDate: _startDate,
-            dueDay: (_frequency == 'daily' || isSingle || isCustom) ? null : _dueDay,
+            dueDay: (_frequency == 'daily' || isSingle || isCustom || _isBullet) ? null : _dueDay,
             endDate: (isSingle || isCustom) ? _customEndDate : null,
             penaltyRate: _penaltyRate.text.trim().isEmpty
                 ? null
@@ -1498,10 +1507,24 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             DropdownMenuItem(value: 'daily', child: Text(tr.x('plan.daily'))),
             DropdownMenuItem(value: 'weekly', child: Text(tr.x('plan.weekly'))),
             DropdownMenuItem(value: 'monthly', child: Text(tr.x('plan.monthly'))),
+            // LOAN-02 (D3): custom shapes grouped under one header, as on web.
+            DropdownMenuItem(
+              enabled: false,
+              value: '__custom_header',
+              child: Text(
+                tr.x('plan.custom_loans'),
+                style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
             DropdownMenuItem(
               value: 'single_payment',
               child: Text(tr.x('plan.single_payment')),
             ),
+            if (ref.watch(authControllerProvider).user?.bulletTermEnabled ?? false)
+              DropdownMenuItem(
+                value: 'bullet',
+                child: Text(tr.x('plan.bullet')),
+              ),
             DropdownMenuItem(
               value: 'custom_duration',
               child: Text(tr.x('plan.custom_duration')),
@@ -1513,12 +1536,14 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               _frequency = v;
               if (_frequency == 'daily' ||
                   _frequency == 'single_payment' ||
-                  _frequency == 'custom_duration') {
+                  _frequency == 'custom_duration' ||
+                  _frequency == 'bullet') {
                 _dueDay = null;
               }
               if (_frequency == 'single_payment') {
                 _tenure.text = '1';
               }
+              if (_frequency == 'bullet') _tenure.clear();
             });
             _recalc();
           },
@@ -1561,7 +1586,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           AppTextField(
             label: _frequency == 'custom_duration'
                 ? tr.x('fld.num_installments')
-                : tr.x('fld.tenure'),
+                : _isBullet
+                    ? tr.x('fld.term_days')
+                    : tr.x('fld.tenure'),
             controller: _tenure,
             keyboardType: TextInputType.number,
             onChanged: (_) => _recalc(),

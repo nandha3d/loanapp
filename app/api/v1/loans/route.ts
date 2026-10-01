@@ -5,7 +5,7 @@ import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@
 import { getAgentRouteIds } from '@/lib/access';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 import { InsufficientFloatError, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
-import { isBulletTerm, isInterestOnly } from '@/lib/loanCalculator';
+import { isBulletTerm, isInterestOnly, resolveTermShape } from '@/lib/loanCalculator';
 import { isBulletTermEnabled, isInterestOnlyEnabled } from '@/lib/features';
 import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
 import { validateGoldOrigination } from '@/lib/gold/origination';
@@ -221,8 +221,15 @@ export async function POST(req: NextRequest) {
     // Term axis (STABLE-2): absent means 'scheduled', which is the shape every
     // caller written before this field existed already sends. HP terms build
     // their own amortising schedule and are always scheduled.
-    const termType = hpTerms ? 'scheduled' : String(body.termType || 'scheduled');
-    const termDays = body.termDays != null ? Number(body.termDays) : null;
+    const shape = resolveTermShape({
+      frequency,
+      termType: body.termType,
+      termDays: body.termDays,
+      startDate,
+      endDate: body.endDate ?? null,
+    });
+    const termType = hpTerms ? 'scheduled' : shape.termType;
+    const termDays = shape.termDays;
     const loanType = String(body.loanType || 'cheque');
     const collateralDetails: string | null = body.collateralDetails ?? null;
     const voucherRef: string | null = body.voucherRef ?? null;

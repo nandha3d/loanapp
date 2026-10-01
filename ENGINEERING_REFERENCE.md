@@ -360,6 +360,7 @@ Order of operations, all inside one Serializable transaction:
 - **MONEY-7** — Uniqueness that the user can collide on (voucher ref, vehicle registration) is checked early for a clean `409`, **and** protected by a DB constraint. The early check is UX; the constraint is correctness.
 - **MONEY-8** — Loan status is `pending_review` unless approval is bypassed; `pending_review` loans disburse nothing and notify approvers via `notifyApprovers()`.
 - **MONEY-9** — Terms are snapshotted onto the loan at origination (`termsSnapshot` `HP_TERMS_V1`, `policySnapshot` `RBI_GOLD_SILVER_2025_V1`). Policy and rate changes MUST NOT retroactively alter an existing contract. Bump the version string when the snapshot shape changes.
+- **MONEY-31** — **Single payment is a bullet (D3, LOAN-02)**: `frequency: single_payment` is always stored as `termType: bullet` with `termDays` = whole days from `startDate` to `endDate` when the client omits it (`resolveTermShape` in `lib/loanCalculator.ts`, used by `POST /api/v1/loans` and `/api/v1/loans/calculate`), so web and mobile produce the same shape and the `BTL` prefix. Both clients list Single payment, Bullet (feature `bullet_term_enabled`) and Custom duration under a "Custom loans" group.
 
 ### 10.3 Repayment allocation — `lib/repayments.ts`
 

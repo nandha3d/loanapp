@@ -92,6 +92,8 @@ class LoanService {
     required DateTime startDate,
     int? dueDay,
     DateTime? endDate,
+    String? termType,
+    int? termDays,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '${Endpoints.loans}/calculate',
@@ -104,6 +106,8 @@ class LoanService {
         'startDate': DateFormat('yyyy-MM-dd').format(startDate),
         if (dueDay != null) 'dueDay': dueDay,
         if (endDate != null) 'endDate': DateFormat('yyyy-MM-dd').format(endDate),
+        if (termType != null) 'termType': termType,
+        if (termDays != null) 'termDays': termDays,
       },
     );
     return unwrapEnvelope(
@@ -131,6 +135,8 @@ class LoanService {
     Map<String, dynamic>? goldCollateral,
     Map<String, dynamic>? propertyCollateral,
     Map<String, dynamic>? productItem,
+    String? termType,
+    int? termDays,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.loans,
@@ -154,6 +160,8 @@ class LoanService {
         if (propertyCollateral != null)
           'propertyCollateral': propertyCollateral,
         if (productItem != null) 'productItem': productItem,
+        if (termType != null) 'termType': termType,
+        if (termDays != null) 'termDays': termDays,
       },
     );
     return unwrapEnvelope(

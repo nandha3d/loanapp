@@ -104,6 +104,7 @@ class User {
     this.whatsappSmsEnabled = false,
     this.foreclosureEnabled = false,
     this.bypassLoanApproval = true,
+    this.bulletTermEnabled = false,
     this.verticals = const [],
   });
 
@@ -118,6 +119,8 @@ class User {
   final String status; // "active" | "suspended"
   final bool totpEnabled;
   final bool bypassLoanApproval;
+  /// Tenant offers Bullet loans (feature flag bullet_term_enabled, LOAN-02).
+  final bool bulletTermEnabled;
 
   /// Server-driven module visibility list (spec §5).
   final List<String> enabledModules;
@@ -204,6 +207,7 @@ class User {
     bool? whatsappSmsEnabled,
     bool? foreclosureEnabled,
     bool? bypassLoanApproval,
+    bool? bulletTermEnabled,
     List<String>? verticals,
   }) {
     return User(
@@ -233,6 +237,7 @@ class User {
       whatsappSmsEnabled: whatsappSmsEnabled ?? this.whatsappSmsEnabled,
       foreclosureEnabled: foreclosureEnabled ?? this.foreclosureEnabled,
       bypassLoanApproval: bypassLoanApproval ?? this.bypassLoanApproval,
+      bulletTermEnabled: bulletTermEnabled ?? this.bulletTermEnabled,
     );
   }
 
@@ -268,6 +273,7 @@ class User {
           (json['premiumAccountingEnabled'] as bool?) ?? false,
       whatsappSmsEnabled: (json['whatsappSmsEnabled'] as bool?) ?? false,
       foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
+      bulletTermEnabled: json['bulletTermEnabled'] == true,
       bypassLoanApproval: (json['bypassLoanApproval'] as bool?) ??
           (json['role'] != 'agent'),
     );
@@ -295,6 +301,7 @@ class User {
         'phoneCountryCode': phoneCountryCode,
         'bureauEnabled': bureauEnabled,
         'bypassLoanApproval': bypassLoanApproval,
+        'bulletTermEnabled': bulletTermEnabled,
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,
         'foreclosureEnabled': foreclosureEnabled,

@@ -40,6 +40,30 @@ export function isBulletTerm(termType: TermType | string | null | undefined): bo
   return termType === 'bullet';
 }
 
+/**
+ * LOAN-02 (D3): a single payment loan is always stored as a bullet term — one
+ * payment `termDays` after the start date — whichever client sent it. When the
+ * client omits termDays it is the whole days from startDate to endDate.
+ */
+export function resolveTermShape(input: {
+  frequency: string;
+  termType?: string | null;
+  termDays?: number | string | null;
+  startDate: Date | string;
+  endDate?: Date | string | null;
+}): { termType: string; termDays: number | null } {
+  let termType = input.termType ? String(input.termType) : 'scheduled';
+  let termDays = input.termDays != null && input.termDays !== '' ? Number(input.termDays) : null;
+  if (input.frequency === 'single_payment') {
+    termType = 'bullet';
+    if (termDays == null && input.endDate) {
+      const ms = new Date(input.endDate).getTime() - new Date(input.startDate).getTime();
+      termDays = Math.max(1, Math.round(ms / (24 * 60 * 60 * 1000)));
+    }
+  }
+  return { termType, termDays };
+}
+
 export type LoanCalculationInput = {
   principal: number;
   interestType?: InterestType | string;

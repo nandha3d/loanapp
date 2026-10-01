@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { calculateLoanPreview, resolveTermShape } from '@/lib/loanCalculator';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 
@@ -9,14 +9,27 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const frequency = String(body.frequency ?? 'daily');
+    const startDate = String(body.startDate ?? new Date().toISOString());
+    // LOAN-02: forward the term axis like /api/loans/calculate (web preview).
+    const shape = resolveTermShape({
+      frequency,
+      termType: body.termType,
+      termDays: body.termDays,
+      startDate,
+      endDate: body.endDate ?? null,
+    });
     const preview = calculateLoanPreview({
       principal: Number(body.principal ?? 0),
       interestType: String(body.interestType ?? 'upfront_fixed'),
       interestRate: Number(body.interestRate ?? 0),
       tenure: Number(body.tenure ?? 1),
-      frequency: String(body.frequency ?? 'daily'),
-      startDate: String(body.startDate ?? new Date().toISOString()),
+      frequency,
+      startDate,
       dueDay: body.dueDay ?? null,
+      termType: shape.termType as any,
+      termDays: shape.termDays,
+      endDate: body.endDate ?? null,
     });
     return ok(preview);
   } catch (e: any) {
