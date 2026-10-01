@@ -97,6 +97,7 @@ class User {
     this.gpsTrackingEnabled = false,
     this.npaEnabled = false,
     this.kycEnabled = false,
+    this.kycMethod = 'manual_upload',
     this.bureauEnabled = false,
     this.premiumAccountingEnabled = false,
     this.whatsappSmsEnabled = false,
@@ -134,6 +135,7 @@ class User {
   /// Subscription add-on flags
   final bool npaEnabled;
   final bool kycEnabled;
+  final String kycMethod;
   final bool bureauEnabled;
   final bool premiumAccountingEnabled;
   final bool whatsappSmsEnabled;
@@ -153,6 +155,8 @@ class User {
       case 'kyc':
       case 'kycenabled':
         return kycEnabled;
+      case 'kycmethod':
+        return kycMethod;
       case 'bureau':
       case 'bureauenabled':
         return bureauEnabled;
@@ -188,6 +192,7 @@ class User {
     bool? gpsTrackingEnabled,
     bool? npaEnabled,
     bool? kycEnabled,
+    String? kycMethod,
     bool? bureauEnabled,
     bool? premiumAccountingEnabled,
     bool? whatsappSmsEnabled,
@@ -213,6 +218,7 @@ class User {
       gpsTrackingEnabled: gpsTrackingEnabled ?? this.gpsTrackingEnabled,
       npaEnabled: npaEnabled ?? this.npaEnabled,
       kycEnabled: kycEnabled ?? this.kycEnabled,
+      kycMethod: kycMethod ?? this.kycMethod,
       bureauEnabled: bureauEnabled ?? this.bureauEnabled,
       premiumAccountingEnabled:
           premiumAccountingEnabled ?? this.premiumAccountingEnabled,
@@ -246,6 +252,7 @@ class User {
       gpsTrackingEnabled: (json['gpsTrackingEnabled'] as bool?) ?? false,
       npaEnabled: (json['npaEnabled'] as bool?) ?? false,
       kycEnabled: (json['kycEnabled'] as bool?) ?? false,
+      kycMethod: (json['kycMethod'] as String?) ?? 'manual_upload',
       bureauEnabled: (json['bureauEnabled'] as bool?) ?? false,
       premiumAccountingEnabled:
           (json['premiumAccountingEnabled'] as bool?) ?? false,
@@ -272,6 +279,7 @@ class User {
         'gpsTrackingEnabled': gpsTrackingEnabled,
         'npaEnabled': npaEnabled,
         'kycEnabled': kycEnabled,
+        'kycMethod': kycMethod,
         'bureauEnabled': bureauEnabled,
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,

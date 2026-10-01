@@ -2,11 +2,17 @@ import { NextRequest } from 'next/server';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { fail, ok } from '@/lib/api/v1-envelope';
 import { confirmAadhaarOtp, KycNotFoundError, startAadhaarOtpKyc } from '@/lib/kyc';
+import { getSetting } from '@/lib/tenant';
 
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const actor = auth.context;
+
+  const kycMethod = await getSetting(actor.tenantId, 'kyc_method', 'manual_upload');
+  if (kycMethod !== 'aadhaar_otp' && kycMethod !== 'both') {
+    return fail('Aadhaar OTP KYC is not enabled for this organization', 403);
+  }
 
   let body: Record<string, unknown>;
   try {

@@ -92,6 +92,9 @@ class _KycActionsState extends ConsumerState<_KycActions> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final customer = widget.customer;
+    final kycMethod = ref.watch(authControllerProvider).user?.kycMethod ?? 'manual_upload';
+    final showAadhaar = kycMethod == 'aadhaar_otp' || kycMethod == 'both';
+    final showVideo = kycMethod == 'video_kyc' || kycMethod == 'both';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -111,73 +114,77 @@ class _KycActionsState extends ConsumerState<_KycActions> {
               Text(
                   '${t.x('kyc.verified_address')}: ${customer.aadhaarAddress}',),
             if (customer.kycStatus != 'verified') ...[
-              const SizedBox(height: 12),
-              if (_sessionId == null) ...[
-                TextField(
-                  controller: _aadhaar,
-                  keyboardType: TextInputType.number,
-                  maxLength: 12,
-                  decoration:
-                      InputDecoration(labelText: t.x('kyc.aadhaar_number')),
-                  onChanged: (_) => setState(() {}),
-                ),
-                OutlinedButton(
-                  onPressed: _busy ||
-                          !RegExp(r'^\d{12}$').hasMatch(_aadhaar.text)
-                      ? null
-                      : () => _run(() async {
-                            _sessionId = await ref
-                                .read(kycServiceProvider)
-                                .startAadhaarOtp(customer.id, _aadhaar.text);
-                            _aadhaar.clear();
-                          }),
-                  child: Text(t.x('kyc.send_otp')),
-                ),
-              ] else ...[
-                TextField(
-                  controller: _otp,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  decoration: InputDecoration(labelText: t.x('kyc.enter_otp')),
-                  onChanged: (_) => setState(() {}),
-                ),
-                OutlinedButton(
-                  onPressed: _busy || !RegExp(r'^\d{4,8}$').hasMatch(_otp.text)
-                      ? null
-                      : () => _run(() async {
-                            await ref
-                                .read(kycServiceProvider)
-                                .verifyAadhaarOtp(_sessionId!, _otp.text);
-                            _otp.clear();
-                            _sessionId = null;
-                          }),
-                  child: Text(t.x('kyc.verify_otp')),
-                ),
+              if (showAadhaar) ...[
+                const SizedBox(height: 12),
+                if (_sessionId == null) ...[
+                  TextField(
+                    controller: _aadhaar,
+                    keyboardType: TextInputType.number,
+                    maxLength: 12,
+                    decoration:
+                        InputDecoration(labelText: t.x('kyc.aadhaar_number')),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  OutlinedButton(
+                    onPressed: _busy ||
+                            !RegExp(r'^\d{12}$').hasMatch(_aadhaar.text)
+                        ? null
+                        : () => _run(() async {
+                              _sessionId = await ref
+                                  .read(kycServiceProvider)
+                                  .startAadhaarOtp(customer.id, _aadhaar.text);
+                              _aadhaar.clear();
+                            }),
+                    child: Text(t.x('kyc.send_otp')),
+                  ),
+                ] else ...[
+                  TextField(
+                    controller: _otp,
+                    keyboardType: TextInputType.number,
+                    maxLength: 8,
+                    decoration: InputDecoration(labelText: t.x('kyc.enter_otp')),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  OutlinedButton(
+                    onPressed: _busy || !RegExp(r'^\d{4,8}$').hasMatch(_otp.text)
+                        ? null
+                        : () => _run(() async {
+                              await ref
+                                  .read(kycServiceProvider)
+                                  .verifyAadhaarOtp(_sessionId!, _otp.text);
+                              _otp.clear();
+                              _sessionId = null;
+                            }),
+                    child: Text(t.x('kyc.verify_otp')),
+                  ),
+                ],
               ],
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => _run(() async {
-                          final url = await ref
-                              .read(kycServiceProvider)
-                              .startVideo(customer.id);
-                          final uri = Uri.tryParse(url);
-                          if (uri == null || uri.scheme != 'https') {
-                            throw Exception(t.x('kyc.invalid_link'));
-                          }
-                          _videoUrl = url;
-                          await launchUrl(uri,
-                              mode: LaunchMode.externalApplication,);
-                        }),
-                child: Text(t.x('kyc.start_video')),
-              ),
-              if (_videoUrl != null)
-                TextButton(
-                  onPressed: () => launchUrl(Uri.parse(_videoUrl!),
-                      mode: LaunchMode.externalApplication,),
-                  child: Text(t.x('kyc.open_video')),
+              if (showVideo) ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () => _run(() async {
+                            final url = await ref
+                                .read(kycServiceProvider)
+                                .startVideo(customer.id);
+                            final uri = Uri.tryParse(url);
+                            if (uri == null || uri.scheme != 'https') {
+                              throw Exception(t.x('kyc.invalid_link'));
+                            }
+                            _videoUrl = url;
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication,);
+                          }),
+                  child: Text(t.x('kyc.start_video')),
                 ),
+                if (_videoUrl != null)
+                  TextButton(
+                    onPressed: () => launchUrl(Uri.parse(_videoUrl!),
+                        mode: LaunchMode.externalApplication,),
+                    child: Text(t.x('kyc.open_video')),
+                  ),
+              ],
             ],
             TextButton(
                 onPressed: widget.onRefresh,

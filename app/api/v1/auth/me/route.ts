@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   // screen when this is explicitly enabled (Settings → Security).
   const biometricLockRequired =
     (await getSetting(user.tenantId, 'biometric_lock_required', 'false')) === 'true';
+  const kycMethod = await getSetting(user.tenantId, 'kyc_method', 'manual_upload');
 
   return ok({
     verticals,
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
     gpsTrackingEnabled: Boolean(subscription?.gpsTrackingEnabled),
     npaEnabled: Boolean(subscription?.npaEnabled),
     kycEnabled: Boolean(subscription?.kycEnabled),
+    kycMethod,
     bureauEnabled: Boolean(subscription?.bureauEnabled),
     premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
     whatsappSmsEnabled: Boolean(subscription?.whatsappSmsEnabled),
