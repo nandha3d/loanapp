@@ -101,8 +101,11 @@ export async function GET(
   // object; the mobile renders it directly (no client-side recomputation).
   const creditScore = calculateCreditScore(customer.loans);
 
+  // SEC-01: Strip passwordHash so it never reaches client or browser component
+  const { passwordHash: _ph, ...safe } = customer;
+
   return ok({
-    ...customer,
+    ...safe,
     creditScore,
     aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
     guarantors: customer.guarantors.map((g) => ({
@@ -247,8 +250,9 @@ export async function PATCH(
         },
       });
 
+      // SEC-01: Return only approval acknowledgement; do not echo existing customer row,
+      // which contains encrypted Aadhaar ciphertext and passwordHash.
       return ok({
-        ...existing,
         pendingApproval: true,
         approvalRequestId: request.id,
         message: 'Customer edit request submitted for admin approval',
@@ -301,8 +305,11 @@ export async function PATCH(
       newValue: data,
     });
 
+    // SEC-01: Strip passwordHash so it never reaches client or browser component
+    const { passwordHash: _ph, ...safeUpdated } = updated;
+
     return ok({
-      ...updated,
+      ...safeUpdated,
       aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber)),
     });
   } catch (e: any) {
