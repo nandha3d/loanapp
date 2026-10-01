@@ -5,9 +5,8 @@ import {
   DEAD_KEYS,
   SECRET_KEYS,
   ROLE_RANK,
-  GET,
-  POST,
-} from '../app/api/v1/settings/route';
+} from '../lib/settings/keyPolicy';
+import { GET, POST } from '../app/api/v1/settings/route';
 import { issueMobileToken } from '../lib/api/v1-auth';
 
 // ── 1. Static Configuration Verification ─────────────────────────────────────
