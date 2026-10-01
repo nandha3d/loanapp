@@ -76,6 +76,8 @@ export function computeRestructure(
     outstanding,
     remainingPeriods: available ? actualRemainingCount : 0,
     available,
+    /** Periods left to loan.endDate by calendar (not gated by `available`). */
+    actualRemainingCount,
   };
 }
 

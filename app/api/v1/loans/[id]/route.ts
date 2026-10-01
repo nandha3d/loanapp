@@ -15,7 +15,7 @@ import {
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
-import { hasFinancialActivity } from '@/lib/repayments';
+import { hasFinancialActivity, calculateDynamicOverdueAmount } from '@/lib/repayments';
 import { modulePath } from '@/types/modules';
 
 export async function GET(
@@ -194,14 +194,31 @@ export async function GET(
     .filter((r) => r.status === 'missed').length;
   const rawMissedCount = pastDueInsts.filter((i) => i.status === 'missed').length
     + extendedMissed;
-  const overdueAmount = pastDueInsts.reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
   const totalOutstanding = Math.max(0, Number(loan.totalPayable) - Number(loan.totalCollected));
   const missedCount = (loan.status === 'closed' || totalOutstanding <= 0) ? 0 : rawMissedCount;
+  // LD-01: the loan-detail figures both clients render (MONEY-1, PRECLOSE-7).
+  const settledOrClosed = loan.status === 'closed' || totalOutstanding <= 0;
+  const perInstalment = Number(loan.perInstalment) || 0;
+  const remainingExtended = settledOrClosed || perInstalment <= 0 ? 0 : Math.ceil(totalOutstanding / perInstalment);
+  const remainingActual = settledOrClosed ? 0 : restructure.actualRemainingCount;
+  const waivedNos = loan.instalments.filter((i) => i.status === 'waived').map((i) => Number(i.instalmentNo));
+  const firstWaivedNo = waivedNos.length ? Math.min(...waivedNos) : null;
+  const paidPeriod = firstWaivedNo !== null
+    ? (firstWaivedNo > 1 ? firstWaivedNo - 1 : Math.max(0, loan.totalInstalments - waivedNos.length))
+    : settledOrClosed
+      ? loan.totalInstalments
+      : Math.max(0, loan.totalInstalments - remainingExtended);
   const metrics = {
     totalOutstanding,
-    overdueAmount: Math.min(overdueAmount, totalOutstanding),
+    // Same arrears calculation the web page uses (calculateDynamicOverdueAmount).
+    overdueAmount: settledOrClosed
+      ? 0
+      : calculateDynamicOverdueAmount(loan.instalments as any, Number(loan.totalCollected), totalOutstanding, today),
     missedCount,
     paidCount: countedInsts.filter((i) => i.status === 'paid').length,
+    paidPeriod,
+    remainingActual,
+    remainingExtended,
   };
 
   // Server-supplied penalty summary — canonical source of truth shared across
