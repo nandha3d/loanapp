@@ -671,7 +671,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
   void _showSettleSheet(_LoanPenaltyGroup g) {
     final t = T.of(ref);
     final net = g.net;
-    final ctrl = TextEditingController(text: net.toStringAsFixed(0));
+    final ctrl = TextEditingController(text: net.toStringAsFixed(2));
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -736,7 +736,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       SnackBar(
                         content: Text(
-                          '${t.x('err.enter_valid_amount')} (max ₹${net.toStringAsFixed(0)})',
+                          '${t.x('err.enter_valid_amount')} (max ₹${net.toStringAsFixed(2)})',
                         ),
                         backgroundColor: AppColors.danger,
                       ),
@@ -744,8 +744,21 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                     return;
                   }
                   Navigator.pop(ctx);
-                  await _settleGroup(g, amount);
-                  ref.invalidate(_penaltiesProvider);
+                  try {
+                    await _settleGroup(g, amount);
+                    if (mounted) {
+                      ref.invalidate(_penaltiesProvider);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                    }
+                  }
                 },
                 child: Text(
                   t.x('pen.confirm_settle'),

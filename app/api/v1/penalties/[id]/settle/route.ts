@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { settlePenalty } from '@/lib/penalties';
 
 export async function PATCH(
   req: NextRequest,
@@ -18,67 +17,31 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const action = String(body.action || 'settle'); // settle | waive
+    const action = String(body.action || 'settle');
+    if (action === 'waive') {
+      return fail('Use POST /api/v1/penalties/[id]/waive for waivers', 400);
+    }
     const amount = Number(body.amount ?? 0);
     const paymentMode = String(body.paymentMode || 'cash');
 
-    if (action === 'waive' && ctx.role === 'agent') {
-      return fail('Forbidden: Agents cannot waive penalties', 403);
-    }
-
-    const penalty = await prisma.penalty.findUnique({
-      where: { id },
-      include: { loan: true },
-    });
-    if (
-      !penalty ||
-      penalty.loan.tenantId !== ctx.tenantId ||
-      penalty.loan.appType !== ctx.appType
-    ) {
-      return fail('Penalty not found', 404);
-    }
-
-    if (ctx.role === 'agent') {
-      const hasAccess = await prisma.loan.findFirst({
-        where: {
-          id: penalty.loanId,
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }),
-        },
-        select: { id: true },
-      });
-      if (!hasAccess) return fail('Penalty not found', 404);
-    } else if (ctx.branchId) { // no role exemption (SCOPE-15)
-      if (penalty.loan.branchId !== ctx.branchId) {
-        return fail('Penalty not found', 404);
-      }
-    }
-
-    const data: any = { status: action === 'waive' ? 'waived' : 'settled' };
-    if (action === 'waive') {
-      data.waivedAmount = Number(penalty.grossPenalty);
-    } else {
-      data.settledAmount = amount || Number(penalty.grossPenalty);
-      data.paymentMode = paymentMode;
-      data.settledAt = new Date();
-    }
-
-    const updated = await prisma.penalty.update({ where: { id }, data });
-
-    await prisma.auditLog.create({
-      data: {
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-        action: action === 'waive' ? 'waive' : 'settle',
-        entityType: 'penalty',
-        entityId: id,
-        newValue: JSON.stringify(data),
-      },
+    const updated = await settlePenalty({
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      branchId: ctx.branchId,
+      userId: ctx.userId,
+      role: ctx.role,
+      penaltyId: id,
+      amount,
+      paymentMode,
+      notes: body.notes ? String(body.notes) : null,
     });
 
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Settle failed', 500);
+    const msg = e?.message ?? 'Settle failed';
+    if (msg.includes('not found')) return fail('Penalty not found', 404);
+    if (msg.includes('Forbidden')) return fail(msg, 403);
+    if (msg.includes('Invalid settle amount')) return fail(msg, 400);
+    return fail(msg, 500);
   }
 }

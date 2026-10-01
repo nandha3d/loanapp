@@ -1,6 +1,7 @@
 import prisma from './db';
 import { startOfBusinessDayUtc } from './businessTime';
 import { computeExtendedSchedule, pairEntriesWithInstalments, pastTermMissedDays } from './restructure';
+import { buildAgentCustomerAccessWhere } from './loanPolicy';
 
 export function penaltyListWhere(scope: {
   tenantId: string;
@@ -238,5 +239,187 @@ export async function ensurePendingPenaltiesForMissedLoans(
     penaltiesCreated,
     penaltiesUpdated,
   };
+}
+
+export async function settlePenalty(input: {
+  tenantId: string;
+  appType: string;
+  branchId?: string | null;
+  userId: string;
+  role: string;
+  penaltyId: string;
+  amount: number;
+  paymentMode?: string;
+  notes?: string | null;
+}): Promise<any> {
+  const { tenantId, appType, branchId, userId, role, penaltyId, amount, paymentMode, notes } = input;
+
+  const penalty = await prisma.penalty.findUnique({
+    where: { id: penaltyId },
+    include: { loan: true },
+  });
+  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
+    throw new Error('Penalty not found');
+  }
+
+  if (role === 'agent') {
+    const hasAccess = await prisma.loan.findFirst({
+      where: {
+        id: penalty.loanId,
+        tenantId,
+        appType,
+        customer: buildAgentCustomerAccessWhere({ userId }),
+      },
+      select: { id: true },
+    });
+    if (!hasAccess) {
+      throw new Error('Penalty not found');
+    }
+  } else if (branchId) {
+    if (penalty.loan.branchId !== branchId) {
+      throw new Error('Penalty not found');
+    }
+  }
+
+  const gross = Number(penalty.grossPenalty);
+  const settled = Number(penalty.settledAmount);
+  const waived = Number(penalty.waivedAmount);
+  const remaining = gross - settled - waived;
+
+  if (amount <= 0 || amount > remaining) {
+    throw new Error(`Invalid settle amount: must be > 0 and <= ${remaining}`);
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    const nextSettled = settled + amount;
+    const isFullySettled = (nextSettled + waived) >= gross;
+    const nextStatus = isFullySettled ? 'settled' : 'partial';
+
+    const updated = await tx.penalty.update({
+      where: { id: penaltyId },
+      data: {
+        settledAmount: nextSettled,
+        status: nextStatus,
+        settledById: userId,
+        settledAt: isFullySettled ? new Date() : null,
+        notes: notes ?? undefined,
+      },
+      include: { loan: true },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'settle',
+        entityType: 'penalty',
+        entityId: penaltyId,
+        newValue: JSON.stringify({
+          action: 'settle',
+          amount,
+          settledAmount: nextSettled,
+          status: nextStatus,
+          paymentMode,
+        }),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function waivePenalty(input: {
+  tenantId: string;
+  appType: string;
+  branchId?: string | null;
+  userId: string;
+  role: string;
+  penaltyId: string;
+  amount?: number;
+  reason?: string | null;
+}): Promise<any> {
+  const { tenantId, appType, branchId, userId, role, penaltyId, amount, reason } = input;
+
+  if (!['admin', 'superadmin', 'developer'].includes(role)) {
+    throw new Error('Forbidden: Agents cannot waive penalties');
+  }
+
+  const penalty = await prisma.penalty.findUnique({
+    where: { id: penaltyId },
+    include: { loan: true },
+  });
+  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
+    throw new Error('Penalty not found');
+  }
+
+  if (branchId) {
+    if (penalty.loan.branchId !== branchId) {
+      throw new Error('Penalty not found');
+    }
+  }
+
+  const gross = Number(penalty.grossPenalty);
+  const settled = Number(penalty.settledAmount);
+  const existingWaived = Number(penalty.waivedAmount);
+  const remaining = gross - settled - existingWaived;
+
+  const waiveAmt = amount !== undefined ? amount : remaining;
+  if (waiveAmt <= 0 || waiveAmt > remaining) {
+    throw new Error(`Invalid waive amount: must be > 0 and <= ${remaining}`);
+  }
+
+  const nextWaived = existingWaived + waiveAmt;
+  const isFullyWaived = (settled + nextWaived) >= gross;
+  const nextStatus = isFullyWaived ? 'waived' : 'partial';
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const res = await tx.penalty.update({
+      where: { id: penaltyId },
+      data: {
+        waivedAmount: nextWaived,
+        status: nextStatus,
+        settledById: userId,
+        settledAt: new Date(),
+        notes: reason ?? undefined,
+      },
+      include: { loan: true },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'waive',
+        entityType: 'penalty',
+        entityId: penaltyId,
+        newValue: JSON.stringify({
+          action: 'waive',
+          amount: waiveAmt,
+          waivedAmount: nextWaived,
+          status: nextStatus,
+          reason,
+        }),
+      },
+    });
+
+    return res;
+  });
+
+  try {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        type: 'success',
+        icon: 'money_off',
+        title: 'Penalty Waived',
+        message: `Penalty of ${gross} waived for loan ${penalty.loan.loanCode} by admin.`,
+        link: `/loans/${penalty.loan.loanCode}`,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to create penalty waiver notification:', err);
+  }
+
+  return updated;
 }
 

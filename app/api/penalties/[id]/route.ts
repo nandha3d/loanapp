@@ -28,6 +28,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 }
 
+import { settlePenalty, waivePenalty } from '@/lib/penalties';
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireApiContext(ADMIN_API_ROLES);
@@ -36,45 +38,44 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await request.json();
 
-    const penalty = await prisma.penalty.findFirst({
-      where: { id, loan: { tenantId: context.tenantId, appType: context.appType, ...scopedBranchWhere(context) } },
-    });
-    if (!penalty) return apiError('Penalty not found', 404);
-
     if (body.action !== 'settle' && body.action !== 'waive') {
       return apiError('Invalid action', 400);
     }
 
-    const settledAt = new Date();
-    const data = body.action === 'settle'
-      ? {
-          status: 'settled',
-          settledAmount: Number(body.settledAmount ?? penalty.grossPenalty),
-          settledById: context.userId,
-          settledAt,
-        }
-      : {
-          status: 'waived',
-          settledAmount: 0,
-          waivedAmount: Number(penalty.grossPenalty),
-          settledById: context.userId,
-          settledAt,
-        };
+    if (body.action === 'settle') {
+      const penalty = await prisma.penalty.findFirst({
+        where: { id, loan: { tenantId: context.tenantId, appType: context.appType, ...scopedBranchWhere(context) } },
+      });
+      if (!penalty) return apiError('Penalty not found', 404);
+      const gross = Number(penalty.grossPenalty);
+      const settled = Number(penalty.settledAmount);
+      const waived = Number(penalty.waivedAmount);
+      const remaining = gross - settled - waived;
+      const amount = body.settledAmount !== undefined ? Number(body.settledAmount) : remaining;
 
-    const updated = await prisma.penalty.update({ where: { id }, data });
-    await prisma.auditLog.create({
-      data: {
+      const updated = await settlePenalty({
         tenantId: context.tenantId,
+        appType: context.appType,
+        branchId: context.branchId,
         userId: context.userId,
-        action: body.action,
-        entityType: 'penalty',
-        entityId: id,
-        oldValue: JSON.stringify(penalty),
-        newValue: JSON.stringify(data),
-      },
-    });
-
-    return apiSuccess(updated);
+        role: context.role,
+        penaltyId: id,
+        amount,
+        notes: body.notes ? String(body.notes) : null,
+      });
+      return apiSuccess(updated);
+    } else {
+      const updated = await waivePenalty({
+        tenantId: context.tenantId,
+        appType: context.appType,
+        branchId: context.branchId,
+        userId: context.userId,
+        role: context.role,
+        penaltyId: id,
+        reason: body.notes ? String(body.notes) : null,
+      });
+      return apiSuccess(updated);
+    }
   } catch (error: any) {
     return apiError(error.message, 500);
   }

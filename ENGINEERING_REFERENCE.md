@@ -408,6 +408,8 @@ Order of operations, all inside one Serializable transaction:
 
 - **MONEY-14** — Accrual = `Σ max(0, daysOverdue − grace) × penaltyPerDay`, capped by `maxCap` when non-zero. Per-tenant settings: `default_penalty_per_day`, `penalty_grace_period`, `penalty_max_cap`. **This describes `calculatePenaltyAccrual` (the cron) only.** A second accrual, `ensurePendingPenaltiesForMissedLoans`, runs on every dashboard load, the penalties page and `GET /api/penalties`, and computes `count(missed instalments) × Loan.penaltyRate` (past the term: `pastTermMissedDays`, EXT-1) — no grace, no cap — writing the same `Penalty.grossPenalty` rows, where the larger figure wins. Opening a page can therefore push a borrower's penalty past the tenant's configured cap. Live divergence, documented in `docs/CALCULATION_LOGIC.md` §14.1; one of the two has to move.
 - **MONEY-15** — Recorded gross penalty only ever **increases** (`shouldUpdatePenaltyGross`). Reductions are waivers, recorded as `waivedAmount` — never by rewriting gross. The accrual job runs inside a transaction to prevent duplicate penalty rows.
+- **MONEY-28** — **Penalty Settlement & Waiver Discipline (`settlePenalty`, `waivePenalty`)**: Settle amounts are increments (`settledAmount += amount`), never overwrites. Settle transitions status to `settled` if `settledAmount + waivedAmount >= grossPenalty`, otherwise `partial`. Settle rejects `amount <= 0` or `amount > remaining`. Agents may collect penalties (settle) for linked customers, but cannot waive. Waiving is strictly restricted to `admin`, `superadmin`, and `developer` roles.
+
 
 ### 10.5 Cash & float — `lib/wallet.ts`
 

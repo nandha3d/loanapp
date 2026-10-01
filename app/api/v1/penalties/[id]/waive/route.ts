@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server';
-import { compare } from 'bcryptjs';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { waivePenalty } from '@/lib/penalties';
 
 export async function POST(
   req: NextRequest,
@@ -13,117 +11,37 @@ export async function POST(
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
+  if (ctx.role === 'agent') {
+    return fail('Forbidden: Agents cannot waive penalties', 403);
+  }
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
+
   const { id } = await params;
 
   try {
     const body = await req.json();
     const amount = body.amount !== undefined ? Number(body.amount) : undefined;
-    const reason = body.reason ? String(body.reason).trim() : '';
+    const reason = body.reason ? String(body.reason).trim() : null;
 
-    let managerUserId: string | undefined;
-
-    // Manager sign-off check
-    if (ctx.role === 'agent') {
-      const { managerUsername, managerPassword } = body;
-      if (!managerUsername || !managerPassword) {
-        return fail('Manager credentials are required for agent sign-off', 400);
-      }
-
-      const manager = await prisma.user.findFirst({
-        where: {
-          username: String(managerUsername).trim().toLowerCase(),
-          tenantId: ctx.tenantId,
-          role: { in: ['admin', 'superadmin', 'developer'] },
-          status: 'active',
-        },
-      });
-
-      if (!manager || !manager.passwordHash) {
-        return fail('Invalid manager credentials', 401);
-      }
-
-      const valid = await compare(managerPassword, manager.passwordHash);
-      if (!valid) {
-        return fail('Invalid manager credentials', 401);
-      }
-
-      managerUserId = manager.id;
-    }
-
-    const penalty = await prisma.penalty.findUnique({
-      where: { id },
-      include: { loan: true },
-    });
-
-    if (
-      !penalty ||
-      penalty.loan.tenantId !== ctx.tenantId ||
-      penalty.loan.appType !== ctx.appType
-    ) {
-      return fail('Penalty not found', 404);
-    }
-
-    if (ctx.role === 'agent') {
-      const hasAccess = await prisma.loan.findFirst({
-        where: {
-          id: penalty.loanId,
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }),
-        },
-        select: { id: true },
-      });
-      if (!hasAccess) return fail('Penalty not found', 404);
-    } else if (ctx.branchId) { // no role exemption (SCOPE-15)
-      if (penalty.loan.branchId !== ctx.branchId) {
-        return fail('Penalty not found', 404);
-      }
-    }
-
-    const gross = Number(penalty.grossPenalty);
-    const existingSettled = Number(penalty.settledAmount);
-    const existingWaived = Number(penalty.waivedAmount);
-    const outstanding = gross - existingSettled - existingWaived;
-
-    const waiveAmt = amount !== undefined ? amount : outstanding;
-    if (waiveAmt <= 0 || waiveAmt > outstanding) {
-      return fail(`Invalid waive amount. Outstanding is ${outstanding}`, 400);
-    }
-
-    const newWaivedAmount = existingWaived + waiveAmt;
-    const isFullyWaived = (existingSettled + newWaivedAmount) >= gross;
-    const newStatus = isFullyWaived ? 'waived' : 'partial';
-
-    const data: any = {
-      waivedAmount: newWaivedAmount,
-      status: newStatus,
-      settledById: managerUserId || ctx.userId,
-      settledAt: new Date(),
-      notes: reason || null,
-    };
-
-    const updated = await prisma.penalty.update({
-      where: { id },
-      data,
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-        action: 'waive',
-        entityType: 'penalty',
-        entityId: id,
-        newValue: JSON.stringify({
-          waivedAmount: waiveAmt,
-          reason,
-          managerSignedOff: !!managerUserId,
-        }),
-      },
+    const updated = await waivePenalty({
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      branchId: ctx.branchId,
+      userId: ctx.userId,
+      role: ctx.role,
+      penaltyId: id,
+      amount,
+      reason,
     });
 
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Waive failed', 500);
+    const msg = e?.message ?? 'Waive failed';
+    if (msg.includes('not found')) return fail('Penalty not found', 404);
+    if (msg.includes('Forbidden')) return fail(msg, 403);
+    if (msg.includes('Invalid waive amount')) return fail(msg, 400);
+    return fail(msg, 500);
   }
 }

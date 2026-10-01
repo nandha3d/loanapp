@@ -1,11 +1,11 @@
 'use server';
 
 import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
-
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { settlePenalty as settlePenaltyLib, waivePenalty as waivePenaltyLib } from '@/lib/penalties';
 
 export async function settlePenalty(formData: FormData) {
   const session = await auth();
@@ -20,50 +20,33 @@ export async function settlePenalty(formData: FormData) {
 
   const penaltyId = formData.get('penaltyId') as string;
   const settledAmount = Number(formData.get('settledAmount'));
-  const notes = formData.get('notes') as string || null;
+  const notes = (formData.get('notes') as string) || null;
 
   if (!penaltyId || !settledAmount || settledAmount <= 0) {
     return { success: false, error: 'Invalid input' };
   }
 
-  // SCOPE-3: settle only a penalty on a loan in the active branch. Without the
-  // branch arm an id from another branch settled successfully.
   const activeBranchId = await getActiveBranchId();
-  const penalty = await prisma.penalty.findFirst({
-    where: { id: penaltyId, loan: { tenantId, appType, ...branchScopeWhere(activeBranchId) } },
-    include: { loan: true },
-  });
-
-  if (!penalty) {
-    return { success: false, error: 'Penalty not found' };
-  }
-
-  const gross = Number(penalty.grossPenalty);
-  const existingWaived = Number(penalty.waivedAmount);
-  const totalResolved = settledAmount + existingWaived;
-  const newStatus = totalResolved >= gross ? 'settled' : 'partial';
-
-  await prisma.penalty.update({
-    where: { id: penaltyId },
-    data: {
-      settledAmount,
-      status: newStatus,
-      settledById: userId,
-      settledAt: newStatus === 'settled' ? new Date() : null,
+  try {
+    const updated = await settlePenaltyLib({
+      tenantId,
+      appType,
+      branchId: activeBranchId,
+      userId,
+      role,
+      penaltyId,
+      amount: settledAmount,
       notes,
-    },
-  });
+    });
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId, userId, action: 'update', entityType: 'penalty', entityId: penaltyId,
-      newValue: JSON.stringify({ action: 'settle', settledAmount }),
-    },
-  });
-
-  revalidatePath('/penalties');
-  revalidatePath(`/loans/${penalty.loan.loanCode}`);
-  return { success: true };
+    revalidatePath('/penalties');
+    if (updated?.loan?.loanCode) {
+      revalidatePath(`/loans/${updated.loan.loanCode}`);
+    }
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Failed to settle penalty' };
+  }
 }
 
 export async function waivePenalty(formData: FormData) {
@@ -78,48 +61,28 @@ export async function waivePenalty(formData: FormData) {
   }
 
   const penaltyId = formData.get('penaltyId') as string;
-  const notes = formData.get('notes') as string || null;
+  const notes = (formData.get('notes') as string) || null;
 
-  const penalty = await prisma.penalty.findUnique({
-    where: { id: penaltyId },
-    include: { loan: true },
-  });
-
-  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
-    return { success: false, error: 'Penalty not found' };
-  }
-
-  const gross = Number(penalty.grossPenalty);
-  const existingSettled = Number(penalty.settledAmount);
-  const waivedAmount = gross - existingSettled;
-
-  await prisma.penalty.update({
-    where: { id: penaltyId },
-    data: { waivedAmount, status: 'waived', settledById: userId, settledAt: new Date(), notes },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId, userId, action: 'update', entityType: 'penalty', entityId: penaltyId,
-      newValue: JSON.stringify({ action: 'waive', waivedAmount }),
-    },
-  });
-
-  // Create notification
-  await prisma.systemNotification.create({
-    data: {
+  const activeBranchId = await getActiveBranchId();
+  try {
+    const updated = await waivePenaltyLib({
       tenantId,
-      type: 'success',
-      icon: 'money_off',
-      title: 'Penalty Waived',
-      message: `Penalty of ${gross} waived for loan ${penalty.loan.loanCode} by admin.`,
-      link: `/loans/${penalty.loan.loanCode}`,
-    },
-  });
+      appType,
+      branchId: activeBranchId,
+      userId,
+      role,
+      penaltyId,
+      reason: notes,
+    });
 
-  revalidatePath('/penalties');
-  revalidatePath(`/loans/${penalty.loan.loanCode}`);
-  return { success: true };
+    revalidatePath('/penalties');
+    if (updated?.loan?.loanCode) {
+      revalidatePath(`/loans/${updated.loan.loanCode}`);
+    }
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Failed to waive penalty' };
+  }
 }
 
 export async function enforcePenalty(formData: FormData) {
@@ -136,12 +99,13 @@ export async function enforcePenalty(formData: FormData) {
   const penaltyId = formData.get('penaltyId') as string;
   const notes = formData.get('notes') as string || null;
 
-  const penalty = await prisma.penalty.findUnique({
-    where: { id: penaltyId },
+  const activeBranchId = await getActiveBranchId();
+  const penalty = await prisma.penalty.findFirst({
+    where: { id: penaltyId, loan: { tenantId, appType, ...branchScopeWhere(activeBranchId) } },
     include: { loan: true },
   });
 
-  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
+  if (!penalty) {
     return { success: false, error: 'Penalty not found' };
   }
 
@@ -158,5 +122,6 @@ export async function enforcePenalty(formData: FormData) {
   });
 
   revalidatePath('/penalties');
+  revalidatePath(`/loans/${penalty.loan.loanCode}`);
   return { success: true };
 }
