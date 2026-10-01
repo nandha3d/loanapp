@@ -10869,4 +10869,12 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಕಾರಣ ಅಗತ್ಯವಿದೆ',
     'ml': 'കാരണം ആവശ്യമാണ്',
   },
+  'cust.active_principal': {
+    'en': 'Active principal',
+    'ta': 'செயலில் உள்ள அசல்',
+    'hi': 'सक्रिय मूलधन',
+    'te': 'సక్రియ అసలు',
+    'kn': 'ಸಕ್ರಿಯ ಅಸಲು',
+    'ml': 'സജീവ മുതൽ',
+  },
 };

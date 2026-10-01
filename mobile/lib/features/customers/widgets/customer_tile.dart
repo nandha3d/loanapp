@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -92,9 +93,10 @@ class CustomerTile extends ConsumerWidget {
     final user = ref.watch(authControllerProvider).user;
     final isChit = AppType.userIsChit(user);
     final cs = customer.creditScore;
-    final activeLoans =
-        customer.loans.where((l) => l.status == 'active').toList();
-    final outstanding = activeLoans.fold<double>(0, (s, l) => s + l.principal);
+    // CUST-01 (D7): server figures for loans not closed (active/overdue) —
+    // principal, not outstanding.
+    final activePrincipal = customer.activeLoanPrincipal;
+    final loansCount = customer.activeLoanCount;
     final statusAccent = _statusColor(customer.status);
 
     final snippets = <Widget>[
@@ -107,15 +109,15 @@ class CustomerTile extends ConsumerWidget {
       if (!isChit) ...[
         _InfoSnippet(
           icon: Icons.account_balance_wallet_outlined,
-          label: t.x('loan.outstanding'),
-          value: '₹${outstanding.toInt()}',
+          label: t.x('cust.active_principal'),
+          value: ref.watch(currencyFmtProvider).format(activePrincipal),
           valueColor:
-              outstanding > 0 ? AppColors.textPrimary : AppColors.textLight,
+              activePrincipal > 0 ? AppColors.textPrimary : AppColors.textLight,
         ),
         _InfoSnippet(
           icon: Icons.receipt_long_outlined,
-          label: t.x('cust.loans_tab'),
-          value: '${customer.loans.length}',
+          label: t.x('dash.active_loans'),
+          value: '$loansCount',
           valueColor: AppColors.textPrimary,
         ),
       ],

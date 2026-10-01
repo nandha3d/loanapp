@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
                 instalments: { select: { status: true, receivedAmount: true } },
                 penalties: { select: { grossPenalty: true, status: true } },
               },
+              orderBy: { createdAt: 'desc' },
             },
           },
         }),
@@ -156,10 +157,14 @@ export async function GET(req: NextRequest) {
               tenantId: ctx.tenantId,
               appType: ctx.appType,
             },
-            _sum: { principal: true },
+            _sum: { principal: true, totalPayable: true, totalCollected: true },
           })
         : [];
       const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
+      const outstandingMap = new Map(totals.map((t) => [
+        t.customerId,
+        Math.max(0, Number(t._sum.totalPayable ?? 0) - Number(t._sum.totalCollected ?? 0))
+      ]));
       const enriched = data.map((c: any) => {
         const { passwordHash: _ph, ...safe } = c;
         return {
@@ -168,6 +173,7 @@ export async function GET(req: NextRequest) {
           aadharNumber: maskAadharNumber(decryptAadharNumber(c.aadharNumber)),
           activeLoanCount: c._count.loans,
           activeLoanPrincipal: totalMap.get(c.id) ?? 0,
+          outstandingBalance: outstandingMap.get(c.id) ?? 0,
         };
       });
 

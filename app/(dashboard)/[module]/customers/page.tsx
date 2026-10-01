@@ -4,6 +4,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, getInitials } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { canCollectForLoanStatus } from '@/lib/collectionPolicy';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 
@@ -98,7 +99,8 @@ export default async function CustomersPage({
           </thead>
           <tbody>
             {customers.map((c: any) => {
-              const activeLoan = c.loans.find((l: any) => !['closed', 'settled'].includes(l.status));
+              // D7: the active loan is one that is not closed — active or overdue.
+              const activeLoan = c.loans.find((l: any) => canCollectForLoanStatus(l.status));
               const { score, grade } = calculateCreditScore(c.loans);
               
               return (
