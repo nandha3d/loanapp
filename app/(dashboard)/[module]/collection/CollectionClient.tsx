@@ -664,7 +664,7 @@ export default function CollectionClient({
       verifyGpsStatus();
       return;
     }
-    const isPaid = instalment.receivedAmount > 0;
+    const isPaid = instalment.outstandingAmount <= 0;
     if (isPaid) {
       // Edit/correction path stays single-instalment (admin edits, or agent edit
       // requests) — unchanged behaviour, recorded against THIS instalment only.
@@ -739,7 +739,7 @@ export default function CollectionClient({
     const fd = new FormData();
     fd.set('instalmentId', modal.id);
 
-    const isEditRequest = modal.receivedAmount > 0 && !isAdmin;
+    const isEditRequest = modal.outstandingAmount <= 0 && !isAdmin;
 
     try {
       if (isEditRequest) {
@@ -768,7 +768,7 @@ export default function CollectionClient({
         // collection-date row for Actual. Admin correction of an already-paid
         // instalment stays a single-instalment write.
         let result;
-        if (modal.receivedAmount === 0) {
+        if (modal.outstandingAmount > 0) {
           fd.set('loanId', modal.loan.id);
           fd.set('amount', String(amount));
           result = await submitLoanCollection(fd);
@@ -1982,13 +1982,13 @@ export default function CollectionClient({
           .filter((r) => r.dueDate.slice(0, 10) === todayISO)
           .reduce((sum, r) => sum + r.outstandingAmount, 0);
         const overdueForLoan = Math.max(0, totalLoanOutstanding - dueTodayForLoan);
-        const isNewCollect = modal.receivedAmount === 0;
+        const isNewCollect = modal.outstandingAmount > 0;
 
         return (
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
           <div className="modal" ref={modalRef}>
             <div className="modal-header">
-              <h3>{modal.receivedAmount > 0 ? (isAdmin ? dict.collection.editCollection : dict.collection.requestEdit) : dict.collection.title}</h3>
+              <h3>{modal.outstandingAmount <= 0 ? (isAdmin ? dict.collection.editCollection : dict.collection.requestEdit) : dict.collection.title}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setModal(null)}>close</button>
             </div>
             <div className="modal-body">
