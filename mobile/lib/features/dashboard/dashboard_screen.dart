@@ -225,7 +225,12 @@ class _DashboardBody extends ConsumerWidget {
             responsive: responsive,
           ),
         const SizedBox(height: 14),
-        _AlertsRow(summary: summary, t: t),
+        _AlertsRow(
+          summary: summary,
+          t: t,
+          isAgent: isAgent,
+          fmt: fmt,
+        ),
         const SizedBox(height: 18),
         if (!isAgent) ...[
           _SpotlightCards(summary: summary, fmt: fmt),
@@ -1157,12 +1162,23 @@ class _StatTile extends StatelessWidget {
 }
 
 class _AlertsRow extends StatelessWidget {
-  const _AlertsRow({required this.summary, required this.t});
+  const _AlertsRow({
+    required this.summary,
+    required this.t,
+    this.isAgent = false,
+    this.fmt,
+  });
   final DashboardSummary summary;
   final T t;
+  final bool isAgent;
+  final NumberFormat? fmt;
 
   @override
   Widget build(BuildContext context) {
+    final penaltyFormatted = fmt != null
+        ? fmt!.format(summary.pendingPenaltyTotal)
+        : '₹${summary.pendingPenaltyTotal.round()}';
+
     return Row(
       children: [
         Expanded(
@@ -1175,17 +1191,19 @@ class _AlertsRow extends StatelessWidget {
             onTap: () => context.go('/loans'),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _AlertCard(
-            label: t.x('dash.pending_penalties'),
-            value: '${summary.pendingPenalties}',
-            icon: Icons.gavel_rounded,
-            bg: AppColors.warningBg,
-            fg: AppColors.warning,
-            onTap: () => context.go('/penalties'),
+        if (!isAgent) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            child: _AlertCard(
+              label: t.x('dash.pending_penalties'),
+              value: penaltyFormatted,
+              icon: Icons.gavel_rounded,
+              bg: AppColors.warningBg,
+              fg: AppColors.warning,
+              onTap: () => context.go('/penalties'),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

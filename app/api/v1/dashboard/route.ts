@@ -10,6 +10,7 @@ import type { Prisma } from '@prisma/client';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
 import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
+import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -38,6 +39,14 @@ export async function GET(req: NextRequest) {
   };
 
   try {
+    if (!isAgent) {
+      await ensurePendingPenaltiesForMissedLoans({
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        branchId: ctx.branchId || undefined,
+      });
+    }
+
     // ApprovalRequest has no branchId. Match the v1 approvals queue: agents
     // see their own requests; admins see their branch's requests, with loan
     // preclose requests scoped by the loan's branch rather than the filer.
@@ -67,7 +76,7 @@ export async function GET(req: NextRequest) {
       overdueLoans,
       totalCustomers,
       todayInstalments,
-      pendingPenalties,
+      pendingPenaltiesAgg,
       activeAgents,
       recentLoans,
       overdueInstalmentsForTotals,
@@ -101,7 +110,13 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { dueDate: 'asc' },
       }),
-      prisma.penalty.count({ where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, status: 'pending' } }),
+      isAgent
+        ? Promise.resolve({ _sum: { grossPenalty: 0, settledAmount: 0, waivedAmount: 0 }, _count: 0 })
+        : prisma.penalty.aggregate({
+            where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, status: { in: ['pending', 'partial'] } },
+            _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
+            _count: true,
+          }),
       prisma.user.count({
         where: {
           tenantId: ctx.tenantId,
@@ -409,6 +424,14 @@ export async function GET(req: NextRequest) {
     for (const c of collectionsByMode) {
       todayByMode[c.paymentMode] = Number(c._sum.receivedAmount ?? 0);
     }
+
+    const pendingPenaltyGross = Number(pendingPenaltiesAgg._sum?.grossPenalty || 0);
+    const pendingPenaltySettled = Number(pendingPenaltiesAgg._sum?.settledAmount || 0);
+    const pendingPenaltyWaived = Number(pendingPenaltiesAgg._sum?.waivedAmount || 0);
+    const pendingPenaltyTotal = isAgent
+      ? 0
+      : Math.max(0, pendingPenaltyGross - pendingPenaltySettled - pendingPenaltyWaived);
+    const pendingPenalties = isAgent ? 0 : (pendingPenaltiesAgg._count ?? 0);
 
     // Combine all loan IDs from today's instalments and overdue instalments to compute distributed metrics
     const allLoanIdsForMetrics = Array.from(new Set([
@@ -813,6 +836,7 @@ export async function GET(req: NextRequest) {
       overdueCollectedToday,
       overdueTotalTillToday,
       pendingPenalties,
+      pendingPenaltyTotal,
       activeAgents,
       recentLoans,
       todayInstalments: mappedTodayInstalments,
