@@ -8,15 +8,14 @@ import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
-import { computeExtendedSchedule } from '@/lib/restructure';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
-import { calculateDynamicOverdueAmount } from '@/lib/repayments';
 import NachPanel from './NachPanel';
 import LoanPrecloseRequest from './LoanPrecloseRequest';
 import { precloseOutstanding } from '@/lib/loanPreclosePolicy';
 import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
+import type { ExtendedScheduleResult } from '@/lib/restructure';
 import { formatBusinessDate } from '@/lib/businessTime';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
@@ -188,8 +187,7 @@ export default function LoanDetailClient({
   useRegisterBreadcrumbLabel(loan.loanCode, loan.customer?.name ? `${loan.loanCode} — ${loan.customer.name}` : loan.loanCode);
   const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userRole === 'developer';
   const totalCollected = Number(loan.totalCollected || 0);
-  const totalRepayable = Number(loan.totalPayable);
-  const outstanding = totalRepayable - totalCollected;
+  const outstanding = Number(loan.metrics?.totalOutstanding ?? 0);
   
   const [viewMode, setViewMode] = useState<'actual' | 'distributed' | 'recent_first'>('actual');
   const [restructureToggle, setShowRestructuredRates] = useState(false);
@@ -281,26 +279,17 @@ export default function LoanDetailClient({
     return dist;
   }, [loan.instalments, viewMode, totalCollected]);
 
-  const dynamicRemainingCount = useMemo(() => {
-    if (outstanding <= 0 || loan.status === 'closed') return 0;
-    return Math.ceil(outstanding / Number(loan.perInstalment));
-  }, [outstanding, loan.perInstalment, loan.status]);
-
-  // DEFAULT "extend days" projection: keep paying the normal per-instalment, slide
-  // the finish out one period per unpaid due. Recomputed live from outstanding.
-  const extended = useMemo(
-    () => computeExtendedSchedule(
-      loan.instalments || [],
-      Number(loan.perInstalment),
-      loan.frequency,
-      new Date(),
-      ((loan as any).collectionEntries || []).map((c: any) => ({
-        ...c,
-        collectionDate: c.collection?.date ?? c.submittedAt,
-      })),
-    ),
-    [loan.instalments, loan.perInstalment, loan.frequency, (loan as any).collectionEntries],
-  );
+  // LD-02: every figure below is computed once on the server (GET /api/v1/loans/[id]
+  // metrics, restructure, extendedSchedule) — the page renders, never recomputes.
+  const metrics = loan.metrics ?? {};
+  const dynamicRemainingCount = Number(metrics.remainingExtended ?? 0);
+  // DEFAULT "extend days" projection from the server (EXT-1).
+  // JSON from the API: Date fields arrive as ISO strings; every consumer below
+  // goes through new Date()/formatDate.
+  const extended: ExtendedScheduleResult = loan.extendedSchedule ?? {
+    outstanding: 0, remainingPayments: 0, finalPartial: 0, projectedDates: [], projectedEndDate: new Date(),
+    extraPeriods: 0, extendedRows: [], scheduleFinished: false, ledger: null,
+  };
   // The restructured rate is for the tenure only — once the last scheduled due
   // is behind today the loan runs on extended days at the normal rate (EXT-1).
   const showRestructuredRates = restructureToggle && !extended.scheduleFinished;
@@ -328,79 +317,12 @@ export default function LoanDetailClient({
     }));
   }, [extended, loan.perInstalment, loan.totalInstalments]);
 
-  const waivedInstalments = useMemo(() => {
-    return (loan.instalments || []).filter((i: any) => i.status === 'waived');
-  }, [loan.instalments]);
-
-  const dynamicPaidCount = useMemo(() => {
-    if (waivedInstalments.length > 0) {
-      // If instalments were waived (e.g. preclosure early settlement),
-      // the paid period corresponds to instalments up to the preclosure point.
-      const firstWaivedNo = Math.min(...waivedInstalments.map((i: any) => Number(i.instalmentNo)));
-      if (Number.isFinite(firstWaivedNo) && firstWaivedNo > 1) {
-        return firstWaivedNo - 1;
-      }
-      return Math.max(0, loan.totalInstalments - waivedInstalments.length);
-    }
-    if (outstanding <= 0 || loan.status === 'closed') {
-      return loan.totalInstalments;
-    }
-    return Math.max(0, loan.totalInstalments - dynamicRemainingCount);
-  }, [loan.totalInstalments, loan.status, waivedInstalments, outstanding, dynamicRemainingCount]);
-
-  const pct = useMemo(() => {
-    return Math.round((dynamicPaidCount / loan.totalInstalments) * 100);
-  }, [dynamicPaidCount, loan.totalInstalments]);
-
-  const remainingScheduledCount = useMemo(() => {
-    const unpaidCount = displayInstalments.filter((inst: any) => inst.status !== 'paid').length;
-    return unpaidCount || 1;
-  }, [displayInstalments]);
-
-  // Restructure: keep paying the normal per-period due, and spread ONLY the
-  // backlog (dues pending up to today) across the remaining periods:
-  //   rate = perInstalment + (overdueTillDate / remainingPeriods)
-  //   • Paid on schedule → overdueTillDate 0 → rate = perInstalment (no change).
-  //   • Fell behind      → rate slightly above normal, clears backlog on time.
-  // Restructure: spread the entire outstanding amount across the actual remaining days/periods:
-  //   rate = outstanding / actualRemainingCount
-  const { restructureRemainingCount, adjustedInstallment } = useMemo(() => {
-    if (outstanding <= 0 || loan.status === 'closed') {
-      return { restructureRemainingCount: 0, adjustedInstallment: 0 };
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endDate = loan.endDate ? new Date(loan.endDate) : new Date();
-    endDate.setHours(0, 0, 0, 0);
-    const calendarDays = Math.ceil((endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-    
-    let actualCount = 0;
-    if (calendarDays > 0) {
-      if (loan.frequency === 'weekly') {
-        actualCount = Math.max(1, Math.ceil(calendarDays / 7));
-      } else if (loan.frequency === 'monthly') {
-        actualCount = Math.max(1, Math.ceil(calendarDays / 30));
-      } else {
-        actualCount = Math.max(1, calendarDays);
-      }
-    }
-    
-    const divisor = actualCount || 1;
-    const rate = Math.round((outstanding / divisor) * 100) / 100;
-    
-    return {
-      restructureRemainingCount: actualCount,
-      adjustedInstallment: rate,
-    };
-  }, [loan.endDate, loan.frequency, loan.status, outstanding]);
-
-  const missedInstalments = loan.status === 'closed' || outstanding <= 0
-    ? []
-    : displayInstalments.filter((i: any) => i.status === 'missed');
-  // Past the term, missed extended days count too — the card matches the calendar.
-  const missedCount = missedInstalments.length + (loan.status === 'closed' || outstanding <= 0 || !extended.scheduleFinished
-    ? 0
-    : extended.extendedRows.filter((r) => r.status === 'missed').length);
+  const dynamicPaidCount = Number(metrics.paidPeriod ?? 0);
+  const pct = loan.totalInstalments > 0 ? Math.round((dynamicPaidCount / loan.totalInstalments) * 100) : 0;
+  // Restructure (keep tenure, higher rate): server restructure.* figures.
+  const restructureRemainingCount = Number(loan.restructure?.remainingPeriods ?? 0);
+  const adjustedInstallment = Number(loan.restructure?.restructuredRate ?? 0);
+  const missedCount = Number(metrics.missedCount ?? 0);
 
   const serverSummary = (loan as any).penaltySummary;
   const recordedPenalty = serverSummary?.recorded ?? loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
@@ -831,24 +753,8 @@ export default function LoanDetailClient({
 
   const { score: creditScore, grade: creditGrade } = calculateCreditScore(loan.customer.loans || []);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  
-  // Dynamic overdue: recalculate arrears based on total collections vs schedule to date.
-  // Catch-up payments (e.g. paying 3000 after 2 missed days of 1000) or closed loans
-  // dynamically resolve overdue amount to 0.
-  const duesPending = useMemo(() => {
-    if (loan.status === 'closed' || outstanding <= 0) return 0;
-    return calculateDynamicOverdueAmount(
-      loan.instalments || [],
-      totalCollected,
-      outstanding,
-      today,
-    );
-  }, [loan.status, loan.instalments, totalCollected, outstanding, today]);
+  // Server arrears (metrics.overdueAmount = calculateDynamicOverdueAmount, LD-01).
+  const duesPending = Number(loan.metrics?.overdueAmount ?? 0);
 
   const duesPendingBox = duesPending > 0 && (
     <div style={{ 
@@ -1010,7 +916,7 @@ export default function LoanDetailClient({
  
             <div className="meta-col">
               <div><div className="cm-label">{d.principal}</div><div className="cm-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
-              <div><div className="cm-label">{d.repayable}</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(totalRepayable, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.repayable}</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(Number(loan.totalPayable), currencySymbol)}</div></div>
               <div><div className="cm-label">{d.disbursed}</div><div className="cm-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.frequency}</div><div className="cm-value" style={{ textTransform: 'capitalize' }}>{loan.frequency}</div></div>
               <div><div className="cm-label">{d.tenure}</div><div className="cm-value">{loan.tenure} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}</div></div>
@@ -1028,7 +934,7 @@ export default function LoanDetailClient({
               <div>
                 <div className="cm-label">{d.remainingActual}</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
-                  {restructureRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {Number(metrics.remainingActual ?? 0)} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
                 </div>
               </div>
               <div>
@@ -1242,11 +1148,11 @@ export default function LoanDetailClient({
                         {showRestructuredRates && Number(inst.receivedAmount) < Number(inst.dueAmount) && new Date(inst.dueDate) >= new Date(new Date().setHours(0,0,0,0)) ? (
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
-                              {formatCurrency(adjustedInstallment, currencySymbol)}
+                              {formatCurrency(Number(inst.restructuredAmount ?? inst.dueAmount), currencySymbol)}
                             </span>
                             {/* Only strike through the original when restructuring actually
                                 changed the figure (i.e. there were missed dues to catch up). */}
-                            {Math.abs(adjustedInstallment - Number(inst.dueAmount)) >= 0.01 && (
+                            {Math.abs(Number(inst.restructuredAmount ?? inst.dueAmount) - Number(inst.dueAmount)) >= 0.01 && (
                               <span style={{ fontSize: '.58rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>
                                 {formatCurrency(inst.dueAmount, currencySymbol)}
                               </span>

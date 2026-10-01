@@ -9,8 +9,9 @@
  *
  * where actualRemainingCount is derived from calendar days to loan.endDate,
  * bucketed by frequency (daily = days, weekly = ceil(days/7), monthly =
- * ceil(days/30)). Matches the web loan-detail page's "keep tenure, higher
- * rate" calculation exactly.
+ * ceil(days/30)). `outstanding` here is Σ(due − received) over the
+ * instalments, not totalPayable − totalCollected; the web loan-detail page
+ * renders these server figures instead of computing its own (LD-02).
  */
 
 export type RInstalment = {
