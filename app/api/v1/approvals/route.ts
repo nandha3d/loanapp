@@ -6,6 +6,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { branchScopeWhere } from '@/lib/branchScope';
 import { modulePath } from '@/types/modules';
+import { maskPan } from '@/lib/pii';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
             phone: cust.phone,
             address: cust.address,
             email: cust.email || 'None',
-            pan: cust.pan || 'None',
+            pan: cust.pan ? (maskPan(cust.pan) || 'None') : 'None',
           }),
           reason: 'New Customer Registration',
           status: 'pending',

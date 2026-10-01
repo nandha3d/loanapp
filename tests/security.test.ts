@@ -4,6 +4,8 @@ import {
   decryptAadharNumber,
   encryptAadharNumber,
   maskAadharNumber,
+  maskPan,
+  isMaskedPan,
   encryptField,
   decryptField,
 } from '../lib/pii';
@@ -29,6 +31,12 @@ assert.equal(decryptAadharNumber(encrypted, piiKey), '123456789012');
 assert.equal(decryptAadharNumber('1234 5678 9012', piiKey), '123456789012');
 assert.equal(maskAadharNumber('123456789012'), 'XXXX XXXX 9012');
 assert.equal(maskAadharNumber(null), null);
+assert.equal(maskPan('ABCDE1234F'), 'XXXXXX234F');
+assert.equal(maskPan(null), null);
+assert.equal(maskPan(''), null);
+assert.equal(isMaskedPan('XXXXXX234F'), true);
+assert.equal(isMaskedPan('ABCDE1234F'), false);
+assert.equal(isMaskedPan(null), false);
 
 // Test field encryption roundtrip
 const sampleSecret = 'rzp_secret_999xyzABC';

@@ -7,7 +7,12 @@ import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
-import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
+import {
+  encryptAadharNumber,
+  decryptAadharNumber,
+  maskAadharNumber,
+  maskPan,
+} from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity } from '@/lib/repayments';
@@ -221,8 +226,24 @@ export async function GET(
     potential: potentialPenalty,
   };
 
+  const customerOut = loan.customer
+    ? {
+        ...loan.customer,
+        pan: maskPan(loan.customer.pan),
+        aadharNumber: maskAadharNumber(decryptAadharNumber(loan.customer.aadharNumber)),
+        guarantors: loan.customer.guarantors?.map((g) => ({
+          ...g,
+          aadharNumber: maskAadharNumber(decryptAadharNumber(g.aadharNumber)),
+        })),
+      }
+    : loan.customer;
+  if (customerOut) {
+    delete (customerOut as any).passwordHash;
+  }
+
   return ok({
     ...loan,
+    customer: customerOut,
     collectionEntries,
     instalments: instalmentsOut,
     restructure,

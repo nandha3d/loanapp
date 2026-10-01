@@ -79,8 +79,19 @@ export function maskAadharNumber(value: string | null | undefined): string | nul
   return `XXXX XXXX ${lastFour}`;
 }
 
-export function isMaskedAadharNumber(value: string | null | undefined): boolean {
-  return Boolean(value && /^x{4}\s*x{4}\s*\d{4}$/i.test(value.trim()));
+export function maskPan(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length < 4) return trimmed;
+  const lastFour = trimmed.slice(-4);
+  return `XXXXXX${lastFour}`;
+}
+
+export function isMaskedPan(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return Boolean(trimmed.length === 10 && /^X{6}/i.test(trimmed));
 }
 
 const FIELD_ENCRYPTION_PREFIX = 'enc:field:v1';

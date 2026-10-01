@@ -9,7 +9,9 @@ import {
 import {
   decryptAadharNumber,
   encryptAadharNumber,
+  isMaskedPan,
   maskAadharNumber,
+  maskPan,
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
@@ -108,6 +110,7 @@ export async function GET(
   return ok({
     ...safe,
     creditScore,
+    pan: maskPan(customer.pan),
     aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
     guarantors: customer.guarantors.map((g) => ({
       ...g,
@@ -152,6 +155,9 @@ export async function PATCH(
     }
     if (data.aadharNumber !== undefined) {
       data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+    }
+    if (data.pan !== undefined && isMaskedPan(data.pan as string)) {
+      delete data.pan;
     }
     // Numeric coercion (Float columns).
     for (const f of CUSTOMER_NUMERIC_FIELDS) {
@@ -311,6 +317,7 @@ export async function PATCH(
 
     return ok({
       ...safeUpdated,
+      pan: maskPan(updated.pan),
       aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber)),
     });
   } catch (e: any) {

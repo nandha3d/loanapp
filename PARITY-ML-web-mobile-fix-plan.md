@@ -36,7 +36,7 @@ Verification commands available: `npm run test:calc`, `npm run test:ci`, `npm ru
 | D6 | Agent penalty waiver | Agents **cannot** waive with a manager's password (web or mobile). An agent can only **request** a waiver; admin/superadmin approves. | PEN-01, PEN-03 (DOC-1) |
 | D7 | "Active loan" on customers list | Count/display loans that are **not closed**, defined as status **active or overdue** (`COLLECTIBLE_LOAN_STATUSES`), same on web and mobile. | CUST-01 |
 
-### Still open — do NOT implement until the owner answers
+### Answered 2026-10-01 → see `docs/fixes/PARITY-ML-owner-decisions-2.md` (tasks DEC-01 … DEC-07). The table below is kept for history; follow the DEC tasks, not "blocked" notes in this file.
 
 | # | Question | Blocks |
 |---|---|---|
@@ -421,7 +421,7 @@ Size: S ≤ 20 lines, M ≤ 100 lines, L > 100 lines or multiple files.
 - **Steps:**
   1. In `lib/penalties.ts` add `settlePenalty({ tenantId, appType, branchId, userId, penaltyId, amount })`: find with `{ id, loan: { tenantId, appType, ...branchScopeWhere(branchId) } }`; reject `amount <= 0` or `amount > gross − settled − waived`; `settledAmount = settled + amount` (increment); `status = settled+amount+waived >= gross ? 'settled' : 'partial'`; update + auditLog in one `$transaction`.
   2. Add `waivePenalty({...same scope, amount?})`: default waive full remaining; same scoping; one tx with audit; the "Penalty Waived" notification after commit (as web does today).
-  3. Both fns: throw `Forbidden` unless role in `admin|superadmin|developer`.
+  3. Roles: `waivePenalty` throws `Forbidden` unless role in `admin|superadmin|developer`. `settlePenalty` (= collecting penalty money) also allows `agent`, scoped to loans the agent can reach (`buildAgentCustomerAccessWhere`) — owner decision 2026-10-01, see DEC-06 in `PARITY-ML-owner-decisions-2.md`.
   4. Point all four callers at them. Delete `managerUsername/managerPassword` handling from the v1 waive route and from `penalty_service.dart`.
   5. Mobile settle: wrap in try/catch, show the error snackbar, invalidate the list on success. Prefill settle amount with `net.toStringAsFixed(2)`.
 - **DOC-1:** §10.4 — record that settle amounts are increments and agents cannot settle/waive.

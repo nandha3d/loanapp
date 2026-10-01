@@ -679,7 +679,7 @@ Creates in-app `SystemNotification` rows and pushes to devices via FCM.
 
 | Concern | Where | Rule |
 |---|---|---|
-| **PII** | `lib/pii.ts` | **SEC-1** — Aadhaar and equivalent identifiers are encrypted at rest (`encryptField`/`encryptAadharNumber`) and masked in any UI or export (`maskAadharNumber`). Never log raw PII; `redactPii()` in `lib/audit.ts` before writing audit values. |
+| **PII** | `lib/pii.ts` | **SEC-1** — Aadhaar, PAN and equivalent personal identifiers are encrypted at rest (`encryptField`/`encryptAadharNumber`) and masked in any UI, API response or export (`maskAadharNumber`, `maskPan`). Business company PAN is not masked. Never log raw PII; `redactPii()` in `lib/audit.ts` before writing audit values. |
 | **Audit** | `lib/audit.ts`, `AuditLog`, `createChitAudit` | **SEC-2** — Every state change to a loan, customer, user, payment, chit or setting writes an audit row **inside the same transaction** as the change. |
 | **Files** | `lib/fileUpload.ts`, `lib/fileAccessPolicy.ts` | **SEC-3** — Uploads are validated and re-encoded via `sharp`; downloads are authorized by `fileAccessPolicy`, never served by raw path. |
 | **Rate limits** | `lib/rateLimit.ts` | **SEC-4** — MySQL-backed `checkRateLimit` is the production implementation. The in-memory fixed-window store is test-only. |

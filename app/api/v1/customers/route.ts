@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
-import { encryptAadharNumber } from '@/lib/pii';
-import { getBranding } from '@/lib/tenant';
+import {
+  decryptAadharNumber,
+  encryptAadharNumber,
+  maskAadharNumber,
+  maskPan,
+} from '@/lib/pii';
 import { generateCode } from '@/lib/utils';
 import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
@@ -99,7 +102,20 @@ export async function GET(req: NextRequest) {
         }),
       ]);
 
-      return ok(rows, {
+      const sanitizedRows = rows.map((c: any) => {
+        const { passwordHash: _ph, ...safe } = c;
+        return {
+          ...safe,
+          pan: maskPan(c.pan),
+          aadharNumber: maskAadharNumber(decryptAadharNumber(c.aadharNumber)),
+          guarantors: c.guarantors?.map((g: any) => ({
+            ...g,
+            aadharNumber: maskAadharNumber(decryptAadharNumber(g.aadharNumber)),
+          })),
+        };
+      });
+
+      return ok(sanitizedRows, {
         page,
         limit,
         total,
@@ -138,11 +154,16 @@ export async function GET(req: NextRequest) {
           })
         : [];
       const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
-      const enriched = data.map((c) => ({
-        ...c,
-        activeLoanCount: c._count.loans,
-        activeLoanPrincipal: totalMap.get(c.id) ?? 0,
-      }));
+      const enriched = data.map((c: any) => {
+        const { passwordHash: _ph, ...safe } = c;
+        return {
+          ...safe,
+          pan: maskPan(c.pan),
+          aadharNumber: maskAadharNumber(decryptAadharNumber(c.aadharNumber)),
+          activeLoanCount: c._count.loans,
+          activeLoanPrincipal: totalMap.get(c.id) ?? 0,
+        };
+      });
 
       return ok(enriched, { nextCursor, limit });
     }
@@ -432,7 +453,12 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        return ok(customer);
+        const { passwordHash: _ph, ...safeCust } = customer;
+        return ok({
+          ...safeCust,
+          pan: maskPan(customer.pan),
+          aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
+        });
       } catch (retryErr: any) {
         // P2002 = Prisma unique constraint violation — retry with next sequence
         const isPrismaUniqueError =
