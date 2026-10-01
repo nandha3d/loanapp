@@ -404,8 +404,7 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
               </button>
             </div>
 
-            {showCompany && (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '16px', background: 'var(--bg)' }}>
+            <div hidden={!showCompany} style={{ display: showCompany ? undefined : 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '16px', background: 'var(--bg)' }}>
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
                   {/* Company logo */}
                   <div style={{ textAlign: 'center' }}>
@@ -518,7 +517,6 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
                   </div>
                 </div>
               </div>
-            )}
           </div>
         )}
 
