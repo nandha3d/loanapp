@@ -10885,4 +10885,12 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ನಿಷ್ಕ್ರಿಯ',
     'ml': 'നിഷ്ക്രിയം',
   },
+  'cust.punctuality': {
+    'en': 'Punctuality',
+    'ta': 'நேரந்தவறாமை',
+    'hi': 'समयनिष्ठा',
+    'te': 'సమయపాలన',
+    'kn': 'ಸಮಯಪಾಲನೆ',
+    'ml': 'കൃത്യനിഷ്ഠ',
+  },
 };

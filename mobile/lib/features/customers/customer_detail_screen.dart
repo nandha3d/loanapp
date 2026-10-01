@@ -1155,10 +1155,11 @@ class _KpiStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fmt = ref.watch(currencyFmtProvider);
-    final all = customer.loans;
-    final active = all.where((l) => l.status == 'active').toList();
-    final totalBorrowed = all.fold<double>(0, (s, l) => s + l.principal);
-    final outstanding = active.fold<double>(0, (s, l) => s + l.principal);
+    // CUST-04: server creditScore.stats only — outstanding is
+    // Σ(totalPayable − totalCollected) over active/overdue loans, same as web.
+    final cs = customer.creditScore;
+    final totalBorrowed = cs?.totalBorrowed ?? 0;
+    final outstanding = cs?.outstanding ?? 0;
 
     return Row(
       children: [
@@ -1184,8 +1185,17 @@ class _KpiStrip extends ConsumerWidget {
           child: _Kpi(
             icon: Icons.list_alt_rounded,
             color: AppColors.info,
-            label: t.x('cust.loans_tab'),
-            value: '${all.length}',
+            label: '${t.x('dash.active_loans')} / ${t.x('status.closed')}',
+            value: '${cs?.activeLoans ?? 0} / ${cs?.closedLoans ?? 0}',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Kpi(
+            icon: Icons.verified_outlined,
+            color: AppColors.success,
+            label: t.x('cust.punctuality'),
+            value: '${cs?.punctuality ?? 0}%',
           ),
         ),
       ],
@@ -1346,9 +1356,25 @@ class _LoanRow extends StatelessWidget {
                     style: AppTypography.bodyLarge,
                   ),
                   Text(
-                    loan.status.toUpperCase(),
+                    [
+                      loan.status.toUpperCase(),
+                      if (loan.frequency != null) loan.frequency!,
+                      if (loan.startDate != null)
+                        DateFormat('dd MMM yyyy').format(loan.startDate!),
+                    ].join(' · '),
                     style: AppTypography.tiny.copyWith(color: _statusColor),
                   ),
+                  if (loan.tenure > 0) ...[
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: (loan.paidCount / loan.tenure).clamp(0.0, 1.0),
+                      minHeight: 4,
+                      backgroundColor: AppColors.border,
+                      color: _statusColor,
+                    ),
+                    Text('${loan.paidCount}/${loan.tenure}',
+                        style: AppTypography.tiny),
+                  ],
                 ],
               ),
             ),

@@ -45,6 +45,7 @@ class Customer {
     this.securityCheques = const [],
     this.activeLoanCount = 0,
     this.activeLoanPrincipal = 0.0,
+    this.outstandingBalance = 0.0,
   });
 
   final String id;
@@ -89,6 +90,12 @@ class Customer {
   final List<SecurityCheque> securityCheques;
   final int activeLoanCount;
   final double activeLoanPrincipal;
+  final double outstandingBalance;
+
+  double get totalOutstanding =>
+      (creditScore?.outstanding != null && creditScore!.outstanding > 0)
+          ? creditScore!.outstanding
+          : (outstandingBalance > 0 ? outstandingBalance : 0.0);
 
   bool get hasActiveLoan =>
       activeLoanCount > 0 ||
@@ -107,7 +114,7 @@ class Customer {
         (json['loans'] as List<dynamic>?)
             ?.where((dynamic l) =>
                 l is Map &&
-                (l['status'] == 'active' || l['status'] == 'overdue'))
+                (l['status'] == 'active' || l['status'] == 'overdue'),)
             .length ??
         0;
     double? toDoubleNullable(dynamic v) =>
@@ -115,6 +122,13 @@ class Customer {
     double toDouble(dynamic v) =>
         v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0.0;
     final activePrincipal = toDouble(json['activeLoanPrincipal']);
+    final outstandingBalance = toDouble(
+      json['outstandingBalance'] ??
+          json['outstanding'] ??
+          (json['creditScore'] is Map
+              ? (json['creditScore']['stats']?['outstanding'])
+              : null),
+    );
     return Customer(
       id: json['id'] as String,
       customerCode: json['customerCode'] as String,
@@ -155,6 +169,7 @@ class Customer {
       designation: json['designation'] as String?,
       activeLoanCount: activeCount,
       activeLoanPrincipal: activePrincipal,
+      outstandingBalance: outstandingBalance,
       kycDocuments: (json['kycDocuments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => KycDocument.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
@@ -225,6 +240,7 @@ class CreditScore {
     this.punctuality = 0,
     this.activeLoans = 0,
     this.closedLoans = 0,
+    this.outstanding = 0,
   });
 
   final int score; // 300–850 (0 / grade 'N/A' when no loan activity yet)
@@ -234,6 +250,7 @@ class CreditScore {
   final int punctuality; // 0–100 (% on-time)
   final int activeLoans;
   final int closedLoans;
+  final double outstanding;
 
   bool get rated => grade != 'N/A' && score >= 300;
 
@@ -249,6 +266,7 @@ class CreditScore {
       punctuality: (stats['punctuality'] as num?)?.toInt() ?? 0,
       activeLoans: (stats['activeLoans'] as num?)?.toInt() ?? 0,
       closedLoans: (stats['closedLoans'] as num?)?.toInt() ?? 0,
+      outstanding: toNum(stats['outstanding']),
     );
   }
 }
@@ -321,12 +339,21 @@ class CustomerLoanSummary {
     required this.status,
     required this.principal,
     this.loanCode,
+    this.frequency,
+    this.startDate,
+    this.tenure = 0,
+    this.paidCount = 0,
   });
 
   final String id;
   final String status;
   final double principal;
   final String? loanCode;
+  // CUST-04: shown on the loans list with progress (server fields).
+  final String? frequency;
+  final DateTime? startDate;
+  final int tenure;
+  final int paidCount;
 
   factory CustomerLoanSummary.fromJson(Map<String, dynamic> json) {
     final p = json['principal'];
@@ -343,6 +370,10 @@ class CustomerLoanSummary {
       status: (json['status'] as String?) ?? 'active',
       principal: principal,
       loanCode: json['loanCode'] as String?,
+      frequency: json['frequency'] as String?,
+      startDate: DateTime.tryParse('${json['startDate'] ?? ''}')?.toLocal(),
+      tenure: (num.tryParse('${json['tenure'] ?? 0}') ?? 0).toInt(),
+      paidCount: (num.tryParse('${json['paidCount'] ?? 0}') ?? 0).toInt(),
     );
   }
 }
