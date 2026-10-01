@@ -119,12 +119,21 @@ class LoanMetrics {
     required this.overdueAmount,
     required this.missedCount,
     required this.paidCount,
+    this.dueNow = 0,
+    this.paidPeriod = 0,
+    this.remainingActual = 0,
+    this.remainingExtended = 0,
   });
 
   final double totalOutstanding;
   final double overdueAmount;
   final int missedCount;
   final int paidCount;
+  // LD-01/LD-03: server figures, rendered as-is.
+  final double dueNow;
+  final int paidPeriod;
+  final int remainingActual;
+  final int remainingExtended;
 
   factory LoanMetrics.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) =>
@@ -134,6 +143,10 @@ class LoanMetrics {
       overdueAmount: num$(json['overdueAmount']),
       missedCount: (json['missedCount'] as num?)?.toInt() ?? 0,
       paidCount: (json['paidCount'] as num?)?.toInt() ?? 0,
+      dueNow: num$(json['dueNow']),
+      paidPeriod: num$(json['paidPeriod']).toInt(),
+      remainingActual: num$(json['remainingActual']).toInt(),
+      remainingExtended: num$(json['remainingExtended']).toInt(),
     );
   }
 }
@@ -141,28 +154,25 @@ class LoanMetrics {
 class LoanRestructure {
   const LoanRestructure({
     required this.restructuredRate,
-    required this.arrears,
-    required this.futureInstalmentsCount,
-    required this.isApplicable,
-    this.message,
+    required this.outstanding,
+    required this.remainingPeriods,
+    required this.available,
   });
 
+  // Keys of lib/restructure.ts computeRestructure() (LD-03).
   final double restructuredRate;
-  final double arrears;
-  final int futureInstalmentsCount;
-  final bool isApplicable;
-  final String? message;
+  final double outstanding;
+  final int remainingPeriods;
+  final bool available;
 
   factory LoanRestructure.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) =>
         (v is num) ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
     return LoanRestructure(
       restructuredRate: num$(json['restructuredRate']),
-      arrears: num$(json['arrears']),
-      futureInstalmentsCount:
-          (json['futureInstalmentsCount'] as num?)?.toInt() ?? 0,
-      isApplicable: json['isApplicable'] == true,
-      message: json['message'] as String?,
+      outstanding: num$(json['outstanding']),
+      remainingPeriods: num$(json['remainingPeriods']).toInt(),
+      available: json['available'] == true,
     );
   }
 }

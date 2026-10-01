@@ -208,8 +208,15 @@ export async function GET(
     : settledOrClosed
       ? loan.totalInstalments
       : Math.max(0, loan.totalInstalments - remainingExtended);
+  // Due now = unpaid dues up to today; past the term the normal instalment
+  // keeps falling due (EXT-1) — the figure mobile used to compute itself.
+  const dueTillToday = preMappedInstalments
+    .filter((i) => i.status !== 'waived' && i.status !== 'paid' && new Date(i.dueDate) < new Date(today.getTime() + 24 * 60 * 60 * 1000))
+    .reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
+  const dueNow = settledOrClosed ? 0 : (dueTillToday > 0 ? dueTillToday : Math.min(perInstalment, totalOutstanding));
   const metrics = {
     totalOutstanding,
+    dueNow,
     // Same arrears calculation the web page uses (calculateDynamicOverdueAmount).
     overdueAmount: settledOrClosed
       ? 0

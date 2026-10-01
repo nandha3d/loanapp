@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:printing/printing.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
@@ -40,25 +39,8 @@ final _customerLoansProvider = FutureProvider.autoDispose
   return ref.watch(loanServiceProvider).list(customerId: customerId);
 });
 
-double _dueNowForLoan(Loan loan) {
-  final today = DateTime.now();
-  final todayStart = DateTime(today.year, today.month, today.day);
-  final rawDue = loan.instalments.where((inst) {
-    final due =
-        DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
-    return !due.isAfter(todayStart) && inst.dynamicStatus != 'paid';
-  }).fold<double>(0, (sum, inst) {
-    final outstanding = inst.dueAmount - inst.receivedAmount;
-    return sum + (outstanding > 0 ? outstanding : 0);
-  });
-  if (rawDue > 0) return rawDue;
-  final totalOutstanding = loan.totalPayable - loan.totalCollected;
-  // If tenure reached, today's due remains active at per-instalment amount until closed
-  if (loan.status != 'closed' && totalOutstanding > 0) {
-    return math.min(loan.perInstalment, totalOutstanding);
-  }
-  return 0;
-}
+/// Server figure (metrics.dueNow, LD-03) — no client maths.
+double _dueNowForLoan(Loan loan) => loan.metrics?.dueNow ?? 0;
 
 class LoanDetailScreen extends ConsumerWidget {
   const LoanDetailScreen({super.key, required this.id});
@@ -191,8 +173,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         ref.watch(authControllerProvider).user?.appType == AppType.microlending;
     final compactSchedule =
         isMicrolending && MediaQuery.sizeOf(context).width < 600;
-    final paid =
-        loan.instalments.where((i) => i.dynamicStatus == 'paid').length;
+    // Progress ring = server paid period / total instalments (LD-03).
+    final paid = loan.metrics?.paidPeriod ?? 0;
     final progress =
         loan.instalmentCount == 0 ? 0.0 : paid / loan.instalmentCount;
 
@@ -899,69 +881,9 @@ class _OverdueSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final todayStart = DateTime.now();
-    final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
-    final missedCount = loan.metrics?.missedCount ??
-        ((loan.status == 'closed' ||
-                (loan.totalPayable - loan.totalCollected) <= 0)
-            ? 0
-            : loan.instalments.where((i) => i.dynamicStatus == 'missed').length);
-    final outstanding = (loan.totalPayable - loan.totalCollected) > 0
-        ? (loan.totalPayable - loan.totalCollected)
-        : 0.0;
-
-    final double overdueAmount;
-    if (loan.metrics != null) {
-      overdueAmount = loan.metrics!.overdueAmount;
-    } else if (outstanding <= 0 || loan.status == 'closed') {
-      overdueAmount = 0;
-    } else {
-      final payable =
-          loan.instalments.where((i) => i.status != 'waived').toList();
-      final totalCollected = loan.totalCollected;
-      double cToday = 0;
-      for (final inst in payable) {
-        final instDate =
-            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
-        if (instDate.isAtSameMomentAs(today)) {
-          cToday += inst.receivedAmount > 0 ? inst.receivedAmount : 0;
-        }
-      }
-      cToday = cToday > totalCollected ? totalCollected : cToday;
-      final cPrior =
-          (totalCollected - cToday) > 0 ? (totalCollected - cToday) : 0.0;
-
-      final pastDueInsts = payable.where((inst) {
-        final d =
-            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
-        return d.isBefore(today);
-      }).toList()
-        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
-
-      final todayInsts = payable.where((inst) {
-        final d =
-            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
-        return d.isAtSameMomentAs(today);
-      }).toList();
-      final todayDue = todayInsts.fold<double>(0, (s, i) => s + i.dueAmount);
-
-      double remPrior = cPrior;
-      double pastDueRemaining = 0;
-      for (final inst in pastDueInsts) {
-        final due = inst.dueAmount;
-        final covered = remPrior < due ? remPrior : due;
-        remPrior = (remPrior - covered) > 0 ? (remPrior - covered) : 0;
-        pastDueRemaining += (due - covered);
-      }
-
-      final appliedToToday = cToday < todayDue ? cToday : todayDue;
-      final excessToday =
-          (cToday - appliedToToday) > 0 ? (cToday - appliedToToday) : 0.0;
-      final finalOverdue = (pastDueRemaining - excessToday) > 0
-          ? (pastDueRemaining - excessToday)
-          : 0.0;
-      overdueAmount = finalOverdue > outstanding ? outstanding : finalOverdue;
-    }
+    // Server figures only (LD-03) — the Dart arrears fallback is gone.
+    final missedCount = loan.metrics?.missedCount ?? 0;
+    final overdueAmount = loan.metrics?.overdueAmount ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1277,9 +1199,7 @@ class _SummaryCardOverview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final pct = (progress * 100).round();
-    final totalCollected = loan.totalCollected;
-    final totalRepayable = loan.totalPayable;
-    final outstanding = totalRepayable - totalCollected;
+    final outstanding = loan.metrics?.totalOutstanding ?? 0;
 
     final name = loan.customer?.name ?? '—';
     final code = loan.customer?.customerCode ?? '';
@@ -1423,13 +1343,16 @@ class _SummaryCardMetrics extends ConsumerWidget {
     final totalCollected = loan.totalCollected;
     final perInstalment = loan.perInstalment;
     final totalRepayable = loan.totalPayable;
-    final outstanding = totalRepayable - totalCollected;
+    final m = loan.metrics;
+    final outstanding = m?.totalOutstanding ?? 0;
     final dueNow = _dueNowForLoan(loan);
-
-    final dynamicRemainingCount =
-        perInstalment > 0 ? (outstanding / perInstalment).ceil() : 0;
-    final dynamicPaidCount = (loan.instalmentCount - dynamicRemainingCount)
-        .clamp(0, loan.instalmentCount);
+    // LD-03: server counts (metrics.*), same as web.
+    final dynamicRemainingCount = m?.remainingExtended ?? 0;
+    final dynamicPaidCount = m?.paidPeriod ?? 0;
+    final remainingActual = m?.remainingActual ?? 0;
+    final finishingRate = loan.restructure?.available == true
+        ? loan.restructure!.restructuredRate
+        : 0.0;
 
     final extraPeriods = loan.extendedSchedule?.extraPeriods ?? 0;
     final tenureDisplay = extraPeriods > 0
@@ -1479,9 +1402,16 @@ class _SummaryCardMetrics extends ConsumerWidget {
                       _StatBlock(t.x('loan.lbl_paid_period'),
                           '$dynamicPaidCount ${t.x('loan.val_days')}',
                           valueColor: AppColors.success),
-                      _StatBlock(t.x('loan.lbl_remaining'),
+                      _StatBlock(t.x('loan.lbl_remaining_actual'),
+                          '$remainingActual ${t.x('loan.val_days')}',
+                          valueColor: AppColors.danger),
+                      _StatBlock(t.x('loan.lbl_remaining_extended'),
                           '$dynamicRemainingCount ${t.x('loan.val_days')}',
                           valueColor: AppColors.danger),
+                      if (finishingRate > 0)
+                        _StatBlock(t.x('loan.lbl_finishing_rate'),
+                            fmt.format(finishingRate),
+                            valueColor: AppColors.primary),
                       if (extraPeriods > 0)
                         _StatBlock(
                           'Projected Days',
