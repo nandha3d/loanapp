@@ -297,6 +297,36 @@ export async function resetCustomerPassword(customerId: string) {
   }
 }
 
+/** CUST-07: admin suspend / unsuspend through v1 PATCH (same rules as mobile). */
+export async function setCustomerStatusAction(customerId: string, status: 'active' | 'suspended') {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/customers/${customerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+      ...apiContext,
+    });
+    if (res.error) return { success: false, error: res.error };
+    revalidatePath(`/customers/${customerId}`);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to update status' };
+  }
+}
+
+/** CUST-07: admin delete through v1 DELETE (same rules as mobile). */
+export async function deleteCustomerAction(customerId: string) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/customers/${customerId}`, { method: 'DELETE', ...apiContext });
+    if (res.error) return { success: false, error: res.error };
+    revalidatePath('/customers');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to delete customer' };
+  }
+}
+
 export async function updateCustomerPhotoAction(formData: FormData) {
   const customerId = formData.get('customerId') as string;
   const customerCode = formData.get('customerCode') as string;

@@ -8,6 +8,14 @@ export function formatCurrency(amount: number | Decimal | string, symbol: string
   return safeSymbol + num.toLocaleString('en-IN');
 }
 
+// ─── Phone ────────────────────────────────────
+/** wa.me number: digits only; a bare 10-digit number gets the tenant's country code (CUST-07). */
+export function whatsappNumber(phone: string | null | undefined, countryCode: string = '91'): string {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  const cc = String(countryCode ?? '').replace(/\D/g, '');
+  return digits.length === 10 && cc ? `${cc}${digits}` : digits;
+}
+
 // ─── Date Formatting ──────────────────────────
 export function formatDate(date: Date | string | null, format: string = 'dd MMM yyyy'): string {
   if (!date) return '—';

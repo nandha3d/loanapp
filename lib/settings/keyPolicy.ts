@@ -48,6 +48,7 @@ export const SETTING_KEY_MIN_ROLE: Record<string, SettingRole> = {
   nach_present_days_before: 'developer',
   kyc_digio_client_id: 'developer',
   kyc_digio_client_secret: 'developer',
+  phone_country_code: 'developer',
 
   // Feature flags (superadmin only)
   ...Object.fromEntries(FEATURE_FLAG_KEYS.map((key) => [key, 'superadmin' as SettingRole])),

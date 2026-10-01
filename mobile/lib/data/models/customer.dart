@@ -20,6 +20,8 @@ class Customer {
     this.aadhaarName,
     this.aadhaarDob,
     this.aadhaarAddress,
+    this.kycRejectedReason,
+    this.kycVerifiedAt,
     this.routeName,
     this.agentName,
     this.photoUrl,
@@ -65,6 +67,8 @@ class Customer {
   final String? aadhaarName;
   final String? aadhaarDob;
   final String? aadhaarAddress;
+  final String? kycRejectedReason;
+  final DateTime? kycVerifiedAt;
   final String? routeName;
   final String? agentName;
   final String? photoUrl;
@@ -93,9 +97,7 @@ class Customer {
   final double outstandingBalance;
 
   double get totalOutstanding =>
-      (creditScore?.outstanding != null && creditScore!.outstanding > 0)
-          ? creditScore!.outstanding
-          : (outstandingBalance > 0 ? outstandingBalance : 0.0);
+      creditScore?.outstanding ?? outstandingBalance;
 
   bool get hasActiveLoan =>
       activeLoanCount > 0 ||
@@ -149,6 +151,8 @@ class Customer {
       aadhaarName: json['aadhaarName'] as String?,
       aadhaarDob: json['aadhaarDob'] as String?,
       aadhaarAddress: json['aadhaarAddress'] as String?,
+      kycRejectedReason: json['kycRejectedReason'] as String?,
+      kycVerifiedAt: DateTime.tryParse('${json['kycVerifiedAt'] ?? ''}')?.toLocal(),
       routeName: route?['name'] as String?,
       agentName: agent?['name'] as String?,
       photoUrl: json['profilePhoto'] as String? ?? json['photoUrl'] as String?,

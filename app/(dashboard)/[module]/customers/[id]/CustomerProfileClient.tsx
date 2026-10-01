@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from '@/components/layout/DashboardLink';
-import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
+import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage, whatsappNumber } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions';
-import { resetCustomerPassword, updateCustomerGpsAction, updateCustomerPhotoAction } from '@/app/(dashboard)/[module]/customers/actions';
+import { resetCustomerPassword, updateCustomerGpsAction, updateCustomerPhotoAction, setCustomerStatusAction, deleteCustomerAction } from '@/app/(dashboard)/[module]/customers/actions';
 import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
@@ -51,6 +51,7 @@ export default function CustomerProfileClient({
   chitSummary,
   chitMemberships = [],
   bypassLoanApproval = true,
+  phoneCountryCode = '91',
 }: {
   customer: any;
   currencySymbol: string;
@@ -79,6 +80,7 @@ export default function CustomerProfileClient({
     hasWon: boolean;
   }>;
   bypassLoanApproval?: boolean;
+  phoneCountryCode?: string;
 }) {
   const router = useRouter();
   useRegisterBreadcrumbLabel(customer.customerCode, customer.name);
@@ -399,7 +401,7 @@ export default function CustomerProfileClient({
                       <span className="material-icons-outlined" style={{ fontSize: '18px' }}>sms</span>
                     </a>
                     <a
-                      href={`https://wa.me/${String(customer.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}`}
+                      href={`https://wa.me/${whatsappNumber(customer.phone, phoneCountryCode)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       title="WhatsApp"
@@ -412,6 +414,7 @@ export default function CustomerProfileClient({
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
               <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
+              <span><span className={getBadgeClass(customer.status)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.status}</span></span>
             </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px', marginBottom: '2px' }}>{customer.address}</p>
             {customer.lat != null && customer.lng != null ? (
@@ -479,6 +482,27 @@ export default function CustomerProfileClient({
             {userRole === 'agent' && (
               <button className="btn btn-secondary btn-sm" onClick={() => setEditRequestModal(true)}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit_note</span> {d.requestEdit}
+              </button>
+            )}
+            {/* CUST-07: same admin actions as mobile, through the v1 API. */}
+            {userRole !== 'agent' && (customer.status === 'active' || customer.status === 'suspended') && (
+              <button className="btn btn-secondary btn-sm" onClick={async () => {
+                const res = await setCustomerStatusAction(customer.id, customer.status === 'suspended' ? 'active' : 'suspended');
+                if (!res.success) alert(res.error);
+                else router.refresh();
+              }}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{customer.status === 'suspended' ? 'play_circle' : 'pause_circle'}</span>
+                {customer.status === 'suspended' ? d.unsuspend : d.suspend}
+              </button>
+            )}
+            {userRole !== 'agent' && (
+              <button className="btn btn-danger btn-sm" onClick={async () => {
+                if (!window.confirm(d.deleteConfirm)) return;
+                const res = await deleteCustomerAction(customer.id);
+                if (!res.success) alert(res.error);
+                else router.push('/customers');
+              }}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>delete</span> {d.deleteCustomer}
               </button>
             )}
             <a
@@ -647,6 +671,17 @@ export default function CustomerProfileClient({
 
         {/* KYC Tab */}
         <div className={`tab-content ${activeTab === 'kyc' ? 'active' : ''}`}>
+          {/* CUST-07: uploaded KYC documents (same list mobile shows). */}
+          {(customer.kycDocuments ?? []).length > 0 && (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {customer.kycDocuments.map((doc: any) => (
+                <a key={doc.id} href={doc.url ?? doc.filePath} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>description</span>
+                  <span style={{ textTransform: 'capitalize' }}>{String(doc.type ?? doc.docType ?? '').replace(/_/g, ' ')}</span>
+                </a>
+              ))}
+            </div>
+          )}
           {!kycEnabled ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ 

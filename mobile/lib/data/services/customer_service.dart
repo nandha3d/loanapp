@@ -144,6 +144,14 @@ class CustomerService {
     });
   }
 
+  /// Clears the borrower portal password (admin), same route web uses (CUST-07).
+  Future<void> resetPortalPassword(String id) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.customer(id)}/reset-password',
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<void> delete(String id) async {
     final res = await _dio.delete<Map<String, dynamic>>(Endpoints.customer(id));
     unwrapEnvelope(res, (_) => null);

@@ -98,6 +98,7 @@ class User {
     this.npaEnabled = false,
     this.kycEnabled = false,
     this.kycMethod = 'manual_upload',
+    this.phoneCountryCode = '91',
     this.bureauEnabled = false,
     this.premiumAccountingEnabled = false,
     this.whatsappSmsEnabled = false,
@@ -138,6 +139,8 @@ class User {
   final bool npaEnabled;
   final bool kycEnabled;
   final String kycMethod;
+  /// Country code for wa.me links (setting phone_country_code).
+  final String phoneCountryCode;
   final bool bureauEnabled;
   final bool premiumAccountingEnabled;
   final bool whatsappSmsEnabled;
@@ -193,6 +196,7 @@ class User {
     bool? npaEnabled,
     bool? kycEnabled,
     String? kycMethod,
+    String? phoneCountryCode,
     bool? bureauEnabled,
     bool? premiumAccountingEnabled,
     bool? whatsappSmsEnabled,
@@ -220,6 +224,7 @@ class User {
       npaEnabled: npaEnabled ?? this.npaEnabled,
       kycEnabled: kycEnabled ?? this.kycEnabled,
       kycMethod: kycMethod ?? this.kycMethod,
+      phoneCountryCode: phoneCountryCode ?? this.phoneCountryCode,
       bureauEnabled: bureauEnabled ?? this.bureauEnabled,
       premiumAccountingEnabled:
           premiumAccountingEnabled ?? this.premiumAccountingEnabled,
@@ -255,6 +260,7 @@ class User {
       npaEnabled: (json['npaEnabled'] as bool?) ?? false,
       kycEnabled: (json['kycEnabled'] as bool?) ?? false,
       kycMethod: (json['kycMethod'] as String?) ?? 'manual_upload',
+      phoneCountryCode: (json['phoneCountryCode'] as String?) ?? '91',
       bureauEnabled: (json['bureauEnabled'] as bool?) ?? false,
       premiumAccountingEnabled:
           (json['premiumAccountingEnabled'] as bool?) ?? false,
@@ -284,6 +290,7 @@ class User {
         'npaEnabled': npaEnabled,
         'kycEnabled': kycEnabled,
         'kycMethod': kycMethod,
+        'phoneCountryCode': phoneCountryCode,
         'bureauEnabled': bureauEnabled,
         'bypassLoanApproval': bypassLoanApproval,
         'premiumAccountingEnabled': premiumAccountingEnabled,

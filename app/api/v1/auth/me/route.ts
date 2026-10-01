@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
     npaEnabled: Boolean(subscription?.npaEnabled),
     kycEnabled: Boolean(subscription?.kycEnabled),
     kycMethod,
+    // CUST-07: country code for wa.me links (setting phone_country_code, default 91).
+    phoneCountryCode: await getSetting(user.tenantId, 'phone_country_code', '91'),
     bureauEnabled: Boolean(subscription?.bureauEnabled),
     premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
     whatsappSmsEnabled: Boolean(subscription?.whatsappSmsEnabled),

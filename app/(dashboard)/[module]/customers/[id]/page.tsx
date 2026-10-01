@@ -105,6 +105,7 @@ export default async function CustomerProfilePage({
       chitSummary={chitProfile.summary}
       chitMemberships={chitProfile.memberships}
       bypassLoanApproval={bypassLoanApproval}
+      phoneCountryCode={await getSetting(tenantId, 'phone_country_code', '91')}
     />
   );
 }

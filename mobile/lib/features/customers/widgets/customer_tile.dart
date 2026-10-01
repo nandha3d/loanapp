@@ -12,6 +12,7 @@ import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/shared/utils/phone.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
 
 class CustomerTile extends ConsumerWidget {
@@ -62,10 +63,13 @@ class CustomerTile extends ConsumerWidget {
     }
   }
 
-  Future<void> _openWhatsApp(BuildContext context, Customer c) async {
+  Future<void> _openWhatsApp(
+    BuildContext context,
+    Customer c,
+    String countryCode,
+  ) async {
     if (c.phone.isEmpty) return;
-    final digits = c.phone.replaceAll(RegExp(r'\D'), '');
-    final phone = digits.length == 10 ? '91$digits' : digits;
+    final phone = whatsappNumber(c.phone, countryCode);
     final text = Uri.encodeComponent(
       'Namaste ${c.name}, greeting from ZoloFund.',
     );
@@ -266,7 +270,11 @@ class CustomerTile extends ConsumerWidget {
                                     icon: Icons.chat_bubble_outline_rounded,
                                     iconColor: const Color(0xFF16A34A),
                                     bgColor: const Color(0xFFF0FDF4),
-                                    onTap: () => _openWhatsApp(context, customer),
+                                    onTap: () => _openWhatsApp(
+                                      context,
+                                      customer,
+                                      user?.phoneCountryCode ?? '91',
+                                    ),
                                   ),
                                   const SizedBox(width: 5),
                                   _CardActionIcon(

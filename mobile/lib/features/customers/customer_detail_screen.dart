@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:zolofund/shared/utils/phone.dart';
+import 'package:zolofund/data/services/customer_service.dart';
 import 'package:printing/printing.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -113,6 +115,17 @@ class _KycActionsState extends ConsumerState<_KycActions> {
             if (customer.aadhaarAddress != null)
               Text(
                   '${t.x('kyc.verified_address')}: ${customer.aadhaarAddress}',),
+            // CUST-07: same KYC facts web shows.
+            if (customer.kycStatus == 'verified' && customer.kycVerifiedAt != null)
+              Text(
+                '${t.x('kyc.verified_on')}: ${DateFormat('dd MMM yyyy').format(customer.kycVerifiedAt!)}',
+              ),
+            if (customer.kycStatus == 'rejected' &&
+                (customer.kycRejectedReason ?? '').isNotEmpty)
+              Text(
+                '${t.x('kyc.rejected_reason')}: ${customer.kycRejectedReason}',
+                style: const TextStyle(color: AppColors.danger),
+              ),
             if (customer.kycStatus != 'verified') ...[
               if (showAadhaar) ...[
                 const SizedBox(height: 12),
@@ -619,6 +632,8 @@ class _Header extends ConsumerWidget {
                             );
                           } else if (value == 'delete') {
                             _confirmDelete(context, ref, customer);
+                          } else if (value == 'reset_password') {
+                            _resetPortalPassword(context, ref, customer);
                           }
                         },
                         itemBuilder: (context) => [
@@ -630,6 +645,16 @@ class _Header extends ConsumerWidget {
                               contentPadding: EdgeInsets.zero,
                             ),
                           ),
+                          if (role == UserRole.admin ||
+                              role == UserRole.superadmin)
+                            PopupMenuItem(
+                              value: 'reset_password',
+                              child: ListTile(
+                                leading: const Icon(Icons.lock_reset_outlined),
+                                title: Text(t.x('cust.reset_portal_password')),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
                           if (canDelete)
                             const PopupMenuItem(
                               value: 'delete',
@@ -696,6 +721,45 @@ class _Header extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// CUST-07: clears the borrower portal password (admin), same as web.
+  Future<void> _resetPortalPassword(
+    BuildContext context,
+    WidgetRef ref,
+    Customer customer,
+  ) async {
+    final t = T.of(ref);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.x('cust.reset_portal_password')),
+        content: Text(t.x('cust.reset_portal_password_hint')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t.x('common.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(t.x('cust.reset_portal_password')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(customerServiceProvider).resetPortalPassword(customer.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('cust.portal_password_reset'))),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   Future<void> _confirmDelete(
@@ -851,7 +915,9 @@ class _QuickContact extends ConsumerWidget {
               label: t.x('cust.whatsapp'),
               color: const Color(0xFF25D366),
               onTap: () => _launch(
-                Uri.parse('https://wa.me/${_digits(customer.phone)}'),
+                Uri.parse(
+                  'https://wa.me/${whatsappNumber(customer.phone, ref.read(authControllerProvider).user?.phoneCountryCode ?? '91')}',
+                ),
               ),
             ),
           ),
@@ -875,8 +941,6 @@ class _QuickContact extends ConsumerWidget {
       ),
     );
   }
-
-  String _digits(String s) => s.replaceAll(RegExp(r'\D'), '');
 }
 
 class _ContactBtn extends StatelessWidget {
