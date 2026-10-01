@@ -4,6 +4,7 @@ import { recordCollection, type CollectionGpsCapture } from '@/lib/collectionWri
 import { depositToOffice } from '@/lib/wallet';
 import { getCollectionSubmissionBlockReason, COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { modulePath } from '@/types/modules';
+import { startOfBusinessDayUtc, parseBusinessDayUtc } from '@/lib/businessTime';
 
 /**
  * mCollect-A — route batch collection run engine.
@@ -25,18 +26,9 @@ export type RunActor = {
 };
 
 function startOfDay(value?: string | Date | null): Date {
-  const d = value ? new Date(value) : new Date();
-  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
-  } else {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
-  }
+  if (!value) return startOfBusinessDayUtc();
+  if (typeof value === 'string') return parseBusinessDayUtc(value);
+  return startOfBusinessDayUtc(value);
 }
 
 /**
