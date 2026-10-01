@@ -182,7 +182,6 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   final _textController5 = TextEditingController();
   final _textController6 = TextEditingController();
   bool _boolVal1 = false;
-  bool _showSecret = false;
   List<LoanPackage> _packages = [];
 
   bool get _canManagePackages {
@@ -221,6 +220,13 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
         return;
       }
 
+      if (widget.type == 'bureau') {
+        setState(() {
+          _loading = false;
+        });
+        return;
+      }
+
       final rows = await ref.read(settingsServiceProvider).all();
       final map = {
         for (final r in rows)
@@ -231,10 +237,6 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
       if (widget.type == 'bulk') {
         _boolVal1 = map['bulk_collection_allowed'] == 'true';
         _textController1.text = map['bulk_limit_per_agent'] ?? '50';
-      } else if (widget.type == 'bureau') {
-        _textController1.text = map['bureau_member_id'] ?? '';
-        _textController2.text = map['bureau_api_key'] ?? '';
-        _boolVal1 = map['bureau_pulls_enabled'] == 'true';
       } else if (widget.type == 'npa') {
         _textController1.text = map['npa_threshold_days'] ?? '90';
         _textController2.text = map['npa_penalty_rate'] ?? '2.0';
@@ -262,16 +264,15 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   }
 
   Future<void> _saveSettings() async {
+    if (widget.type == 'bureau') {
+      return;
+    }
     setState(() => _loading = true);
     try {
       final patch = <String, dynamic>{};
       if (widget.type == 'bulk') {
         patch['bulk_collection_allowed'] = _boolVal1.toString();
         patch['bulk_limit_per_agent'] = _textController1.text.trim();
-      } else if (widget.type == 'bureau') {
-        patch['bureau_member_id'] = _textController1.text.trim();
-        patch['bureau_api_key'] = _textController2.text.trim();
-        patch['bureau_pulls_enabled'] = _boolVal1.toString();
       } else if (widget.type == 'npa') {
         patch['npa_threshold_days'] = _textController1.text.trim();
         patch['npa_penalty_rate'] = _textController2.text.trim();
@@ -344,6 +345,9 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
     if (widget.type == 'packages') {
       return _buildPackagesList();
     }
+    if (widget.type == 'bureau') {
+      return _buildBureauReadOnly();
+    }
 
     return ListView(
       children: [
@@ -363,38 +367,6 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
             decoration: const InputDecoration(
               labelText: 'Max Collections per run per agent',
               border: OutlineInputBorder(),
-            ),
-          ),
-        ],
-        if (widget.type == 'bureau') ...[
-          SwitchListTile(
-            title: const Text('Enable CRIF Bureau Pulls'),
-            subtitle: const Text(
-              'Allow agents to request credit checks on new registrations',
-            ),
-            value: _boolVal1,
-            onChanged: (v) => setState(() => _boolVal1 = v),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _textController1,
-            decoration: const InputDecoration(
-              labelText: 'CRIF Bureau Member ID *',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _textController2,
-            obscureText: !_showSecret,
-            decoration: InputDecoration(
-              labelText: 'Bureau API Key / Secret *',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                tooltip: _showSecret ? 'Hide secret' : 'Show secret',
-                icon: Icon(_showSecret ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                onPressed: () => setState(() => _showSecret = !_showSecret),
-              ),
             ),
           ),
         ],
@@ -515,6 +487,42 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
           onPressed: _saveSettings,
         ),
       ],
+    );
+  }
+
+  Widget _buildBureauReadOnly() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.lock_outline,
+              size: 48,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              T.of(ref).x('bureau.configure_on_web'),
+              style: AppTypography.sectionTitle,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              T.of(ref).x('bureau.configure_on_web_desc'),
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
