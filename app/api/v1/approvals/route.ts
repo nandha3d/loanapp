@@ -302,6 +302,16 @@ export async function POST(req: NextRequest) {
       return ok(await submitLoanPrecloseRequest(ctx, body));
     }
 
+    if (requestType === 'customer_edit' && entityType === 'customer') {
+      const cust = await prisma.customer.findFirst({
+        where: { id: entityId, tenantId: ctx.tenantId, appType: ctx.appType },
+        select: { id: true },
+      });
+      if (!cust) {
+        return fail('Target customer not found in this module', 404);
+      }
+    }
+
     const request = await prisma.approvalRequest.create({
       data: {
         tenantId: ctx.tenantId,

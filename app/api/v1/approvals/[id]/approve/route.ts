@@ -83,6 +83,41 @@ export async function PATCH(
         });
 
         if (request.requestType === 'customer_edit' && request.entityType === 'customer') {
+          // Verify target customer belongs to tenant + appType
+          const customer = await tx.customer.findFirst({
+            where: { id: request.entityId, tenantId: ctx.tenantId, appType: ctx.appType },
+            select: { id: true },
+          });
+          if (!customer) {
+            throw new Error('Target customer not found in this tenant/app');
+          }
+
+          const staleApprovedRequest = await tx.approvalRequest.findFirst({
+            where: {
+              id: { not: request.id },
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              requestType: 'customer_edit',
+              entityType: 'customer',
+              entityId: request.entityId,
+              status: 'approved',
+              reviewedAt: { gt: request.createdAt },
+            },
+            select: { id: true },
+          });
+          if (staleApprovedRequest) {
+            await tx.approvalRequest.update({
+              where: { id: request.id },
+              data: {
+                status: 'rejected',
+                reviewedById: ctx.userId,
+                reviewedAt: new Date(),
+                reviewNotes: note || 'Rejected as stale: another queued edit was already approved.',
+              },
+            });
+            return { isStale: true };
+          }
+
           const rawChanges = JSON.parse(request.requestedChanges);
           const safeChanges: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(rawChanges)) {
@@ -97,10 +132,12 @@ export async function PATCH(
             }
           }
           if (safeChanges.lat != null && safeChanges.lng != null) {
+            safeChanges.lat = Number(safeChanges.lat);
+            safeChanges.lng = Number(safeChanges.lng);
             safeChanges.geocodedAt = new Date();
           }
           await tx.customer.update({
-            where: { id: request.entityId },
+            where: { id: request.entityId, tenantId: ctx.tenantId },
             data: safeChanges,
           });
           if (safeChanges.lat != null && safeChanges.lng != null) {
@@ -428,6 +465,8 @@ export async function PATCH(
               link: '/loans',
             },
           }).catch(() => {});
+        if (result && typeof result === 'object' && 'isStale' in result && (result as any).isStale) {
+          return ok({ isStale: true, status: 'rejected', message: 'Rejected as stale: another queued edit was already approved.' });
         }
 
         return ok({ status: 'approved' });
