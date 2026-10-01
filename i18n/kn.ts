@@ -869,6 +869,7 @@ export const kn = {
     monthly: 'ಮಾಸಿಕ',
     noLoans: 'ಸಾಲಗಳು ಸಿಗಲಿಲ್ಲ.',
     newLoan: 'ಹೊಸ ಸಾಲ',
+    hideClosed: "ಮುಚ್ಚಿದ ಸಾಲಗಳನ್ನು ಮರೆಮಾಡಿ",
     requestLoan: 'ಸಾಲ ವಿನಂತಿ',
   },
   customersList: {

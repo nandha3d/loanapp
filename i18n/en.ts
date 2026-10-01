@@ -869,6 +869,7 @@ export const en = {
     monthly: 'Monthly',
     noLoans: 'No loans found.',
     newLoan: 'New Loan',
+    hideClosed: "Hide closed loans",
     requestLoan: 'Request Loan',
   },
   customersList: {

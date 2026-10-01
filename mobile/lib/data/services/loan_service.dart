@@ -15,6 +15,9 @@ class LoanService {
   Future<List<Map<String, dynamic>>> list({
     String? customerId,
     String? status,
+    String? q,
+    String? frequency,
+    bool hideClosed = false,
   }) async {
     // The API is cursor-paginated (default 20, max 100 per page). Follow the
     // cursor and accumulate every page so the list shows ALL loans — previously
@@ -29,6 +32,10 @@ class LoanService {
         queryParameters: {
           if (customerId != null) 'customerId': customerId,
           if (status != null) 'status': status,
+          if (q != null && q.isNotEmpty) 'q': q,
+          if (frequency != null) 'frequency': frequency,
+          // LOAN-01: closed loans are filtered on the server, as on web.
+          if (hideClosed) 'hideClosed': '1',
           'limit': 100,
           if (cursor != null) 'cursor': cursor,
         },

@@ -20,9 +20,50 @@ import 'package:zolofund/shared/widgets/fab_extended.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
+/// LOAN-01: list filters, all applied by the server (same params as web).
+class LoanListFilter {
+  const LoanListFilter({
+    this.hideClosed = true,
+    this.q = '',
+    this.status,
+    this.frequency,
+  });
+  final bool hideClosed; // D4: default on
+  final String q;
+  final String? status;
+  final String? frequency;
+
+  LoanListFilter copyWith({
+    bool? hideClosed,
+    String? q,
+    String? status,
+    bool clearStatus = false,
+    String? frequency,
+    bool clearFrequency = false,
+  }) =>
+      LoanListFilter(
+        hideClosed: hideClosed ?? this.hideClosed,
+        q: q ?? this.q,
+        status: clearStatus ? null : (status ?? this.status),
+        frequency: clearFrequency ? null : (frequency ?? this.frequency),
+      );
+}
+
+final loanListFilterProvider =
+    StateProvider<LoanListFilter>((ref) => const LoanListFilter());
+
 final loansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(loanServiceProvider).list();
+  final f = ref.watch(loanListFilterProvider);
+  return ref.watch(loanServiceProvider).list(
+        q: f.q,
+        status: f.status,
+        frequency: f.frequency,
+        hideClosed: f.hideClosed,
+      );
 });
+
+const _loanStatuses = ['active', 'overdue', 'pending_review', 'settled', 'closed'];
+const _loanFrequencies = ['daily', 'weekly', 'biweekly', 'monthly'];
 
 class LoansScreen extends ConsumerStatefulWidget {
   const LoansScreen({super.key});
@@ -32,9 +73,13 @@ class LoansScreen extends ConsumerStatefulWidget {
 }
 
 class _LoansScreenState extends ConsumerState<LoansScreen> {
-  // Default: hide closed loans â€” only active/ongoing loans are shown until the
-  // user opts in via the toggle.
-  bool _showClosed = false;
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,21 +125,73 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
           subtitle: e.toString(),
         ),
         data: (loans) {
+          final filter = ref.watch(loanListFilterProvider);
+          final notifier = ref.read(loanListFilterProvider.notifier);
+          // Server already applied every filter; the count is of status 'active'.
+          final visible = loans;
+          final activeCount =
+              loans.where((l) => (l['status'] as String?) == 'active').length;
           final closedCount =
               loans.where((l) => (l['status'] as String?) == 'closed').length;
-          final visible = _showClosed
-              ? loans
-              : loans
-                  .where((l) => (l['status'] as String?) != 'closed')
-                  .toList(growable: false);
 
           return Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (v) => notifier
+                            .update((s) => s.copyWith(q: v.trim())),
+                        decoration: InputDecoration(
+                          hintText: t.x('common.search'),
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: t.x('loan.lbl_status'),
+                      icon: Icon(Icons.filter_list,
+                          color: filter.status != null
+                              ? AppColors.primary
+                              : AppColors.textSecondary),
+                      onSelected: (v) => notifier.update((s) => v == 'all'
+                          ? s.copyWith(clearStatus: true)
+                          : s.copyWith(status: v)),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'all', child: Text(t.x('status.all'))),
+                        for (final st in _loanStatuses)
+                          PopupMenuItem(value: st, child: Text(t.x('status.$st'))),
+                      ],
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: t.x('loan.lbl_frequency'),
+                      icon: Icon(Icons.event_repeat,
+                          color: filter.frequency != null
+                              ? AppColors.primary
+                              : AppColors.textSecondary),
+                      onSelected: (v) => notifier.update((s) => v == 'all'
+                          ? s.copyWith(clearFrequency: true)
+                          : s.copyWith(frequency: v)),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'all', child: Text(t.x('status.all'))),
+                        for (final fr in _loanFrequencies)
+                          PopupMenuItem(value: fr, child: Text(t.x('plan.$fr'))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
               _ClosedToggle(
-                value: _showClosed,
+                value: !filter.hideClosed,
                 closedCount: closedCount,
-                activeCount: loans.length - closedCount,
-                onChanged: (v) => setState(() => _showClosed = v),
+                activeCount: activeCount,
+                onChanged: (v) =>
+                    notifier.update((s) => s.copyWith(hideClosed: !v)),
                 t: t,
               ),
               Expanded(
@@ -110,9 +207,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
                             EmptyState(
                               icon: Icons.account_balance_wallet_outlined,
                               title: t.x('title.loans'),
-                              subtitle: _showClosed
-                                  ? t.x('empty.tap_new')
-                                  : t.x('empty.tap_new'),
+                              subtitle: t.x('empty.tap_new'),
                             ),
                           ],
                         )
@@ -195,8 +290,8 @@ class _ClosedToggle extends StatelessWidget {
                 ),
                 Text(
                   value
-                      ? '${activeCount + closedCount} ${t.x('loans.total_suffix')}'
-                      : '$activeCount ${t.x('loans.active_suffix')} \u00b7 $closedCount ${t.x('loans.closed_suffix')}',
+                      ? '$activeCount ${t.x('loans.active_suffix')} \u00b7 $closedCount ${t.x('loans.closed_suffix')}'
+                      : '$activeCount ${t.x('loans.active_suffix')}',
                   style: AppTypography.caption,
                 ),
               ],
@@ -264,6 +359,7 @@ class _LoanTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
     final customerName = customer['name']?.toString() ?? '-';
     final customerPhoto = customer['profilePhoto']?.toString();
@@ -467,7 +563,7 @@ class _LoanTile extends ConsumerWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  AppBadge(label: status, kind: kind),
+                                  AppBadge(label: t.x('status.$status'), kind: kind),
                                 ],
                               ),
                             ],
@@ -494,7 +590,7 @@ class _LoanTile extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              AppBadge(label: status, kind: kind),
+                              AppBadge(label: t.x('status.$status'), kind: kind),
                             ],
                           ),
                         ],

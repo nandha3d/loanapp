@@ -869,6 +869,7 @@ export const hi = {
     monthly: 'मासिक',
     noLoans: 'कोई ऋण नहीं मिला।',
     newLoan: 'नया ऋण',
+    hideClosed: "बंद ऋण छिपाएं",
     requestLoan: 'ऋण अनुरोध',
   },
   customersList: {

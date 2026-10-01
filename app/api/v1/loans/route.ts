@@ -43,6 +43,9 @@ export async function GET(req: NextRequest) {
 
   if (customerId) where.customerId = customerId;
   if (status) where.status = status;
+  // LOAN-01 (D4): optional 'Hide closed loans'. Only without an explicit
+  // status filter; absent = today's behaviour (STABLE-2).
+  else if (searchParams.get('hideClosed') === '1') where.status = { not: 'closed' };
   if (frequency) where.frequency = frequency;
 
   if (ctx.role === 'agent') {

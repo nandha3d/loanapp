@@ -869,6 +869,7 @@ export const te = {
     monthly: 'నెలవారీ',
     noLoans: 'రుణాలు లేవు.',
     newLoan: 'కొత్త రుణం',
+    hideClosed: "మూసిన రుణాలను దాచు",
     requestLoan: 'రుణ అభ్యర్థన',
   },
   customersList: {

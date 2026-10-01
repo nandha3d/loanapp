@@ -49,6 +49,8 @@ export default async function LoansPage({
   const q = resolvedParams.q || '';
   const status = resolvedParams.status || '';
   const frequency = resolvedParams.frequency || '';
+  // LOAN-01 (D4): closed loans hidden by default; ?hideClosed=0 shows them.
+  const hideClosed = resolvedParams.hideClosed !== '0';
   const sort = resolvedParams.sort || 'createdAt';
   const dir: 'asc' | 'desc' = resolvedParams.dir === 'asc' ? 'asc' : 'desc';
   const { page, limit, skip } = parsePagination(resolvedParams);
@@ -93,6 +95,7 @@ export default async function LoansPage({
     if (q) p.set('q', q);
     if (status) p.set('status', status);
     if (frequency) p.set('frequency', frequency);
+    if (!hideClosed) p.set('hideClosed', '0');
     if (vehicleType) p.set('vehicleType', vehicleType);
     if (dealerId) p.set('dealerId', dealerId);
     if (brokerId) p.set('brokerId', brokerId);
@@ -112,6 +115,7 @@ export default async function LoansPage({
     dir,
     page: String(page),
     limit: String(limit),
+    ...(hideClosed ? { hideClosed: '1' } : {}),
     ...(vehicleType ? { vehicleType } : {}),
     ...(dealerId ? { dealerId } : {}),
     ...(brokerId ? { brokerId } : {}),
@@ -203,6 +207,15 @@ export default async function LoansPage({
             <input type="hidden" name="view" value={view} />
           </>
         )}
+        {!hideClosed && <input type="hidden" name="hideClosed" value="0" />}
+        <Link
+          href={`/loans?${buildQuery({ hideClosed: hideClosed ? '0' : '1', page: '1' })}`}
+          className={`btn btn-sm ${hideClosed ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{hideClosed ? 'check_box' : 'check_box_outline_blank'}</span>
+          {dict.loansList.hideClosed}
+        </Link>
         <button type="submit" className="btn btn-secondary">{dict.loansList.filter}</button>
         {(q || status || frequency || vehicleType || dealerId || brokerId || seized) && (
           <Link href="/loans" className="btn btn-ghost">{dict.loansList.clear}</Link>

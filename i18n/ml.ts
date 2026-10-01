@@ -869,6 +869,7 @@ export const ml = {
     monthly: 'പ്രതിമാസം',
     noLoans: 'വായ്പകൾ കണ്ടെത്തിയില്ല.',
     newLoan: 'പുതിയ വായ്പ',
+    hideClosed: "അടച്ച വായ്പകൾ മറയ്ക്കുക",
     requestLoan: 'വായ്പ അഭ്യർത്ഥന',
   },
   customersList: {

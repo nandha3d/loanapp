@@ -869,6 +869,7 @@ export const ta = {
     monthly: 'மாதாந்திர',
     noLoans: 'கடன்கள் எதுவும் இல்லை.',
     newLoan: 'புதிய கடன்',
+    hideClosed: "மூடிய கடன்களை மறை",
     requestLoan: 'கடன் கோரிக்கை',
   },
   customersList: {
