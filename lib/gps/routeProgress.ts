@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { branchScopeWhere } from '@/lib/branchScope';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
 export function gpsAgentWhere(input: { tenantId: string; appType: string; branchId?: string | null }) {
   return {
@@ -22,11 +23,6 @@ export function gpsEntryWhere(input: { tenantId: string; appType: string; branch
   };
 }
 
-function startOfDay(date = new Date()) {
-  const day = new Date(date);
-  day.setHours(0, 0, 0, 0);
-  return day;
-}
 
 function minutesSince(date: Date | null | undefined) {
   if (!date) return null;
@@ -39,9 +35,8 @@ export async function getRouteProgressForBranch(input: {
   branchId?: string | null;
   date?: Date;
 }) {
-  const dayStart = startOfDay(input.date);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  const dayStart = startOfBusinessToday(input.date);
+  const dayEnd = startOfBusinessTomorrow(input.date);
 
   const agents = await prisma.user.findMany({
     where: gpsAgentWhere(input),
@@ -53,10 +48,10 @@ export async function getRouteProgressForBranch(input: {
     prisma.agentLocationPing.findMany({
       where: {
         tenantId: input.tenantId,
-        receivedAt: { gte: dayStart, lt: dayEnd },
+        capturedAt: { gte: dayStart, lt: dayEnd },
         agentId: { in: agents.map((agent) => agent.id) },
       },
-      orderBy: { receivedAt: 'asc' },
+      orderBy: { capturedAt: 'asc' },
     }),
     prisma.collectionEntry.findMany({
       where: {
@@ -83,7 +78,7 @@ export async function getRouteProgressForBranch(input: {
     const last = agentPings.length ? agentPings[agentPings.length - 1] : null;
     const agentEntries = entries.filter((entry) => entry.agentId === agent.id);
     const mismatchCount = agentEntries.filter((entry) => entry.locationStatus === 'mismatch').length;
-    const lastSeenMinutes = minutesSince(last?.receivedAt);
+    const lastSeenMinutes = minutesSince(last?.capturedAt);
     const alerts = [
       lastSeenMinutes !== null && lastSeenMinutes >= 120 ? 'not_moved_2h' : null,
       lastSeenMinutes !== null && lastSeenMinutes >= 30 ? 'offline_30m' : null,
@@ -94,14 +89,14 @@ export async function getRouteProgressForBranch(input: {
       agentId: agent.id,
       agentName: agent.name,
       branchId: agent.branchId,
-      lastLocation: last ? { lat: last.lat, lng: last.lng, time: last.receivedAt } : null,
+      lastLocation: last ? { lat: last.lat, lng: last.lng, time: last.capturedAt } : null,
       minutesSinceLastPing: lastSeenMinutes,
       collectionsDoneToday: agentEntries.length,
       alerts,
       path: agentPings.map((ping) => ({
         lat: ping.lat,
         lng: ping.lng,
-        time: ping.receivedAt,
+        time: ping.capturedAt,
         type: ping.pingType,
         accuracyM: ping.accuracyM,
         isMocked: ping.isMocked,

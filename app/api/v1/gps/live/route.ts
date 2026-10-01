@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
 import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
 /**
  * GET /api/v1/gps/live
@@ -63,12 +64,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Today's collection per agent (collected today, count of entries).
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = startOfBusinessToday();
+    const todayEnd = startOfBusinessTomorrow();
     const entryWhere: any = {
       ...gpsEntryWhere(ctx),
       agentId: { in: agents.map((a) => a.id) },
-      submittedAt: { gte: todayStart },
+      submittedAt: { gte: todayStart, lt: todayEnd },
     };
     const entries = await prisma.collectionEntry.findMany({
       where: entryWhere,

@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
 import { isGpsTrackingEnabled } from '@/lib/gps/locationVerifier';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
 /**
  * GET /api/v1/gps/agent/:id/collections
@@ -33,8 +34,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const fromParam = searchParams.get('from');
   const toParam = searchParams.get('to');
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfBusinessToday();
+  const todayEnd = startOfBusinessTomorrow();
 
   const from = fromParam ? new Date(fromParam) : todayStart;
   const submittedAt: { gte: Date; lt?: Date } = {
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (toParam) {
     const to = new Date(toParam);
     if (!Number.isNaN(to.getTime())) submittedAt.lt = to;
+  } else if (!fromParam) {
+    submittedAt.lt = todayEnd;
   }
 
   try {
