@@ -22,6 +22,26 @@ class CollectionService {
 
   Future<List<CollectionRow>> today() async => (await dashboard()).rows;
 
+  /// Admin direct payment correction — PATCH /collection/entry, the same
+  /// correctInstalmentPayment() web admins use (LD-04, ROLE-7).
+  Future<void> correctPayment({
+    required String instalmentId,
+    required double correctedAmount,
+    String? paymentMode,
+    String? remarks,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.collectionEntry,
+      data: {
+        'instalmentId': instalmentId,
+        'correctedAmount': correctedAmount,
+        if (paymentMode != null) 'paymentMode': paymentMode,
+        if (remarks != null) 'remarks': remarks,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   /// End-of-day cash handover — same POST /collection/handover as web (COL-03).
   Future<void> requestDailyHandover() async {
     final res =

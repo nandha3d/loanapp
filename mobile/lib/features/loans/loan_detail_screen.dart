@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/services/collection_service.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/core/l10n/app_strings.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -298,7 +301,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
               customerName: loan.customer?.name,
               customerPhone: loan.customer?.phone,
               customerEmail: loan.customer?.email,
-              defaultMaxAmount: loan.perInstalment * 1.5,
+              defaultMaxAmount: loan.perInstalment, // LD-04: same default as web
               isAdmin: isAdmin,
             );
           },
@@ -567,6 +570,56 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                 ],
               ),
             ],
+          ],
+        ),
+      );
+    }
+    // LD-04: cheque collateral (default type) — the loan's JSON cheque plus the
+    // customer's security cheques, same as web.
+    if (loan.loanType == null || loan.loanType == 'cheque') {
+      final t = T.of(ref);
+      Map<String, dynamic> col = const {};
+      try {
+        final raw = loan.collateralDetails;
+        if (raw != null && raw.isNotEmpty) {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) col = decoded;
+        }
+      } catch (_) {}
+      final cheques = loan.customer?.securityCheques ?? const [];
+      final bankName = col['bankName']?.toString() ?? '';
+      if (bankName.isEmpty && cheques.isEmpty) return const SizedBox();
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.x('loan.fld_collateral'), style: AppTypography.bodyLarge),
+            if (bankName.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _detailRow(t.x('fld.bank_name'), bankName),
+              _detailRow(t.x('fld.cheque_no'), col['chequeNumber']?.toString() ?? '—'),
+              _detailRow(t.x('fld.amount'),
+                  fmt.format(double.tryParse('${col['chequeAmount'] ?? 0}') ?? 0)),
+            ],
+            for (final ch in cheques)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('${ch.bankName} — ${ch.chequeNumber}',
+                          style: AppTypography.body),
+                    ),
+                    Text(ch.status, style: AppTypography.caption),
+                  ],
+                ),
+              ),
           ],
         ),
       );
@@ -1356,8 +1409,8 @@ class _SummaryCardMetrics extends ConsumerWidget {
 
     final extraPeriods = loan.extendedSchedule?.extraPeriods ?? 0;
     final tenureDisplay = extraPeriods > 0
-        ? '${loan.instalmentCount} + $extraPeriods (${loan.instalmentCount + extraPeriods}) ${t.x('loan.val_days')}'
-        : '${loan.instalmentCount} ${t.x('loan.val_days')}';
+        ? '${loan.instalmentCount} + $extraPeriods (${loan.instalmentCount + extraPeriods}) ${_periodUnit(loan, t)}'
+        : '${loan.instalmentCount} ${_periodUnit(loan, t)}';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1400,13 +1453,13 @@ class _SummaryCardMetrics extends ConsumerWidget {
                           t.x('loan.lbl_outstanding'), fmt.format(outstanding),
                           valueColor: AppColors.danger),
                       _StatBlock(t.x('loan.lbl_paid_period'),
-                          '$dynamicPaidCount ${t.x('loan.val_days')}',
+                          '$dynamicPaidCount ${_periodUnit(loan, t)}',
                           valueColor: AppColors.success),
                       _StatBlock(t.x('loan.lbl_remaining_actual'),
-                          '$remainingActual ${t.x('loan.val_days')}',
+                          '$remainingActual ${_periodUnit(loan, t)}',
                           valueColor: AppColors.danger),
                       _StatBlock(t.x('loan.lbl_remaining_extended'),
-                          '$dynamicRemainingCount ${t.x('loan.val_days')}',
+                          '$dynamicRemainingCount ${_periodUnit(loan, t)}',
                           valueColor: AppColors.danger),
                       if (finishingRate > 0)
                         _StatBlock(t.x('loan.lbl_finishing_rate'),
@@ -1415,7 +1468,7 @@ class _SummaryCardMetrics extends ConsumerWidget {
                       if (extraPeriods > 0)
                         _StatBlock(
                           'Projected Days',
-                          '+$extraPeriods ${t.x('loan.val_days')}',
+                          '+$extraPeriods ${_periodUnit(loan, t)}',
                           valueColor: AppColors.primary,
                         ),
                     ],
@@ -1498,6 +1551,7 @@ class _InstalmentRow extends ConsumerWidget {
         'partial' => BadgeKind.partial,
         'missed' => BadgeKind.overdue,
         'due_today' => BadgeKind.pending,
+        'waived' => BadgeKind.waived,
         _ => BadgeKind.upcoming,
       };
 
@@ -1506,6 +1560,7 @@ class _InstalmentRow extends ConsumerWidget {
         'partial' => t.x('coll.status_partial'),
         'missed' => t.x('coll.status_overdue_days'),
         'due_today' => t.x('coll.status_due_today'),
+        'waived' => t.x('pen.waived'),
         _ => t.x('loan.upcoming'),
       };
 
@@ -1521,9 +1576,12 @@ class _InstalmentRow extends ConsumerWidget {
         inst.receivedAt != null ? timeFmt.format(inst.receivedAt!) : null;
 
     // Determine if Pay button should show
+    // LD-04: waived and missed rows are not paid from the row (match web).
     final canPay = loan.status != 'closed' &&
         dynStatus != 'paid' &&
-        dynStatus != 'partial';
+        dynStatus != 'partial' &&
+        dynStatus != 'waived' &&
+        dynStatus != 'missed';
 
     if (mobile) {
       final showAdjustedDue = isRestructured &&
@@ -1870,17 +1928,36 @@ Future<void> _requestInstalmentCorrection(
     }
     return;
   }
+  // LD-04: admins correct directly (same as web correctInstalmentPaymentAction);
+  // agents file an edit_collection request (ROLE-7).
+  final role = ref.read(authControllerProvider).user?.role;
+  final isAdmin = role == UserRole.admin ||
+      role == UserRole.superadmin ||
+      role == UserRole.developer;
   try {
-    await ref.read(approvalServiceProvider).request(
-          requestType: 'edit_collection',
-          entityType: 'instalment',
-          entityId: inst.id,
-          requestedChanges: {'requestedAmount': amount},
-          reason: reason,
-        );
+    if (isAdmin) {
+      await ref.read(collectionServiceProvider).correctPayment(
+            instalmentId: inst.id,
+            correctedAmount: amount,
+            remarks: reason,
+          );
+      ref.invalidate(loanDetailProvider(loan.id));
+    } else {
+      await ref.read(approvalServiceProvider).request(
+            requestType: 'edit_collection',
+            entityType: 'instalment',
+            entityId: inst.id,
+            requestedChanges: {'requestedAmount': amount},
+            reason: reason,
+          );
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Correction request sent for review')),
+      SnackBar(
+        content: Text(isAdmin
+            ? T.of(ref).x('msg.payment_corrected')
+            : 'Correction request sent for review'),
+      ),
     );
   } catch (e) {
     if (!context.mounted) return;
@@ -1898,7 +1975,8 @@ class _ExtendedPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ext = loan.extendedSchedule;
-    if (ext == null || ext.extraPeriods <= 0) return const SizedBox.shrink();
+    // LD-04: shown whenever payments remain on the extended plan (as web).
+    if (ext == null || ext.remainingPayments <= 0) return const SizedBox.shrink();
     final endDateStr = ext.projectedEndDate != null
         ? DateFormat('dd MMM yyyy').format(ext.projectedEndDate!)
         : '—';
@@ -2162,6 +2240,8 @@ class _ProjectedExtraRow extends ConsumerWidget {
                     inst: inst,
                     loan: loan,
                     mobile: true,
+                    // LD-04: a missed extended day is paid for its own date (web).
+                    collectionDate: isMissed ? date : null,
                   )
                 else if (canEdit)
                   editButton()
@@ -2265,6 +2345,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
                 ? _PayButton(
                     inst: inst,
                     loan: loan,
+                    collectionDate: isMissed ? date : null,
                   )
                 : canEdit
                 ? editButton()
@@ -2290,6 +2371,7 @@ class _PayButton extends ConsumerWidget {
     this.restructuredAmount = 0,
     this.onCompleted,
     this.mobile = false,
+    this.collectionDate,
   });
   final Instalment inst;
   final Loan loan;
@@ -2297,6 +2379,8 @@ class _PayButton extends ConsumerWidget {
   final double restructuredAmount;
   final VoidCallback? onCompleted;
   final bool mobile;
+  /// Business date to record the payment on (extended missed day); null = today.
+  final DateTime? collectionDate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2389,6 +2473,7 @@ class _PayButton extends ConsumerWidget {
       builder: (_) => QuickCollectSheet(
         row: row,
         scopeRows: dueNowRows.isEmpty ? [row] : dueNowRows,
+        collectionDate: collectionDate,
       ),
     ).then((_) {
       // Invalidate the loan detail to refetch after payment
@@ -2570,7 +2655,8 @@ class _LoanBottomBar extends ConsumerWidget {
                 ),
               ),
             ),
-            if (!isClosed) ...[
+            // LD-04: Close / Renew / Preclose are admin actions (web parity).
+            if (!isClosed && _isAdminRole(ref)) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
@@ -2619,8 +2705,20 @@ class _LoanBottomBar extends ConsumerWidget {
     }
   }
 
+  bool _isAdminRole(WidgetRef ref) {
+    final role = ref.read(authControllerProvider).user?.role;
+    return role == UserRole.admin ||
+        role == UserRole.superadmin ||
+        role == UserRole.developer;
+  }
+
   void _showActionSheet(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    // Same predicate as web: preclose needs the add-on and is hidden for
+    // interest-only loans (they use full closure).
+    final canPreclose =
+        (ref.read(authControllerProvider).user?.foreclosureEnabled ?? false) &&
+            loan.deductionType != 'interest_only';
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -2662,17 +2760,18 @@ class _LoanBottomBar extends ConsumerWidget {
                   _confirmAction(context, ref, 'renew');
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.offline_pin_outlined,
-                    color: AppColors.warning),
-                title: Text(t.x('loan.preclose')),
-                subtitle:
-                    const Text('Calculate pre-closure charges and settle'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _confirmAction(context, ref, 'preclose');
-                },
-              ),
+              if (canPreclose)
+                ListTile(
+                  leading: const Icon(Icons.offline_pin_outlined,
+                      color: AppColors.warning),
+                  title: Text(t.x('loan.preclose')),
+                  subtitle:
+                      const Text('Calculate pre-closure charges and settle'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmAction(context, ref, 'preclose');
+                  },
+                ),
             ],
           ),
         ),
@@ -2824,8 +2923,11 @@ class _LoanBottomBar extends ConsumerWidget {
                             DropdownMenuItem(
                                 value: 'upi', child: Text(t.x('coll.upi'))),
                             DropdownMenuItem(
-                                value: 'bank',
+                                value: 'bank_transfer',
                                 child: Text(t.x('loan.bank_transfer'))),
+                            DropdownMenuItem(
+                                value: 'cheque',
+                                child: Text(t.x('mode.cheque'))),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -2945,3 +3047,10 @@ class _LoanBottomBar extends ConsumerWidget {
     }
   }
 }
+
+/// Period unit for counts on this loan (LD-04): days / weeks / months.
+String _periodUnit(Loan loan, T t) => switch (loan.frequency) {
+      'weekly' || 'biweekly' => t.x('loan.val_weeks'),
+      'monthly' => t.x('loan.val_months'),
+      _ => t.x('loan.val_days'),
+    };

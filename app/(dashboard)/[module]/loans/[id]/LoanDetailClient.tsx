@@ -928,19 +928,19 @@ export default function LoanDetailClient({
               <div>
                 <div className="cm-label">{d.paidPeriod}</div>
                 <div className="cm-value" style={{ color: 'var(--success)' }}>
-                  {dynamicPaidCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {dynamicPaidCount} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}
                 </div>
               </div>
               <div>
                 <div className="cm-label">{d.remainingActual}</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
-                  {Number(metrics.remainingActual ?? 0)} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {Number(metrics.remainingActual ?? 0)} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}
                 </div>
               </div>
               <div>
                 <div className="cm-label">{d.remainingExtended}</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
-                  {dynamicRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {dynamicRemainingCount} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}
                 </div>
               </div>
 

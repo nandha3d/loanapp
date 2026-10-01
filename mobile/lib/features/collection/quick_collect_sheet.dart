@@ -29,9 +29,16 @@ import 'package:zolofund/features/collection/voice_entry_controller.dart';
 import 'package:zolofund/features/collection/voice_amount_parser.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
-  const QuickCollectSheet({super.key, required this.row, this.scopeRows});
+  const QuickCollectSheet({
+    super.key,
+    required this.row,
+    this.scopeRows,
+    this.collectionDate,
+  });
   final CollectionRow row;
   final List<CollectionRow>? scopeRows;
+  /// Record the payment on this business date (extended missed day); null = today.
+  final DateTime? collectionDate;
 
   @override
   ConsumerState<QuickCollectSheet> createState() => _QuickCollectSheetState();
@@ -215,7 +222,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       _error = null;
     });
 
-    final today = DateTime.now();
+    final today = widget.collectionDate ?? DateTime.now();
     final sync = ref.read(collectionSyncProvider);
     final svc = ref.read(collectionServiceProvider);
     final queue = ref.read(collectionQueueProvider);
@@ -299,6 +306,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           amount: amt,
           paymentMode: _mode,
           idempotencyKey: submitKey,
+          collectionDate: widget.collectionDate,
           gps: gps,
         );
       } catch (e) {
