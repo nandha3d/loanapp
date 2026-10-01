@@ -382,7 +382,7 @@ class OperationalFeedItem {
         user: (json['user'] as String?) ?? '',
         action: (json['action'] as String?) ?? '',
         entity: (json['entity'] as String?) ?? '',
-        time: DateTime.tryParse(json['time']?.toString() ?? ''),
+        time: DateTime.tryParse(json['time']?.toString() ?? '')?.toLocal(),
       );
 }
 

@@ -519,7 +519,8 @@ class RecentActivity {
       action: json['action'] as String? ?? '',
       resource: json['resource'] as String? ?? '',
       userName: user['name'] as String? ?? '—',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '')
+              ?.toLocal() ??
           DateTime.now(),
     );
   }

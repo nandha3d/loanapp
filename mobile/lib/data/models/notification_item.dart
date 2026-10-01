@@ -29,7 +29,7 @@ class NotificationItem {
       link: json['link'] as String?,
       isRead: (json['isRead'] as bool?) ?? false,
       createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
+          ? DateTime.tryParse(json['createdAt'] as String)?.toLocal() ?? DateTime.now()
           : DateTime.now(),
     );
   }

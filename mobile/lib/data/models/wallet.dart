@@ -29,7 +29,8 @@ class WalletTxn {
         type: (json['type'] as String?) ?? 'adjustment',
         amount: _d(json['amount']),
         balanceAfter: _d(json['balanceAfter']),
-        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '')
+                ?.toLocal() ??
             DateTime.now(),
         refType: json['refType'] as String?,
         note: json['note'] as String?,

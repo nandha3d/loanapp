@@ -65,7 +65,7 @@ class Approval {
       requestedByName: (req?['name'] as String?) ?? 'Unknown',
       createdAt: json['createdAt'] == null
           ? DateTime.now()
-          : DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now(),
+          : DateTime.tryParse(json['createdAt'] as String)?.toLocal() ?? DateTime.now(),
       reviewNote: (json['reviewNotes'] as String?) ?? (json['reviewNote'] as String?),
       insufficientFloat: insufficient,
       agentFloat: agentF,
