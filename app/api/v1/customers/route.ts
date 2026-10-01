@@ -5,8 +5,11 @@ import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@
 import {
   decryptAadharNumber,
   encryptAadharNumber,
+  isMaskedAadharNumber,
   maskAadharNumber,
   maskPan,
+  normalizeAadharNumber,
+  normalizePhone,
 } from '@/lib/pii';
 import { generateCode } from '@/lib/utils';
 import { writeAudit } from '@/lib/audit';
@@ -239,7 +242,18 @@ export async function POST(req: NextRequest) {
     return fail('name and phone are required', 400);
   }
 
-  const normalizedPhone = body.phone.trim();
+  const normalizedPhone = normalizePhone(body.phone);
+  if (normalizedPhone.length !== 10) {
+    return fail('Phone number must be exactly 10 digits', 400);
+  }
+
+  if (body.aadharNumber && !isMaskedAadharNumber(body.aadharNumber)) {
+    const normAadhaar = normalizeAadharNumber(body.aadharNumber);
+    if (normAadhaar.length !== 12) {
+      return fail('Aadhaar number must be exactly 12 digits', 400);
+    }
+  }
+
   const existingCustomer = await prisma.customer.findFirst({
     where: {
       tenantId: ctx.tenantId,
@@ -375,9 +389,11 @@ export async function POST(req: NextRequest) {
             branchId: resolvedBranchId,
             customerCode,
             name: body.name,
-            phone: body.phone,
+            phone: normalizedPhone,
             address: body.address ?? null,
-            aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
+            aadharNumber: body.aadharNumber
+              ? encryptAadharNumber(normalizeAadharNumber(body.aadharNumber))
+              : null,
             routeId: resolvedRouteId,
             agentId: resolvedAgentId,
             status: bypassCustomerApproval ? 'active' : 'pending_review',

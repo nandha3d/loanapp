@@ -13,6 +13,8 @@ import {
   isMaskedPan,
   maskAadharNumber,
   maskPan,
+  normalizeAadharNumber,
+  normalizePhone,
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
@@ -155,11 +157,36 @@ export async function PATCH(
     if (data.profilePhoto === '') {
       data.profilePhoto = null;
     }
+    if (data.phone !== undefined) {
+      const normalizedPhone = normalizePhone(data.phone as string);
+      if (normalizedPhone.length !== 10) {
+        return fail('Phone number must be exactly 10 digits', 400);
+      }
+      data.phone = normalizedPhone;
+
+      const duplicate = await prisma.customer.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          phone: normalizedPhone,
+          deletedAt: null,
+          id: { not: existing.id },
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return fail('Customer with this phone already exists', 409);
+      }
+    }
     if (data.aadharNumber !== undefined) {
       if (isMaskedAadharNumber(String(data.aadharNumber || ''))) {
         delete data.aadharNumber; // MON-08: web prefills masked XXXX XXXX 1234
       } else {
-        data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+        const normAadhaar = normalizeAadharNumber(String(data.aadharNumber || ''));
+        if (normAadhaar.length !== 12) {
+          return fail('Aadhaar number must be exactly 12 digits', 400);
+        }
+        data.aadharNumber = encryptAadharNumber(normAadhaar);
       }
     }
     if (data.pan !== undefined && isMaskedPan(data.pan as string)) {

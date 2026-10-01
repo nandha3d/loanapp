@@ -2,8 +2,17 @@ import crypto from 'node:crypto';
 
 const AADHAR_ENCRYPTION_PREFIX = 'enc:v1';
 
-function normalizeAadharNumber(value: string): string {
-  return value.replace(/\D/g, '');
+export function normalizeAadharNumber(value: string | null | undefined): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+export function normalizePhone(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let digits = String(raw).replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.slice(2);
+  }
+  return digits;
 }
 
 function getEncryptionKey(rawKey?: string): Buffer {
