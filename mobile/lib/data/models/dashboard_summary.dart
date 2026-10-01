@@ -182,6 +182,14 @@ class OverdueCollectionBreakdown {
   }
 }
 
+/// Month-to-date due metrics for the agent dashboard (DEC-05). Server figures.
+class MonthToDate {
+  const MonthToDate({this.expected = 0, this.collected = 0, this.pct = 0});
+  final double expected;
+  final double collected;
+  final double pct;
+}
+
 class DashboardSummary {
   const DashboardSummary({
     required this.activeLoans,
@@ -201,6 +209,7 @@ class DashboardSummary {
     this.pendingFieldFloat = 0.0,
     this.upiManualVerification = false,
     this.routeCollections = const {},
+    this.monthToDate = const MonthToDate(),
     required this.activeAgents,
     required this.recentLoans,
     required this.todayInstalments,
@@ -250,6 +259,7 @@ class DashboardSummary {
   final bool upiManualVerification;
   /// routeId → amount collected today (server figure, DASH-10).
   final Map<String, double> routeCollections;
+  final MonthToDate monthToDate;
   final int activeAgents;
   final List<RecentLoan> recentLoans;
   final List<TodayInstalment> todayInstalments;
@@ -301,6 +311,11 @@ class DashboardSummary {
       pendingApprovals: toNum(json['pendingApprovals']).toInt(),
       pendingFieldFloat: toNum(json['pendingFieldFloat']),
       upiManualVerification: json['upiManualVerification'] == true,
+      monthToDate: MonthToDate(
+        expected: toNum((json['monthToDate'] as Map?)?['expected']),
+        collected: toNum((json['monthToDate'] as Map?)?['collected']),
+        pct: toNum((json['monthToDate'] as Map?)?['pct']),
+      ),
       routeCollections: {
         for (final r in (json['routeCollections'] as List<dynamic>? ?? const []))
           if (r is Map<String, dynamic> && r['routeId'] is String)

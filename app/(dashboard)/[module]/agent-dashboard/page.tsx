@@ -4,21 +4,12 @@ import { getDefaultTenantId, getUserAppType, getSetting } from '@/lib/tenant';
 import prisma from '@/lib/db';
 import AgentDashboardClient from './AgentDashboardClient';
 import { getDictionary } from '@/lib/i18n';
+import { serverFetch } from '@/lib/api-client/server';
+import { startOfBusinessToday, formatBusinessDate } from '@/lib/businessTime';
 
 interface Props {
   params: Promise<{ module: string }>;
 }
-
-type RecentCollectionWithCustomer = {
-  receivedAmount: unknown;
-  submittedAt: Date;
-  customer: {
-    name: string;
-    customerCode: string;
-    preferredCollectionTime?: string | null;
-  };
-  loan?: { loanCode?: string | null } | null;
-};
 
 export default async function AgentDashboardPage({ params }: Props) {
   const { module } = await params;
@@ -34,24 +25,16 @@ export default async function AgentDashboardPage({ params }: Props) {
   const appType     = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const todayDate = new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
-  const tomorrowDate = new Date(todayDate.getTime() + 24 * 60 * 60 * 1000);
-  const weekAgoDate = new Date(todayDate.getTime() - 6 * 24 * 60 * 60 * 1000);
-  const monthStartDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-
-  // Today's collection record (range match prevents 1-day/timezone drift)
-  const todayRecord = await prisma.dailyCollection.findFirst({
-    where: {
-      tenantId,
-      appType,
-      agentId: userId,
-      date: { gte: todayDate, lt: tomorrowDate },
-    },
-  });
+  // DASH-11: every figure comes from GET /api/v1/dashboard — the same payload
+  // the mobile agent dashboard renders (API-8). Only the 7-day chart still
+  // reads DailyCollection.
+  const res = await serverFetch<any>('/dashboard');
+  const d = res?.data ?? {};
+  const today = startOfBusinessToday();
+  const weekAgoDate = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+  // DailyCollection.date is a @db.Date — UTC midnight of the IST business day.
+  const weekStartDay = new Date(`${formatBusinessDate(weekAgoDate)}T00:00:00.000Z`);
+  const tomorrowDay = new Date(weekStartDay.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Last 7 days bar chart data
   const weekRecords = await prisma.dailyCollection.findMany({
@@ -59,30 +42,15 @@ export default async function AgentDashboardPage({ params }: Props) {
       tenantId,
       appType,
       agentId: userId,
-      date: { gte: weekAgoDate, lt: tomorrowDate },
+      date: { gte: weekStartDay, lt: tomorrowDay },
     },
     orderBy: { date: 'asc' },
   });
 
-  const toISODate = (d: Date) => {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  // Fill in missing days (days with no collections show as zero)
+  const toISODate = (dt: Date) => dt.toISOString().slice(0, 10);
   const weekData = Array.from({ length: 7 }).map((_, i) => {
-    const dDate = new Date(weekAgoDate.getTime() + i * 24 * 60 * 60 * 1000);
-    const targetISO = toISODate(dDate);
-    const found = weekRecords.find(r => {
-      const rDate = new Date(r.date);
-      return toISODate(rDate) === targetISO || (
-        rDate.getFullYear() === dDate.getUTCFullYear() &&
-        rDate.getMonth() === dDate.getUTCMonth() &&
-        rDate.getDate() === dDate.getUTCDate()
-      );
-    });
+    const dDate = new Date(weekStartDay.getTime() + i * 24 * 60 * 60 * 1000);
+    const found = weekRecords.find((r) => toISODate(new Date(r.date)) === toISODate(dDate));
     const formattedLabel = `${dDate.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dDate.getUTCMonth()]}`;
     return {
       date:      formattedLabel,
@@ -91,64 +59,31 @@ export default async function AgentDashboardPage({ params }: Props) {
     };
   });
 
-  // Month-to-date aggregates
-  const monthAgg = await prisma.dailyCollection.aggregate({
-    where: { tenantId, appType, agentId: userId, date: { gte: monthStartDate } },
-    _sum: { totalCollected: true, totalExpected: true },
-  });
-
-  // My active loans count (customers on my routes)
-  const myRouteIds = await prisma.route.findMany({
-    where: { tenantId, appType, assignedAgentId: userId, status: 'active' },
-    select: { id: true },
-  }).then(r => r.map(x => x.id));
-
-  const [activeLoanCount, overdueCount, myCustomerCount, pendingTodayCount] = await Promise.all([
-    prisma.loan.count({ where: { tenantId, appType, status: 'active', customer: { routeId: { in: myRouteIds } } } }),
-    prisma.loan.count({ where: { tenantId, appType, status: 'overdue', customer: { routeId: { in: myRouteIds } } } }),
-    prisma.customer.count({ where: { tenantId, appType, routeId: { in: myRouteIds }, status: 'active' } }),
-    prisma.instalment.count({
-      where: {
-        status: 'upcoming',
-        dueDate: todayDate,
-        loan: { tenantId, appType, customer: { routeId: { in: myRouteIds } } },
-      },
-    }),
-  ]);
-
-  // Last 5 collections I submitted
-  const collectionEntryDelegate = prisma.collectionEntry as unknown as {
-    findMany(args: unknown): Promise<RecentCollectionWithCustomer[]>;
-  };
-  const recentCollections = await collectionEntryDelegate.findMany({
-    where: { agentId: userId },
-    orderBy: { submittedAt: 'desc' },
-    take: 5,
-    include: {
-      customer: { select: { name: true, customerCode: true, preferredCollectionTime: true } },
-      loan:     { select: { loanCode: true } },
-    },
-  });
+  const total = d.todayBreakdown?.total ?? {};
+  const paidItems: any[] = d.todaysActivity?.paidItems ?? [];
+  const pendingItems: any[] = d.todaysActivity?.pendingItems ?? [];
 
   return (
     <AgentDashboardClient
       agentName={sessionUser?.name || 'Agent'}
-      todayExpected={Number(todayRecord?.totalExpected || 0)}
-      todayCollected={Number(todayRecord?.totalCollected || 0)}
+      todayExpected={Number(total.expected ?? d.todayExpected ?? 0)}
+      todayCollected={Number(total.collected ?? d.todayCollected ?? 0)}
+      todayPct={Number(d.hitRate ?? 0)}
       weekData={weekData}
-      monthCollected={Number(monthAgg._sum.totalCollected || 0)}
-      monthExpected={Number(monthAgg._sum.totalExpected || 0)}
-      activeLoanCount={activeLoanCount}
-      overdueCount={overdueCount}
-      myCustomerCount={myCustomerCount}
-      pendingTodayCount={pendingTodayCount}
-      recentCollections={recentCollections.map(c => ({
-        customerName: c.customer.name,
-        customerCode: c.customer.customerCode,
+      monthCollected={Number(d.monthToDate?.collected ?? 0)}
+      monthExpected={Number(d.monthToDate?.expected ?? 0)}
+      monthPct={Number(d.monthToDate?.pct ?? 0)}
+      activeLoanCount={Number(d.activeLoans ?? 0)}
+      overdueCount={Number(d.overdueLoans ?? 0)}
+      myCustomerCount={Number(d.totalCustomers ?? 0)}
+      pendingTodayCount={new Set(pendingItems.map((i) => i.customer?.id).filter(Boolean)).size}
+      recentCollections={paidItems.slice(0, 5).map((c) => ({
+        customerName: c.customer?.name ?? '',
+        customerCode: c.customer?.customerCode ?? '',
         loanCode:     c.loan?.loanCode ?? '',
         amount:       Number(c.receivedAmount),
-        time:         c.submittedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
-        preferredCollectionTime: c.customer.preferredCollectionTime,
+        time:         new Date(c.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
+        preferredCollectionTime: c.customer?.preferredCollectionTime ?? null,
       }))}
       currencySymbol={currencySymbol}
       modulePrefix={module}

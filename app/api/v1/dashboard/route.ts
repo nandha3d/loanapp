@@ -8,7 +8,7 @@ import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import type { Prisma } from '@prisma/client';
 import { startOfBusinessToday, startOfBusinessTomorrow, startOfBusinessDayUtc } from '@/lib/businessTime';
-import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
+import { getDueMetricsForRange, startOfBusinessMonth } from '@/lib/dashboard/todayMetrics';
 import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import { buildOverdueAgeing, parseAgeingEdges, topOverdueCustomers, DEFAULT_AGEING_BUCKETS } from '@/lib/dashboard/overdueInsights';
@@ -235,6 +235,7 @@ export async function GET(req: NextRequest) {
               customerCode: true,
               profilePhoto: true,
               phone: true,
+              preferredCollectionTime: true,
               route: { select: { id: true, name: true } },
             },
           },
@@ -487,7 +488,10 @@ export async function GET(req: NextRequest) {
           }
         : item;
     });
-    const todayDue = getTodayDueMetrics(mappedTodayInstalments);
+    const todayDue = getDueMetricsForRange(mappedTodayInstalments, today, tomorrow);
+    // DEC-05: month-to-date with the same rows and maths as today's figures.
+    const mtd = getDueMetricsForRange(distributedInstalments as any, startOfBusinessMonth(today), tomorrow);
+    const monthToDate = { expected: mtd.expected, collected: mtd.collected, pct: mtd.pct };
     const todayExpected = todayDue.expected;
     const todayScheduledCollected = todayDue.collected;
     // Actual cash taken today across all instalments (see query note above).
@@ -880,6 +884,7 @@ export async function GET(req: NextRequest) {
         name: e.customer?.name || 'Customer',
         customerCode: e.customer?.customerCode || '—',
         phone: e.customer?.phone || null,
+        preferredCollectionTime: e.customer?.preferredCollectionTime ?? null,
         route: e.customer?.route ? { id: e.customer.route.id, name: e.customer.route.name } : null,
       },
       loan: {
@@ -967,6 +972,7 @@ export async function GET(req: NextRequest) {
       defaulterAlerts,
       routePerformance,
       routeCollections,
+      monthToDate,
       recentActivity,
       // Group the raw entries into one activity line per collection action: a
       // single payment is distributed into many instalment rows (all written in

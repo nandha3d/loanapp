@@ -3320,28 +3320,60 @@ class _AgentMetricsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final mtd = summary.monthToDate;
+    return Column(
       children: [
-        Expanded(
-          child: _StatTile(
-            icon: Icons.account_circle,
-            iconColor: AppColors.info,
-            iconBg: AppColors.infoBg,
-            label: t.x('dash.customers'),
-            value: '${summary.totalCustomers}',
-            sub: t.x('dash.my_customers'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.account_circle,
+                iconColor: AppColors.info,
+                iconBg: AppColors.infoBg,
+                label: t.x('dash.customers'),
+                value: '${summary.totalCustomers}',
+                sub: '${summary.activeLoans} ${t.x('dash.active_loans')}',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.check_circle,
+                iconColor: AppColors.success,
+                iconBg: AppColors.successBg,
+                label: t.x('an.hit_rate'),
+                value: '${summary.hitRate.round()}%',
+                sub: '${fmt.format(summary.todayPending)} ${t.x('dash.remaining')}',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.check_circle,
-            iconColor: AppColors.success,
-            iconBg: AppColors.successBg,
-            label: t.x('an.hit_rate'),
-            value: '${summary.hitRate}%',
-            sub: '${fmt.format(summary.todayPending)} ${t.x('dash.remaining')}',
-          ),
+        const SizedBox(height: 12),
+        // DEC-05: month-to-date, server figures (same maths as today's).
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.calendar_month,
+                iconColor: AppColors.primary,
+                iconBg: AppColors.primaryLight,
+                label: t.x('dash.month_rate'),
+                value: '${mtd.pct.round()}%',
+                sub: '${t.x('dash.mtd_expected')}: ${fmt.format(mtd.expected)}',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.payments_outlined,
+                iconColor: AppColors.success,
+                iconBg: AppColors.successBg,
+                label: t.x('dash.mtd_collected'),
+                value: fmt.format(mtd.collected),
+                sub: '${t.x('dash.mtd_expected')}: ${fmt.format(mtd.expected)}',
+              ),
+            ),
+          ],
         ),
       ],
     );

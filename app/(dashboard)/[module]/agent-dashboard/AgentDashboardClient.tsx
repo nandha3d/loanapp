@@ -6,9 +6,12 @@ interface Props {
   agentName:        string;
   todayExpected:    number;
   todayCollected:   number;
+  /** Server hit rate (v1 hitRate) — clients never compute it. */
+  todayPct:         number;
   weekData:         { date: string; collected: number; expected: number }[];
   monthCollected:   number;
   monthExpected:    number;
+  monthPct:         number;
   activeLoanCount:  number;
   overdueCount:     number;
   myCustomerCount:  number;
@@ -24,9 +27,8 @@ export default function AgentDashboardClient(p: Props) {
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
   const fmt   = (n: number) => `${p.currencySymbol}${n.toLocaleString('en-IN')}`;
-  const pct   = (a: number, b: number) => b === 0 ? 0 : Math.min(100, Math.round((a / b) * 100));
-  const todayPct  = pct(p.todayCollected, p.todayExpected);
-  const monthPct  = pct(p.monthCollected, p.monthExpected);
+  const todayPct  = Math.round(p.todayPct);
+  const monthPct  = Math.round(p.monthPct);
 
   // Safe ceiling that scales against BOTH collected and expected across all days, with a non-zero floor.
   // This guarantees bar height percentages can never exceed 100%.
