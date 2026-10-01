@@ -76,16 +76,74 @@ class AgentWallet {
     required this.name,
     required this.balance,
     this.phone,
+    this.branchId,
   });
   final String agentId;
   final String name;
   final double balance;
   final String? phone;
+  /// WAL-02: the exceeds-pool warning compares against this branch's pool.
+  final String? branchId;
 
   factory AgentWallet.fromJson(Map<String, dynamic> json) => AgentWallet(
         agentId: json['agentId'] as String,
         name: (json['name'] as String?) ?? '—',
         balance: _d(json['balance']),
         phone: json['phone'] as String?,
+        branchId: json['branchId'] as String?,
       );
+}
+
+/// WAL-01: a cash handover (agent → office).
+class CashHandover {
+  const CashHandover({
+    required this.id,
+    required this.amount,
+    required this.status,
+    required this.requestedAt,
+    this.agentName,
+    this.agentPhone,
+    this.remarks,
+  });
+  final String id;
+  final double amount;
+  final String status; // pending | confirmed | rejected
+  final DateTime requestedAt;
+  final String? agentName;
+  final String? agentPhone;
+  final String? remarks;
+
+  factory CashHandover.fromJson(Map<String, dynamic> json) => CashHandover(
+        id: json['id'] as String,
+        amount: _d(json['amount']),
+        status: (json['status'] as String?) ?? 'pending',
+        requestedAt: DateTime.tryParse(json['requestedAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+        agentName: json['agentName'] as String?,
+        agentPhone: json['agentPhone'] as String?,
+        remarks: json['remarks'] as String?,
+      );
+}
+
+/// WAL-01: the four wallet KPI figures (GET /wallet/summary).
+class WalletSummary {
+  const WalletSummary({
+    required this.accountingCapital,
+    required this.releasedToAgents,
+    required this.branchCashAvailable,
+    required this.agentFloat,
+  });
+  final double accountingCapital;
+  final double releasedToAgents;
+  final double branchCashAvailable;
+  final double agentFloat;
+
+  factory WalletSummary.fromJson(Map<String, dynamic> json) {
+    final s = (json['summary'] as Map<String, dynamic>?) ?? const {};
+    return WalletSummary(
+      accountingCapital: _d(s['accountingCapital']),
+      releasedToAgents: _d(s['releasedToAgents']),
+      branchCashAvailable: _d(s['branchCashAvailable']),
+      agentFloat: _d(s['agentFloat']),
+    );
+  }
 }

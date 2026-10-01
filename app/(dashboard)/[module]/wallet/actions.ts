@@ -9,7 +9,7 @@ import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
-import { requestCashHandover } from '@/lib/cashHandover';
+import { collectCashFromAgent, collectCashHandover, rejectCashHandover, requestCashHandover } from '@/lib/cashHandover';
 
 async function requirePrivileged() {
   const session = await auth();
@@ -179,48 +179,12 @@ export async function requestFloatHandoverAction(formData: FormData) {
 }
 
 /** Admin collects/settles a pending handover: debits the agent float, credits
- *  the branch pool, marks the handover confirmed. */
+ *  the branch pool, marks the handover confirmed (lib/cashHandover.ts, WAL-01). */
 export async function collectHandoverAction(formData: FormData) {
   const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
-
-  const ho = await prisma.cashHandover.findFirst({
-    where: {
-      id: handoverId,
-      tenantId,
-      status: 'pending',
-      agent: {
-        appType,
-        ...(branchId ? { branchId } : {}),
-      },
-    },
-    include: { agent: { select: { id: true, branchId: true } } },
-  });
-  if (!ho) throw new Error('Handover not found or already settled');
-
-  await collectFromAgent({
-    tenantId,
-    appType,
-    agentId: ho.agentId,
-    branchId: ho.agent.branchId,
-    amount: Number(ho.amount),
-    byUserId: userId,
-    note: ho.remarks || 'Cash handover',
-  });
-  await prisma.cashHandover.update({
-    where: { id: ho.id },
-    data: { status: 'confirmed', adminId: userId, collectedAt: new Date(), confirmedAt: new Date() },
-  });
-  await writeAudit({
-    tenantId,
-    userId,
-    action: 'wallet_handover_collect',
-    entityType: 'cash_handover',
-    entityId: ho.id,
-    newValue: { amount: Number(ho.amount) },
-  });
-
+  await collectCashHandover({ tenantId, appType, userId, branchId }, handoverId);
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
@@ -229,27 +193,7 @@ export async function rejectHandoverAction(formData: FormData) {
   const { userId, tenantId, appType, branchId } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
-
-  const ho = await prisma.cashHandover.findFirst({
-    where: {
-      id: handoverId,
-      tenantId,
-      status: 'pending',
-      agent: {
-        appType,
-        ...(branchId ? { branchId } : {}),
-      },
-    },
-    select: { id: true },
-  });
-  if (!ho) throw new Error('Handover not found or already settled');
-
-  const updated = await prisma.cashHandover.updateMany({
-    where: { id: ho.id, tenantId, status: 'pending' },
-    data: { status: 'rejected', adminId: userId, confirmedAt: new Date() },
-  });
-  if (updated.count === 0) throw new Error('Handover not found or already settled');
-
+  await rejectCashHandover({ tenantId, appType, userId, branchId }, handoverId);
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
@@ -260,42 +204,6 @@ export async function collectFromAgentAction(formData: FormData) {
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
-  if (!agentId || !(amount > 0)) throw new Error('agentId and a positive amount are required');
-
-  const agent = await prisma.user.findFirst({
-    where: {
-      id: agentId,
-      tenantId,
-      role: 'agent',
-      status: 'active',
-      appType,
-      ...(branchId ? { branchId } : {}),
-    },
-    select: { id: true, branchId: true },
-  });
-  if (!agent) throw new Error('Agent not found');
-
-  await collectFromAgent({ tenantId, appType, agentId, branchId: agent.branchId, amount, byUserId: userId, note });
-  await prisma.cashHandover.create({
-    data: {
-      tenantId,
-      agentId,
-      adminId: userId,
-      amount,
-      status: 'confirmed',
-      collectedAt: new Date(),
-      confirmedAt: new Date(),
-      remarks: note,
-    },
-  });
-  await writeAudit({
-    tenantId,
-    userId,
-    action: 'wallet_collect',
-    entityType: 'agent_account',
-    entityId: agentId,
-    newValue: { amount },
-  });
-
+  await collectCashFromAgent({ tenantId, appType, userId, branchId }, { agentId, amount, note });
   revalidatePath(modulePath(appType, '/wallet'));
 }

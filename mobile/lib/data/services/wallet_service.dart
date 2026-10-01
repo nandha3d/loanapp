@@ -69,6 +69,38 @@ class WalletService {
     unwrapEnvelope(res, (_) => null);
   }
 
+  Future<WalletSummary> summary() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.walletSummary);
+    return unwrapEnvelope(res, (dynamic d) => WalletSummary.fromJson(d as Map<String, dynamic>));
+  }
+
+  Future<List<CashHandover>> handovers({String? status}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.walletHandovers,
+      queryParameters: {if (status != null) 'status': status},
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => (d as List<dynamic>)
+          .map((dynamic e) => CashHandover.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  /// [action] = collect | reject.
+  Future<void> handoverAction(String id, String action) async {
+    final res = await _dio.post<Map<String, dynamic>>(Endpoints.walletHandoverAction(id, action));
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> collectFromAgent({required String agentId, required double amount, String? note}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.walletCollect,
+      data: {'agentId': agentId, 'amount': amount, if (note != null && note.isNotEmpty) 'note': note},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<void> deposit({required double amount, String? note}) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.walletDeposit,
@@ -90,6 +122,15 @@ final walletMeProvider = FutureProvider.autoDispose<WalletMe>(
 
 final walletAgentsProvider = FutureProvider.autoDispose<List<AgentWallet>>(
   (ref) => ref.watch(walletServiceProvider).agents(),
+);
+
+final walletSummaryProvider = FutureProvider.autoDispose<WalletSummary>(
+  (ref) => ref.watch(walletServiceProvider).summary(),
+);
+
+/// Staff: pending queue. Agents: own history (server decides by role).
+final walletHandoversProvider = FutureProvider.autoDispose.family<List<CashHandover>, String?>(
+  (ref, status) => ref.watch(walletServiceProvider).handovers(status: status),
 );
 
 final walletBranchesProvider = FutureProvider.autoDispose<List<BranchPool>>(

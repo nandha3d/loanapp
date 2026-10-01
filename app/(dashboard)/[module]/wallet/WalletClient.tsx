@@ -10,7 +10,7 @@ import {
 } from './actions';
 
 type Pool = { branchId: string; branchName: string; balance: number };
-type Agent = { agentId: string; name: string; phone: string | null; balance: number };
+type Agent = { agentId: string; name: string; phone: string | null; branchId?: string | null; balance: number };
 type PendingHandover = {
   id: string;
   agentName: string;
@@ -260,7 +260,9 @@ export default function WalletClient({
           ) : (
             <div>
               {agents.map((agent) => (
-                <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} branchCashAvailable={summary.branchCashAvailable} />
+                // WAL-02: the warning compares against the agent's own branch pool.
+                <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol}
+                  branchCashAvailable={pools.find((p) => p.branchId === agent.branchId)?.balance ?? summary.branchCashAvailable} />
               ))}
             </div>
           )}

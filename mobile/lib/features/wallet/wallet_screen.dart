@@ -57,7 +57,10 @@ class _AgentWallet extends ConsumerWidget {
           Center(child: EmptyState(icon: Icons.cloud_off, title: e.toString())),
       data: (w) => RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () async => ref.invalidate(walletMeProvider),
+        onRefresh: () async {
+          ref.invalidate(walletMeProvider);
+          ref.invalidate(walletHandoversProvider);
+        },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
@@ -78,6 +81,21 @@ class _AgentWallet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 18),
+            // WAL-01: the agent's own handover requests and their outcome.
+            ref.watch(walletHandoversProvider(null)).maybeWhen(
+                  data: (rows) => rows.isEmpty
+                      ? const SizedBox.shrink()
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.x('wallet.handover_history'), style: AppTypography.sectionTitle),
+                            const SizedBox(height: 10),
+                            ...rows.take(20).map((h) => _HandoverTile(h: h, fmt: fmt, t: t)),
+                            const SizedBox(height: 18),
+                          ],
+                        ),
+                  orElse: () => const SizedBox.shrink(),
+                ),
             Text(t.x('wallet.history'), style: AppTypography.sectionTitle),
             const SizedBox(height: 10),
             if (w.transactions.isEmpty)
@@ -114,6 +132,7 @@ class _AgentWallet extends ConsumerWidget {
               .read(walletServiceProvider)
               .deposit(amount: amount, note: note);
           ref.invalidate(walletMeProvider);
+          ref.invalidate(walletHandoversProvider);
         },
       ),
     );
@@ -181,10 +200,70 @@ class _AdminWallet extends ConsumerWidget {
       onRefresh: () async {
         ref.invalidate(walletAgentsProvider);
         ref.invalidate(walletBranchesProvider);
+        ref.invalidate(walletSummaryProvider);
+        ref.invalidate(walletHandoversProvider);
       },
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
+          // WAL-01: same KPI figures as the web wallet (GET /wallet/summary).
+          ref.watch(walletSummaryProvider).maybeWhen(
+                data: (s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final (label, value) in [
+                        (t.x('wallet.kpi_capital'), s.accountingCapital),
+                        (t.x('wallet.kpi_released'), s.releasedToAgents),
+                        (t.x('wallet.kpi_branch_cash'), s.branchCashAvailable),
+                        (t.x('wallet.kpi_agent_float'), s.agentFloat),
+                      ])
+                        Container(
+                          width: (MediaQuery.sizeOf(context).width - 42) / 2,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(label, style: AppTypography.caption),
+                              Text(fmt.format(value),
+                                  style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                orElse: () => const SizedBox.shrink(),
+              ),
+          // WAL-01: pending handover queue — Collect / Reject like the web.
+          Text(t.x('wallet.pending_handovers'), style: AppTypography.sectionTitle),
+          const SizedBox(height: 10),
+          ref.watch(walletHandoversProvider('pending')).maybeWhen(
+                data: (rows) => rows.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.only(bottom: 18),
+                        child: Text(t.x('wallet.no_pending_handovers'), style: AppTypography.caption),
+                      )
+                    : Column(
+                        children: [
+                          ...rows.map((h) => _HandoverTile(
+                                h: h,
+                                fmt: fmt,
+                                t: t,
+                                onAction: (action) => _handoverAction(context, ref, h.id, action),
+                              )),
+                          const SizedBox(height: 18),
+                        ],
+                      ),
+                orElse: () => const SizedBox(height: 18),
+              ),
           // Branch cash pools.
           branchesAsync.maybeWhen(
             data: (branches) => Column(
@@ -233,6 +312,67 @@ class _AdminWallet extends ConsumerWidget {
                     ],
                   ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _handoverAction(BuildContext context, WidgetRef ref, String id, String action) async {
+  try {
+    await ref.read(walletServiceProvider).handoverAction(id, action);
+    ref.invalidate(walletHandoversProvider);
+    ref.invalidate(walletAgentsProvider);
+    ref.invalidate(walletBranchesProvider);
+    ref.invalidate(walletSummaryProvider);
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.danger));
+    }
+  }
+}
+
+/// WAL-01: one handover row; [onAction] shows Collect / Reject for staff.
+class _HandoverTile extends StatelessWidget {
+  const _HandoverTile({required this.h, required this.fmt, required this.t, this.onAction});
+  final CashHandover h;
+  final NumberFormat fmt;
+  final T t;
+  final void Function(String action)? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [if (h.agentName != null) h.agentName!, fmt.format(h.amount)].join(' · '),
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  '${DateFormat('d MMM, h:mm a').format(h.requestedAt)} · ${t.x('wallet.hs_${h.status}')}',
+                  style: AppTypography.extraTiny,
+                ),
+                if ((h.remarks ?? '').isNotEmpty) Text(h.remarks!, style: AppTypography.caption),
+              ],
+            ),
+          ),
+          if (onAction != null) ...[
+            TextButton(onPressed: () => onAction!('reject'), child: Text(t.x('wallet.reject'))),
+            FilledButton(onPressed: () => onAction!('collect'), child: Text(t.x('wallet.collect'))),
+          ],
         ],
       ),
     );
@@ -526,6 +666,8 @@ class _AgentRow extends ConsumerWidget {
                     style: AppTypography.bodyLarge
                         .copyWith(fontWeight: FontWeight.w700),),
                 const SizedBox(height: 2),
+                if ((agent.phone ?? '').isNotEmpty)
+                  Text(agent.phone!, style: AppTypography.extraTiny),
                 Text('${t.x('wallet.balance')}: ${fmt.format(agent.balance)}',
                     style: AppTypography.caption.copyWith(
                       color: agent.balance > 0
@@ -536,6 +678,12 @@ class _AgentRow extends ConsumerWidget {
               ],
             ),
           ),
+          if (agent.balance > 0)
+            IconButton(
+              tooltip: t.x('wallet.collect_from_agent'),
+              onPressed: () => _openCollect(context, ref),
+              icon: Icon(Icons.download_rounded, color: AppColors.primary),
+            ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -553,10 +701,35 @@ class _AgentRow extends ConsumerWidget {
 
   void _openRelease(BuildContext context, WidgetRef ref) {
     final branches = ref.read(walletBranchesProvider).asData?.value ?? const [];
-    final poolBalance = branches.fold<double>(0.0, (s, b) => s + b.balance);
+    // WAL-02: warn against the agent's own branch pool, not the sum of pools.
+    final own = branches.where((b) => b.branchId == agent.branchId);
+    final poolBalance = own.isNotEmpty
+        ? own.first.balance
+        : branches.fold<double>(0.0, (s, b) => s + b.balance);
     showDialog<void>(
       context: context,
       builder: (_) => _ReleaseDialog(agent: agent, poolBalance: poolBalance),
+    );
+  }
+
+  /// WAL-01: direct "Collect from agent" (same as web).
+  void _openCollect(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AmountActionDialog(
+        title: '${t.x('wallet.collect_from_agent')} · ${agent.name}',
+        actionLabel: t.x('wallet.collect'),
+        successMsg: t.x('wallet.collected'),
+        maxBalance: agent.balance,
+        balanceLabel: t.x('wallet.cash_in_hand'),
+        warningExceeds: t.x('wallet.exceeds_cash'),
+        submit: (amount, note) async {
+          await ref.read(walletServiceProvider).collectFromAgent(agentId: agent.agentId, amount: amount, note: note);
+          ref.invalidate(walletAgentsProvider);
+          ref.invalidate(walletBranchesProvider);
+          ref.invalidate(walletSummaryProvider);
+        },
+      ),
     );
   }
 }
@@ -770,6 +943,8 @@ class _TxnTile extends StatelessWidget {
                   DateFormat('d MMM, h:mm a').format(tx.createdAt),
                   style: AppTypography.extraTiny,
                 ),
+                // WAL-03: the ledger note, as on web.
+                if ((tx.note ?? '').isNotEmpty) Text(tx.note!, style: AppTypography.caption),
               ],
             ),
           ),

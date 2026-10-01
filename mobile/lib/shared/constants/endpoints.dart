@@ -88,6 +88,10 @@ class Endpoints {
   static const String walletRelease = '/wallet/release';
   static const String walletBranch = '/wallet/branch';
   static const String walletDeposit = '/wallet/deposit';
+  static const String walletSummary = '/wallet/summary';
+  static const String walletHandovers = '/wallet/handovers';
+  static const String walletCollect = '/wallet/collect';
+  static String walletHandoverAction(String id, String action) => '/wallet/handovers/$id/$action';
 
   // Penalties
   static const String penalties = '/penalties';
