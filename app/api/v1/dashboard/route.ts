@@ -967,7 +967,7 @@ export async function GET(req: NextRequest) {
       pendingApprovals,
       pendingFieldFloat,
       // DASH-08: the pending UPI panel shows only when the tenant opted into manual review.
-      upiManualVerification: (await getSetting(ctx.tenantId, 'upi_manual_verification', 'false')) === 'true',
+      upiManualVerification,
       activeAgents,
       recentLoans,
       todayInstalments: mappedTodayInstalments,

@@ -394,10 +394,11 @@ void main() {
           'paidCount': 3,
         },
         'restructure': {
+          // Keys of lib/restructure.ts computeRestructure() (LD-03).
           'restructuredRate': 4500,
-          'arrears': 1000,
-          'futureInstalmentsCount': 9,
-          'isApplicable': true,
+          'outstanding': 42000,
+          'remainingPeriods': 9,
+          'available': true,
         },
         'payments': [
           {
@@ -418,7 +419,8 @@ void main() {
       expect(loan.metrics?.totalOutstanding, 42000);
       expect(loan.metrics?.paidCount, 3);
       expect(loan.restructure?.restructuredRate, 4500);
-      expect(loan.restructure?.isApplicable, isTrue);
+      expect(loan.restructure?.available, isTrue);
+      expect(loan.restructure?.remainingPeriods, 9);
       expect(loan.payments.length, 1);
       expect(loan.guarantor?.name, 'Ramesh Kumar');
     });

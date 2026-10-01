@@ -1279,13 +1279,11 @@ class _AlertCard extends StatelessWidget {
     required this.bg,
     required this.fg,
     required this.onTap,
-    this.sub,
   });
   final String label, value;
   final IconData icon;
   final Color bg, fg;
   final VoidCallback onTap;
-  final String? sub;
 
   @override
   Widget build(BuildContext context) {
@@ -1326,18 +1324,6 @@ class _AlertCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (sub != null && sub!.isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        sub!,
-                        style: AppTypography.tiny.copyWith(
-                          color: fg.withAlpha(200),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
                 ),
               ),

@@ -319,7 +319,7 @@ assert.match(
 );
 assert.match(
   loanDetailRouteSrc,
-  /penaltySummary:\s*penaltySummary|penaltySummary\s*,\s*\}\);/s,
+  /penaltySummary:\s*penaltySummary|^\s*penaltySummary\s*,\s*$/m,
   'app/api/v1/loans/[id]/route.ts must include penaltySummary in response payload',
 );
 
