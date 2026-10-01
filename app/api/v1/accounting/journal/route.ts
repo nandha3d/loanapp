@@ -239,6 +239,8 @@ export async function POST(req: NextRequest) {
       await tx.accountingAuditLog.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          branchId: je.branchId,
           userId: ctx.userId,
           action: 'post',
           entityType: 'journal_entry',

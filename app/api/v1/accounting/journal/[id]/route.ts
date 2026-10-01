@@ -115,6 +115,8 @@ export async function POST(
         await tx.accountingAuditLog.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: entry.branchId,
             userId: ctx.userId,
             action: 'approve',
             entityType: 'journal_entry',
@@ -223,6 +225,8 @@ export async function POST(
         await tx.accountingAuditLog.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: original.branchId,
             userId: ctx.userId,
             action: 'reverse',
             entityType: 'journal_entry',
@@ -305,6 +309,8 @@ export async function POST(
         await tx.accountingAuditLog.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: draft.branchId,
             userId: ctx.userId,
             action: 'post',
             entityType: 'journal_entry',
