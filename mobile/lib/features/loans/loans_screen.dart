@@ -138,7 +138,8 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
       ),
       floatingActionButton: FabExtended(
         icon: Icons.add,
-        label: (ref.watch(authControllerProvider).user?.bypassLoanApproval ?? false)
+        label: (ref.watch(authControllerProvider).user?.bypassLoanApproval ??
+                false)
             ? t.x('title.new_loan')
             : t.x('title.request_loan'),
         onPressed: () => context.push('/loans/new'),
@@ -312,7 +313,7 @@ class _LoanTile extends ConsumerWidget {
             offset: const Offset(0, 3),
           ),
           BoxShadow(
-            color: progressColor.withAlpha(20),
+            color: AppColors.primary.withAlpha(15),
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
@@ -328,15 +329,15 @@ class _LoanTile extends ConsumerWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: progressColor.withAlpha(50),
+                color: AppColors.primary.withAlpha(35),
                 width: 1.2,
               ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white,
-                  progressColor.withAlpha(8),
+                  AppColors.surface,
+                  AppColors.primary.withAlpha(8),
                 ],
               ),
             ),
@@ -345,184 +346,158 @@ class _LoanTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IntrinsicHeight(
-                    child: Row(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Container(
-                          width: 5,
-                          color: progressColor,
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    _Avatar(
-                                      name: customerName,
-                                      size: 42,
-                                      image: customerPhoto != null &&
-                                              customerPhoto.isNotEmpty
-                                          ? authedImage(ref, customerPhoto)
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            loan['loanCode']?.toString() ?? '-',
-                                            style: AppTypography.bodyLarge
-                                                .copyWith(
-                                              fontFamily: 'monospace',
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            customerName,
-                                            style: AppTypography.caption
-                                                .copyWith(fontSize: 12),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          if (total > 0) ...[
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              '$paid / $total · ${(pct * 100).round()}%',
-                                              style: AppTypography.extraTiny
-                                                  .copyWith(
-                                                color: AppColors.textLight,
-                                                fontFeatures: const [
-                                                  FontFeature.tabularFigures(),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    if (lat != null ||
-                                        customerPhone.isNotEmpty) ...[
-                                      if (lat != null) ...[
-                                        InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          onTap: () => _openLocation(
-                                            context,
-                                            customerName,
-                                            routeName,
-                                            lat,
-                                            lng,
-                                          ),
-                                          child: Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFEFF6FF),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                color: const Color(0xFF2563EB)
-                                                    .withAlpha(40),
-                                              ),
-                                            ),
-                                            child: const Icon(
-                                              Icons.near_me_rounded,
-                                              size: 15,
-                                              color: Color(0xFF2563EB),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                      ],
-                                      if (customerPhone.isNotEmpty) ...[
-                                        InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          onTap: () =>
-                                              _callPhone(customerPhone),
-                                          child: Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFECFDF5),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                color: AppColors.success
-                                                    .withAlpha(40),
-                                              ),
-                                            ),
-                                            child: const Icon(
-                                              Icons.call_rounded,
-                                              size: 15,
-                                              color: AppColors.success,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                      ],
-                                    ],
-                                    if (!responsive) ...[
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            fmt.format(principal),
-                                            style: AppTypography.bodyLarge
-                                                .copyWith(
-                                              color: AppColors.primaryDark,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          AppBadge(label: status, kind: kind),
-                                        ],
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                if (responsive) ...[
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: SizedBox(
-                                          width: double.infinity,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              fmt.format(principal),
-                                              style: AppTypography.moneyLg
-                                                  .copyWith(
-                                                color: AppColors.primaryDark,
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      AppBadge(label: status, kind: kind),
-                                    ],
-                                  ),
-                                ],
-                              ],
+                        Row(
+                          children: [
+                            _Avatar(
+                              name: customerName,
+                              size: 42,
+                              image: customerPhoto != null &&
+                                      customerPhoto.isNotEmpty
+                                  ? authedImage(ref, customerPhoto)
+                                  : null,
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    loan['loanCode']?.toString() ?? '-',
+                                    style: AppTypography.bodyLarge.copyWith(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    customerName,
+                                    style: AppTypography.caption
+                                        .copyWith(fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (total > 0) ...[
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '$paid / $total · ${(pct * 100).round()}%',
+                                      style: AppTypography.extraTiny.copyWith(
+                                        color: AppColors.textLight,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (lat != null || customerPhone.isNotEmpty) ...[
+                              if (lat != null) ...[
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () => _openLocation(
+                                    context,
+                                    customerName,
+                                    routeName,
+                                    lat,
+                                    lng,
+                                  ),
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: const Color(0xFF2563EB)
+                                            .withAlpha(40),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.near_me_rounded,
+                                      size: 15,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              if (customerPhone.isNotEmpty) ...[
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () => _callPhone(customerPhone),
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFECFDF5),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: AppColors.success.withAlpha(40),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.call_rounded,
+                                      size: 15,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                            ],
+                            if (!responsive) ...[
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    fmt.format(principal),
+                                    style: AppTypography.bodyLarge.copyWith(
+                                      color: AppColors.primaryDark,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  AppBadge(label: status, kind: kind),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
+                        if (responsive) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      fmt.format(principal),
+                                      style: AppTypography.moneyLg.copyWith(
+                                        color: AppColors.primaryDark,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              AppBadge(label: status, kind: kind),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

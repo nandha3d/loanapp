@@ -81,8 +81,12 @@ class TodayCollectionBreakdown {
       inactive: json['inactive'] != null
           ? StatusSubMetrics.fromJson(json['inactive'] as Map<String, dynamic>)
           : const StatusSubMetrics(),
-      breakdown: bd.map((k, dynamic v) => MapEntry(
-          k, TodayFrequencyMetrics.fromJson(v as Map<String, dynamic>),),),
+      breakdown: bd.map(
+        (k, dynamic v) => MapEntry(
+          k,
+          TodayFrequencyMetrics.fromJson(v as Map<String, dynamic>),
+        ),
+      ),
     );
   }
 }
@@ -134,15 +138,18 @@ class OverdueFrequencyMetrics {
     return OverdueFrequencyMetrics(
       total: json['total'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['total'] as Map<String, dynamic>,)
+              json['total'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
       active: json['active'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['active'] as Map<String, dynamic>,)
+              json['active'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
       inactive: json['inactive'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['inactive'] as Map<String, dynamic>,)
+              json['inactive'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
     );
   }
@@ -166,18 +173,25 @@ class OverdueCollectionBreakdown {
     return OverdueCollectionBreakdown(
       total: json['total'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['total'] as Map<String, dynamic>,)
+              json['total'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
       active: json['active'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['active'] as Map<String, dynamic>,)
+              json['active'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
       inactive: json['inactive'] != null
           ? OverdueStatusSubMetrics.fromJson(
-              json['inactive'] as Map<String, dynamic>,)
+              json['inactive'] as Map<String, dynamic>,
+            )
           : const OverdueStatusSubMetrics(),
-      breakdown: bd.map((k, dynamic v) => MapEntry(
-          k, OverdueFrequencyMetrics.fromJson(v as Map<String, dynamic>),),),
+      breakdown: bd.map(
+        (k, dynamic v) => MapEntry(
+          k,
+          OverdueFrequencyMetrics.fromJson(v as Map<String, dynamic>),
+        ),
+      ),
     );
   }
 }
@@ -224,6 +238,10 @@ class DashboardSummary {
     this.currentCapital,
     this.bestPayer,
     this.highestBorrower,
+    this.overdueCustomerCount = 0,
+    this.pendingApprovals = 0,
+    this.pendingFieldFloat = 0.0,
+    this.upiManualVerification = false,
     this.pendingUpiCollections = const [],
     this.pendingCashCollections = const [],
     this.todayByMode = const {},
@@ -274,6 +292,10 @@ class DashboardSummary {
   final double? currentCapital;
   final String? bestPayer;
   final String? highestBorrower;
+  final int overdueCustomerCount;
+  final int pendingApprovals;
+  final double pendingFieldFloat;
+  final bool upiManualVerification;
   final List<TodayActivity> pendingUpiCollections;
   final List<TodayActivity> pendingCashCollections;
   final Map<String, double> todayByMode;
@@ -356,6 +378,11 @@ class DashboardSummary {
           json['currentCapital'] == null ? null : toNum(json['currentCapital']),
       bestPayer: json['bestPayer'] as String?,
       highestBorrower: json['highestBorrower'] as String?,
+      overdueCustomerCount:
+          (json['overdueCustomerCount'] as num?)?.toInt() ?? 0,
+      pendingApprovals: (json['pendingApprovals'] as num?)?.toInt() ?? 0,
+      pendingFieldFloat: toNum(json['pendingFieldFloat']),
+      upiManualVerification: json['upiManualVerification'] == true,
       pendingUpiCollections: (json['pendingUpiCollections'] as List<dynamic>? ??
               const [])
           .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
@@ -369,19 +396,22 @@ class DashboardSummary {
           .map((k, dynamic v) => MapEntry(k, toNum(v))),
       todayBreakdown: json['todayBreakdown'] != null
           ? TodayCollectionBreakdown.fromJson(
-              json['todayBreakdown'] as Map<String, dynamic>,)
+              json['todayBreakdown'] as Map<String, dynamic>,
+            )
           : TodayCollectionBreakdown(
               total: StatusSubMetrics(
-                  expected: toNum(json['todayExpected']),
-                  collected: toNum(json['todayCollected']),
-                  remaining: toNum(json['todayGap']),
-                  pct: toNum(json['hitRate']),),
+                expected: toNum(json['todayExpected']),
+                collected: toNum(json['todayCollected']),
+                remaining: toNum(json['todayGap']),
+                pct: toNum(json['hitRate']),
+              ),
               active: const StatusSubMetrics(),
               inactive: const StatusSubMetrics(),
             ),
       overdueBreakdown: json['overdueBreakdown'] != null
           ? OverdueCollectionBreakdown.fromJson(
-              json['overdueBreakdown'] as Map<String, dynamic>,)
+              json['overdueBreakdown'] as Map<String, dynamic>,
+            )
           : OverdueCollectionBreakdown(
               total: OverdueStatusSubMetrics(
                 totalOverdue: toNum(json['overdueTotalTillToday']),
@@ -393,7 +423,8 @@ class DashboardSummary {
             ),
       todaysActivity: json['todaysActivity'] != null
           ? TodaysActivityBundle.fromJson(
-              json['todaysActivity'] as Map<String, dynamic>,)
+              json['todaysActivity'] as Map<String, dynamic>,
+            )
           : TodaysActivityBundle(
               paidItems: (json['todayActivity'] as List<dynamic>? ?? const [])
                   .map((dynamic e) {
@@ -419,21 +450,27 @@ class DashboardSummary {
               }).toList(growable: false),
             ),
       overdueAgeing: (json['overdueAgeing'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              OverdueAgeingBucket.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) =>
+                OverdueAgeingBucket.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
       topOverdueCustomers:
           (json['topOverdueCustomers'] as List<dynamic>? ?? const [])
-              .map((dynamic e) =>
-                  TopOverdueCustomer.fromJson(e as Map<String, dynamic>),)
+              .map(
+                (dynamic e) =>
+                    TopOverdueCustomer.fromJson(e as Map<String, dynamic>),
+              )
               .toList(growable: false),
       portfolioHealth: json['portfolioHealth'] != null
           ? PortfolioHealth.fromJson(
-              json['portfolioHealth'] as Map<String, dynamic>,)
+              json['portfolioHealth'] as Map<String, dynamic>,
+            )
           : const PortfolioHealth(),
       cashFlow: (json['cashFlow'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              CashFlowMonth.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) => CashFlowMonth.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
     );
   }
@@ -674,9 +711,9 @@ class RecentActivity {
       action: json['action'] as String? ?? '',
       resource: json['resource'] as String? ?? '',
       userName: user['name'] as String? ?? '—',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '')
-              ?.toLocal() ??
-          DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
     );
   }
 }
@@ -1038,20 +1075,26 @@ class TodaysActivityBundle {
           .map((dynamic e) => TodayPaidItem.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       pendingItems: (json['pendingItems'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              TodayPendingItem.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) => TodayPendingItem.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
       newLoanItems: (json['newLoanItems'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              TodayNewLoanItem.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) => TodayNewLoanItem.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
       newCustomerItems: (json['newCustomerItems'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              TodayNewCustomerItem.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) =>
+                TodayNewCustomerItem.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
       otherItems: (json['otherItems'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              TodayOtherActivityItem.fromJson(e as Map<String, dynamic>),)
+          .map(
+            (dynamic e) =>
+                TodayOtherActivityItem.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
     );
   }

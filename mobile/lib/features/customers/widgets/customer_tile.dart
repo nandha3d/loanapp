@@ -170,7 +170,7 @@ class CustomerTile extends ConsumerWidget {
             offset: const Offset(0, 2),
           ),
           BoxShadow(
-            color: statusAccent.withAlpha(16),
+            color: AppColors.primary.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -186,130 +186,114 @@ class CustomerTile extends ConsumerWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: statusAccent.withAlpha(45),
+                color: AppColors.primary.withAlpha(35),
                 width: 1.2,
               ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white,
-                  statusAccent.withAlpha(10),
+                  AppColors.surface,
+                  AppColors.primary.withAlpha(10),
                 ],
               ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      width: 5,
-                      color: statusAccent,
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _Avatar(
+                        initials: customer.initials,
+                        size: 44,
+                        image: (customer.photoUrl != null &&
+                                customer.photoUrl!.isNotEmpty)
+                            ? authedImage(ref, customer.photoUrl!)
+                            : null,
+                        statusColor: statusAccent,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _Avatar(
-                                  initials: customer.initials,
-                                  size: 44,
-                                  image: (customer.photoUrl != null &&
-                                          customer.photoUrl!.isNotEmpty)
-                                      ? authedImage(ref, customer.photoUrl!)
-                                      : null,
-                                  statusColor: statusAccent,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        customer.name,
-                                        style: AppTypography.bodyLarge.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Row(
-                                        children: [
-                                          Flexible(child: codeText),
-                                          if (customer.routeName != null && !isChit) ...[
-                                            const SizedBox(width: 6),
-                                            Flexible(child: routeBadge!),
-                                          ],
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _CardActionIcon(
-                                  tooltip: 'Location / Navigation',
-                                  icon: Icons.near_me_rounded,
-                                  iconColor: const Color(0xFF2563EB),
-                                  bgColor: const Color(0xFFEFF6FF),
-                                  hasCoords: customer.lat != null && customer.lng != null,
-                                  onTap: () => _openLocation(context, customer),
-                                ),
-                                if (customer.phone.isNotEmpty) ...[
-                                  const SizedBox(width: 5),
-                                  _CardActionIcon(
-                                    tooltip: 'WhatsApp',
-                                    icon: Icons.chat_bubble_outline_rounded,
-                                    iconColor: const Color(0xFF16A34A),
-                                    bgColor: const Color(0xFFF0FDF4),
-                                    onTap: () => _openWhatsApp(
-                                      context,
-                                      customer,
-                                      user?.phoneCountryCode ?? '91',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  _CardActionIcon(
-                                    tooltip: 'Call customer',
-                                    icon: Icons.call_rounded,
-                                    iconColor: AppColors.success,
-                                    bgColor: const Color(0xFFECFDF5),
-                                    onTap: () => _callCustomer(customer),
-                                  ),
-                                ],
-                              ],
+                            Text(
+                              customer.name,
+                              style: AppTypography.bodyLarge.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 2),
                             Row(
                               children: [
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 6,
-                                    children: snippets,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                AppBadge(
-                                  label: customer.status,
-                                  kind: _kindFor(customer.status),
-                                ),
+                                Flexible(child: codeText),
+                                if (customer.routeName != null && !isChit) ...[
+                                  const SizedBox(width: 6),
+                                  Flexible(child: routeBadge!),
+                                ],
                               ],
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 6),
+                      _CardActionIcon(
+                        tooltip: 'Location / Navigation',
+                        icon: Icons.near_me_rounded,
+                        iconColor: const Color(0xFF2563EB),
+                        bgColor: const Color(0xFFEFF6FF),
+                        hasCoords: customer.lat != null && customer.lng != null,
+                        onTap: () => _openLocation(context, customer),
+                      ),
+                      if (customer.phone.isNotEmpty) ...[
+                        const SizedBox(width: 5),
+                        _CardActionIcon(
+                          tooltip: 'WhatsApp',
+                          icon: Icons.chat_bubble_outline_rounded,
+                          iconColor: const Color(0xFF16A34A),
+                          bgColor: const Color(0xFFF0FDF4),
+                          onTap: () => _openWhatsApp(
+                            context,
+                            customer,
+                            user?.phoneCountryCode ?? '91',
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        _CardActionIcon(
+                          tooltip: 'Call customer',
+                          icon: Icons.call_rounded,
+                          iconColor: AppColors.success,
+                          bgColor: const Color(0xFFECFDF5),
+                          onTap: () => _callCustomer(customer),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: snippets,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      AppBadge(
+                        label: customer.status,
+                        kind: _kindFor(customer.status),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),

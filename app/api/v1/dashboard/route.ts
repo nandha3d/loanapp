@@ -257,7 +257,7 @@ export async function GET(req: NextRequest) {
     const [
       totalLoansAgg,
       topRepayer,
-      topLoan,
+      topBorrower,
       pendingUpiCollections,
       pendingCashCollections,
       collectionsByMode,
@@ -426,9 +426,9 @@ export async function GET(req: NextRequest) {
       if (cust) bestPayer = cust.name;
     }
     let highestBorrower = '—';
-    if (topLoan.length > 0 && topLoan[0].customerId) {
+    if (topBorrower.length > 0 && topBorrower[0].customerId) {
       const cust = await prisma.customer.findFirst({
-        where: { id: topLoan[0].customerId, tenantId: ctx.tenantId },
+        where: { id: topBorrower[0].customerId, tenantId: ctx.tenantId },
         select: { name: true },
       });
       if (cust) highestBorrower = cust.name;
@@ -562,7 +562,7 @@ export async function GET(req: NextRequest) {
     });
     const topOverdue = topOverdueCustomers(overdueRows, 6);
 
-    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups] = await Promise.all([
+    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups, upiManualVerifySetting] = await Promise.all([
       getSetting(ctx.tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
       prisma.loan.count({ where: { ...baseLoan, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
       topOverdue.length > 0
@@ -586,7 +586,9 @@ export async function GET(req: NextRequest) {
           }),
         ),
       ),
+      getSetting(ctx.tenantId, 'upi_manual_verification', 'false'),
     ]);
+    const upiManualVerification = upiManualVerifySetting === 'true';
 
     overdueAgeing = buildOverdueAgeing(overdueRows, parseAgeingEdges(ageingSetting));
     const topCustomerById = new Map(topOverdueCustomerRows.map((c) => [c.id, c]));

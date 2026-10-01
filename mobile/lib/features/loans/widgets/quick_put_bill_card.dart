@@ -172,7 +172,7 @@ class _QuickPutBillCardState extends ConsumerState<QuickPutBillCard> {
             offset: const Offset(0, 2),
           ),
           BoxShadow(
-            color: statusAccent.withAlpha(16),
+            color: AppColors.primary.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -185,226 +185,200 @@ class _QuickPutBillCardState extends ConsumerState<QuickPutBillCard> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: statusAccent.withAlpha(45),
+              color: AppColors.primary.withAlpha(35),
               width: 1.2,
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white,
-                statusAccent.withAlpha(10),
+                AppColors.surface,
+                AppColors.primary.withAlpha(10),
               ],
             ),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 5,
-                    color: statusAccent,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.primary.withAlpha(25),
+                            border: Border.all(
+                              color: statusAccent.withAlpha(120),
+                              width: 1.5,
+                            ),
+                            image: (customer?.photoUrl != null &&
+                                    customer!.photoUrl!.isNotEmpty)
+                                ? DecorationImage(
+                                    image: authedImage(ref, customer.photoUrl!),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: (customer?.photoUrl != null &&
+                                  customer!.photoUrl!.isNotEmpty)
+                              ? null
+                              : Text(
+                                  initials,
+                                  style: AppTypography.bodyLarge.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                        ),
+                        Positioned(
+                          right: -1,
+                          bottom: -1,
+                          child: Container(
+                            width: 11,
+                            height: 11,
+                            decoration: BoxDecoration(
+                              color: statusAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColors.primary.withAlpha(25),
-                                      border: Border.all(
-                                        color: statusAccent.withAlpha(120),
-                                        width: 1.5,
-                                      ),
-                                      image: (customer?.photoUrl != null &&
-                                              customer!.photoUrl!.isNotEmpty)
-                                          ? DecorationImage(
-                                              image: authedImage(
-                                                  ref, customer.photoUrl!),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: (customer?.photoUrl != null &&
-                                            customer!.photoUrl!.isNotEmpty)
-                                        ? null
-                                        : Text(
-                                            initials,
-                                            style: AppTypography.bodyLarge
-                                                .copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.primaryDark,
-                                            ),
-                                          ),
-                                  ),
-                                  Positioned(
-                                    right: -1,
-                                    bottom: -1,
-                                    child: Container(
-                                      width: 11,
-                                      height: 11,
-                                      decoration: BoxDecoration(
-                                        color: statusAccent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            color: Colors.white, width: 2),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      customer?.name ?? '—',
-                                      style: AppTypography.bodyLarge.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      lastPaid == null
-                                          ? 'No payment yet'
-                                          : 'Last paid ${DateFormat('dd MMM yyyy').format(lastPaid)}',
-                                      style: AppTypography.bodySmall.copyWith(
-                                        color: AppColors.textLight,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _BillActionIcon(
-                                tooltip: 'Location / Navigation',
-                                icon: Icons.near_me_rounded,
-                                iconColor: const Color(0xFF2563EB),
-                                bgColor: const Color(0xFFEFF6FF),
-                                hasCoords: hasCoords,
-                                onTap: _openLocation,
-                              ),
-                              if (_phone.isNotEmpty) ...[
-                                const SizedBox(width: 5),
-                                _BillActionIcon(
-                                  tooltip: 'WhatsApp',
-                                  icon: Icons.chat_bubble_outline_rounded,
-                                  iconColor: const Color(0xFF16A34A),
-                                  bgColor: const Color(0xFFF0FDF4),
-                                  onTap: () =>
-                                      _launch(Uri.parse('https://wa.me/$_waNumber')),
-                                ),
-                                const SizedBox(width: 5),
-                                _BillActionIcon(
-                                  tooltip: 'Call',
-                                  icon: Icons.call_rounded,
-                                  iconColor: AppColors.success,
-                                  bgColor: const Color(0xFFECFDF5),
-                                  onTap: () =>
-                                      _launch(Uri.parse('tel:$_phone')),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: statusAccent.withAlpha(15),
-                              borderRadius: BorderRadius.circular(8),
+                          Text(
+                            customer?.name ?? '—',
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Due now',
-                                  style: AppTypography.caption.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: statusAccent,
-                                  ),
-                                ),
-                                Text(
-                                  fmt.format(widget.dueNow),
-                                  style: AppTypography.bodyLarge.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: statusAccent,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: SizedBox(
-                                  height: 42,
-                                  child: TextField(
-                                    controller: _controller,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                            decimal: true),
-                                    decoration: InputDecoration(
-                                      labelText: 'Cash collected',
-                                      labelStyle:
-                                          const TextStyle(fontSize: 12),
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 8),
-                                      border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onSubmitted: (_) => _putBill(),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                height: 42,
-                                child: FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12),
-                                  ),
-                                  onPressed: _putBill,
-                                  icon: const Icon(Icons.receipt_long, size: 17),
-                                  label: const Text('Put Bill',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w700)),
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 2),
+                          Text(
+                            lastPaid == null
+                                ? 'No payment yet'
+                                : 'Last paid ${DateFormat('dd MMM yyyy').format(lastPaid)}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textLight,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
                     ),
+                    _BillActionIcon(
+                      tooltip: 'Location / Navigation',
+                      icon: Icons.near_me_rounded,
+                      iconColor: const Color(0xFF2563EB),
+                      bgColor: const Color(0xFFEFF6FF),
+                      hasCoords: hasCoords,
+                      onTap: _openLocation,
+                    ),
+                    if (_phone.isNotEmpty) ...[
+                      const SizedBox(width: 5),
+                      _BillActionIcon(
+                        tooltip: 'WhatsApp',
+                        icon: Icons.chat_bubble_outline_rounded,
+                        iconColor: const Color(0xFF16A34A),
+                        bgColor: const Color(0xFFF0FDF4),
+                        onTap: () =>
+                            _launch(Uri.parse('https://wa.me/$_waNumber')),
+                      ),
+                      const SizedBox(width: 5),
+                      _BillActionIcon(
+                        tooltip: 'Call',
+                        icon: Icons.call_rounded,
+                        iconColor: AppColors.success,
+                        bgColor: const Color(0xFFECFDF5),
+                        onTap: () => _launch(Uri.parse('tel:$_phone')),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusAccent.withAlpha(15),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Due now',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: statusAccent,
+                        ),
+                      ),
+                      Text(
+                        fmt.format(widget.dueNow),
+                        style: AppTypography.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: statusAccent,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 42,
+                        child: TextField(
+                          controller: _controller,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Cash collected',
+                            labelStyle: const TextStyle(fontSize: 12),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onSubmitted: (_) => _putBill(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 42,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        onPressed: _putBill,
+                        icon: const Icon(Icons.receipt_long, size: 17),
+                        label: const Text('Put Bill',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

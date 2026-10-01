@@ -2,7 +2,7 @@
  * Calculates a credit score from 0 to 100 for a customer based on loan performance.
  */
 export function calculateCreditScore(loans: any[]) {
-  if (!loans || loans.length === 0) return { score: 0, grade: 'N/A', stats: { totalBorrowed: 0, totalPaid: 0, punctuality: 0, activeLoans: 0, closedLoans: 0 } };
+  if (!loans || loans.length === 0) return { score: 0, grade: 'N/A', stats: { totalBorrowed: 0, totalPaid: 0, outstanding: 0, punctuality: 0, activeLoans: 0, closedLoans: 0 } };
 
   let totalPoints = 0;
   const totalLoans = loans.length;
@@ -13,6 +13,7 @@ export function calculateCreditScore(loans: any[]) {
   let totalOnTimePayments = 0;
   let totalBorrowed = 0;
   let totalPaid = 0;
+  let outstanding = 0;
 
   loans.forEach(loan => {
     totalBorrowed += Number(loan.principal);
@@ -29,7 +30,19 @@ export function calculateCreditScore(loans: any[]) {
     instalments.forEach((i: any) => {
       if (i.status === 'paid' || i.status === 'partial') totalPaid += Number(i.receivedAmount || 0);
     });
+
+    // CUST-04: Customer Outstanding Balance = Σ max(0, totalPayable - totalCollected)
+    // over active / overdue loans.
+    if (loan.status === 'active' || loan.status === 'overdue') {
+      const payable = Number(loan.totalPayable ?? loan.principal ?? 0);
+      const collected = loan.totalCollected !== undefined && loan.totalCollected !== null
+        ? Number(loan.totalCollected)
+        : instalments.reduce((s: number, i: any) => s + Number(i.receivedAmount || 0), 0);
+      outstanding += Math.max(0, payable - collected);
+    }
   });
+
+  outstanding = Math.round(outstanding * 100) / 100;
 
   const hasActivity = loans.some(loan =>
     loan.instalments?.some((i: any) => i.status === 'paid' || i.status === 'missed' || i.status === 'partial')
@@ -38,7 +51,7 @@ export function calculateCreditScore(loans: any[]) {
     return {
       score: 0,
       grade: 'N/A',
-      stats: { totalBorrowed, totalPaid: 0, punctuality: 0, activeLoans: totalLoans - closedLoans, closedLoans },
+      stats: { totalBorrowed, totalPaid: 0, outstanding, punctuality: 0, activeLoans: totalLoans - closedLoans, closedLoans },
     };
   }
 
@@ -69,6 +82,7 @@ export function calculateCreditScore(loans: any[]) {
     stats: {
       totalBorrowed,
       totalPaid,
+      outstanding,
       punctuality: Math.round(punctualityRatio * 100),
       activeLoans: totalLoans - closedLoans,
       closedLoans
