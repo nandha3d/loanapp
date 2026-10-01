@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -129,7 +131,10 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
 
   Future<void> _submit() async {
     final t = T.of(ref);
-    if (_reason.text.trim().isEmpty) {
+    // Only an edit request needs a reason; an admin edit applies directly.
+    final r = ref.read(authControllerProvider).user?.role;
+    final directEdit = r == UserRole.admin || r == UserRole.superadmin || r == UserRole.developer;
+    if (!directEdit && _reason.text.trim().isEmpty) {
       setState(() => _error = t.x('loan.edit_reason'));
       return;
     }
@@ -200,6 +205,36 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
       }
 
       changes['reason'] = _reason.text.trim();
+
+      // LOAN-04: admins edit directly (PUT), others file a request (PATCH),
+      // mirroring web LoanEditForm.
+      final role = ref.read(authControllerProvider).user?.role;
+      final isAdmin = role == UserRole.admin ||
+          role == UserRole.superadmin ||
+          role == UserRole.developer;
+      if (isAdmin) {
+        await ref.read(loanServiceProvider).update(widget.loan.id, {
+          'principal': newPrincipal,
+          'deductionType': widget.loan.deductionType ?? 'upfront_fixed',
+          'deduction': widget.loan.deduction ?? 0,
+          'frequency': _frequency,
+          'tenure': newTenure,
+          'startDate': newStartStr,
+          'penaltyRate': newPenalty,
+          'voucherRef': newVoucher,
+          'loanType': _loanType,
+          'collateralDetails': newCollateral,
+          'dueDay': _dueDay,
+          if (widget.loan.guarantor?.id != null) 'guarantorId': widget.loan.guarantor!.id,
+        });
+        ref.invalidate(loanDetailProvider(widget.loan.id));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.x('loan.updated'))),
+        );
+        context.pop();
+        return;
+      }
 
       await ref.read(loanServiceProvider).requestEdit(widget.loan.id, changes);
 

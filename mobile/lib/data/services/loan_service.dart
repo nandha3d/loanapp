@@ -75,6 +75,16 @@ class LoanService {
   /// Files an approval request to edit a loan (mirrors the web's approval-gated
   /// loan edit). Server computes the diff + guards schedule changes. Throws
   /// ApiException with the server message on rejection (e.g. has repayments).
+  /// Admin direct edit — PUT /loans/[id], same as web LoanEditForm (LOAN-04).
+  /// Sends the full term set; the server reschedules only when terms change.
+  Future<void> update(String id, Map<String, dynamic> body) async {
+    final res = await _dio.put<Map<String, dynamic>>(
+      Endpoints.loan(id),
+      data: body,
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<void> requestEdit(String id, Map<String, dynamic> changes) async {
     final res = await _dio.patch<Map<String, dynamic>>(
       Endpoints.loan(id),
