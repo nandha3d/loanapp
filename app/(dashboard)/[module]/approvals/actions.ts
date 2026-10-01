@@ -12,7 +12,8 @@ import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
-import { getActiveBranchId } from '@/lib/branch';
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { collectFromAgentInTx } from '@/lib/wallet';
 
 // Fields an agent is allowed to request changes to on a customer record
@@ -59,6 +60,26 @@ export async function reviewRequest(formData: FormData) {
       return result;
     }
     const branchId = await getActiveBranchId();
+    const branchScope = branchScopeWhere(branchId);
+    const requestWhere: any = { id: requestId, tenantId, appType, status: 'pending' };
+    if (branchId) {
+      if (appType !== 'microlending') {
+        requestWhere.requestedBy = branchScope;
+      } else {
+        requestWhere.OR = [
+          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: branchScope },
+          await precloseApprovalVisibility(tenantId, appType, branchId),
+        ];
+      }
+    }
+    const scopedPending = await prisma.approvalRequest.findFirst({
+      where: requestWhere,
+      select: { id: true },
+    });
+    if (!scopedPending) {
+      throw new Error('Request not found or already processed');
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       // 1. Atomically claim the request by updating status to approved/rejected
       const updateResult = await tx.approvalRequest.updateMany({
@@ -191,9 +212,9 @@ export async function reviewRequest(formData: FormData) {
             remarks: `Approved collection edit request: ${reviewNotes || request.reason || ''}`.trim(),
           });
         } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
-          // Verify target loan belongs to this tenant+appType
+          // Verify target loan belongs to this tenant+appType and active branch
           const loan = await tx.loan.findFirst({
-            where: { id: request.entityId, tenantId, appType },
+            where: { id: request.entityId, tenantId, appType, ...branchScopeWhere(branchId) },
             include: { guarantor: true }
           });
           if (!loan) {
@@ -401,15 +422,22 @@ export async function approveCustomerCreation(customerId: string) {
   const userRole = (session?.user as any)?.role;
   if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
 
-  // Verify customer belongs to this tenant
+  const branchId = await getActiveBranchId();
+  // Verify customer belongs to this tenant, appType, active branch, and is pending_review
   const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId },
+    where: {
+      id: customerId,
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchScopeWhere(branchId),
+    },
     select: { id: true, name: true, agentId: true, branchId: true },
   });
   if (!customer) return { success: false, error: 'Customer not found' };
 
   await prisma.customer.update({
-    where: { id: customerId },
+    where: { id: customerId, tenantId },
     data: { status: 'active' },
   });
 
@@ -578,8 +606,15 @@ export async function reviewPendingLoan(formData: FormData) {
     return { success: false, error: 'Invalid request' };
   }
 
+  const branchId = await getActiveBranchId();
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId, status: 'pending_review' },
+    where: {
+      id: loanId,
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchScopeWhere(branchId),
+    },
     select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true, startDate: true },
   });
 
@@ -732,15 +767,22 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
   const userRole = (session?.user as any)?.role;
   if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
 
-  // Verify customer belongs to this tenant
+  const branchId = await getActiveBranchId();
+  // Verify customer belongs to this tenant, appType, active branch, and is pending_review
   const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId, status: 'pending_review' },
+    where: {
+      id: customerId,
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchScopeWhere(branchId),
+    },
     select: { id: true, name: true, agentId: true, branchId: true },
   });
   if (!customer) return { success: false, error: 'Customer not found or not in pending review' };
 
   await prisma.customer.update({
-    where: { id: customerId },
+    where: { id: customerId, tenantId },
     data: { status: 'inactive' }, // Or we can delete or set to rejected
   });
 
