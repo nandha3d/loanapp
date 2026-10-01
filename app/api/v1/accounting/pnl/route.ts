@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { assertPremiumAccountingAccess, PremiumAccountingServiceError } from '@/lib/accounting/premiumMobileService';
+import { startOfBusinessDayUtc, formatBusinessDate, parseBusinessDayUtc } from '@/lib/businessTime';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveActor(req);
@@ -11,15 +12,17 @@ export async function GET(req: NextRequest) {
   try {
     await assertPremiumAccountingAccess(ctx);
     const searchParams = req.nextUrl.searchParams;
-    const now = new Date();
     const fromStr = searchParams.get('from');
     const toStr = searchParams.get('to');
-    
-    const from = fromStr || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const to = toStr || new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
+    const todayStr = formatBusinessDate(startOfBusinessDayUtc());
+    const firstOfMonthStr = `${todayStr.slice(0, 7)}-01`;
+
+    const from = fromStr || firstOfMonthStr;
+    const to = toStr || todayStr;
+
+    const fromDate = parseBusinessDayUtc(from);
+    const toDate = parseBusinessDayUtc(to);
 
     const lines = await prisma.journalLine.groupBy({
       by: ['accountId'],

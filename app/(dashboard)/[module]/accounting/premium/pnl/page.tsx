@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { modulePath } from '@/types/modules';
 import { getPnLData } from './actions';
 import PnLClient from './PnLClient';
+import { startOfBusinessDayUtc, formatBusinessDate } from '@/lib/businessTime';
 
 export default async function PnLPage({ params, searchParams }: { params: Promise<{ module: string }>; searchParams: Promise<{ from?: string; to?: string }> }) {
   const session = await auth();
@@ -12,9 +13,9 @@ export default async function PnLPage({ params, searchParams }: { params: Promis
   if (!role || role === 'agent') redirect(modulePath(appType, '/dashboard'));
   const { module } = await params;
   const sp = await searchParams;
-  const now = new Date();
-  const from = sp.from ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  const to = sp.to ?? now.toISOString().split('T')[0];
+  const todayStr = formatBusinessDate(startOfBusinessDayUtc());
+  const from = sp.from ?? `${todayStr.slice(0, 7)}-01`;
+  const to = sp.to ?? todayStr;
   const data = await getPnLData(from, to);
   return (
     <div>
