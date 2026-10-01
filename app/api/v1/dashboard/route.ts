@@ -265,6 +265,7 @@ export async function GET(req: NextRequest) {
       todayClosedLoans,
       todayApprovals,
       staffBookTotals,
+      pendingApprovalsCount,
     ] = await Promise.all([
       isAgent ? prisma.loan.aggregate({
         where: { ...baseLoan, status: { in: ['active', 'overdue', 'closed', 'settled'] } },
@@ -408,7 +409,49 @@ export async function GET(req: NextRequest) {
         take: 15,
       }),
       isAgent ? Promise.resolve(null) : getDashboardBookTotals(ctx.tenantId, ctx.appType, ctx.branchId),
+      // Count all things waiting for admin attention (DASH-06 parity with web dashboard)
+      (async () => {
+        const scopeBranchId = ctx.branchId;
+        const reqWhere: any = { tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' };
+        if (isAgent) {
+          reqWhere.requestedById = ctx.userId;
+          return prisma.approvalRequest.count({ where: reqWhere });
+        }
+        if (scopeBranchId) {
+          if (ctx.appType === 'microlending') {
+            reqWhere.OR = [
+              { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: scopeBranchId } },
+              await precloseApprovalVisibility(ctx.tenantId, ctx.appType, scopeBranchId),
+            ];
+          } else {
+            reqWhere.requestedBy = { branchId: scopeBranchId };
+          }
+        }
+        const branchFilter = scopeBranchId ? { branchId: scopeBranchId } : {};
+        const [approvalReqs, pendingLoans, pendingCustomers] = await Promise.all([
+          prisma.approvalRequest.count({ where: reqWhere }),
+          prisma.loan.count({
+            where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...branchFilter },
+          }),
+          prisma.customer.count({
+            where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...branchFilter },
+          }),
+        ]);
+        return approvalReqs + pendingLoans + pendingCustomers;
+      })(),
     ]);
+
+    const pendingFieldFloat = (() => {
+      const pendingUpiAmount = pendingUpiCollections.reduce(
+        (sum, e) => sum + Number(e.receivedAmount || 0),
+        0,
+      );
+      const pendingCashAmount = pendingCashCollections.reduce(
+        (sum, e) => sum + Number(e.receivedAmount || 0),
+        0,
+      );
+      return pendingUpiAmount + pendingCashAmount;
+    })();
 
     const totalDisbursed = staffBookTotals?.totalDisbursed ?? Number(totalLoansAgg?._sum.disbursed ?? 0);
     const totalCollectedAllTime = staffBookTotals?.totalCollectedAllTime ?? Number(totalLoansAgg?._sum.totalCollected ?? 0);
@@ -962,6 +1005,9 @@ export async function GET(req: NextRequest) {
       currentCapital: staffBookTotals?.currentCapital ?? null,
       bestPayer,
       highestBorrower,
+      overdueCustomerCount: allOverdueCustomers.size,
+      pendingApprovals: pendingApprovalsCount,
+      pendingFieldFloat,
       pendingUpiCollections: pendingUpiCollections.map((e) => ({
         id: e.id,
         amount: Number(e.receivedAmount),

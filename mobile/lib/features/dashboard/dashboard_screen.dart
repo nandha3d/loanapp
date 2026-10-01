@@ -1070,6 +1070,10 @@ class _MoneyFlowRow extends StatelessWidget {
             label: t.x('analytics.capitalBalance'),
             value: fmt.format(summary.currentCapital),
             sub: t.x('dash.cash_book'),
+            extraSub: summary.pendingFieldFloat > 0
+                ? '+ ${fmt.format(summary.pendingFieldFloat)} ${t.x('dash.pending_field_float')}'
+                : null,
+            extraSubColor: AppColors.warning,
             responsive: responsive,
           ),
         ],
@@ -1086,11 +1090,15 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.sub,
+    this.extraSub,
+    this.extraSubColor,
     this.responsive = false,
   });
   final IconData icon;
   final Color iconColor, iconBg;
   final String label, value, sub;
+  final String? extraSub;
+  final Color? extraSubColor;
   final bool responsive;
 
   @override
@@ -1161,6 +1169,19 @@ class _StatTile extends StatelessWidget {
             maxLines: responsive ? 2 : null,
             overflow: responsive ? TextOverflow.ellipsis : null,
           ),
+          if (extraSub != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              extraSub!,
+              style: AppTypography.caption.copyWith(
+                color: extraSubColor ?? AppColors.warning,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+              maxLines: responsive ? 2 : null,
+              overflow: responsive ? TextOverflow.ellipsis : null,
+            ),
+          ],
         ],
       ),
     );
@@ -1185,31 +1206,65 @@ class _AlertsRow extends StatelessWidget {
         ? fmt!.format(summary.pendingPenaltyTotal)
         : '₹${summary.pendingPenaltyTotal.round()}';
 
-    return Row(
-      children: [
-        Expanded(
-          child: _AlertCard(
-            label: t.x('dash.overdue_loans'),
-            value: '${summary.overdueLoans}',
-            icon: Icons.warning_amber_rounded,
-            bg: AppColors.dangerBg,
-            fg: AppColors.danger,
-            onTap: () => context.go('/loans'),
-          ),
+    final overdueCustSub = summary.overdueCustomerCount > 0
+        ? '${summary.overdueCustomerCount} ${t.x('nav.customers')}'
+        : null;
+
+    final cards = <Widget>[
+      _AlertCard(
+        label: t.x('dash.overdue_loans'),
+        value: '${summary.overdueLoans}',
+        sub: overdueCustSub,
+        icon: Icons.warning_amber_rounded,
+        bg: AppColors.dangerBg,
+        fg: AppColors.danger,
+        onTap: () => context.go('/loans'),
+      ),
+      if (summary.pendingApprovals > 0 || !isAgent)
+        _AlertCard(
+          label: t.x('dash.pending_approvals'),
+          value: '${summary.pendingApprovals}',
+          icon: Icons.assignment_turned_in_outlined,
+          bg: AppColors.infoBg,
+          fg: AppColors.info,
+          onTap: () => context.push('/approvals'),
         ),
-        if (!isAgent) ...[
+      if (!isAgent)
+        _AlertCard(
+          label: t.x('dash.pending_penalties'),
+          value: penaltyFormatted,
+          icon: Icons.gavel_rounded,
+          bg: AppColors.warningBg,
+          fg: AppColors.warning,
+          onTap: () => context.go('/penalties'),
+        ),
+    ];
+
+    if (cards.length == 1) {
+      return cards.first;
+    }
+
+    if (cards.length == 2) {
+      return Row(
+        children: [
+          Expanded(child: cards[0]),
           const SizedBox(width: 12),
-          Expanded(
-            child: _AlertCard(
-              label: t.x('dash.pending_penalties'),
-              value: penaltyFormatted,
-              icon: Icons.gavel_rounded,
-              bg: AppColors.warningBg,
-              fg: AppColors.warning,
-              onTap: () => context.go('/penalties'),
-            ),
-          ),
+          Expanded(child: cards[1]),
         ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 12),
+            Expanded(child: cards[1]),
+          ],
+        ),
+        const SizedBox(height: 12),
+        cards[2],
       ],
     );
   }
@@ -1223,11 +1278,13 @@ class _AlertCard extends StatelessWidget {
     required this.bg,
     required this.fg,
     required this.onTap,
+    this.sub,
   });
   final String label, value;
   final IconData icon;
   final Color bg, fg;
   final VoidCallback onTap;
+  final String? sub;
 
   @override
   Widget build(BuildContext context) {
@@ -1268,6 +1325,18 @@ class _AlertCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (sub != null && sub!.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        sub!,
+                        style: AppTypography.tiny.copyWith(
+                          color: fg.withAlpha(200),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
