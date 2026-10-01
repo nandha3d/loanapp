@@ -19,13 +19,38 @@ export async function PATCH(
 
   try {
     const isDeveloper = ctx.role.toLowerCase() === 'developer';
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        role: true,
+        tenantId: true,
+        status: true,
+        appType: true,
+        email: true,
+        aadharNumber: true,
+        dob: true,
+        experience: true,
+        age: true,
+        bypassLoanApproval: true,
+        bypassCustomerApproval: true,
+        autoReleaseFloat: true,
+        feeConfirmationMandatory: true,
+        branchId: true,
+        name: true,
+        username: true,
+        phone: true,
+      },
+    });
+
+    if (!targetUser) return fail('User not found', 404);
+
     if (!isDeveloper) {
-      const targetUser = await prisma.user.findUnique({
-        where: { id },
-        select: { role: true, tenantId: true },
-      });
-      if (!targetUser || targetUser.role.toLowerCase() === 'developer' || targetUser.tenantId !== ctx.tenantId) {
+      if (targetUser.role.toLowerCase() === 'developer' || targetUser.tenantId !== ctx.tenantId) {
         return fail('Forbidden: Cannot modify developer accounts', 403);
+      }
+      if (ctx.role === 'admin' && ctx.branchId && targetUser.branchId !== ctx.branchId) {
+        return fail('Forbidden: Cannot modify users in other branches', 403);
       }
     }
 
@@ -34,30 +59,58 @@ export async function PATCH(
       return fail('Forbidden: Cannot assign developer role', 403);
     }
 
-    const { toggleUserStatus, manageMasterUser } = await import('@/app/admin/actions');
+    const { toggleUserStatus, manageMasterUser, manageBranchAgent, setBranchAgentStatus } = await import('@/app/admin/actions');
     // Server actions normally read the NextAuth cookie session; mobile auth is
     // a Bearer token, so pass the verified context as the acting user.
     const actor = { id: ctx.userId, role: ctx.role, tenantId: ctx.tenantId };
 
     if (body.status && Object.keys(body).length === 1) {
-      const res = await toggleUserStatus(id, body.status, actor);
+      const res = ctx.role === 'admin'
+        ? await setBranchAgentStatus(id, body.status, ctx.appType, actor)
+        : await toggleUserStatus(id, body.status, actor);
       if (res.success) return ok({ success: true });
-      return fail('Failed to update status', 400);
+      return fail(res.error || 'Failed to update status', 400);
     }
 
-    // Otherwise, generic update
+    // Generic update: seed FormData with current user fields so missing fields are not cleared
     const formData = new FormData();
     formData.append('id', id);
-    formData.append('role', body.role);
-    formData.append('name', body.name);
-    formData.append('username', body.username);
-    formData.append('phone', body.phone);
-    if (body.password) formData.append('password', body.password);
-    if (body.appType) formData.append('appType', body.appType);
-    if (body.branchId) formData.append('branchId', body.branchId);
-    if (body.status) formData.append('status', body.status);
 
-    const res = await manageMasterUser(formData, actor);
+    if (targetUser.status) formData.append('status', targetUser.status);
+    if (targetUser.appType) formData.append('appType', targetUser.appType);
+    if (targetUser.email) formData.append('email', targetUser.email);
+    if (targetUser.aadharNumber) formData.append('aadharNumber', targetUser.aadharNumber);
+    if (targetUser.dob) {
+      formData.append('dob', targetUser.dob instanceof Date ? targetUser.dob.toISOString().split('T')[0] : String(targetUser.dob));
+    }
+    if (targetUser.experience != null) formData.append('experience', String(targetUser.experience));
+    if (targetUser.age != null) formData.append('age', String(targetUser.age));
+    if (targetUser.bypassLoanApproval != null) formData.append('bypassLoanApproval', String(targetUser.bypassLoanApproval));
+    if (targetUser.bypassCustomerApproval != null) formData.append('bypassCustomerApproval', String(targetUser.bypassCustomerApproval));
+    if (targetUser.autoReleaseFloat != null) formData.append('autoReleaseFloat', String(targetUser.autoReleaseFloat));
+    if (targetUser.feeConfirmationMandatory != null) formData.append('feeConfirmationMandatory', String(targetUser.feeConfirmationMandatory));
+    if (targetUser.branchId) formData.append('branchId', targetUser.branchId);
+    if (targetUser.role) formData.append('role', targetUser.role);
+    if (targetUser.name) formData.append('name', targetUser.name);
+    if (targetUser.username) formData.append('username', targetUser.username);
+    if (targetUser.phone) formData.append('phone', targetUser.phone);
+
+    // Overlay incoming body keys
+    for (const [key, value] of Object.entries(body)) {
+      if (value !== undefined && value !== null) {
+        if (key === 'branchIds' && Array.isArray(value)) {
+          formData.delete('branchIds');
+          value.forEach((bId: string) => formData.append('branchIds', bId));
+        } else {
+          formData.set(key, String(value));
+        }
+      }
+    }
+
+    const res = ctx.role === 'admin'
+      ? await manageBranchAgent(formData, actor)
+      : await manageMasterUser(formData, actor);
+
     if (res.success) return ok(res);
     return fail(res.error || 'Failed to update user', 400);
   } catch (e: any) {

@@ -1024,15 +1024,14 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
 
 // Activate / deactivate an agent, scoped to the actor's branch(es). Kept separate
 // from toggleUserStatus (superadmin/dev master) so branch admins can use it too.
-export async function setBranchAgentStatus(userId: string, newStatus: string, appType: string) {
-  const session = await auth();
-  const user = session?.user as any;
-  const role = user?.role;
-  const actorId = user?.id;
+export async function setBranchAgentStatus(userId: string, newStatus: string, appType: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
     return { success: false, error: 'Unauthorized.' };
   }
-  const tenantId = await getDefaultTenantId();
+  const tenantId = actorOverride ? actorOverride.tenantId : await getDefaultTenantId();
   const status = newStatus === 'inactive' ? 'inactive' : 'active';
 
   let branchWhere: any = {};
