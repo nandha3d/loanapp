@@ -276,7 +276,7 @@ export async function collectRunLines(
   });
   if (!run) throw new Error('run_not_found');
   if (run.status === 'closed' || run.status === 'reconciled') throw new Error('run_closed');
-  if (actor.role === 'agent' && run.agentId !== actor.agentId) throw new Error('forbidden');
+  if (run.agentId !== actor.userId) throw new Error('not_run_owner');
 
   const posted: RunCollectResult['posted'] = [];
   const skipped: RunCollectResult['skipped'] = [];
@@ -382,7 +382,7 @@ export async function collectRunLines(
 export async function closeRun(actor: RunActor, runId: string) {
   const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(actor, runId) });
   if (!run) throw new Error('run_not_found');
-  if (actor.role === 'agent' && run.agentId !== actor.agentId) throw new Error('forbidden');
+  if (run.agentId !== actor.userId) throw new Error('not_run_owner');
   if (run.status === 'reconciled') throw new Error('run_reconciled');
   return prisma.collectionRun.update({
     where: { id: run.id },
@@ -403,7 +403,7 @@ export async function reconcileRun(
 ) {
   const run = await prisma.collectionRun.findFirst({ where: runAccessWhere(actor, runId) });
   if (!run) throw new Error('run_not_found');
-  if (actor.role === 'agent' && run.agentId !== actor.agentId) throw new Error('forbidden');
+  if (run.agentId !== actor.userId) throw new Error('not_run_owner');
   if (run.status === 'reconciled') throw new Error('already_reconciled');
   if (run.status !== 'closed') throw new Error('run_not_closed');
 

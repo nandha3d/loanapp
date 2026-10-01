@@ -40,6 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (msg === 'run_not_found') return fail('Run not found', 404);
     if (msg === 'run_closed') return fail('Run is closed', 409);
     if (msg === 'forbidden') return fail('Forbidden', 403);
+    if (msg === 'not_run_owner') return fail('Only the assigned agent can collect on this run', 403);
     return fail(msg || 'Collection failed', 500);
   }
 }

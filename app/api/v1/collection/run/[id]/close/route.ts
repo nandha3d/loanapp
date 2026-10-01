@@ -25,6 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const msg = String(e?.message || '');
     if (msg === 'run_not_found') return fail('Run not found', 404);
     if (msg === 'forbidden') return fail('Forbidden', 403);
+    if (msg === 'not_run_owner') return fail('Only the assigned agent can close this run', 403);
     if (msg === 'run_reconciled') return fail('Run already reconciled', 409);
     return fail(msg || 'Failed to close run', 500);
   }

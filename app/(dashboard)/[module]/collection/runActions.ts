@@ -53,7 +53,9 @@ export async function collectRunAction(runId: string, lines: RunCollectLine[]) {
     revalidatePath('/dashboard');
     return { success: true, ...result };
   } catch (e: any) {
-    return { success: false, error: e?.message ?? 'Collection failed' };
+    const msg = e?.message ?? '';
+    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can collect on this run' };
+    return { success: false, error: msg || 'Collection failed' };
   }
 }
 
@@ -65,7 +67,9 @@ export async function closeRunAction(runId: string) {
     revalidatePath(`/collection/runs/${runId}`);
     return { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message ?? 'Failed to close run' };
+    const msg = e?.message ?? '';
+    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can close this run' };
+    return { success: false, error: msg || 'Failed to close run' };
   }
 }
 
@@ -82,7 +86,9 @@ export async function reconcileRunAction(
     revalidatePath(`/collection/runs/${runId}`);
     return { success: true, variance: Number(run.varianceAmount ?? 0) };
   } catch (e: any) {
-    return { success: false, error: e?.message ?? 'Reconcile failed' };
+    const msg = e?.message ?? '';
+    if (msg === 'not_run_owner') return { success: false, error: 'Only the assigned agent can reconcile this run' };
+    return { success: false, error: msg || 'Reconcile failed' };
   }
 }
 

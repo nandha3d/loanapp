@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const msg = String(e?.message || '');
     if (msg === 'run_not_found') return fail('Run not found', 404);
     if (msg === 'forbidden') return fail('Forbidden', 403);
+    if (msg === 'not_run_owner') return fail('Only the assigned agent can reconcile this run', 403);
     if (msg === 'run_not_closed') return fail('Close the run before reconciling', 409);
     if (msg === 'already_reconciled') return fail('Run already reconciled', 409);
     if (msg === 'insufficient_float') return fail('Deposit exceeds cash on hand', 402);
