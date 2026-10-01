@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { releaseToAgent } from '@/lib/wallet';
+import { releaseToAgent, InsufficientFloatError } from '@/lib/wallet';
 import { writeAudit } from '@/lib/audit';
 
 /**
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       amount,
       byUserId: ctx.userId,
       note: body?.note ?? null,
+      hardBlock: true,
     });
 
     await writeAudit({
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
 
     return ok({ agentId, agentBalance });
   } catch (e: any) {
+    if (e instanceof InsufficientFloatError) {
+      return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
+    }
     return fail(e?.message ?? 'Fund release failed', 500);
   }
 }

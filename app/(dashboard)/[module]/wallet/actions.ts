@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
-import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch } from '@/lib/wallet';
+import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch, checkBranchFloat } from '@/lib/wallet';
 import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
@@ -60,13 +60,13 @@ export async function releaseFundsAction(formData: FormData) {
   // cover the release, surface it to the client instead of silently driving
   // the pool negative — the client offers a one-tap capital top-up.
   if (agent.branchId) {
-    const pool = await prisma.branchCashAccount.findUnique({
-      where: { tenantId_appType_branchId: { tenantId, appType, branchId: agent.branchId } },
-      select: { balance: true },
+    const { balance, shortfall, hasShortfall } = await checkBranchFloat({
+      tenantId,
+      appType,
+      branchId: agent.branchId,
+      amount,
     });
-    const balance = Number(pool?.balance ?? 0);
-    if (amount > balance) {
-      const shortfall = Math.round((amount - balance) * 100) / 100;
+    if (hasShortfall) {
       if (!autoTopUp) {
         return { lowCapital: true as const, balance, shortfall };
       }

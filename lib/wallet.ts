@@ -147,6 +147,25 @@ export async function applyAccountingCashToBranch(
   });
 }
 
+/**
+ * Checks branch float availability before releasing funds.
+ */
+export async function checkBranchFloat(params: {
+  tenantId: string;
+  appType: string;
+  branchId?: string | null;
+  amount: number;
+}): Promise<{ balance: number; shortfall: number; hasShortfall: boolean }> {
+  if (!params.branchId) return { balance: Infinity, shortfall: 0, hasShortfall: false };
+  const pool = await prisma.branchCashAccount.findUnique({
+    where: { tenantId_appType_branchId: { tenantId: params.tenantId, appType: params.appType, branchId: params.branchId } },
+    select: { balance: true },
+  });
+  const balance = Number(pool?.balance ?? 0);
+  const shortfall = Math.max(0, Math.round((params.amount - balance) * 100) / 100);
+  return { balance, shortfall, hasShortfall: params.amount > balance };
+}
+
 /** Admin releases company cash to an agent. Debits branch pool, credits agent. */
 export async function releaseToAgent(input: {
   tenantId: string;
@@ -156,17 +175,26 @@ export async function releaseToAgent(input: {
   amount: number;
   byUserId: string;
   note?: string | null;
+  hardBlock?: boolean;
 }): Promise<{ agentBalance: number }> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
   return prisma.$transaction(async (tx) => {
     if (input.branchId) {
-      await applyBranch(tx, input.tenantId, input.appType, input.branchId, -input.amount, {
-        type: 'release',
-        refType: 'agent',
-        refId: input.agentId,
-        note: input.note,
-        byUserId: input.byUserId,
-      });
+      await applyBranch(
+        tx,
+        input.tenantId,
+        input.appType,
+        input.branchId,
+        -input.amount,
+        {
+          type: 'release',
+          refType: 'agent',
+          refId: input.agentId,
+          note: input.note,
+          byUserId: input.byUserId,
+        },
+        input.hardBlock ?? true,
+      );
     }
     const agentBalance = await applyAgent(tx, input.tenantId, input.appType, input.agentId, input.amount, {
       type: 'release',
