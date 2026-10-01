@@ -217,30 +217,71 @@ export type MobileApiContext = MobileTokenClaims & {
  *
  * `null` means tenant-wide ("All Branches").
  */
-async function resolveScopeBranchId(
+export async function resolveScopeBranchId(
   claims: MobileTokenClaims,
   requestedBranchId: string | null,
+  db?: any,
 ): Promise<string | null> {
   const privileged = claims.role === 'superadmin' || claims.role === 'developer';
   if (!privileged && (claims.role !== 'admin' || claims.branchId)) return claims.branchId;
+  const prisma = db ?? (await import('../db')).default;
   if (!privileged) {
     // Unbranched admin token: re-read the row (a branch may have been assigned
     // since login), else fail closed — null would be "All Branches" (SCOPE-4).
-    const prisma = (await import('../db')).default;
     const user = await prisma.user.findUnique({ where: { id: claims.userId }, select: { branchId: true } });
     return user?.branchId ?? resolveUnbranchedAdminBranch(prisma, claims.tenantId);
   }
-  if (!requestedBranchId || requestedBranchId === 'all') return null;
-  if (requestedBranchId === claims.branchId) return claims.branchId;
+
+  // Developer branch resolution
+  if (claims.role === 'developer') {
+    if (!requestedBranchId || requestedBranchId === 'all') return null;
+    try {
+      const branch = await prisma.branch.findFirst({
+        where: { id: requestedBranchId, tenantId: claims.tenantId },
+        select: { id: true },
+      });
+      return branch?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Superadmin branch resolution (SCOPE-3, SCOPE-6, API-5)
+  // An explicit 'all' returns null ("All Branches").
+  if (requestedBranchId === 'all') return null;
 
   try {
-    const prisma = (await import('../db')).default;
-    const branch = await prisma.branch.findFirst({
-      where: { id: requestedBranchId, tenantId: claims.tenantId },
-      select: { id: true },
-    });
-    // Unknown branch → home branch, never null ("All Branches" widens, SCOPE-3).
-    return branch?.id ?? claims.branchId;
+    if (requestedBranchId) {
+      const branch = await prisma.branch.findFirst({
+        where: {
+          id: requestedBranchId,
+          tenantId: claims.tenantId,
+          superadminId: claims.userId,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (branch) return branch.id;
+    }
+
+    // Header absent, invalid, foreign, or inactive: fall back to the first active
+    // branch owned by this superadmin (matching web lib/branch.ts:47-56).
+    // Never fall back to null when an active branch exists (null widens to All Branches, SCOPE-3).
+    if (db) {
+      const branch = await db.branch.findFirst({
+        where: {
+          tenantId: claims.tenantId,
+          superadminId: claims.userId,
+          status: 'active',
+        },
+        select: { id: true },
+        orderBy: { name: 'asc' },
+      });
+      return branch?.id ?? null;
+    }
+    const { getSuperadminBranches } = await import('../branch');
+    const branches = await getSuperadminBranches(claims.tenantId, claims.userId);
+    return branches[0]?.id ?? null;
   } catch {
     return claims.branchId;
   }

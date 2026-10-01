@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { branchScopeWhere, resolveUnbranchedAdminBranch, UNBRANCHED_ADMIN_ERROR } from '../lib/branchScope';
-import { scopedBranchWhere } from '../lib/api/v1-auth';
+import { scopedBranchWhere, resolveScopeBranchId } from '../lib/api/v1-auth';
 import { buildLoanDetailWhere, loanAccessWhere } from '../lib/loanPolicy';
 import { gpsAgentWhere } from '../lib/gps/routeProgress';
 
@@ -92,6 +92,52 @@ assert.ok('customer' in agentLoan);
 // --- resolveUnbranchedAdminBranch: an unbranched admin never becomes "All Branches" ---
 const fakeDb = (ids: string[]) => ({ branch: { findMany: async () => ids.map((id) => ({ id })) } });
 
+// --- resolveScopeBranchId: superadmin branch resolution and fallback (SEC-07) ---
+const mockBranchesDb = (branches: Array<{ id: string; tenantId: string; superadminId: string; status: string; name: string }>) => ({
+  branch: {
+    findFirst: async ({ where, orderBy }: any) => {
+      let filtered = branches.filter((b) => {
+        if (where?.tenantId && b.tenantId !== where.tenantId) return false;
+        if (where?.superadminId && b.superadminId !== where.superadminId) return false;
+        if (where?.status && b.status !== where.status) return false;
+        if (where?.id && b.id !== where.id) return false;
+        return true;
+      });
+      if (orderBy?.name === 'asc') {
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return filtered[0] ? { id: filtered[0].id } : null;
+    },
+    findMany: async ({ where, orderBy }: any) => {
+      let filtered = branches.filter((b) => {
+        if (where?.tenantId && b.tenantId !== where.tenantId) return false;
+        if (where?.superadminId && b.superadminId !== where.superadminId) return false;
+        if (where?.status && b.status !== where.status) return false;
+        return true;
+      });
+      if (orderBy?.name === 'asc') {
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return filtered.map((b) => ({ id: b.id, name: b.name }));
+    },
+  },
+});
+
+const branchDb = mockBranchesDb([
+  { id: 'branch-alpha', tenantId: 't1', superadminId: 'sa1', status: 'active', name: 'Alpha Branch' },
+  { id: 'branch-beta', tenantId: 't1', superadminId: 'sa1', status: 'active', name: 'Beta Branch' },
+  { id: 'branch-foreign', tenantId: 't1', superadminId: 'sa2', status: 'active', name: 'Foreign Branch' },
+  { id: 'branch-inactive', tenantId: 't1', superadminId: 'sa1', status: 'inactive', name: 'Inactive Branch' },
+]);
+
+const saClaims = {
+  userId: 'sa1',
+  tenantId: 't1',
+  branchId: 'branch-home',
+  role: 'superadmin',
+  appType: 'microlending',
+};
+
 Promise.all([
   resolveUnbranchedAdminBranch(fakeDb([]), 't1').then((b) => assert.equal(b, null, 'no branches yet → nothing to scope')),
   resolveUnbranchedAdminBranch(fakeDb([BRANCH]), 't1').then((b) => assert.equal(b, BRANCH, 'single branch → that branch')),
@@ -99,6 +145,17 @@ Promise.all([
     () => assert.fail('several branches must fail closed'),
     (e: Error) => assert.equal(e.message, UNBRANCHED_ADMIN_ERROR),
   ),
+  // SEC-07: superadmin branch resolution and default fallback
+  resolveScopeBranchId(saClaims, 'branch-beta', branchDb).then((b) => assert.equal(b, 'branch-beta', 'valid owned branch is accepted')),
+  resolveScopeBranchId(saClaims, 'all', branchDb).then((b) => assert.equal(b, null, 'explicit "all" returns null (All Branches)')),
+  resolveScopeBranchId(saClaims, 'branch-foreign', branchDb).then((b) => assert.equal(b, 'branch-alpha', 'foreign branch falls back to default branch')),
+  resolveScopeBranchId(saClaims, 'branch-inactive', branchDb).then((b) => assert.equal(b, 'branch-alpha', 'inactive branch falls back to default branch')),
+  resolveScopeBranchId(saClaims, null, branchDb).then((b) => assert.equal(b, 'branch-alpha', 'absent header falls back to first owned active branch (alphabetical)')),
+  resolveScopeBranchId(saClaims, undefined as any, branchDb).then((b) => assert.equal(b, 'branch-alpha', 'undefined header falls back to first owned active branch')),
+  resolveScopeBranchId({ ...saClaims, userId: 'sa-nobranches' }, null, branchDb).then((b) => assert.equal(b, null, 'superadmin with no branches returns null')),
+  resolveScopeBranchId({ ...saClaims, role: 'developer' }, 'branch-foreign', branchDb).then((b) => assert.equal(b, 'branch-foreign', 'developer can select any tenant branch')),
+  resolveScopeBranchId({ ...saClaims, role: 'developer' }, null, branchDb).then((b) => assert.equal(b, null, 'developer without header is tenant-wide')),
+  resolveScopeBranchId({ ...saClaims, role: 'agent', branchId: 'branch-agent' }, 'branch-beta', branchDb).then((b) => assert.equal(b, 'branch-agent', 'agent ignores header and keeps token branch')),
 ]).then(
   () => console.log('branch scoping tests passed'),
   (e) => { console.error(e); process.exit(1); },
