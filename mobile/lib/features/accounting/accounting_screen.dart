@@ -44,11 +44,15 @@ final _cashflowProvider =
   return ref.watch(accountingServiceProvider).getCashflow();
 });
 
+/// ACC-03: approvals list filter (null = all statuses).
+final _approvalStatusProvider =
+    StateProvider.autoDispose<String?>((ref) => 'pending');
+
 final _accountingApprovalsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   return ref
       .watch(accountingServiceProvider)
-      .listAccountingApprovals(status: 'pending');
+      .listAccountingApprovals(status: ref.watch(_approvalStatusProvider));
 });
 
 final _budgetsProvider =
@@ -195,6 +199,8 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
           // Metrics Summary
           _SummarySection(summaryAsync: summaryAsync),
           const SizedBox(height: 16),
+          const _QuickActions(),
+          const SizedBox(height: 16),
 
           // Premium Operations Menu
           Text(t.x('accounting.premium_operations'),
@@ -323,6 +329,143 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
 }
 
 // ── Menu Tile Widget ──────────────────────────────────────────────────────────
+
+/// ACC-03: the web Accounting quick actions (Capital add / Withdraw / Expense).
+class _QuickActions extends ConsumerWidget {
+  const _QuickActions();
+
+  Future<void> _open(BuildContext context, WidgetRef ref, String type) async {
+    final t = T.of(ref);
+    final amountCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    var category = 'cash';
+    var date = DateTime.now();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(t.x(type == 'capital_add'
+              ? 'acc.capital_add'
+              : type == 'capital_withdraw'
+                  ? 'acc.withdraw'
+                  : 'acc.expense')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(labelText: t.x('accounting.amount')),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: InputDecoration(labelText: t.x('acc.category')),
+                  items: [
+                    for (final c in const ['cash', 'bank', 'upi', 'salary', 'rent', 'other'])
+                      DropdownMenuItem(value: c, child: Text(t.x('acc.cat_$c'))),
+                  ],
+                  onChanged: (v) => setLocal(() => category = v ?? 'cash'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t.x('accounting.entry_date')),
+                  subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
+                  trailing: const Icon(Icons.calendar_today, size: 18),
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: date,
+                      firstDate: DateTime(date.year - 5),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) setLocal(() => date = d);
+                  },
+                ),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(labelText: t.x('accounting.description')),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(t.x('common.cancel'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(t.x('acc.add_entry'))),
+          ],
+        ),
+      ),
+    );
+    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    final description = descCtrl.text.trim();
+    amountCtrl.dispose();
+    descCtrl.dispose();
+    if (ok != true || amount <= 0 || !context.mounted) return;
+    try {
+      await ref.read(reportsServiceProvider).createAccountingEntry(
+            type: type,
+            amount: amount,
+            category: category,
+            description: description,
+            entryDate: DateFormat('yyyy-MM-dd').format(date),
+          );
+      ref.invalidate(_accountingSummaryProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${t.x('common.error')}: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    return _Card(
+      title: t.x('acc.quick_actions'),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.add_circle_outline, size: 16),
+                  label: Text(t.x('acc.capital_add')),
+                  onPressed: () => _open(context, ref, 'capital_add'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                  icon: const Icon(Icons.remove_circle_outline, size: 16),
+                  label: Text(t.x('acc.withdraw')),
+                  onPressed: () => _open(context, ref, 'capital_withdraw'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
+                  icon: const Icon(Icons.receipt_long, size: 16),
+                  label: Text(t.x('acc.expense')),
+                  onPressed: () => _open(context, ref, 'expense'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(t.x('acc.auto_recorded'), style: AppTypography.caption),
+        ],
+      ),
+    );
+  }
+}
 
 class _MenuTile extends StatelessWidget {
   const _MenuTile(
@@ -709,8 +852,24 @@ class _AccountingApprovalsView extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(t.x('accounting.pending_approvals'),
-                style: AppTypography.sectionTitle),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(t.x('accounting.pending_approvals'),
+                      style: AppTypography.sectionTitle),
+                ),
+                DropdownButton<String?>(
+                  value: ref.watch(_approvalStatusProvider),
+                  items: [
+                    DropdownMenuItem(value: null, child: Text(t.x('status.all'))),
+                    for (final s in const ['pending', 'approved', 'rejected', 'cancelled'])
+                      DropdownMenuItem(value: s, child: Text(t.x('status.$s'))),
+                  ],
+                  onChanged: (v) =>
+                      ref.read(_approvalStatusProvider.notifier).state = v,
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             if (rows.isEmpty) Text(t.x('accounting.no_pending_approvals')),
             for (final row in rows)
@@ -1340,6 +1499,9 @@ class _JournalViewState extends ConsumerState<_JournalView> {
   String _error = '';
   int _page = 1;
   int _pages = 1;
+  // ACC-03: same filters as the web journal list (server-side).
+  String? _status;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1347,11 +1509,23 @@ class _JournalViewState extends ConsumerState<_JournalView> {
     _fetchJournals();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchJournals() async {
     setState(() => _loading = true);
     try {
       final res =
-          await ref.read(accountingServiceProvider).listJournals(page: _page);
+          await ref.read(accountingServiceProvider).listJournals(
+                page: _page,
+                status: _status,
+                search: _searchCtrl.text.trim().isEmpty
+                    ? null
+                    : _searchCtrl.text.trim(),
+              );
       setState(() {
         _journals = res['rows'] as List<dynamic>? ?? [];
         _pages = (res['pages'] as num?)?.toInt() ?? 1;
@@ -1559,8 +1733,46 @@ class _JournalViewState extends ConsumerState<_JournalView> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error.isNotEmpty) return Center(child: Text('Error: $_error'));
 
+    final t = T.of(ref);
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: t.x('common.search'),
+                  ),
+                  onSubmitted: (_) {
+                    _page = 1;
+                    _fetchJournals();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<String?>(
+                value: _status,
+                items: [
+                  DropdownMenuItem(value: null, child: Text(t.x('status.all'))),
+                  for (final s in const ['posted', 'pending_approval', 'reversed'])
+                    DropdownMenuItem(value: s, child: Text(t.x('accounting.st_$s'))),
+                  DropdownMenuItem(value: 'draft', child: Text(t.x('accounting.draft'))),
+                ],
+                onChanged: (v) {
+                  setState(() => _status = v);
+                  _page = 1;
+                  _fetchJournals();
+                },
+              ),
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -1951,6 +2163,9 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
   Map<String, dynamic>? _pnlData;
   Map<String, dynamic>? _balanceData;
   Map<String, dynamic>? _trialData;
+  // ACC-03: P&L range and Balance Sheet / Trial Balance as-of date (null = server default).
+  DateTimeRange? _pnlRange;
+  DateTime? _asOf;
 
   @override
   void initState() {
@@ -1962,14 +2177,19 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     setState(() => _loading = true);
     try {
       final service = ref.read(accountingServiceProvider);
+      final f = DateFormat('yyyy-MM-dd');
+      final asOf = _asOf == null ? null : f.format(_asOf!);
       if (_statementType == 'pnl') {
-        final data = await service.getPnL();
+        final data = await service.getPnL(
+          from: _pnlRange == null ? null : f.format(_pnlRange!.start),
+          to: _pnlRange == null ? null : f.format(_pnlRange!.end),
+        );
         setState(() => _pnlData = data);
       } else if (_statementType == 'balance') {
-        final data = await service.getBalanceSheet();
+        final data = await service.getBalanceSheet(asOf: asOf);
         setState(() => _balanceData = data);
       } else {
-        final data = await service.getTrialBalance();
+        final data = await service.getTrialBalance(asOf: asOf);
         setState(() => _trialData = data);
       }
       setState(() => _loading = false);
@@ -2004,6 +2224,44 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
                 setState(() => _statementType = val);
                 _loadReport();
               }
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.date_range, size: 18),
+            label: Text(() {
+              final f = DateFormat('dd MMM yyyy');
+              if (_statementType == 'pnl') {
+                return _pnlRange == null
+                    ? T.of(ref).x('acc.all_time')
+                    : '${f.format(_pnlRange!.start)} – ${f.format(_pnlRange!.end)}';
+              }
+              return '${T.of(ref).x('accounting.as_of')} ${f.format(_asOf ?? DateTime.now())}';
+            }()),
+            onPressed: () async {
+              final now = DateTime.now();
+              if (_statementType == 'pnl') {
+                final r = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(now.year - 5),
+                  lastDate: now,
+                  initialDateRange: _pnlRange,
+                );
+                if (r == null) return;
+                setState(() => _pnlRange = r);
+              } else {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: _asOf ?? now,
+                  firstDate: DateTime(now.year - 5),
+                  lastDate: now,
+                );
+                if (d == null) return;
+                setState(() => _asOf = d);
+              }
+              _loadReport();
             },
           ),
         ),
@@ -2110,6 +2368,10 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
             code: eq['code'] as String,
             amount: _num(eq['amount']))),
         _ReportRow(name: 'TOTAL EQUITY', code: '', amount: totE, isBold: true),
+        const SizedBox(height: 16),
+        _BalanceBanner(
+            okLabel: T.of(ref).x('accounting.bs_balanced'),
+            difference: totA - (totL + totE)),
       ],
     );
   }
@@ -2119,6 +2381,7 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     final rows = _trialData!['rows'] as List<dynamic>? ?? [];
     final totDr = _num(_trialData!['totalDebit']);
     final totCr = _num(_trialData!['totalCredit']);
+    final fmt = ref.watch(currencyFmtProvider);
 
     return Column(
       children: [
@@ -2156,11 +2419,11 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
                       Expanded(child: Text('[${r['code']}] ${r['name']}')),
                       SizedBox(
                           width: 80,
-                          child: Text('₹${r['debit']}',
+                          child: Text(fmt.format(_num(r['debit'])),
                               textAlign: TextAlign.right)),
                       SizedBox(
                           width: 80,
-                          child: Text('₹${r['credit']}',
+                          child: Text(fmt.format(_num(r['credit'])),
                               textAlign: TextAlign.right)),
                     ],
                   ),
@@ -2174,16 +2437,20 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   SizedBox(
                       width: 80,
-                      child: Text('₹${totDr.toStringAsFixed(2)}',
+                      child: Text(fmt.format(totDr),
                           textAlign: TextAlign.right,
                           style: const TextStyle(fontWeight: FontWeight.bold))),
                   SizedBox(
                       width: 80,
-                      child: Text('₹${totCr.toStringAsFixed(2)}',
+                      child: Text(fmt.format(totCr),
                           textAlign: TextAlign.right,
                           style: const TextStyle(fontWeight: FontWeight.bold))),
                 ],
               ),
+              const SizedBox(height: 16),
+              _BalanceBanner(
+                  okLabel: T.of(ref).x('accounting.tb_balanced'),
+                  difference: totDr - totCr),
             ],
           ),
         ),
@@ -2192,7 +2459,33 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
   }
 }
 
-class _ReportRow extends StatelessWidget {
+/// ACC-03: Dr = Cr / A = L + E check, as on the web statements.
+class _BalanceBanner extends ConsumerWidget {
+  const _BalanceBanner({required this.okLabel, required this.difference});
+  final String okLabel;
+  final double difference;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ok = difference.abs() < 0.01;
+    final text = ok
+        ? okLabel
+        : '${T.of(ref).x('accounting.out_of_balance')} ${ref.watch(currencyFmtProvider).format(difference.abs())}';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: ok ? AppColors.successBg : AppColors.dangerBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: ok ? AppColors.successText : AppColors.dangerText)),
+    );
+  }
+}
+
+class _ReportRow extends ConsumerWidget {
   const _ReportRow(
       {required this.name,
       required this.code,
@@ -2206,7 +2499,7 @@ class _ReportRow extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -2222,7 +2515,7 @@ class _ReportRow extends StatelessWidget {
             ),
           ),
           Text(
-            '₹${amount.toStringAsFixed(2)}',
+            ref.watch(currencyFmtProvider).format(amount),
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               color: color ?? AppColors.textPrimary,

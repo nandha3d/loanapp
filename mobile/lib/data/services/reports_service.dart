@@ -90,6 +90,28 @@ class ReportsService {
     );
   }
 
+  /// ACC-03: capital add / withdraw / expense — the same POST the web quick
+  /// actions make (branch cash-pool sync + GL auto-post happen server side).
+  Future<void> createAccountingEntry({
+    required String type,
+    required double amount,
+    required String category,
+    String? description,
+    String? entryDate,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingSummary,
+      data: {
+        'type': type,
+        'amount': amount,
+        'category': category,
+        if (description != null && description.isNotEmpty) 'description': description,
+        if (entryDate != null) 'entryDate': entryDate,
+      },
+    );
+    unwrapEnvelope(res, (dynamic d) => d);
+  }
+
   /// Read-only financial statements (net profit, cashflow, top expenses).
   /// All figures computed server-side — returned raw for display.
   Future<Map<String, dynamic>> fetchAccountingStatements() async {
