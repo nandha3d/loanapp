@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
       pendingPenalties,
       activeAgents,
       recentLoans,
-      allInstalmentsForTotals,
+      overdueInstalmentsForTotals,
       overdueDefaulterRows,
       paymentsToday,
       routes,
@@ -410,16 +410,46 @@ export async function GET(req: NextRequest) {
       todayByMode[c.paymentMode] = Number(c._sum.receivedAmount ?? 0);
     }
 
+    // Combine all loan IDs from today's instalments and overdue instalments to compute distributed metrics
+    const allLoanIdsForMetrics = Array.from(new Set([
+      ...todayInstalments.map((i) => i.loanId),
+      ...overdueInstalmentsForTotals.map((i) => i.loanId),
+    ]));
+
+    const allInstalmentsForMetrics = allLoanIdsForMetrics.length > 0
+      ? await prisma.instalment.findMany({
+          where: { loanId: { in: allLoanIdsForMetrics } },
+          orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+          select: {
+            id: true,
+            loanId: true,
+            dueDate: true,
+            dueAmount: true,
+            receivedAmount: true,
+            status: true,
+            instalmentNo: true,
+            loan: { select: { id: true, frequency: true, status: true, customerId: true } },
+          },
+        })
+      : [];
+
     const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
-      allInstalmentsForTotals,
+      allInstalmentsForMetrics as any,
       today,
       paymentsToday,
     );
     const distributedById = new Map(distributedInstalments.map((item) => [item.id, item]));
     const mappedTodayInstalments = todayInstalments.map((item) => {
       const distributed = distributedById.get(item.id);
-      return distributed ? { ...item, receivedAmount: distributed.receivedAmount,
-        status: distributed.status } : item;
+      return distributed
+        ? {
+            ...item,
+            receivedAmount: distributed.receivedAmount,
+            outstandingAmount: distributed.outstandingAmount,
+            overdueAmount: distributed.overdueAmount,
+            status: distributed.status,
+          }
+        : item;
     });
     const todayDue = getTodayDueMetrics(mappedTodayInstalments);
     const todayExpected = todayDue.expected;
@@ -550,7 +580,7 @@ export async function GET(req: NextRequest) {
     const loanFrequencyMap = new Map<string, FrequencyKey>();
     const loanStatusMap = new Map<string, boolean>();
     const loanCustomerMap = new Map<string, string>();
-    for (const item of allInstalmentsForTotals as any[]) {
+    for (const item of allInstalmentsForMetrics as any[]) {
       const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
       let freq: FrequencyKey = 'daily';
       if (rawFreq === 'weekly' || rawFreq === 'biweekly') {
@@ -670,7 +700,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const todayPendingDues = todayInstalments
+    const todayPendingDues = mappedTodayInstalments
       .filter((inst) => outstanding(inst) > 0 && (inst as any).loan?.status !== 'closed')
       .map((inst) => ({
         id: inst.id,
