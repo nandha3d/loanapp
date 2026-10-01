@@ -337,14 +337,17 @@ export async function waivePenalty(input: {
   penaltyId: string;
   amount?: number;
   reason?: string | null;
+  prismaClient?: any;
 }): Promise<any> {
-  const { tenantId, appType, branchId, userId, role, penaltyId, amount, reason } = input;
+  const { tenantId, appType, branchId, userId, role, penaltyId, amount, reason, prismaClient } = input;
 
   if (!['admin', 'superadmin', 'developer'].includes(role)) {
     throw new Error('Forbidden: Agents cannot waive penalties');
   }
 
-  const penalty = await prisma.penalty.findUnique({
+  const db = prismaClient ?? prisma;
+
+  const penalty = await db.penalty.findUnique({
     where: { id: penaltyId },
     include: { loan: true },
   });
@@ -372,7 +375,7 @@ export async function waivePenalty(input: {
   const isFullyWaived = (settled + nextWaived) >= gross;
   const nextStatus = isFullyWaived ? 'waived' : 'partial';
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const applyWaiver = async (tx: any) => {
     const res = await tx.penalty.update({
       where: { id: penaltyId },
       data: {
@@ -403,7 +406,9 @@ export async function waivePenalty(input: {
     });
 
     return res;
-  });
+  };
+
+  const updated = prismaClient ? await applyWaiver(prismaClient) : await prisma.$transaction(applyWaiver);
 
   try {
     await prisma.systemNotification.create({

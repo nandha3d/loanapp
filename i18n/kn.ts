@@ -634,6 +634,7 @@ export const kn = {
     settledWaived: 'ಪಾವತಿಸಿದ + ಮನ್ನಾ',
     netDue: 'ನಿವ್ವಳ ಬಾಕಿ',
     waisePenalty: 'ದಂಡ ಮನ್ನಾ',
+    requestPenaltyWaiver: 'ಮನ್ನಾ ಕೋರಿಕೆ',
     settlePenalty: 'ದಂಡ ಪಾವತಿಸಿ',
     securityCheques: 'ಭದ್ರತಾ ಚೆಕ್‌ಗಳು',
     noCheques: 'ಚೆಕ್‌ಗಳು ನೋಂದಾಯಿಸಿಲ್ಲ',

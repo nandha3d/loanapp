@@ -162,6 +162,69 @@ export async function waiveLoanPenalty(formData: FormData) {
   }
 }
 
+export async function requestPenaltyWaiver(formData: FormData) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const penaltyId = formData.get('penaltyId') as string;
+    const loanId = formData.get('loanId') as string;
+    const waivedAmount = Number(formData.get('waivedAmount'));
+    const notes = (formData.get('notes') as string) || '';
+
+    const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
+    if (loanRes.error) return { success: false, error: loanRes.error };
+    const loanCode = loanRes.data?.loanCode;
+
+    let targetPenaltyId = penaltyId;
+    if (penaltyId === 'new') {
+      const activePenalty = loanRes.data?.penalties?.find(
+        (p: any) => p.status === 'pending' || p.status === 'partial'
+      );
+      if (activePenalty?.id) {
+        targetPenaltyId = activePenalty.id;
+      } else {
+        const { ensurePendingPenaltiesForMissedLoans } = await import('@/lib/penalties');
+        const { getCurrentTenantId } = await import('@/lib/tenant');
+        const { getUserAppType } = await import('@/lib/tenant');
+        const tenantId = await getCurrentTenantId();
+        const appType = await getUserAppType();
+        await ensurePendingPenaltiesForMissedLoans({ tenantId, appType, loanId });
+        const p = await prisma.penalty.findFirst({
+          where: { loanId, status: { in: ['pending', 'partial'] } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+        if (!p) {
+          return { success: false, error: 'No active penalty found for this loan' };
+        }
+        targetPenaltyId = p.id;
+      }
+    }
+
+    const payload = {
+      requestType: 'penalty_waive',
+      entityType: 'penalty',
+      entityId: targetPenaltyId,
+      requestedChanges: { amount: waivedAmount },
+      reason: notes,
+    };
+
+    const res = await apiFetch<any>('/approvals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      ...apiContext,
+    });
+
+    if (res?.error) return { success: false, error: res.error };
+
+    if (loanCode) {
+      revalidatePath(`/loans/${loanCode}`);
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Waiver request failed' };
+  }
+}
+
 export async function settleLoanPenalty(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();

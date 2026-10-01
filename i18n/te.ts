@@ -634,6 +634,7 @@ export const te = {
     settledWaived: 'పరిష్కరించబడింది + మాఫీ',
     netDue: 'నికర బకాయి',
     waisePenalty: 'జరిమానా మాఫీ',
+    requestPenaltyWaiver: 'మాఫీ అభ్యర్థించండి',
     settlePenalty: 'జరిమానా పరిష్కరించండి',
     securityCheques: 'భద్రతా చెక్‌లు',
     noCheques: 'చెక్‌లు నమోదు లేవు',

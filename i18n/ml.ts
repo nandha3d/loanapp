@@ -634,6 +634,7 @@ export const ml = {
     settledWaived: 'തീർപ്പാക്കിയത് + ഇളവ്',
     netDue: 'അറ്റം ബാക്കി',
     waisePenalty: 'പിഴ ഇളവ്',
+    requestPenaltyWaiver: 'ഇളവ് അഭ്യർത്ഥിക്കുക',
     settlePenalty: 'പിഴ തീർപ്പാക്കുക',
     securityCheques: 'സെക്യൂരിറ്റി ചെക്കുകൾ',
     noCheques: 'ചെക്കുകൾ രജിസ്റ്റർ ചെയ്തിട്ടില്ല',

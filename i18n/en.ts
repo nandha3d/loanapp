@@ -634,6 +634,7 @@ export const en = {
     settledWaived: 'Settled + Waived',
     netDue: 'Net Due',
     waisePenalty: 'Waive Penalty',
+    requestPenaltyWaiver: 'Request Waiver',
     settlePenalty: 'Settle Penalty',
     securityCheques: 'Security Cheques',
     noCheques: 'No cheques registered',

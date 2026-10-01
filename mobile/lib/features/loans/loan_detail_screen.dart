@@ -1016,13 +1016,13 @@ class _OverdueSummaryCard extends StatelessWidget {
 /// recorded penalty rows or (missedCount * penaltyRate) — same server-side
 /// convention the web page already uses, replicated client-side here since
 /// both read from the same `loan.penalties` + `loan.penaltyRate` fields.
-class _PenaltySummaryCard extends StatelessWidget {
+class _PenaltySummaryCard extends ConsumerWidget {
   const _PenaltySummaryCard({required this.loan, required this.fmt});
   final Loan loan;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Prefer server-supplied summary (single source of truth) to eliminate calculation drift
     final summary = loan.penaltySummary;
     final double totalPenalty;
@@ -1095,8 +1095,119 @@ class _PenaltySummaryCard extends StatelessWidget {
               ),
             ],
           ),
+          if (netPenalty > 0) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _requestPenaltyWaiverDialog(context, ref, loan, netPenalty),
+                icon: const Icon(Icons.request_quote_outlined, size: 16),
+                label: Text(
+                  T.of(ref).x('btn.request_waiver'),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+Future<void> _requestPenaltyWaiverDialog(
+  BuildContext context,
+  WidgetRef ref,
+  Loan loan,
+  double netPenalty,
+) async {
+  final t = T.of(ref);
+  final activePenalty = loan.penalties.where((p) => p.status == 'pending' || p.status == 'partial').firstOrNull
+      ?? loan.penalties.firstOrNull;
+
+  if (activePenalty == null) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No recorded penalty row found to waive.')),
+      );
+    }
+    return;
+  }
+
+  final amountCtrl = TextEditingController(text: netPenalty.toStringAsFixed(2));
+  final reasonCtrl = TextEditingController();
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(t.x('btn.request_waiver')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Request a waiver for loan ${loan.loanCode}. An administrator reviews and approves this request.',
+            style: AppTypography.caption,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Waiver Amount',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Reason *',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(t.x('btn.cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(t.x('btn.submit')),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+  final amount = double.tryParse(amountCtrl.text.trim());
+  final reason = reasonCtrl.text.trim();
+  if (amount == null || amount <= 0 || reason.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid waiver amount and reason.')),
+      );
+    }
+    return;
+  }
+
+  try {
+    await ref.read(approvalServiceProvider).request(
+      requestType: 'penalty_waive',
+      entityType: 'penalty',
+      entityId: activePenalty.id,
+      requestedChanges: {'amount': amount},
+      reason: reason,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Penalty waiver request submitted for review')),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
     );
   }
 }

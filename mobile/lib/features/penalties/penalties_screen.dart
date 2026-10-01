@@ -12,6 +12,7 @@ import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/penalty.dart';
 import 'package:zolofund/data/services/loan_service.dart';
 import 'package:zolofund/data/services/penalty_service.dart';
+import 'package:zolofund/data/services/approval_service.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/features/loans/widgets/loan_heatmap.dart';
@@ -558,7 +559,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => _confirmWaive(g),
+                        onPressed: () => _confirmWaive(g, isRequest: false),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.ink,
                           foregroundColor: AppColors.onInk,
@@ -569,6 +570,21 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                         ),
                         icon: const Icon(Icons.block_outlined, size: 18),
                         label: Text(t.x('btn.waive')),
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _confirmWaive(g, isRequest: true),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.request_quote_outlined, size: 18),
+                        label: Text(t.x('btn.request_waiver')),
                       ),
                     ),
                   ],
@@ -778,13 +794,14 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     );
   }
 
-  Future<void> _confirmWaive(_LoanPenaltyGroup g) async {
+  Future<void> _confirmWaive(_LoanPenaltyGroup g, {bool isRequest = false}) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => _WaiveDialog(
         pending: g.pending,
         customerName: g.customerName,
         net: g.net,
+        isRequest: isRequest,
       ),
     );
     if (result == true && mounted) {
@@ -883,10 +900,12 @@ class _WaiveDialog extends ConsumerStatefulWidget {
     required this.pending,
     required this.customerName,
     required this.net,
+    this.isRequest = false,
   });
   final List<Penalty> pending;
   final String customerName;
   final double net;
+  final bool isRequest;
 
   @override
   ConsumerState<_WaiveDialog> createState() => _WaiveDialogState();
@@ -916,17 +935,39 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
 
     setState(() => _submitting = true);
     try {
-      final svc = ref.read(penaltyServiceProvider);
-      for (final p in widget.pending) {
-        await svc.waive(id: p.id, reason: reason);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(t.x('pen.waived')),
-              backgroundColor: AppColors.success,),
-        );
-        Navigator.pop(context, true);
+      if (widget.isRequest) {
+        final approvalSvc = ref.read(approvalServiceProvider);
+        for (final p in widget.pending) {
+          await approvalSvc.request(
+            requestType: 'penalty_waive',
+            entityType: 'penalty',
+            entityId: p.id,
+            requestedChanges: {'amount': p.netDue},
+            reason: reason,
+          );
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Penalty waiver request submitted for review'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } else {
+        final svc = ref.read(penaltyServiceProvider);
+        for (final p in widget.pending) {
+          await svc.waive(id: p.id, reason: reason);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(t.x('pen.waived')),
+                backgroundColor: AppColors.success,),
+          );
+          Navigator.pop(context, true);
+        }
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -940,7 +981,11 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radius),),
-      title: Text('Waive Penalty - ${widget.customerName}'),
+      title: Text(
+        widget.isRequest
+            ? '${t.x('btn.request_waiver')} - ${widget.customerName}'
+            : 'Waive Penalty - ${widget.customerName}',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -981,7 +1026,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
                   height: 16,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white,),)
-              : Text(t.x('btn.waive'),
+              : Text(widget.isRequest ? t.x('btn.submit') : t.x('btn.waive'),
                   style: const TextStyle(color: AppColors.onInk),),
         ),
       ],

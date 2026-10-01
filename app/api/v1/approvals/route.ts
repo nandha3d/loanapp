@@ -5,6 +5,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { branchScopeWhere } from '@/lib/branchScope';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { modulePath } from '@/types/modules';
 import { maskPan } from '@/lib/pii';
 
@@ -242,6 +243,20 @@ async function resolveApprovalTarget(
             : vehicle.registrationNo,
         };
       }
+      case 'penalty': {
+        const penalty = await prisma.penalty.findFirst({
+          where: { id: entityId, loan: { tenantId } },
+          select: {
+            loan: { select: { branchId: true, loanCode: true, customer: { select: { name: true } } } },
+          },
+        });
+        if (!penalty?.loan) return { branchId: null, label: null };
+        const who = penalty.loan.customer?.name ? ` · ${penalty.loan.customer.name}` : '';
+        return {
+          branchId: penalty.loan.branchId,
+          label: `Penalty for ${penalty.loan.loanCode}${who}`,
+        };
+      }
       case 'collection_run': {
         // `routeId` is a plain column here, not a relation — resolve the name
         // with a second read rather than an include.
@@ -284,6 +299,12 @@ const APPROVAL_NOTICE: Record<string, { type: string; icon: string; title: strin
     title: 'Collection edit pending review',
     verb: 'requested a collection amount change for',
   },
+  penalty_waive: {
+    type: 'penalty_waive_review',
+    icon: 'money_off',
+    title: 'Penalty waiver pending review',
+    verb: 'requested a penalty waiver for',
+  },
 };
 
 export async function POST(req: NextRequest) {
@@ -310,6 +331,35 @@ export async function POST(req: NextRequest) {
       });
       if (!cust) {
         return fail('Target customer not found in this module', 404);
+      }
+    }
+
+    if (requestType === 'penalty_waive' && entityType === 'penalty') {
+      if (!reason || !reason.trim()) {
+        return fail('Reason is required for penalty waiver request', 400);
+      }
+      const penalty = await prisma.penalty.findFirst({
+        where: {
+          id: entityId,
+          loan: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            ...(ctx.role === 'agent'
+              ? { customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }) }
+              : branchScopeWhere(ctx.branchId)),
+          },
+        },
+        select: { id: true, grossPenalty: true, settledAmount: true, waivedAmount: true },
+      });
+      if (!penalty) {
+        return fail('Target penalty not found in this scope', 404);
+      }
+      const gross = Number(penalty.grossPenalty);
+      const settled = Number(penalty.settledAmount);
+      const waived = Number(penalty.waivedAmount);
+      const remaining = gross - settled - waived;
+      if (remaining <= 0) {
+        return fail('Penalty is already fully settled or waived', 400);
       }
     }
 

@@ -374,6 +374,21 @@ export async function reviewRequest(formData: FormData) {
               note: `Cash handover approved: ${reviewNotes || request.reason || ''}`.trim(),
             });
           }
+        } else if (request.requestType === 'penalty_waive' && request.entityType === 'penalty') {
+          const rawChanges = JSON.parse(request.requestedChanges || '{}');
+          const waiveAmount = rawChanges.amount !== undefined ? Number(rawChanges.amount) : undefined;
+          const { waivePenalty } = await import('@/lib/penalties');
+          await waivePenalty({
+            tenantId,
+            appType,
+            branchId,
+            userId,
+            role: userRole,
+            penaltyId: request.entityId,
+            amount: waiveAmount,
+            reason: `Approved waiver request: ${reviewNotes || request.reason || ''}`.trim(),
+            prismaClient: tx,
+          });
         }
       }
 

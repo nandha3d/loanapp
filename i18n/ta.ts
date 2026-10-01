@@ -634,6 +634,7 @@ export const ta = {
     settledWaived: 'தீர்க்கப்பட்டது + தள்ளுபடி',
     netDue: 'நிகர நிலுவை',
     waisePenalty: 'அபராதம் தள்ளுபடி',
+    requestPenaltyWaiver: 'தள்ளுபடி கோரவும்',
     settlePenalty: 'அபராதம் தீர்க்க',
     securityCheques: 'பாதுகாப்பு காசோலைகள்',
     noCheques: 'காசோலைகள் பதிவு இல்லை',

@@ -29,6 +29,8 @@ class Penalty {
   final String? routeId;
   final String? routeName;
 
+  double get netDue => (grossPenalty - settledAmount - waivedAmount).clamp(0, double.infinity);
+
   factory Penalty.fromJson(Map<String, dynamic> json) {
     double toDouble(dynamic v) =>
         v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);

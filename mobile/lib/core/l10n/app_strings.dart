@@ -2786,6 +2786,14 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಮನ್ನಾ',
     'ml': 'ഇളവ്',
   },
+  'btn.request_waiver': {
+    'en': 'Request waiver',
+    'ta': 'விலக்கு கோரவும்',
+    'hi': 'माफ़ी का अनुरोध करें',
+    'te': 'మాఫీ అభ్యర్థించండి',
+    'kn': 'ಮನ್ನಾ ಕೋರಿಕೆ',
+    'ml': 'ഇളവ് അഭ്യർത്ഥിക്കുക',
+  },
   'btn.add_cheque': {
     'en': 'Add Cheque',
     'ta': 'காசோலை சேர்',

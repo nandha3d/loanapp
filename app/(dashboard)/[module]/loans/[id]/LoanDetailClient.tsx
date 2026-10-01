@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, requestPenaltyWaiver, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -542,7 +542,7 @@ export default function LoanDetailClient({
     }
   }, [payMode, payAmount, upiId, payeeName, loan.loanCode]);
 
-  const [penAction, setPenAction] = useState<'waive' | 'settle'>('settle');
+  const [penAction, setPenAction] = useState<'waive' | 'settle' | 'request_waive'>('settle');
   const [penAmount, setPenAmount] = useState(0);
   const [penNotes, setPenNotes] = useState('');
 
@@ -636,18 +636,22 @@ export default function LoanDetailClient({
     }
   };
 
-  const openPenaltyModal = (penalty: any, action: 'waive' | 'settle') => {
+  const openPenaltyModal = (penalty: any, action: 'waive' | 'settle' | 'request_waive') => {
     setPenAction(action);
     const gross = Number(penalty.grossPenalty);
-    const settled = Number(penalty.settledAmount);
-    const waived = Number(penalty.waivedAmount);
-    setPenAmount(action === 'settle' ? gross - settled - waived : gross - settled - waived);
+    const settled = Number(penalty.settledAmount || 0);
+    const waived = Number(penalty.waivedAmount || 0);
+    setPenAmount(gross - settled - waived);
     setPenNotes('');
     setPenaltyModal(penalty);
   };
 
   const handleSubmitPenalty = async () => {
     if (!penaltyModal) return;
+    if (penAction === 'request_waive' && !penNotes.trim()) {
+      alert('Reason is required for waiver request');
+      return;
+    }
     setLoading(true);
     const fd = new FormData();
     fd.set('penaltyId', penaltyModal.id);
@@ -656,7 +660,10 @@ export default function LoanDetailClient({
     fd.set('notes', penNotes);
 
     let result;
-    if (penAction === 'waive') {
+    if (penAction === 'request_waive') {
+      fd.set('waivedAmount', String(penAmount));
+      result = await requestPenaltyWaiver(fd);
+    } else if (penAction === 'waive') {
       fd.set('waivedAmount', String(penAmount));
       result = await waiveLoanPenalty(fd);
     } else {
@@ -666,6 +673,9 @@ export default function LoanDetailClient({
     setLoading(false);
     if (result.success) {
       setPenaltyModal(null);
+      if (penAction === 'request_waive') {
+        alert('Penalty waiver request submitted for review');
+      }
       router.refresh();
     } else {
       alert(result.error || d.failedToProcessPenalty);
@@ -1574,7 +1584,11 @@ export default function LoanDetailClient({
             </div>
             {netPenalty > 0 && (
               <div style={{ marginTop: '12px', display: 'flex', gap: '6px' }}>
-                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
+                {!isAdmin ? (
+                  <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'request_waive')}>{d.requestPenaltyWaiver || 'Request Waiver'}</button>
+                ) : (
+                  <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
+                )}
                 <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'settle')}>{d.settlePenalty}</button>
               </div>
             )}
@@ -1897,7 +1911,7 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPenaltyModal(null); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>⚖️ {penAction === 'waive' ? 'Waive' : 'Settle'} Penalty</h3>
+              <h3>⚖️ {penAction === 'request_waive' ? (d.requestPenaltyWaiver || 'Request Penalty Waiver') : (penAction === 'waive' ? d.waisePenalty : d.settlePenalty)}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setPenaltyModal(null)}>close</button>
             </div>
             <div className="modal-body">
@@ -1910,19 +1924,19 @@ export default function LoanDetailClient({
                 </p>
               </div>
               <div className="form-group">
-                <label className="form-label">{penAction === 'waive' ? 'Waive' : 'Settlement'} Amount ({currencySymbol})</label>
+                <label className="form-label">{penAction === 'request_waive' ? 'Waiver Amount' : (penAction === 'waive' ? 'Waive' : 'Settlement')} Amount ({currencySymbol})</label>
                 <input type="number" className="form-control" value={penAmount} onChange={(e) => setPenAmount(Number(e.target.value))} min={0} />
               </div>
               <div className="form-group">
-                <label className="form-label">{d.notes}</label>
-                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder={d.addNotes} />
+                <label className="form-label">{penAction === 'request_waive' ? `${d.notes || 'Reason'} *` : d.notes}</label>
+                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder={penAction === 'request_waive' ? 'Reason for waiver request' : d.addNotes} />
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setPenaltyModal(null)}>{d.cancel}</button>
-              <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading}>
+              <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading || (penAction === 'request_waive' && !penNotes.trim())}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
-                {loading ? 'Processing...' : 'Confirm'}
+                {loading ? 'Processing...' : (penAction === 'request_waive' ? 'Submit Request' : 'Confirm')}
               </button>
             </div>
           </div>

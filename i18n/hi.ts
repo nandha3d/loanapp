@@ -634,6 +634,7 @@ export const hi = {
     settledWaived: 'निपटाया + माफ किया',
     netDue: 'शुद्ध बकाया',
     waisePenalty: 'दंड माफ करें',
+    requestPenaltyWaiver: 'माफ़ी का अनुरोध करें',
     settlePenalty: 'दंड निपटाएं',
     securityCheques: 'सुरक्षा चेक',
     noCheques: 'कोई चेक पंजीकृत नहीं',

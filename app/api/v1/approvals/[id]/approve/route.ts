@@ -327,6 +327,21 @@ export async function PATCH(
               note: `Cash handover approved: ${note || request.reason || ''}`.trim(),
             });
           }
+        } else if (request.requestType === 'penalty_waive' && request.entityType === 'penalty') {
+          const rawChanges = JSON.parse(request.requestedChanges || '{}');
+          const waiveAmount = rawChanges.amount !== undefined ? Number(rawChanges.amount) : undefined;
+          const { waivePenalty } = await import('@/lib/penalties');
+          await waivePenalty({
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: ctx.branchId,
+            userId: ctx.userId,
+            role: ctx.role,
+            penaltyId: request.entityId,
+            amount: waiveAmount,
+            reason: `Approved waiver request: ${note || request.reason || ''}`.trim(),
+            prismaClient: tx,
+          });
         }
       });
 
