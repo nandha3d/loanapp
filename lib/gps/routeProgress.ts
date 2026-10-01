@@ -11,6 +11,17 @@ export function gpsAgentWhere(input: { tenantId: string; appType: string; branch
   };
 }
 
+export function gpsEntryWhere(input: { tenantId: string; appType: string; branchId?: string | null }) {
+  return {
+    tenantId: input.tenantId,
+    loan: {
+      tenantId: input.tenantId,
+      appType: input.appType,
+      ...branchScopeWhere(input.branchId),
+    },
+  };
+}
+
 function startOfDay(date = new Date()) {
   const day = new Date(date);
   day.setHours(0, 0, 0, 0);
@@ -49,10 +60,9 @@ export async function getRouteProgressForBranch(input: {
     }),
     prisma.collectionEntry.findMany({
       where: {
-        tenantId: input.tenantId,
+        ...gpsEntryWhere(input),
         submittedAt: { gte: dayStart, lt: dayEnd },
         agentId: { in: agents.map((agent) => agent.id) },
-        loan: { tenantId: input.tenantId, appType: input.appType, ...branchScopeWhere(input.branchId) },
       },
       select: {
         id: true,

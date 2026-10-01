@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/agent/:id/collections
@@ -15,6 +16,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return fail('Forbidden', 403);
   }
   const { id } = await ctx.params;
+
+  // Agent scope check (module + active branch) — foreign agent must be 404 (SCOPE-2/3/12/17.5, API-5).
+  const targetAgent = await prisma.user.findFirst({
+    where: { id, ...gpsAgentWhere(auth.context) },
+    select: { id: true },
+  });
+  if (!targetAgent) return fail('Not found', 404);
 
   // Date range (inclusive `from`, exclusive `to`). Defaults to today.
   const { searchParams } = new URL(req.url);
@@ -36,7 +44,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   try {
     const entries = await prisma.collectionEntry.findMany({
       where: {
-        tenantId: auth.context.tenantId,
+        ...gpsEntryWhere(auth.context),
         agentId: id,
         submittedAt,
       },

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { resolveActor } from '@/lib/api/dualAuth';
-import { gpsAgentWhere } from '@/lib/gps/routeProgress';
+import { gpsAgentWhere, gpsEntryWhere } from '@/lib/gps/routeProgress';
 
 /**
  * GET /api/v1/gps/live
@@ -61,13 +61,10 @@ export async function GET(req: NextRequest) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const entryWhere: any = {
-      tenantId: ctx.tenantId,
+      ...gpsEntryWhere(ctx),
       agentId: { in: agents.map((a) => a.id) },
       submittedAt: { gte: todayStart },
     };
-    if (ctx.appType) {
-      entryWhere.loan = { appType: ctx.appType };
-    }
     const entries = await prisma.collectionEntry.findMany({
       where: entryWhere,
       select: { agentId: true, receivedAmount: true },
