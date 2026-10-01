@@ -264,7 +264,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   DateTime _customEndDate = DateTime.now().add(const Duration(days: 30));
   int? _dueDay; // day-of-month (monthly) / day-of-week (weekly); null for daily
   DateTime _startDate = DateTime.now();
-  final _penaltyRate = TextEditingController(text: '1.5');
+  final _penaltyRate = TextEditingController();
   List<LoanPackage> _packages = [];
   String? _packageId;
 
@@ -769,7 +769,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             startDate: _startDate,
             dueDay: (_frequency == 'daily' || isSingle || isCustom) ? null : _dueDay,
             endDate: (isSingle || isCustom) ? _customEndDate : null,
-            penaltyRate: double.tryParse(_penaltyRate.text) ?? 0,
+            penaltyRate: _penaltyRate.text.trim().isEmpty
+                ? null
+                : double.tryParse(_penaltyRate.text.trim()),
             loanType: _loanType,
             collateralDetails: _buildCollateralJson(),
             voucherRef: _voucherRef.text.trim().isEmpty

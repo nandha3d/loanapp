@@ -15,6 +15,7 @@ import {
   AccountingConfigurationError,
   postLoanOrigination,
 } from '@/lib/accounting/originationPosting';
+import { getSetting } from '@/lib/tenant';
 
 class OriginationInputError extends Error {}
 
@@ -209,9 +210,11 @@ export async function POST(req: NextRequest) {
     );
     const tenure = hpTerms?.schedule.length ?? Number(body.tenure);
     const frequency = hpTerms ? 'monthly' : String(body.frequency || 'daily');
+    const defaultPenaltyStr = await getSetting(ctx.tenantId, 'default_penalty_per_day', '50');
+    const defaultPenalty = Number(defaultPenaltyStr) || 0;
     const penaltyRate = hpTerms
       ? Number(autoFinanceInput.penaltyPerDay ?? 0)
-      : Number(body.penaltyRate ?? 0);
+      : (body.penaltyRate != null && body.penaltyRate !== '' ? Number(body.penaltyRate) : defaultPenalty);
     // Term axis (STABLE-2): absent means 'scheduled', which is the shape every
     // caller written before this field existed already sends. HP terms build
     // their own amortising schedule and are always scheduled.
