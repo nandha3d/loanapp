@@ -20,6 +20,7 @@ import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { syncGuarantorsInPlace } from '@/lib/customers/guarantors';
+import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -262,19 +263,66 @@ export async function PATCH(
 
     // Agents cannot edit customer details directly — must submit an approval request (matching loan edit).
     if (ctx.role === 'agent') {
-      const request = await prisma.approvalRequest.create({
-        data: {
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          requestType: 'customer_edit',
-          entityType: 'customer',
-          entityId: existing.id,
-          requestedById: ctx.userId,
-          requestedChanges: JSON.stringify(data),
-          reason: (body.reason as string) || 'Customer profile / GPS update requested by agent',
-          status: 'pending',
-        },
+      // CUST-05: same rules as the web agent edit request — only allow-listed
+      // fields, only real changes (masked Aadhaar already dropped above), audit
+      // row in the same transaction, approvers notified after commit.
+      const changes: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (!CUSTOMER_EDIT_ALLOW_LIST.has(key)) continue;
+        const current = key === 'aadharNumber'
+          ? decryptAadharNumber((existing as any).aadharNumber)
+          : (existing as any)[key === 'photo' || key === 'photoUrl' ? 'profilePhoto' : key];
+        const next = key === 'aadharNumber' ? decryptAadharNumber(value as string) : value;
+        if (String(current ?? '') !== String(next ?? '')) changes[key] = value;
+      }
+      if (Object.keys(changes).length === 0) {
+        return fail('No changes detected. Please modify at least one field.', 400);
+      }
+      const reason = (body.reason as string) || 'Customer profile / GPS update requested by agent';
+      const request = await prisma.$transaction(async (tx) => {
+        const created = await tx.approvalRequest.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            requestType: 'customer_edit',
+            entityType: 'customer',
+            entityId: existing.id,
+            requestedById: ctx.userId,
+            requestedChanges: JSON.stringify(changes),
+            reason,
+            status: 'pending',
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            tenantId: ctx.tenantId,
+            userId: ctx.userId,
+            action: 'create',
+            entityType: 'approval_request',
+            entityId: existing.id,
+            newValue: JSON.stringify({ requestType: 'customer_edit', changes: Object.keys(changes) }),
+          },
+        });
+        return created;
       });
+      try {
+        const { notifyApprovers } = await import('@/lib/notify/approvers');
+        const { modulePath } = await import('@/types/modules');
+        await notifyApprovers({
+          tenantId: ctx.tenantId,
+          branchId: (existing as any).branchId ?? null,
+          requesterBranchId: ctx.branchId,
+          requesterRole: ctx.role,
+          appType: ctx.appType,
+          type: 'customer_edit_review',
+          icon: 'rate_review',
+          title: 'Customer edit pending review',
+          message: `Agent requested edits for customer ${(existing as any).name}.`,
+          link: modulePath(ctx.appType, '/approvals'),
+        });
+      } catch (err) {
+        console.error('[customers PATCH] approver notification failed:', err);
+      }
 
       // SEC-01: Return only approval acknowledgement; do not echo existing customer row,
       // which contains encrypted Aadhaar ciphertext and passwordHash.

@@ -10,10 +10,8 @@ import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
 import { disburseFromAgent, disburseFromBranch, collectFromAgentInTx } from '@/lib/wallet';
+import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
 
-const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'profilePhoto', 'photoUrl', 'lat', 'lng',
-]);
 
 const LOAN_EDIT_ALLOW_LIST = new Set([
   'principal', 'deductionType', 'deduction', 'frequency', 'tenure', 

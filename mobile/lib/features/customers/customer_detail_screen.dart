@@ -217,11 +217,16 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     try {
       final next =
           widget.customer.status == 'suspended' ? 'active' : 'suspended';
-      await ref
+      final applied = await ref
           .read(customerRepositoryProvider)
           .update(widget.customer.id, {'status': next});
       ref.invalidate(customerListProvider);
       widget.onRefresh();
+      if (applied == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(T.of(ref).x('msg.submitted_for_approval'))),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       final t = T.of(ref);
@@ -316,7 +321,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     return;
                   }
                   try {
-                    await ref
+                    final applied = await ref
                         .read(customerRepositoryProvider)
                         .update(customer.id, {
                       'lat': pos.latitude,
@@ -326,9 +331,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     ref.invalidate(customerListProvider);
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content:
-                              Text('GPS coordinates registered successfully!'),
+                        SnackBar(
+                          content: Text(applied == null
+                              ? T.of(ref).x('msg.submitted_for_approval')
+                              : 'GPS coordinates registered successfully!'),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -373,7 +379,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   );
                   if (picked == null) return;
                   try {
-                    await ref
+                    final applied = await ref
                         .read(customerRepositoryProvider)
                         .update(customer.id, {
                       'lat': picked.lat,
@@ -383,9 +389,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     ref.invalidate(customerListProvider);
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'GPS coordinates pinned on map successfully!',),
+                        SnackBar(
+                          content: Text(applied == null
+                              ? T.of(ref).x('msg.submitted_for_approval')
+                              : 'GPS coordinates pinned on map successfully!'),
                           backgroundColor: AppColors.success,
                         ),
                       );

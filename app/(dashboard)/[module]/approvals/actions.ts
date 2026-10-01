@@ -15,11 +15,8 @@ import { modulePath } from '@/types/modules';
 import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { collectFromAgentInTx } from '@/lib/wallet';
+import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
 
-// Fields an agent is allowed to request changes to on a customer record
-const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'profilePhoto', 'photoUrl', 'lat', 'lng',
-]);
 
 // Fields allowed for loan edit requests
 const LOAN_EDIT_ALLOW_LIST = new Set([

@@ -130,15 +130,18 @@ class CustomerService {
     );
   }
 
-  Future<Customer> update(String id, Map<String, dynamic> patch) async {
+  /// Returns null when the change was filed for admin approval instead of
+  /// applied (agents: `{pendingApproval: true}`, CUST-05).
+  Future<Customer?> update(String id, Map<String, dynamic> patch) async {
     final res = await _dio.patch<Map<String, dynamic>>(
       Endpoints.customer(id),
       data: patch,
     );
-    return unwrapEnvelope(
-      res,
-      (dynamic d) => Customer.fromJson(d as Map<String, dynamic>),
-    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final m = d as Map<String, dynamic>;
+      if (m['pendingApproval'] == true) return null;
+      return Customer.fromJson(m);
+    });
   }
 
   Future<void> delete(String id) async {

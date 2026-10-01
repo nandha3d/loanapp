@@ -115,6 +115,13 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
   bool get _isEdit => widget.editCustomer != null;
 
+  /// Agent editing an existing customer: request-edit fields only (CUST-05).
+  bool get _agentEdit =>
+      _isEdit && ref.read(authControllerProvider).user?.role == UserRole.agent;
+  static const _agentEditFields = {
+    'name', 'phone', 'address', 'aadharNumber', 'profilePhoto', 'lat', 'lng',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -522,13 +529,29 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         if (_aadharCtrl.text.trim().isNotEmpty) {
           patch['aadharNumber'] = _aadharCtrl.text.trim();
         }
+        // CUST-05: an agent edit carries only the fields web's request-edit
+        // modal offers; the server files it for approval.
+        if (_agentEdit) {
+          patch.removeWhere((k, _) => !_agentEditFields.contains(k));
+          if (_lat != null && _lng != null) {
+            patch['lat'] = _lat;
+            patch['lng'] = _lng;
+          }
+        }
         final updated = await ref
             .read(customerRepositoryProvider)
             .update(widget.editCustomer!.id, patch);
         if (!mounted) return;
         ref.invalidate(customerListProvider);
-        ref.invalidate(customerDetailProvider(updated.id));
+        ref.invalidate(customerDetailProvider(widget.editCustomer!.id));
         final t = T.of(ref);
+        if (updated == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.x('msg.submitted_for_approval'))),
+          );
+          if (context.canPop()) context.pop();
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(t.x('msg.customer_updated')),
@@ -783,7 +806,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   const SizedBox(height: 16),
 
                   // ── PAN + Email ──────────────────────────────────
-                  Row(
+                  if (!_agentEdit) Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
@@ -929,7 +952,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   // customer's collecting agent — no separate agent picker;
                   // agent↔route assignment lives in Settings → Routes, same
                   // as web). ────────────────────────────────────────────────
-                  if (!isChit) ...[
+                  if (!isChit && !_agentEdit) ...[
                     _LabeledField(
                       label: t.x('fld.route_line'),
                       required: true,
@@ -979,17 +1002,17 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             const SizedBox(height: 16),
 
             // ── Company / Business section (collapsible) ───────────────
-            _buildCompanySection(t),
+            if (!_agentEdit) _buildCompanySection(t),
 
             const SizedBox(height: 16),
 
             // ── Collection Points section ──────────────────────────────
-            _buildCollectionPointsSection(t),
+            if (!_agentEdit) _buildCollectionPointsSection(t),
 
             if (!_isEdit) const SizedBox(height: 16),
 
             // ── Documents section ──────────────────────────────────────
-            _SectionCard(
+            if (!_agentEdit) _SectionCard(
               icon: Icons.attachment_rounded,
               title: t.x('sec.documents_label'),
               child: Column(
@@ -1014,7 +1037,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             if (!_isEdit) const SizedBox(height: 16),
 
             // ── Guarantors section ─────────────────────────────────────
-            _SectionCard(
+            if (!_agentEdit) _SectionCard(
               icon: Icons.people_alt_outlined,
               iconColor: AppColors.warning,
               title: t.x('sec.guarantors_surety'),

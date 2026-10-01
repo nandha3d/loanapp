@@ -46,7 +46,7 @@ class CustomerRepository {
         kycDocs: kycDocs,
         extra: extra,
       );
-  Future<Customer> update(String id, Map<String, dynamic> patch) =>
+  Future<Customer?> update(String id, Map<String, dynamic> patch) =>
       _service.update(id, patch);
   Future<void> delete(String id) => _service.delete(id);
   Future<List<int>> collectionReceiptPdf(String id) =>
