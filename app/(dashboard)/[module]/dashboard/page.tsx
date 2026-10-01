@@ -375,7 +375,20 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: {
         tenantId,
         appType,
-        ...(branchId ? { requestedBy: { branchId } } : {}),
+        ...(branchId && appType === 'microlending'
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId } },
+                    await precloseApprovalVisibility(tenantId, appType, branchId),
+                  ],
+                },
+              ],
+            }
+          : branchId
+            ? { requestedBy: { branchId } }
+            : {}),
         OR: [
           { createdAt: { gte: today, lt: tomorrow } },
           { reviewedAt: { gte: today, lt: tomorrow } },

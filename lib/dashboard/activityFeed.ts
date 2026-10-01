@@ -1,6 +1,8 @@
 import prisma from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 
 // Web counterpart of GET /api/v1/dashboard/activities (the mobile "Recent
 // Activities" date filter). Same queries, caps and item shapes, but scoped with
@@ -42,7 +44,22 @@ export async function getActivityFeed(scope: ActivityFeedScope, startDate: Date,
       { createdAt: { gte: startDate, lt: endDate } },
       { reviewedAt: { gte: startDate, lt: endDate } },
     ],
-    ...(isAgent ? { requestedById: userId } : branchId ? { requestedBy: { branchId } } : {}),
+    ...(isAgent
+      ? { requestedById: userId }
+      : branchId && appType === 'microlending'
+        ? {
+            AND: [
+              {
+                OR: [
+                  { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId } },
+                  await precloseApprovalVisibility(tenantId, appType, branchId),
+                ],
+              },
+            ],
+          }
+        : branchId
+          ? { requestedBy: { branchId } }
+          : {}),
   };
 
   const [collections, instalments, newLoans, newCustomers, closedLoans, approvals] = await Promise.all([

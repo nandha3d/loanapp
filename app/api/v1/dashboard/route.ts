@@ -359,7 +359,7 @@ export async function GET(req: NextRequest) {
           createdBy: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 30,
+        take: 20,
       }),
       // New customers registered today
       prisma.customer.findMany({
@@ -376,7 +376,7 @@ export async function GET(req: NextRequest) {
           route: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 30,
+        take: 20,
       }),
       // Loans closed today
       prisma.loan.findMany({
@@ -392,7 +392,7 @@ export async function GET(req: NextRequest) {
           customer: { select: { id: true, name: true, customerCode: true } },
         },
         orderBy: { closedAt: 'desc' },
-        take: 15,
+        take: 10,
       }),
       // Approvals processed today
       prisma.approvalRequest.findMany({
@@ -408,7 +408,7 @@ export async function GET(req: NextRequest) {
           reviewedBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 15,
+        take: 10,
       }),
       isAgent ? Promise.resolve(null) : getDashboardBookTotals(ctx.tenantId, ctx.appType, ctx.branchId),
       // Count all things waiting for admin attention (DASH-06 parity with web dashboard)
