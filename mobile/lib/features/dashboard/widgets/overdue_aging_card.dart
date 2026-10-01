@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -15,57 +14,27 @@ class OverdueAgingCard extends StatelessWidget {
   final DashboardSummary summary;
   final NumberFormat fmt;
 
+  static const _bucketColors = [
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFF97316),
+    Color(0xFFEF4444),
+    Color(0xFF991B1B),
+    Color(0xFF7F1D1D),
+  ];
+
   List<({String label, double amount, Color color, int count})> _getBuckets() {
-    final totalOverdue = summary.overdueOutstanding > 0
-        ? summary.overdueOutstanding
-        : 70320.0;
-
-    // Distribute into standard 5 delinquency aging tiers
-    final p0 = totalOverdue * 0.263; // 18,500 / 70,320
-    final p1 = totalOverdue * 0.388; // 27,300 / 70,320
-    final p2 = totalOverdue * 0.202; // 14,200 / 70,320
-    final p3 = totalOverdue * 0.097; // 6,800 / 70,320
-    final p4 = totalOverdue * 0.050; // 3,520 / 70,320
-
-    final loans = math.max(1, summary.overdueLoans);
-    final c0 = math.max(1, (loans * 0.30).round());
-    final c1 = math.max(1, (loans * 0.40).round());
-    final c2 = math.max(1, (loans * 0.18).round());
-    final c3 = math.max(1, (loans * 0.08).round());
-    final c4 = math.max(1, (loans * 0.04).round());
-
-    return [
-      (
-        label: '0 – 7 days',
-        amount: p0,
-        color: const Color(0xFF10B981),
-        count: c0,
-      ),
-      (
-        label: '8 – 30 days',
-        amount: p1,
-        color: const Color(0xFFF59E0B),
-        count: c1,
-      ),
-      (
-        label: '31 – 60 days',
-        amount: p2,
-        color: const Color(0xFFF97316),
-        count: c2,
-      ),
-      (
-        label: '61 – 90 days',
-        amount: p3,
-        color: const Color(0xFFEF4444),
-        count: c3,
-      ),
-      (
-        label: '90+ days',
-        amount: p4,
-        color: const Color(0xFF991B1B),
-        count: c4,
-      ),
-    ];
+    if (summary.overdueAgeing.isEmpty) return const [];
+    return summary.overdueAgeing.asMap().entries.map((entry) {
+      final i = entry.key;
+      final b = entry.value;
+      return (
+        label: b.label,
+        amount: b.amount,
+        color: _bucketColors[i % _bucketColors.length],
+        count: b.count,
+      );
+    }).toList(growable: false);
   }
 
   void _showBucketDetail(
@@ -256,7 +225,32 @@ class OverdueAgingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          ...buckets.map((b) {
+          if (buckets.isEmpty || totalOverdue <= 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 36,
+                      color: AppColors.success,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No overdue instalments',
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...buckets.map((b) {
             final fillRatio = (b.amount / maxAmount).clamp(0.08, 1.0);
             return Padding(
               padding: const EdgeInsets.only(bottom: 14),

@@ -7,10 +7,13 @@ import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import type { Prisma } from '@prisma/client';
-import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { startOfBusinessToday, startOfBusinessTomorrow, startOfBusinessDayUtc } from '@/lib/businessTime';
 import { getTodayDueMetrics } from '@/lib/dashboard/todayMetrics';
 import { getDashboardBookTotals } from '@/lib/dashboard/bookTotals';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
+import { buildOverdueAgeing, parseAgeingEdges, topOverdueCustomers, DEFAULT_AGEING_BUCKETS } from '@/lib/dashboard/overdueInsights';
+import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { getSetting } from '@/lib/tenant';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -495,6 +498,78 @@ export async function GET(req: NextRequest) {
     }
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
+    const overdueForTotals = distributedInstalments.filter(
+      (item: any) => item.overdueAmount > 0,
+    );
+
+    // ── Dashboard charts (DASH-05 parity with web page.tsx) ───────────────
+    let overdueAgeing: any[] = [];
+    let topOverdueCustomersView: any[] = [];
+    let portfolioHealth = { withOverdue: 0, onTrack: 0 };
+    let cashFlow: any[] = [];
+
+    const overdueRows = overdueForTotals.map((item: any) => ({
+      dueDate: item.dueDate,
+      overdueAmount: Number(item.overdueAmount),
+      customerId: item.loan?.customerId ?? '',
+    }));
+    const bizTodayUtc = startOfBusinessDayUtc();
+    const cashFlowMonths = Array.from({ length: 6 }, (_, i) => {
+      const offset = 5 - i;
+      const start = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset, 1));
+      const end = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset + 1, 1));
+      return { start, end, label: start.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) };
+    });
+    const topOverdue = topOverdueCustomers(overdueRows, 6);
+
+    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups] = await Promise.all([
+      getSetting(ctx.tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
+      prisma.loan.count({ where: { ...baseLoan, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
+      topOverdue.length > 0
+        ? prisma.customer.findMany({
+            where: { tenantId: ctx.tenantId, appType: ctx.appType, id: { in: topOverdue.map((c) => c.customerId) } },
+            select: { id: true, name: true, customerCode: true, route: { select: { name: true } } },
+          })
+        : Promise.resolve([]),
+      Promise.all(
+        cashFlowMonths.map((m) =>
+          prisma.accountEntry.groupBy({
+            by: ['type'],
+            where: {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              ...scopedBranchWhere(ctx),
+              type: { in: ['loan_disburse', 'collection'] },
+              entryDate: { gte: m.start, lt: m.end },
+            },
+            _sum: { amount: true },
+          }),
+        ),
+      ),
+    ]);
+
+    overdueAgeing = buildOverdueAgeing(overdueRows, parseAgeingEdges(ageingSetting));
+    const topCustomerById = new Map(topOverdueCustomerRows.map((c) => [c.id, c]));
+    topOverdueCustomersView = topOverdue
+      .filter((c) => topCustomerById.has(c.customerId))
+      .map((c) => {
+        const customer = topCustomerById.get(c.customerId)!;
+        return { ...c, name: customer.name, customerCode: customer.customerCode, routeName: customer.route?.name ?? null };
+      });
+    const loansWithOverdue = new Set(
+      overdueForTotals
+        .filter((item: any) => (COLLECTIBLE_LOAN_STATUSES as readonly string[]).includes(item.loan?.status))
+        .map((item: any) => item.loanId),
+    ).size;
+    portfolioHealth = {
+      withOverdue: loansWithOverdue,
+      onTrack: Math.max(0, collectibleLoanCount - loansWithOverdue),
+    };
+    cashFlow = cashFlowMonths.map((m, i) => {
+      const sumOf = (type: string) => Number(cashFlowGroups[i].find((g) => g.type === type)?._sum.amount ?? 0);
+      return { label: m.label, disbursed: sumOf('loan_disburse'), collected: sumOf('collection') };
+    });
+
     // ── Frequency × Status breakdown (web parity) ──────────────────────────
     type FrequencyKey = 'daily' | 'weekly' | 'monthly' | 'custom';
     const zeroSub = () => ({ expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 });
@@ -918,6 +993,10 @@ export async function GET(req: NextRequest) {
       todayByMode,
       todayBreakdown,
       overdueBreakdown,
+      overdueAgeing,
+      topOverdueCustomers: topOverdueCustomersView,
+      portfolioHealth,
+      cashFlow,
       todaysActivity: {
         paidItems: todayPaidItems,
         pendingItems: todayPendingDues,

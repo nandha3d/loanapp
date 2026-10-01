@@ -216,6 +216,10 @@ class DashboardSummary {
     this.todayBreakdown = const TodayCollectionBreakdown(),
     this.overdueBreakdown = const OverdueCollectionBreakdown(),
     this.todaysActivity = const TodaysActivityBundle(),
+    this.overdueAgeing = const [],
+    this.topOverdueCustomers = const [],
+    this.portfolioHealth = const PortfolioHealth(),
+    this.cashFlow = const [],
   });
 
   final int activeLoans;
@@ -255,6 +259,10 @@ class DashboardSummary {
   final TodayCollectionBreakdown todayBreakdown;
   final OverdueCollectionBreakdown overdueBreakdown;
   final TodaysActivityBundle todaysActivity;
+  final List<OverdueAgeingBucket> overdueAgeing;
+  final List<TopOverdueCustomer> topOverdueCustomers;
+  final PortfolioHealth portfolioHealth;
+  final List<CashFlowMonth> cashFlow;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -375,6 +383,115 @@ class DashboardSummary {
                 );
               }).toList(growable: false),
             ),
+      overdueAgeing: (json['overdueAgeing'] as List<dynamic>? ?? const [])
+          .map((dynamic e) =>
+              OverdueAgeingBucket.fromJson(e as Map<String, dynamic>),)
+          .toList(growable: false),
+      topOverdueCustomers:
+          (json['topOverdueCustomers'] as List<dynamic>? ?? const [])
+              .map((dynamic e) =>
+                  TopOverdueCustomer.fromJson(e as Map<String, dynamic>),)
+              .toList(growable: false),
+      portfolioHealth: json['portfolioHealth'] != null
+          ? PortfolioHealth.fromJson(
+              json['portfolioHealth'] as Map<String, dynamic>,)
+          : const PortfolioHealth(),
+      cashFlow: (json['cashFlow'] as List<dynamic>? ?? const [])
+          .map((dynamic e) =>
+              CashFlowMonth.fromJson(e as Map<String, dynamic>),)
+          .toList(growable: false),
+    );
+  }
+}
+
+class OverdueAgeingBucket {
+  const OverdueAgeingBucket({
+    required this.from,
+    this.to,
+    required this.amount,
+    required this.count,
+  });
+  final int from;
+  final int? to;
+  final double amount;
+  final int count;
+
+  String get label => to == null ? '$from+ days' : '$from – $to days';
+
+  factory OverdueAgeingBucket.fromJson(Map<String, dynamic> json) {
+    return OverdueAgeingBucket(
+      from: (json['from'] as num?)?.toInt() ?? 0,
+      to: (json['to'] as num?)?.toInt(),
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      count: (json['count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class TopOverdueCustomer {
+  const TopOverdueCustomer({
+    required this.customerId,
+    required this.amount,
+    required this.count,
+    required this.maxDaysOverdue,
+    required this.name,
+    required this.customerCode,
+    this.routeName,
+  });
+  final String customerId;
+  final double amount;
+  final int count;
+  final int maxDaysOverdue;
+  final String name;
+  final String customerCode;
+  final String? routeName;
+
+  factory TopOverdueCustomer.fromJson(Map<String, dynamic> json) {
+    return TopOverdueCustomer(
+      customerId: (json['customerId'] as String?) ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      maxDaysOverdue: (json['maxDaysOverdue'] as num?)?.toInt() ?? 0,
+      name: (json['name'] as String?) ?? '',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      routeName: json['routeName'] as String?,
+    );
+  }
+}
+
+class PortfolioHealth {
+  const PortfolioHealth({
+    this.withOverdue = 0,
+    this.onTrack = 0,
+  });
+  final int withOverdue;
+  final int onTrack;
+
+  int get total => withOverdue + onTrack;
+
+  factory PortfolioHealth.fromJson(Map<String, dynamic> json) {
+    return PortfolioHealth(
+      withOverdue: (json['withOverdue'] as num?)?.toInt() ?? 0,
+      onTrack: (json['onTrack'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class CashFlowMonth {
+  const CashFlowMonth({
+    required this.label,
+    required this.disbursed,
+    required this.collected,
+  });
+  final String label;
+  final double disbursed;
+  final double collected;
+
+  factory CashFlowMonth.fromJson(Map<String, dynamic> json) {
+    return CashFlowMonth(
+      label: (json['label'] as String?) ?? '',
+      disbursed: (json['disbursed'] as num?)?.toDouble() ?? 0.0,
+      collected: (json['collected'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

@@ -44,18 +44,17 @@ class _InteractivePortfolioDonutCardState
     final s = widget.summary;
 
     // Repayment values
-    final paid = s.todayCollected > 0
-        ? s.todayCollected
-        : (s.totalCollectedAllTime > 0 ? s.totalCollectedAllTime : 0.0);
-    final pending = math.max(0.0, s.todayExpected - s.todayCollected);
+    final paid = s.todayCollected;
+    final pending = s.todayGap > 0
+        ? s.todayGap
+        : math.max(0.0, s.todayExpected - s.todayCollected);
     final overdue = s.overdueOutstanding;
     final totalRepayment = paid + pending + overdue;
 
-    // Loan status values
-    final active = s.activeLoans;
-    final overdueLoan = s.overdueLoans;
-    final completed = math.max(0, s.totalCustomers - (active + overdueLoan));
-    final totalLoans = active + overdueLoan + completed;
+    // Loan status / Portfolio health values
+    final onTrack = s.portfolioHealth.onTrack;
+    final withOverdue = s.portfolioHealth.withOverdue;
+    final totalHealthLoans = s.portfolioHealth.total;
 
     final isWide = MediaQuery.sizeOf(context).width >= 620;
 
@@ -63,18 +62,13 @@ class _InteractivePortfolioDonutCardState
       paid: paid,
       pending: pending,
       overdue: overdue,
-      total: totalRepayment > 0
-          ? totalRepayment
-          : (s.totalDisbursed > 0 ? s.totalDisbursed : 1.0),
+      total: totalRepayment,
     );
 
-    final loansCard = _buildLoansStatusCard(
-      active: active,
-      completed: completed > 0 ? completed : math.max(1, (active * 1.5).round()),
-      overdue: overdueLoan,
-      total: totalLoans > 0
-          ? totalLoans
-          : (active + overdueLoan + math.max(1, (active * 1.5).round())),
+    final loansCard = _buildPortfolioHealthCard(
+      onTrack: onTrack,
+      withOverdue: withOverdue,
+      total: totalHealthLoans,
     );
 
     if (isWide) {
@@ -109,7 +103,7 @@ class _InteractivePortfolioDonutCardState
     final overduePct = math.max(0, 100 - paidPct - pendingPct);
 
     String centerTop = _formatShort(safeTotal);
-    String centerSub = 'Total Lent';
+    String centerSub = 'Total Dues';
 
     if (_touchedRepaymentIndex == 0) {
       centerTop = _formatShort(paid);
@@ -142,145 +136,165 @@ class _InteractivePortfolioDonutCardState
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              // Interactive Donut Chart with Center Text
-              SizedBox(
-                width: 130,
-                height: 130,
-                child: Stack(
-                  alignment: Alignment.center,
+          if (total <= 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Column(
                   children: [
-                    PieChart(
-                      PieChartData(
-                        pieTouchData: PieTouchData(
-                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                            setState(() {
-                              if (!event.isInterestedForInteractions ||
-                                  pieTouchResponse == null ||
-                                  pieTouchResponse.touchedSection == null) {
-                                _touchedRepaymentIndex = -1;
-                                return;
-                              }
-                              _touchedRepaymentIndex = pieTouchResponse
-                                  .touchedSection!.touchedSectionIndex;
-                            });
-                          },
+                    Icon(
+                      Icons.pie_chart_outline_rounded,
+                      size: 36,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No dues today',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                // Interactive Donut Chart with Center Text
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          pieTouchData: PieTouchData(
+                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                              setState(() {
+                                if (!event.isInterestedForInteractions ||
+                                    pieTouchResponse == null ||
+                                    pieTouchResponse.touchedSection == null) {
+                                  _touchedRepaymentIndex = -1;
+                                  return;
+                                }
+                                _touchedRepaymentIndex = pieTouchResponse
+                                    .touchedSection!.touchedSectionIndex;
+                              });
+                            },
+                          ),
+                          sectionsSpace: 3,
+                          centerSpaceRadius: 36,
+                          startDegreeOffset: -90,
+                          sections: [
+                            PieChartSectionData(
+                              value: paid > 0 ? paid : 0.001,
+                              color: const Color(0xFF10B981),
+                              radius: _touchedRepaymentIndex == 0 ? 25 : 18,
+                              showTitle: false,
+                            ),
+                            PieChartSectionData(
+                              value: pending > 0 ? pending : 0.001,
+                              color: const Color(0xFFF59E0B),
+                              radius: _touchedRepaymentIndex == 1 ? 25 : 18,
+                              showTitle: false,
+                            ),
+                            PieChartSectionData(
+                              value: overdue > 0 ? overdue : 0.001,
+                              color: const Color(0xFFEF4444),
+                              radius: _touchedRepaymentIndex == 2 ? 25 : 18,
+                              showTitle: false,
+                            ),
+                          ],
                         ),
-                        sectionsSpace: 3,
-                        centerSpaceRadius: 36,
-                        startDegreeOffset: -90,
-                        sections: [
-                          PieChartSectionData(
-                            value: paid > 0 ? paid : 0.001,
-                            color: const Color(0xFF10B981),
-                            radius: _touchedRepaymentIndex == 0 ? 25 : 18,
-                            showTitle: false,
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            centerTop,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              height: 1.1,
+                            ),
                           ),
-                          PieChartSectionData(
-                            value: pending > 0 ? pending : 0.001,
-                            color: const Color(0xFFF59E0B),
-                            radius: _touchedRepaymentIndex == 1 ? 25 : 18,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: overdue > 0 ? overdue : 0.001,
-                            color: const Color(0xFFEF4444),
-                            radius: _touchedRepaymentIndex == 2 ? 25 : 18,
-                            showTitle: false,
+                          const SizedBox(height: 2),
+                          Text(
+                            centerSub,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          centerTop,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            height: 1.1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          centerSub,
-                          style: const TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              // Right-side Legend
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _LegendRow(
-                      color: const Color(0xFF10B981),
-                      label: 'Paid',
-                      value: _formatShort(paid),
-                      percent: '$paidPct%',
-                      isHighlighted: _touchedRepaymentIndex == 0,
-                    ),
-                    const SizedBox(height: 10),
-                    _LegendRow(
-                      color: const Color(0xFFF59E0B),
-                      label: 'Pending',
-                      value: _formatShort(pending),
-                      percent: '$pendingPct%',
-                      isHighlighted: _touchedRepaymentIndex == 1,
-                    ),
-                    const SizedBox(height: 10),
-                    _LegendRow(
-                      color: const Color(0xFFEF4444),
-                      label: 'Overdue',
-                      value: _formatShort(overdue),
-                      percent: '$overduePct%',
-                      isHighlighted: _touchedRepaymentIndex == 2,
-                    ),
-                  ],
+                const SizedBox(width: 16),
+                // Right-side Legend
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _LegendRow(
+                        color: const Color(0xFF10B981),
+                        label: 'Paid',
+                        value: _formatShort(paid),
+                        percent: '$paidPct%',
+                        isHighlighted: _touchedRepaymentIndex == 0,
+                      ),
+                      const SizedBox(height: 10),
+                      _LegendRow(
+                        color: const Color(0xFFF59E0B),
+                        label: 'Pending',
+                        value: _formatShort(pending),
+                        percent: '$pendingPct%',
+                        isHighlighted: _touchedRepaymentIndex == 1,
+                      ),
+                      const SizedBox(height: 10),
+                      _LegendRow(
+                        color: const Color(0xFFEF4444),
+                        label: 'Overdue',
+                        value: _formatShort(overdue),
+                        percent: '$overduePct%',
+                        isHighlighted: _touchedRepaymentIndex == 2,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildLoansStatusCard({
-    required int active,
-    required int completed,
-    required int overdue,
+  Widget _buildPortfolioHealthCard({
+    required int onTrack,
+    required int withOverdue,
     required int total,
   }) {
     final safeTotal = total > 0 ? total : 1;
-    final activePct = ((active / safeTotal) * 100).round();
-    final completedPct = ((completed / safeTotal) * 100).round();
-    final overduePct = math.max(0, 100 - activePct - completedPct);
+    final onTrackPct = ((onTrack / safeTotal) * 100).round();
+    final withOverduePct = math.max(0, 100 - onTrackPct);
 
-    String centerTop = '$safeTotal';
-    String centerSub = 'Total Loans';
+    String centerTop = '$onTrackPct%';
+    String centerSub = 'On Track';
 
     if (_touchedLoanIndex == 0) {
-      centerTop = '$active';
-      centerSub = 'Active ($activePct%)';
+      centerTop = '$onTrack';
+      centerSub = 'On Track ($onTrackPct%)';
     } else if (_touchedLoanIndex == 1) {
-      centerTop = '$completed';
-      centerSub = 'Completed ($completedPct%)';
-    } else if (_touchedLoanIndex == 2) {
-      centerTop = '$overdue';
-      centerSub = 'Overdue ($overduePct%)';
+      centerTop = '$withOverdue';
+      centerSub = 'With Overdue ($withOverduePct%)';
     }
 
     return Container(
@@ -294,126 +308,153 @@ class _InteractivePortfolioDonutCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Loans by Status',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Interactive Donut Chart with Center Text
-              SizedBox(
-                width: 130,
-                height: 130,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    PieChart(
-                      PieChartData(
-                        pieTouchData: PieTouchData(
-                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                            setState(() {
-                              if (!event.isInterestedForInteractions ||
-                                  pieTouchResponse == null ||
-                                  pieTouchResponse.touchedSection == null) {
-                                _touchedLoanIndex = -1;
-                                return;
-                              }
-                              _touchedLoanIndex = pieTouchResponse
-                                  .touchedSection!.touchedSectionIndex;
-                            });
-                          },
-                        ),
-                        sectionsSpace: 3,
-                        centerSpaceRadius: 36,
-                        startDegreeOffset: -90,
-                        sections: [
-                          PieChartSectionData(
-                            value: active > 0 ? active.toDouble() : 0.001,
-                            color: const Color(0xFF8B5CF6),
-                            radius: _touchedLoanIndex == 0 ? 25 : 18,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: completed > 0 ? completed.toDouble() : 0.001,
-                            color: const Color(0xFF0284C7),
-                            radius: _touchedLoanIndex == 1 ? 25 : 18,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: overdue > 0 ? overdue.toDouble() : 0.001,
-                            color: const Color(0xFFEF4444),
-                            radius: _touchedLoanIndex == 2 ? 25 : 18,
-                            showTitle: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          centerTop,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            height: 1.1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          centerSub,
-                          style: const TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+              Text(
+                'Portfolio Health',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Right-side Legend
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _LegendRow(
-                      color: const Color(0xFF8B5CF6),
-                      label: 'Active',
-                      value: '$active',
-                      percent: '$activePct%',
-                      isHighlighted: _touchedLoanIndex == 0,
-                    ),
-                    const SizedBox(height: 10),
-                    _LegendRow(
-                      color: const Color(0xFF0284C7),
-                      label: 'Completed',
-                      value: '$completed',
-                      percent: '$completedPct%',
-                      isHighlighted: _touchedLoanIndex == 1,
-                    ),
-                    const SizedBox(height: 10),
-                    _LegendRow(
-                      color: const Color(0xFFEF4444),
-                      label: 'Overdue',
-                      value: '$overdue',
-                      percent: '$overduePct%',
-                      isHighlighted: _touchedLoanIndex == 2,
-                    ),
-                  ],
+              SizedBox(height: 2),
+              Text(
+                'By loan status',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          if (total <= 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.donut_large_rounded,
+                      size: 36,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No loans in portfolio',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                // Interactive Donut Chart with Center Text
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          pieTouchData: PieTouchData(
+                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                              setState(() {
+                                if (!event.isInterestedForInteractions ||
+                                    pieTouchResponse == null ||
+                                    pieTouchResponse.touchedSection == null) {
+                                  _touchedLoanIndex = -1;
+                                  return;
+                                }
+                                _touchedLoanIndex = pieTouchResponse
+                                    .touchedSection!.touchedSectionIndex;
+                              });
+                            },
+                          ),
+                          sectionsSpace: 3,
+                          centerSpaceRadius: 36,
+                          startDegreeOffset: -90,
+                          sections: [
+                            PieChartSectionData(
+                              value: onTrack > 0 ? onTrack.toDouble() : 0.001,
+                              color: const Color(0xFF10B981),
+                              radius: _touchedLoanIndex == 0 ? 25 : 18,
+                              showTitle: false,
+                            ),
+                            PieChartSectionData(
+                              value: withOverdue > 0
+                                  ? withOverdue.toDouble()
+                                  : 0.001,
+                              color: const Color(0xFFEF4444),
+                              radius: _touchedLoanIndex == 1 ? 25 : 18,
+                              showTitle: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            centerTop,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            centerSub,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Right-side Legend
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _LegendRow(
+                        color: const Color(0xFF10B981),
+                        label: 'On Track',
+                        value: '$onTrack',
+                        percent: '$onTrackPct%',
+                        isHighlighted: _touchedLoanIndex == 0,
+                      ),
+                      const SizedBox(height: 10),
+                      _LegendRow(
+                        color: const Color(0xFFEF4444),
+                        label: 'With Overdue',
+                        value: '$withOverdue',
+                        percent: '$withOverduePct%',
+                        isHighlighted: _touchedLoanIndex == 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
