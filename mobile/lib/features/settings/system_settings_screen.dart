@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -238,7 +239,10 @@ class _SystemSettingsScreenState extends ConsumerState<SystemSettingsScreen> {
                 DropdownMenuItem(
                     value: 'both', child: Text(t.x('sys.kyc_both')),),
               ],
-              onChanged: (v) => setState(() => _kycMethod = v ?? _kycMethod),
+              // SET-02: locked without the KYC add-on, as on web.
+              onChanged: (ref.watch(authControllerProvider).user?.kycEnabled ?? false)
+                  ? (v) => setState(() => _kycMethod = v ?? _kycMethod)
+                  : null,
             ),
           ),
         ),
@@ -378,7 +382,7 @@ class _AppDropdown<V> extends StatelessWidget {
   final V? value;
   final String hint;
   final List<DropdownMenuItem<V>> items;
-  final ValueChanged<V?> onChanged;
+  final ValueChanged<V?>? onChanged;
 
   @override
   Widget build(BuildContext context) {

@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       premiumAccountingEnabled: true,
       whatsappSmsEnabled: true,
       foreclosureEnabled: true,
+      receiptPdfAllowed: true,
     },
   });
   const verticals = await resolveUserVerticals(user);
@@ -56,6 +57,8 @@ export async function GET(req: NextRequest) {
     premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
     whatsappSmsEnabled: Boolean(subscription?.whatsappSmsEnabled),
     foreclosureEnabled: Boolean(subscription?.foreclosureEnabled),
+    // SET-02: plan gate for receipt / document PDFs (web hides the toggle without it).
+    receiptPdfAllowed: Boolean(subscription?.receiptPdfAllowed),
     id: user.id,
     name: user.name,
     phone: user.phone,

@@ -12083,4 +12083,20 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಮೂಲಧನ ಉಳಿದಿರುವ',
     'ml': 'RBI മാസ്റ്റർ സർക്കുലർ IRACP 2023',
   },
+  'set.upi_manual_verification': {
+    'en': 'Manual UPI verification',
+    'ta': 'கைமுறை UPI சரிபார்ப்பு',
+    'hi': 'मैनुअल UPI सत्यापन',
+    'te': 'మాన్యువల్ UPI ధృవీకరణ',
+    'kn': 'ಕೈಯಾರೆ UPI ಪರಿಶೀಲನೆ',
+    'ml': 'മാനുവൽ UPI സ്ഥിരീകരണം',
+  },
+  'set.upi_manual_verification_hint': {
+    'en': 'UPI / online collections wait for an admin to verify before they count',
+    'ta': 'UPI / ஆன்லைன் வசூல்கள் நிர்வாகி சரிபார்க்கும் வரை கணக்கில் வராது',
+    'hi': 'UPI / ऑनलाइन वसूली व्यवस्थापक के सत्यापन के बाद ही गिनी जाती है',
+    'te': 'UPI / ఆన్‌లైన్ వసూళ్లు అడ్మిన్ ధృవీకరించిన తర్వాతే లెక్కలోకి వస్తాయి',
+    'kn': 'UPI / ಆನ್‌ಲೈನ್ ಸಂಗ್ರಹಗಳು ನಿರ್ವಾಹಕರು ಪರಿಶೀಲಿಸಿದ ನಂತರವೇ ಎಣಿಕೆಯಾಗುತ್ತವೆ',
+    'ml': 'UPI / ഓൺലൈൻ പിരിവുകൾ അഡ്മിൻ സ്ഥിരീകരിച്ച ശേഷം മാത്രം കണക്കാക്കും',
+  },
 };

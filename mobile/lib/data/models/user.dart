@@ -106,6 +106,7 @@ class User {
     this.bypassLoanApproval = true,
     this.bulletTermEnabled = false,
     this.interestOnlyEnabled = false,
+    this.receiptPdfAllowed = false,
     this.verticals = const [],
   });
 
@@ -123,6 +124,8 @@ class User {
   /// Tenant offers Bullet loans (feature flag bullet_term_enabled, LOAN-02).
   final bool bulletTermEnabled;
   final bool interestOnlyEnabled;
+  /// SET-02: plan allows receipt / document PDFs.
+  final bool receiptPdfAllowed;
 
   /// Server-driven module visibility list (spec §5).
   final List<String> enabledModules;
@@ -211,6 +214,7 @@ class User {
     bool? bypassLoanApproval,
     bool? bulletTermEnabled,
     bool? interestOnlyEnabled,
+    bool? receiptPdfAllowed,
     List<String>? verticals,
   }) {
     return User(
@@ -242,6 +246,7 @@ class User {
       bypassLoanApproval: bypassLoanApproval ?? this.bypassLoanApproval,
       bulletTermEnabled: bulletTermEnabled ?? this.bulletTermEnabled,
       interestOnlyEnabled: interestOnlyEnabled ?? this.interestOnlyEnabled,
+      receiptPdfAllowed: receiptPdfAllowed ?? this.receiptPdfAllowed,
     );
   }
 
@@ -279,6 +284,7 @@ class User {
       foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
       bulletTermEnabled: json['bulletTermEnabled'] == true,
       interestOnlyEnabled: json['interestOnlyEnabled'] == true,
+      receiptPdfAllowed: json['receiptPdfAllowed'] == true,
       bypassLoanApproval: (json['bypassLoanApproval'] as bool?) ??
           (json['role'] != 'agent'),
     );
@@ -308,6 +314,7 @@ class User {
         'bypassLoanApproval': bypassLoanApproval,
         'bulletTermEnabled': bulletTermEnabled,
         'interestOnlyEnabled': interestOnlyEnabled,
+        'receiptPdfAllowed': receiptPdfAllowed,
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,
         'foreclosureEnabled': foreclosureEnabled,

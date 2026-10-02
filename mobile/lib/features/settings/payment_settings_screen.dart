@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -34,6 +35,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
   final _upiId = TextEditingController();
   String? _qrUrl;
   bool _receiptPdfActive = false;
+  // SET-02: digital collections wait for manual verification when on (web toggle).
+  bool _upiManualVerification = false;
 
   bool _seeded = false;
   bool _saving = false;
@@ -51,6 +54,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     _upiId.text = m['upi_id'] ?? '';
     _qrUrl = m['upi_qr_url'];
     _receiptPdfActive = m['receipt_pdf_active'] == 'true';
+    _upiManualVerification = m['upi_manual_verification'] == 'true';
   }
 
   Future<void> _pickQr() async {
@@ -71,7 +75,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     try {
       final patch = <String, dynamic>{
         'upi_id': _upiId.text.trim(),
-        'receipt_pdf_active': _receiptPdfActive ? 'true' : 'false',
+        if (ref.read(authControllerProvider).user?.receiptPdfAllowed ?? false)
+          'receipt_pdf_active': _receiptPdfActive ? 'true' : 'false',
+        'upi_manual_verification': _upiManualVerification ? 'true' : 'false',
       };
       if (_qrUrl != null) patch['upi_qr_url'] = _qrUrl;
       await ref.read(settingsServiceProvider).save(patch);
@@ -232,12 +238,21 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                 ],
               ),
               const SizedBox(height: 10),
+              if (ref.watch(authControllerProvider).user?.receiptPdfAllowed ?? false)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t.x('set.receipt_pdf'), style: AppTypography.body),
+                  value: _receiptPdfActive,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (v) => setState(() => _receiptPdfActive = v),
+                ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: Text(t.x('set.receipt_pdf'), style: AppTypography.body),
-                value: _receiptPdfActive,
+                title: Text(t.x('set.upi_manual_verification'), style: AppTypography.body),
+                subtitle: Text(t.x('set.upi_manual_verification_hint'), style: AppTypography.caption),
+                value: _upiManualVerification,
                 activeThumbColor: AppColors.primary,
-                onChanged: (v) => setState(() => _receiptPdfActive = v),
+                onChanged: (v) => setState(() => _upiManualVerification = v),
               ),
             ],
           ),
