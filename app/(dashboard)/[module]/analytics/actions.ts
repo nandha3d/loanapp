@@ -117,7 +117,7 @@ export async function getAnalyticsData(
   ] = await Promise.all([
     // Active loans aggregate
     prisma.loan.aggregate({
-      where: { ...lw, status: { in: ['active', 'overdue'] } },
+      where: { ...lw, status: { in: ['active', 'overdue', 'npa'] } },
       _sum: { principal: true, disbursed: true, totalCollected: true },
       _count: true,
     }),
@@ -131,13 +131,13 @@ export async function getAnalyticsData(
     prisma.loan.count({ where: { ...lw, status: 'overdue' } }),
     // Today's instalments
     prisma.instalment.findMany({
-      where: { loan: { ...lw, status: { in: ['active', 'overdue', 'closed'] } }, dueDate: { gte: today, lt: tomorrow } },
+      where: { loan: { ...lw, status: { in: ['active', 'overdue', 'npa', 'closed'] } }, dueDate: { gte: today, lt: tomorrow } },
       select: { id: true, dueAmount: true, receivedAmount: true, status: true },
     }),
     // ALL overdue instalments for aging + attention
     prisma.instalment.findMany({
       where: {
-        loan: { ...lw, status: { in: ['active', 'overdue'] } },
+        loan: { ...lw, status: { in: ['active', 'overdue', 'npa'] } },
         dueDate: { lt: today },
         status: { in: ['upcoming', 'missed', 'partial'] },
       },
@@ -165,13 +165,13 @@ export async function getAnalyticsData(
     }),
     // Future 7 days
     prisma.instalment.findMany({
-      where: { loan: { ...lw, status: { in: ['active', 'overdue'] } }, dueDate: { gte: tomorrow, lt: next7 } },
+      where: { loan: { ...lw, status: { in: ['active', 'overdue', 'npa'] } }, dueDate: { gte: tomorrow, lt: next7 } },
       select: { dueDate: true, dueAmount: true },
       orderBy: { dueDate: 'asc' },
     }),
     // Future 30 days aggregate
     prisma.instalment.aggregate({
-      where: { loan: { ...lw, status: { in: ['active', 'overdue'] } }, dueDate: { gte: tomorrow, lt: next30 } },
+      where: { loan: { ...lw, status: { in: ['active', 'overdue', 'npa'] } }, dueDate: { gte: tomorrow, lt: next30 } },
       _sum: { dueAmount: true },
     }),
     // Pending penalties
@@ -205,7 +205,7 @@ export async function getAnalyticsData(
           select: {
             id: true,
             loans: {
-              where: { status: { in: ['active', 'overdue'] } },
+              where: { status: { in: ['active', 'overdue', 'npa'] } },
               select: {
                 instalments: {
                   where: { dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
@@ -234,7 +234,7 @@ export async function getAnalyticsData(
         customerCode: true,
         createdAt: true,
         loans: {
-          where: { status: { in: ['active', 'overdue', 'closed'] } },
+          where: { status: { in: ['active', 'overdue', 'npa', 'closed'] } },
           select: {
             id: true,
             principal: true,
@@ -257,7 +257,7 @@ export async function getAnalyticsData(
     // EMI pressure: customers with multiple EMIs due this week
     prisma.instalment.findMany({
       where: {
-        loan: { ...lw, status: { in: ['active', 'overdue'] } },
+        loan: { ...lw, status: { in: ['active', 'overdue', 'npa'] } },
         dueDate: { gte: today, lt: next7 },
         status: { in: ['upcoming'] },
       },
@@ -266,7 +266,7 @@ export async function getAnalyticsData(
     // Loan frequency aggregates
     prisma.loan.groupBy({
       by: ['frequency'],
-      where: { ...lw, status: { in: ['active', 'overdue'] } },
+      where: { ...lw, status: { in: ['active', 'overdue', 'npa'] } },
       _sum: { principal: true },
     }),
   ]);

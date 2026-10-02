@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         prisma.loan.count({ where: { ...loanBase, status: 'overdue' } }),
         prisma.loan.count({ where: { ...loanBase, status: 'closed' } }),
         prisma.instalment.findMany({
-          where: { loan: { ...loanBase, status: { in: ['active', 'overdue', 'closed'] } }, dueDate: { gte: from, lte: to } },
+          where: { loan: { ...loanBase, status: { in: ['active', 'overdue', 'npa', 'closed'] } }, dueDate: { gte: from, lte: to } },
           select: { dueAmount: true, receivedAmount: true, status: true },
         }),
       ]);
