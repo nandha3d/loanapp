@@ -1,5 +1,6 @@
 'use server';
 
+import { createTenantBranchFor, updateTenantBranchFor } from '@/lib/branches';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
 import { FEATURE_FLAG_KEYS } from '@/lib/features';
@@ -830,114 +831,19 @@ export async function createTenantBranch(formData: FormData) {
   }
 
   const tenantId = await getDefaultTenantId();
-
-  // Enforce subscription active status
-  try {
-    const { assertTenantSubscriptionAccess } = await import('@/lib/subscription');
-    await assertTenantSubscriptionAccess(tenantId);
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Subscription inactive or payment required' };
-  }
-
-  // Enforce branch limit
-  const sub = await prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    select: { enabledModules: true, maxBranches: true },
+  // SET-03: one implementation for web and v1 (lib/branches.ts).
+  const res = await createTenantBranchFor({ userId, role, tenantId }, {
+    name: formData.get('name') as string,
+    code: formData.get('code') as string,
+    phone: formData.get('phone') as string,
+    address: formData.get('address') as string,
+    enabledModules: formData.getAll('enabledModules').map(String),
   });
-
-  const existingBranchCount = await prisma.branch.count({
-    where: { tenantId, status: 'active' },
-  });
-
-  if (sub && sub.maxBranches > 0 && existingBranchCount >= sub.maxBranches) {
-    return {
-      success: false,
-      error: `Branch limit reached (${existingBranchCount}/${sub.maxBranches}). Upgrade your subscription plan to add more branches.`,
-    };
-  }
-
-  const name = (formData.get('name') as string)?.trim();
-  const rawCode = (formData.get('code') as string)?.trim();
-  const phone = (formData.get('phone') as string)?.trim() || null;
-  const address = (formData.get('address') as string)?.trim() || null;
-
-  if (!name) {
-    return { success: false, error: 'Branch name is required.' };
-  }
-
-  const code = rawCode ? rawCode.toUpperCase() : null;
-
-  if (code) {
-    const existingCode = await prisma.branch.findFirst({
-      where: { tenantId, code },
-      select: { id: true },
-    });
-    if (existingCode) {
-      return { success: false, error: `Branch code "${code}" already exists for your business.` };
-    }
-  }
-
-  // Validate modules against tenant subscription
-  const { normalizeModuleList } = await import('@/types/modules');
-  const planModules = normalizeModuleList(sub?.enabledModules);
-  const selectedModules = normalizeModuleList(formData.getAll('enabledModules'));
-
-  // If no modules selected, default to tenant plan modules
-  const finalModules = selectedModules.length > 0
-    ? selectedModules.filter((m) => planModules.includes(m))
-    : planModules;
-
-  if (finalModules.length === 0) {
-    return { success: false, error: 'At least one valid module from your subscription must be enabled for this branch.' };
-  }
-
-  try {
-    const branch = await prisma.$transaction(async (tx) => {
-      const b = await tx.branch.create({
-        data: {
-          tenantId,
-          superadminId: userId,
-          name,
-          code,
-          phone,
-          address,
-          status: 'active',
-          enabledModules: JSON.stringify(finalModules),
-        },
-      });
-
-      // Link creating user in SuperadminBranch so the branch is immediately available in switcher
-      await tx.superadminBranch.create({
-        data: {
-          superadminId: userId,
-          branchId: b.id,
-          assignedById: userId,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          tenantId,
-          userId,
-          action: 'create',
-          entityType: 'branch',
-          entityId: b.id,
-          newValue: JSON.stringify({ name, code, phone, address, enabledModules: finalModules }),
-        },
-      });
-
-      return b;
-    });
-
+  if (res.success) {
     revalidatePath('/settings');
     revalidatePath('/portal');
-    return { success: true, branch: { id: branch.id, name: branch.name } };
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      return { success: false, error: 'Branch code already exists for this business.' };
-    }
-    return { success: false, error: error.message || 'Failed to create branch.' };
   }
+  return res;
 }
 
 /**
@@ -952,71 +858,21 @@ export async function updateTenantBranch(formData: FormData) {
   }
 
   const tenantId = await getDefaultTenantId();
-  const branchId = formData.get('id') as string;
-  if (!branchId) return { success: false, error: 'Branch ID is required.' };
-
-  const targetBranch = await prisma.branch.findFirst({
-    where: { id: branchId, tenantId },
+  // SET-03: one implementation for web and v1 (lib/branches.ts).
+  const res = await updateTenantBranchFor({ userId, role, tenantId }, {
+    id: formData.get('id') as string,
+    name: formData.get('name') as string,
+    code: formData.get('code') as string,
+    phone: formData.get('phone') as string,
+    address: formData.get('address') as string,
+    status: formData.get('status') as string,
+    enabledModules: formData.getAll('enabledModules').map(String),
   });
-  if (!targetBranch) return { success: false, error: 'Branch not found.' };
-
-  const name = (formData.get('name') as string)?.trim();
-  const rawCode = (formData.get('code') as string)?.trim();
-  const phone = (formData.get('phone') as string)?.trim() || null;
-  const address = (formData.get('address') as string)?.trim() || null;
-  const status = (formData.get('status') as string)?.trim() || targetBranch.status;
-
-  if (!name) return { success: false, error: 'Branch name is required.' };
-
-  const code = rawCode ? rawCode.toUpperCase() : null;
-  if (code && code !== targetBranch.code) {
-    const conflict = await prisma.branch.findFirst({
-      where: { tenantId, code, id: { not: branchId } },
-      select: { id: true },
-    });
-    if (conflict) {
-      return { success: false, error: `Branch code "${code}" is already in use by another branch.` };
-    }
+  if (res.success) {
+    revalidatePath('/settings');
+    revalidatePath('/portal');
   }
-
-  const sub = await prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    select: { enabledModules: true },
-  });
-  const { normalizeModuleList } = await import('@/types/modules');
-  const planModules = normalizeModuleList(sub?.enabledModules);
-  const selectedModules = normalizeModuleList(formData.getAll('enabledModules'));
-  const finalModules = selectedModules.length > 0
-    ? selectedModules.filter((m) => planModules.includes(m))
-    : normalizeModuleList(targetBranch.enabledModules);
-
-  await prisma.branch.update({
-    where: { id: branchId },
-    data: {
-      name,
-      code,
-      phone,
-      address,
-      status,
-      enabledModules: JSON.stringify(finalModules),
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: 'update',
-      entityType: 'branch',
-      entityId: branchId,
-      oldValue: JSON.stringify({ name: targetBranch.name, code: targetBranch.code, status: targetBranch.status }),
-      newValue: JSON.stringify({ name, code, phone, address, status, enabledModules: finalModules }),
-    },
-  });
-
-  revalidatePath('/settings');
-  revalidatePath('/portal');
-  return { success: true };
+  return res;
 }
 
 /**

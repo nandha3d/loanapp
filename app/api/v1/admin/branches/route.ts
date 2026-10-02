@@ -36,15 +36,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { createBranch } = await import('@/app/admin/actions');
-
-    const formData = new FormData();
-    formData.append('name', body.name);
-    formData.append('code', body.code);
-    formData.append('phone', body.phone || '');
-    formData.append('superadminId', body.superadminId || ctx.userId);
-
-    const res = await createBranch(formData);
+    // SET-03: same implementation as web Settings → Branches. The old path
+    // called a session-based action and always answered Unauthorized here.
+    const { createTenantBranchFor } = await import('@/lib/branches');
+    const res = await createTenantBranchFor(
+      { userId: ctx.userId, role: ctx.role, tenantId: ctx.tenantId },
+      {
+        name: body.name,
+        code: body.code,
+        phone: body.phone,
+        address: body.address,
+        enabledModules: Array.isArray(body.enabledModules) ? body.enabledModules.map(String) : [],
+      },
+    );
     if (res.success) {
       return ok(res);
     } else {

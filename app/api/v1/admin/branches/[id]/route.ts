@@ -18,17 +18,20 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const { updateBranch } = await import('@/app/admin/actions');
-
-    const formData = new FormData();
-    formData.append('id', id);
-    formData.append('name', body.name);
-    formData.append('code', body.code);
-    formData.append('phone', body.phone || '');
-    formData.append('status', body.status || 'active');
-    formData.append('superadminId', body.superadminId || ctx.userId);
-
-    const res = await updateBranch(formData);
+    // SET-03: same implementation as web Settings → Branches.
+    const { updateTenantBranchFor } = await import('@/lib/branches');
+    const res = await updateTenantBranchFor(
+      { userId: ctx.userId, role: ctx.role, tenantId: ctx.tenantId },
+      {
+        id,
+        name: body.name,
+        code: body.code,
+        phone: body.phone,
+        address: body.address,
+        status: body.status,
+        enabledModules: Array.isArray(body.enabledModules) ? body.enabledModules.map(String) : [],
+      },
+    );
     if (res.success) {
       return ok(res);
     } else {
