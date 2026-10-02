@@ -22,6 +22,20 @@ User _user({
 }
 
 void main() {
+  group('NOT-01 web notification links', () {
+    test('module prefix is stripped', () {
+      expect(mobilePathForWebLink(Uri.parse('/microlending/loans/DL1')), '/loans/DL1');
+      expect(mobilePathForWebLink(Uri.parse('/goldloan/approvals?tab=x')), '/approvals?tab=x');
+    });
+    test('route-tracker maps to tracking', () {
+      expect(mobilePathForWebLink(Uri.parse('/microlending/route-tracker')), '/tracking');
+      expect(mobilePathForWebLink(Uri.parse('/route-tracker')), '/tracking');
+    });
+    test('mobile paths and explicit module routes are untouched', () {
+      expect(mobilePathForWebLink(Uri.parse('/loans/DL1')), isNull);
+      expect(mobilePathForWebLink(Uri.parse('/microlending/subscription')), isNull);
+    });
+  });
   group('MOB-RBAC router guard contracts', () {
     test('MOB-RBAC-UNIT-001 module constants match server entitlement keys', () {
       expect(ModuleKey.dashboard, 'dashboard');

@@ -106,6 +106,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
+      // NOT-01: notification / FCM links use web paths (/microlending/loans/X,
+      // /route-tracker); map them onto the mobile routes first.
+      final webMapped = mobilePathForWebLink(state.uri);
+      if (webMapped != null) return webMapped;
       final loc = state.matchedLocation;
       final auth = ref.read(authControllerProvider);
       final stage = auth.stage;
@@ -643,4 +647,32 @@ class _AuthListenable extends ChangeNotifier {
     );
   }
   final Ref _ref;
+}
+
+/// NOT-01: maps a web link onto the mobile route table, or null when [uri]
+/// is already a mobile path. Web staff URLs are module-prefixed
+/// (`/microlending/loans/X`); the explicit `/microlending/...` mobile routes
+/// are kept; `/route-tracker` is `/tracking` on mobile.
+String? mobilePathForWebLink(Uri uri) {
+  const explicitMobile = [
+    '/microlending/subscription',
+    '/microlending/affiliate',
+    '/microlending/branch-requests',
+    '/microlending/module-requests',
+  ];
+  final path = uri.path;
+  if (explicitMobile.any((p) => path == p || path.startsWith('$p/'))) return null;
+  var segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  var changed = false;
+  if (segments.isNotEmpty && AppType.all.contains(segments.first)) {
+    segments = segments.sublist(1);
+    changed = true;
+  }
+  if (segments.isNotEmpty && segments.first == 'route-tracker') {
+    segments = ['tracking', ...segments.sublist(1)];
+    changed = true;
+  }
+  if (!changed) return null;
+  final mapped = '/${segments.join('/')}';
+  return uri.hasQuery ? '$mapped?${uri.query}' : mapped;
 }
