@@ -1,6 +1,7 @@
 'use client';
 
 import { compressFormDataImages } from '@/lib/imageCompression';
+import { formatCurrency } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
 import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
@@ -11,10 +12,6 @@ import Link from '@/components/layout/DashboardLink';
 import Modal from '@/components/Modal';
 import CustomerForm from '../../customers/new/CustomerForm';
 import { BureauReportCard } from '@/components/bureau/BureauReportCard';
-
-function formatCurrency(amount: number, symbol: string) {
-  return symbol + amount.toLocaleString();
-}
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
   const gauge = getCreditScoreGaugePresentation(score, grade);
@@ -832,7 +829,7 @@ export default function LoanForm({
                               <td><input type="number" step="0.001" className="cell-input num" value={row.wastageGrams} onChange={e=>updateRow(i,'wastageGrams',e.target.value)} placeholder="0" /></td>
                               <td><input type="number" step="0.001" className="cell-input num" value={row.netWeightGrams} onChange={e=>updateRow(i,'netWeightGrams',e.target.value)} placeholder={String(line.netWeightGrams || '0')} /></td>
                               <td><input type="number" step="0.01" className="cell-input num" value={row.ratePerGram} onChange={e=>updateRow(i,'ratePerGram',e.target.value)} /></td>
-                              <td className="val-cell">{currencySymbol}{line.value.toLocaleString('en-IN')}</td>
+                              <td className="val-cell">{formatCurrency(line.value, currencySymbol)}</td>
                               <td><button type="button" className="rm-btn" onClick={()=>removeRow(i)} disabled={ornamentRows.length<=1} title="Remove">✕</button></td>
                             </tr>
                           );
@@ -846,7 +843,7 @@ export default function LoanForm({
                           <td>{goldTotals.totalWastage}</td>
                           <td>{goldTotals.totalNetWeight}</td>
                           <td></td>
-                          <td className="val-cell">{currencySymbol}{goldTotals.totalValue.toLocaleString('en-IN')}</td>
+                          <td className="val-cell">{formatCurrency(goldTotals.totalValue, currencySymbol)}</td>
                           <td></td>
                         </tr>
                       </tfoot>

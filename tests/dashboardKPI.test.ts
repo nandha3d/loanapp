@@ -16,6 +16,10 @@ assert.equal(formatCurrency(100000, 'Rs '), 'Rs 1,00,000', 'XM-D-011 Indian grou
 assert.equal(formatCurrency(9999999, 'Rs '), 'Rs 99,99,999', 'XM-D-011 Indian grouping — 7 digits');
 assert.equal(formatCurrency(10000000, 'Rs '), 'Rs 1,00,00,000', 'XM-D-011 Indian grouping — 8 digits');
 assert.equal(formatCurrency(1000, '\u20b9'), '\u20b91,000', 'XM-D-011 rupee symbol — 4 digits');
+// DEC-03: whole rupees, half rounds away from zero (same as mobile NumberFormat).
+assert.equal(formatCurrency(0.5, 'Rs '), 'Rs 1');
+assert.equal(formatCurrency(2.5, 'Rs '), 'Rs 3');
+assert.equal(formatCurrency(1250.5, 'Rs '), 'Rs 1,251');
 assert.equal(formatCurrency(-5000, 'Rs '), 'Rs -5,000', 'XM-D-011 negative amount formatting');
 
 // --- Outstanding Calculation (ML-D-006 to ML-D-008) ---

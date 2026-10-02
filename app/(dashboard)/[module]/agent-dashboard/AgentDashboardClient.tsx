@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
 interface Props {
@@ -26,7 +27,7 @@ export default function AgentDashboardClient(p: Props) {
   const [sessionFilter, setSessionFilter] = useState('');
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
-  const fmt   = (n: number) => `${p.currencySymbol}${n.toLocaleString('en-IN')}`;
+  const fmt   = (n: number) => formatCurrency(n, p.currencySymbol); // DEC-03
   const todayPct  = Math.round(p.todayPct);
   const monthPct  = Math.round(p.monthPct);
 

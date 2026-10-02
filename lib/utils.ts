@@ -5,7 +5,9 @@ export function formatCurrency(amount: number | Decimal | string, symbol: string
   const num = typeof amount === 'string' ? parseFloat(amount) : typeof amount === 'number' ? amount : amount.toNumber();
   const candidateSymbol = typeof symbol === 'string' ? symbol : '';
   const safeSymbol = candidateSymbol.trim() && candidateSymbol.trim() !== '???' ? candidateSymbol : '₹';
-  return safeSymbol + num.toLocaleString('en-IN');
+  // DEC-03: whole rupees on screen, same as mobile (decimalDigits: 0). Stored,
+  // sent and document values keep paise — this is display only.
+  return safeSymbol + num.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
 // ─── Phone ────────────────────────────────────

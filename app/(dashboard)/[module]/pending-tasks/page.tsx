@@ -1,4 +1,5 @@
 import prisma from '@/lib/db';
+import { formatCurrency } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
@@ -136,7 +137,7 @@ export default async function PendingTasksPage({
     dormant: dormantCount,
   };
 
-  const money = (n: unknown) => `${currencySymbol}${Math.round(Number(n)).toLocaleString('en-IN')}`;
+  const money = (n: unknown) => formatCurrency(Number(n), currencySymbol); // DEC-03
 
   // Only the selected tab's rows are fetched.
   let rows: PendingRow[] = [];

@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { formatCurrency } from '@/lib/utils';
 
 type Mandate = {
   id: string;
@@ -250,7 +251,7 @@ export default function NachPanel({
               <div><span style={{ color: 'var(--text-light)' }}>Account holder</span><br /><strong>{mandate.accountHolderName}</strong></div>
               <div><span style={{ color: 'var(--text-light)' }}>Account</span><br /><strong>{maskAccount(mandate.accountNumber)}</strong></div>
               <div><span style={{ color: 'var(--text-light)' }}>Bank / IFSC</span><br /><strong>{mandate.bankName || '—'} · {mandate.ifscCode}</strong></div>
-              <div><span style={{ color: 'var(--text-light)' }}>Max debit</span><br /><strong>{currencySymbol}{Number(mandate.maxAmount).toLocaleString('en-IN')}</strong></div>
+              <div><span style={{ color: 'var(--text-light)' }}>Max debit</span><br /><strong>{formatCurrency(Number(mandate.maxAmount), currencySymbol)}</strong></div>
               {mandate.activatedAt && (
                 <div><span style={{ color: 'var(--text-light)' }}>Active since</span><br /><strong>{new Date(mandate.activatedAt).toLocaleDateString()}</strong></div>
               )}
@@ -262,7 +263,7 @@ export default function NachPanel({
                 <div style={{ display: 'grid', gap: '6px' }}>
                   {mandate.presentations!.slice(0, 5).map((p) => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                      <span>{new Date(p.presentedAt).toLocaleDateString()} · {currencySymbol}{Number(p.amount).toLocaleString('en-IN')}</span>
+                      <span>{new Date(p.presentedAt).toLocaleDateString()} · {formatCurrency(Number(p.amount), currencySymbol)}</span>
                       <span style={{
                         fontWeight: 700,
                         color: p.status === 'success' ? '#16a34a' : p.status === 'bounced' || p.status === 'failed' ? '#dc2626' : '#d97706',

@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { formatCurrency } from '@/lib/utils';
 
 type TimelineEvent = {
   at: string;
@@ -126,7 +127,7 @@ export default function LoanTimeline({ loanId, currencySymbol }: { loanId: strin
                     <strong>{e.title}</strong>
                     {e.amount != null && (
                       <span style={{ marginLeft: '8px', fontWeight: 700, color: e.type === 'collection' ? 'var(--success)' : 'inherit' }}>
-                        {currencySymbol}{Number(e.amount).toLocaleString('en-IN')}
+                        {formatCurrency(Number(e.amount), currencySymbol)}
                       </span>
                     )}
                     {gpsBadge(e.meta)}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { formatCurrency } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { confirmSelfPayAction, rejectSelfPayAction } from './actions';
 
@@ -17,7 +18,7 @@ type Pending = {
   phone: string;
 };
 
-const inr = (n: number) => '₹' + n.toLocaleString('en-IN');
+const inr = (n: number) => formatCurrency(n); // DEC-03
 
 export default function SelfPayClient({
   pending,

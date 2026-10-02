@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { formatCurrency } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 import { collectRunAction, closeRunAction, reconcileRunAction, createSelfPayLinkAction } from '../../runActions';
@@ -31,7 +32,7 @@ type Run = {
   varianceAmount: number | null;
 };
 
-const inr = (n: number) => '₹' + n.toLocaleString('en-IN');
+const inr = (n: number) => formatCurrency(n); // DEC-03
 
 export default function RunSheetClient({
   run,

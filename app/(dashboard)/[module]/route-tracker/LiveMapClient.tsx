@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatCurrency } from '@/lib/utils';
 
 type LiveAgent = {
   agentId: string;
@@ -139,7 +140,7 @@ export default function LiveMapClient({
           `<strong style="font-size: 14px;">${safeName.innerHTML}</strong><br/>` +
           `<span style="color: ${agent.online ? '#16a34a' : '#6b7280'}; font-weight: 600;">` +
           `${agent.online ? '🟢 Live GPS Active' : '⚪ Offline'} · ${timeAgo(agent.capturedAt)}</span><br/>` +
-          `<strong>Today:</strong> ${safeCurrency.innerHTML}${Number(agent.todayCollected).toLocaleString('en-IN')} ` +
+          `<strong>Today:</strong> ${safeCurrency.innerHTML}${Number(agent.todayCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} ` +
           `(${agent.todayEntries} entries)` +
           `</div>`;
 
@@ -210,7 +211,7 @@ export default function LiveMapClient({
             <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;">
               ${p.customerPhoto ? `<img src="${p.customerPhoto}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1.5px solid #16a34a;" />` : ''}
               <div style="font-weight: 700; color: #111827; font-size: 14px;">
-                Collected ${currencySymbol}${Number(p.amount).toLocaleString('en-IN')} from ${p.customerName}
+                Collected ${formatCurrency(Number(p.amount), currencySymbol)} from ${p.customerName}
               </div>
             </div>
             <div style="color: #6b7280; font-size: 11px; margin-top: 4px;">

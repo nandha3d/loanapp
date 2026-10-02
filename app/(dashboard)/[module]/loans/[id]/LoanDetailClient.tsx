@@ -52,7 +52,7 @@ function GoldServicingPanel({ data, loanId, currencySymbol, d }: { data: any; lo
   const [partAmt, setPartAmt] = useState<number>(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [repledgeOpen, setRepledgeOpen] = useState(false);
-  const fmt = (n: number) => `${currencySymbol}${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+  const fmt = (n: number) => formatCurrency(Number(n) || 0, currencySymbol); // DEC-03
   const closed = data?.status === 'closed';
 
   const run = async (action: 'interest' | 'part' | 'redeem' | 'takeover', amount: number) => {

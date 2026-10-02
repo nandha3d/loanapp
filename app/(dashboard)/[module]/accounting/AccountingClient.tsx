@@ -7,7 +7,7 @@ import Modal from '@/components/Modal';
 import { calculateChitAccountingMetrics } from '@/lib/accounting/chitSummary';
 
 function formatCurrency(amount: number, symbol: string) {
-  return `${symbol}${Math.abs(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
+  return `${symbol}${Math.abs(amount).toLocaleString('en-IN', { maximumFractionDigits: 0 }) /* DEC-03: whole rupees */}`;
 }
 
 function formatDate(date: Date | string) {
