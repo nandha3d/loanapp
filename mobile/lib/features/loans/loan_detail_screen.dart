@@ -177,18 +177,9 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         ref.watch(authControllerProvider).user?.appType == AppType.microlending;
     final compactSchedule =
         isMicrolending && MediaQuery.sizeOf(context).width < 600;
-    // Progress ring = server progress or canonical paid period / total instalments (LD-03).
-    final isClosedOrSettled = loan.status == 'closed' ||
-        (loan.metrics != null && loan.metrics!.totalOutstanding <= 0);
-    final paid = isClosedOrSettled
-        ? loan.instalmentCount
-        : (loan.metrics?.paidPeriod ?? 0);
-    final progress = isClosedOrSettled
-        ? 1.0
-        : (loan.metrics?.progress ??
-            (loan.instalmentCount == 0
-                ? 0.0
-                : (paid / loan.instalmentCount).clamp(0.0, 1.0)));
+    // Progress ring & paid period come directly from server metrics (GET /api/v1/loans/[id]).
+    final paid = loan.metrics?.paidPeriod ?? 0;
+    final progress = loan.metrics?.progress ?? 0.0;
 
     _tenureOver = loan.extendedSchedule?.scheduleFinished ?? false;
     final displayInstalments = _computeDisplayInstalments(loan);
