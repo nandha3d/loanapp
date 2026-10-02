@@ -11,6 +11,7 @@ import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions'
 import GoldMasterClient from './gold-master/GoldMasterClient';
 import { isLendingAppType, normalizeSettingsTab } from '@/lib/moduleCapabilities';
 import { MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
+import { TEMPLATE_PLACEHOLDER_KEYS } from '@/lib/notify/templateRenderer';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
@@ -1455,17 +1456,18 @@ export default function SettingsClient({
                     Copy and paste these placeholder tags in your template bodies. They resolve dynamically upon notification dispatch:
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {[
-                      { token: '{customer}', desc: 'Customer name' },
-                      { token: '{amount}', desc: 'Transaction/Due amount' },
-                      { token: '{due_date}', desc: 'Instalment due date' },
-                      { token: '{loan_code}', desc: 'Unique loan number' },
-                      { token: '{days}', desc: 'Days overdue' },
-                      { token: '{penalty}', desc: 'Accrued penalty charge' },
-                      { token: '{balance}', desc: 'Remaining loan balance' },
-                      { token: '{orgName}', desc: 'Tenant organization name' },
-                      { token: '{firstDue}', desc: 'First instalment due date' }
-                    ].map(({ token, desc }) => (
+                    {/* NOT-04: one token list (lib/notify/templateRenderer.ts), also served to mobile. */}
+                    {TEMPLATE_PLACEHOLDER_KEYS.map((token) => ({ token, desc: ({
+                      '{customer}': 'Customer name',
+                      '{amount}': 'Transaction/Due amount',
+                      '{due_date}': 'Instalment due date',
+                      '{loan_code}': 'Unique loan number',
+                      '{days}': 'Days overdue',
+                      '{penalty}': 'Accrued penalty charge',
+                      '{balance}': 'Remaining loan balance',
+                      '{orgName}': 'Tenant organization name',
+                      '{firstDue}': 'First instalment due date',
+                    } as Record<string, string>)[token] })).map(({ token, desc }) => (
                       <div key={token} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '6px 8px' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary-dark)', cursor: 'pointer' }} onClick={() => {
                           if (typeof navigator !== 'undefined' && navigator.clipboard) {

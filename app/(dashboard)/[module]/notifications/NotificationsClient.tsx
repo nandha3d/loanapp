@@ -29,9 +29,11 @@ function timeAgo(dateStr: string, d: any): string {
 export default function NotificationsClient({
   notifications,
   dict,
+  nextLimit = null,
 }: {
   notifications: any[];
   dict: any;
+  nextLimit?: number | null;
 }) {
   const d = dict.notifications;
   const router = useRouter();
@@ -146,6 +148,11 @@ export default function NotificationsClient({
         {filtered.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
             {d.noNotificationsFound}
+          </div>
+        )}
+        {nextLimit && (
+          <div style={{ padding: '12px', textAlign: 'center' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => router.push(`?limit=${nextLimit}`)}>{d.loadMore}</button>
           </div>
         )}
       </div>

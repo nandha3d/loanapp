@@ -56,6 +56,8 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
     _active = row?['isActive'] != false;
   }
 
+  Future<List<String>>? _placeholders;
+
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -138,6 +140,28 @@ class _NotificationTemplatesScreenState extends ConsumerState<NotificationTempla
                 controller: _body,
                 maxLines: 6,
                 decoration: InputDecoration(labelText: t.x('tmpl.body')),
+              ),
+              // NOT-04: tap a token to insert it at the cursor.
+              FutureBuilder<List<String>>(
+                future: _placeholders ??= ref.read(settingsServiceProvider).notificationTemplatePlaceholders(),
+                builder: (context, snap) => Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final token in snap.data ?? const <String>[])
+                      ActionChip(
+                        label: Text(token, style: const TextStyle(fontFamily: 'monospace')),
+                        onPressed: () {
+                          final sel = _body.selection;
+                          final at = sel.isValid ? sel.start : _body.text.length;
+                          final end = sel.isValid ? sel.end : _body.text.length;
+                          _body.value = TextEditingValue(
+                            text: _body.text.replaceRange(at, end, token),
+                            selection: TextSelection.collapsed(offset: at + token.length),
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
               SwitchListTile.adaptive(
                 title: Text(t.x('tmpl.active')),

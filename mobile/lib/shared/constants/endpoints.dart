@@ -191,6 +191,8 @@ class Endpoints {
   static const String notificationLog = '/notifications/log';
   static const String notificationTemplates =
       '/settings/notification-templates';
+  static const String notificationTemplatePlaceholders =
+      '/settings/notification-templates/placeholders';
   static const String twoFactor = '/settings/2fa';
   static const String twoFactorSetup = '/settings/2fa/setup';
   static const String twoFactorVerify = '/settings/2fa/verify';

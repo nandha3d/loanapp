@@ -34,6 +34,9 @@ function replacements(d: Record<string, string>): Record<string, string> {
   };
 }
 
+/** NOT-04: the tokens both template editors list (web Settings, mobile). */
+export const TEMPLATE_PLACEHOLDER_KEYS = ['{customer}', '{amount}', '{due_date}', '{loan_code}', '{days}', '{penalty}', '{balance}', '{orgName}', '{firstDue}'] as const;
+
 const tokenPattern = /\{\{[^{}]+\}\}|\{[^{}]+\}/g;
 
 export function validateTemplatePlaceholders(template: string): void {

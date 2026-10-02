@@ -39,6 +39,12 @@ class SettingsService {
     unwrapEnvelope(res, (_) => null);
   }
 
+  /// NOT-04: placeholder tokens, same list as the web editor.
+  Future<List<String>> notificationTemplatePlaceholders() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.notificationTemplatePlaceholders);
+    return unwrapEnvelope(res, (dynamic data) => (data as List<dynamic>).map((dynamic e) => '$e').toList());
+  }
+
   Future<List<Map<String, dynamic>>> notificationTemplates() async {
     final res =
         await _dio.get<Map<String, dynamic>>(Endpoints.notificationTemplates);

@@ -376,6 +376,8 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     onTap: () => context.push('/settings/integrations'),
                   ),
+                  // NOT-04: hidden without the WhatsApp/SMS add-on, as on web.
+                  if (user?.whatsappSmsEnabled ?? false) ...[
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -397,6 +399,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     onTap: () => context.push('/settings/notifications'),
                   ),
+                  ],
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

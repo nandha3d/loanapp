@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -35,6 +36,8 @@ class _NotificationSettingsScreenState
   bool _channelSms = false;
   bool _channelWhatsapp = false;
   bool _channelEmail = false;
+  bool get _smsAllowed =>
+      ref.read(authControllerProvider).user?.whatsappSmsEnabled ?? false;
   bool _eventPaymentReceived = true;
   bool _eventDueReminder = true;
   bool _eventLoanDisbursed = true;
@@ -218,16 +221,17 @@ class _NotificationSettingsScreenState
           title: t.x('set.notif_channels'),
           child: Column(
             children: [
+              // NOT-04: SMS / WhatsApp need the plan add-on (web disables them too).
               _SwitchRow(
                 label: t.x('set.notif_sms'),
                 value: _channelSms,
-                onChanged: (v) => setState(() => _channelSms = v),
+                onChanged: _smsAllowed ? (v) => setState(() => _channelSms = v) : null,
               ),
               const Divider(height: 1, color: AppColors.border),
               _SwitchRow(
                 label: t.x('set.notif_whatsapp'),
                 value: _channelWhatsapp,
-                onChanged: (v) => setState(() => _channelWhatsapp = v),
+                onChanged: _smsAllowed ? (v) => setState(() => _channelWhatsapp = v) : null,
               ),
               const Divider(height: 1, color: AppColors.border),
               _SwitchRow(
@@ -475,7 +479,7 @@ class _SwitchRow extends StatelessWidget {
   });
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {

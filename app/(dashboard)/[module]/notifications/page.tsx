@@ -6,7 +6,10 @@ import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { buildSystemNotificationWhere } from '@/lib/notificationVisibility';
 
-export default async function NotificationsPage() {
+export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ limit?: string }> }) {
+  // NOT-04: 'Load more' widens the window 50 at a time.
+  const sp = (await searchParams) ?? {};
+  const limit = Math.min(1000, Math.max(50, Number(sp.limit) || 50));
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
@@ -24,10 +27,11 @@ export default async function NotificationsPage() {
       activeBranchId,
     }),
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    take: limit + 1,
   });
+  const hasMore = notifications.length > limit;
 
-  const serialized = JSON.parse(JSON.stringify(notifications));
+  const serialized = JSON.parse(JSON.stringify(notifications.slice(0, limit)));
 
-  return <NotificationsClient notifications={serialized} dict={dict} />;
+  return <NotificationsClient notifications={serialized} dict={dict} nextLimit={hasMore ? limit + 50 : null} />;
 }
