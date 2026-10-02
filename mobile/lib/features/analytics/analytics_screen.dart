@@ -286,7 +286,7 @@ class _PortfolioGrid extends StatelessWidget {
             Expanded(
               child: _KpiCard(
                 label: 'Recovery Ratio',
-                value: '${p.recoveryRatio.toStringAsFixed(1)}%',
+                value: '${p.recoveryRatio.round()}%',
                 color: AppColors.success,
               ),
             ),
@@ -337,13 +337,11 @@ class _RiskScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Determine risk color dynamically
-    Color color = AppColors.success;
-    if (risk.score >= 70) {
-      color = AppColors.danger;
-    } else if (risk.score >= 40) {
-      color = AppColors.warning;
-    }
+    // RPT-04: the server's colour for the band (same as web).
+    var color = AppColors.textSecondary;
+    try {
+      color = Color(int.parse('FF${risk.color.replaceFirst('#', '')}', radix: 16));
+    } catch (_) {}
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -405,7 +403,20 @@ class _InsightsCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(ins.icon, style: const TextStyle(fontSize: 16)),
+                  // RPT-04: server sends Material icon names.
+                  Icon(
+                    switch (ins.icon) {
+                      'trending_up' => Icons.trending_up,
+                      'trending_down' => Icons.trending_down,
+                      'warning' => Icons.warning_amber_rounded,
+                      'gavel' => Icons.gavel,
+                      'check_circle' => Icons.check_circle_outline,
+                      'emoji_events' => Icons.emoji_events_outlined,
+                      _ => Icons.lightbulb_outline,
+                    },
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(ins.text, style: AppTypography.body),
@@ -501,7 +512,6 @@ class _SegmentsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = segments.fold<int>(0, (s, e) => s + e.count);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -516,7 +526,6 @@ class _SegmentsCard extends StatelessWidget {
           Text('Borrower Segments', style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
           ...segments.map((seg) {
-            final pct = total > 0 ? (seg.count / total * 100).toStringAsFixed(0) : '0';
             Color color = AppColors.textSecondary;
             try {
               final hex = seg.color.replaceFirst('#', '');
@@ -536,7 +545,8 @@ class _SegmentsCard extends StatelessWidget {
                   Expanded(
                     child: Text(seg.label, style: AppTypography.body),
                   ),
-                  Text('${seg.count} ($pct%)', style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
+                  // RPT-04: counts only, as on web.
+                  Text('${seg.count}', style: AppTypography.body.copyWith(fontWeight: FontWeight.bold)),
                 ],
               ),
             );
@@ -749,7 +759,6 @@ class _AdditionalAnalytics extends ConsumerWidget {
                       Text('${loan.customerName} · ${loan.customerCode}',
                           style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       Text('${t.x('analytics.loan')}: ${loan.loanCode}', style: AppTypography.caption),
-                      _row(t.x('analytics.dueToday'), fmt.format(loan.dueToday)),
                       _row(t.x('analytics.overdueDays'), loan.overdueDays.toString()),
                       _row(t.x('rep.outstanding'), fmt.format(loan.overdueAmount)),
                       Text(loan.riskLevel, style: AppTypography.caption),
@@ -775,7 +784,10 @@ class _AdditionalAnalytics extends ConsumerWidget {
           _AnalyticsSection(
             title: t.x('analytics.borrowerLeaderboard'),
             children: [
-              for (final borrower in data.borrowerLeaderboard)
+              // RPT-04: as on web — live borrowers only, highest overdue first, top 10.
+              for (final borrower in ([...data.borrowerLeaderboard.where((b) => b.totalActivePrincipal > 0)]
+                    ..sort((a, b) => b.overdueAmount.compareTo(a.overdueAmount)))
+                  .take(10))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 7),
                   child: Column(
@@ -785,7 +797,7 @@ class _AdditionalAnalytics extends ConsumerWidget {
                           style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       _row(t.x('analytics.activePrincipal'),
                           fmt.format(borrower.totalActivePrincipal),),
-                      _row(t.x('rep.outstanding'), fmt.format(borrower.overdueAmount)),
+                      _row(t.x('rep.overdue_amount'), fmt.format(borrower.overdueAmount)),
                       _row(t.x('analytics.missedPayments'), borrower.missedCount.toString()),
                     ],
                   ),
@@ -807,7 +819,7 @@ class _AdditionalAnalytics extends ConsumerWidget {
                       Text(route.name,
                           style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),),
                       _row(t.x('dash.customers'), route.customers.toString()),
-                      _row(t.x('rep.overdueTab'), route.overdue.toString()),
+                      _row(t.x('rep.overdueTab'), fmt.format(route.overdue)),
                       _row(t.x('rep.collected'), fmt.format(route.collected)),
                     ],
                   ),

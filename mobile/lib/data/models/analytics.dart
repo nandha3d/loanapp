@@ -443,14 +443,15 @@ class RouteHealthItem {
   });
   final String name;
   final int customers;
-  final int overdue;
+  /// RPT-04: overdue AMOUNT (rupees), not a count.
+  final double overdue;
   final double collected;
 
   factory RouteHealthItem.fromJson(Map<String, dynamic> json) =>
       RouteHealthItem(
         name: (json['name'] as String?) ?? '',
         customers: _analyticsInt(json['customers']),
-        overdue: _analyticsInt(json['overdue']),
+        overdue: _analyticsNumber(json['overdue']),
         collected: _analyticsNumber(json['collected']),
       );
 }

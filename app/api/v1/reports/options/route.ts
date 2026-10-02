@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
         locked: addon === 'premium_accounting' && !premiumAccountingEnabled,
       }));
 
+    const routesPromise = prisma.route.findMany({
+      where: { tenantId, appType: effectiveAppType, status: 'active', ...(branchId ? { branchId } : {}) },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
     const [branches, agents, loans, payments, chitGroups, customers] = await Promise.all([
       prisma.branch.findMany({
         where: { tenantId, ...(branchId ? { id: branchId } : {}) },
@@ -64,10 +69,13 @@ export async function GET(req: NextRequest) {
     const frequencies = Array.from(new Set(loans.map(l => l.frequency).filter(Boolean)));
     const paymentModes = Array.from(new Set(payments.map(p => p.paymentMode).filter(Boolean)));
 
+    // RPT-04: routes for the mobile catalog route filter (additive).
+    const routes = await routesPromise;
     return ok({
       reports,
       branches,
       agents,
+      routes,
       loanTypes,
       statuses,
       frequencies,

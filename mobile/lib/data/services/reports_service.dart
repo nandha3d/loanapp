@@ -56,9 +56,16 @@ class ReportsService {
     });
   }
 
+  /// RPT-04: the full /reports/options payload (catalog + filter choices).
+  Future<Map<String, dynamic>> fetchCatalogOptions() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOptions);
+    return unwrapEnvelope(res, (dynamic data) => Map<String, dynamic>.from(data as Map));
+  }
+
   Future<Map<String, dynamic>> fetchReport(
       String slug, DateTime from, DateTime to,
-      [String? language, String? customerId, String? accountId,]) async {
+      [String? language, String? customerId, String? accountId,
+      Map<String, String>? filters,]) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.report(slug),
       queryParameters: {
@@ -68,6 +75,7 @@ class ReportsService {
         if (customerId != null) 'customerId': customerId,
         // The shared web report uses loanId for its chart-of-accounts selector.
         if (accountId != null) 'loanId': accountId,
+        ...?filters,
       },
     );
     return unwrapEnvelope(

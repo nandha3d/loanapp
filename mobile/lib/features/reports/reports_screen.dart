@@ -42,10 +42,11 @@ class _DateRange {
   final DateTime to;
 }
 
+/// RPT-04: month to date by default, as on the web catalog.
 final _dateRangeProvider = StateProvider.autoDispose<_DateRange>((ref) {
   final now = DateTime.now();
   return _DateRange(
-    from: now.subtract(const Duration(days: 30)),
+    from: DateTime(now.year, now.month, 1),
     to: now,
   );
 });
@@ -562,6 +563,12 @@ final _catalogProvider =
   return ref.watch(reportsServiceProvider).fetchCatalog();
 });
 
+/// RPT-04: filter choices from GET /reports/options (same source as web).
+final _catalogOptionsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(reportsServiceProvider).fetchCatalogOptions();
+});
+
 class _CatalogTab extends ConsumerStatefulWidget {
   const _CatalogTab();
 
@@ -575,6 +582,8 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
   Customer? _customer;
   Map<String, dynamic>? _account;
   bool _exporting = false;
+  /// RPT-04: agentId / routeId / loanType / status / paymentMode.
+  final Map<String, String> _filters = {};
 
   Future<void> _export(String format) async {
     final selected = _selected;
@@ -592,6 +601,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
           'lang': ref.read(languageProvider).name,
           if (_customer != null) 'customerId': _customer!.id,
           if (_account != null) 'loanId': _account!['id'],
+          ..._filters,
         },
       );
       if (format == 'pdf') {
@@ -631,6 +641,7 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             ref.read(languageProvider).name,
             _customer?.id,
             _account?['id'] as String?,
+            _filters,
           );
 
   void _open(Map<String, dynamic> item) {
@@ -777,6 +788,42 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
             dateFmt: DateFormat('dd MMM yyyy'),
             onApply: _reload,
           ),
+          const SizedBox(height: 8),
+          ref.watch(_catalogOptionsProvider).maybeWhen(
+                data: (o) {
+                  List<(String, String)> idName(String key) => (o[key] as List<dynamic>? ?? const [])
+                      .map((dynamic e) => ('${(e as Map)['id']}', '${e['name']}'))
+                      .toList();
+                  List<(String, String)> plain(String key) => (o[key] as List<dynamic>? ?? const [])
+                      .map((dynamic e) => ('$e', '$e'))
+                      .toList();
+                  Widget pick(String key, String label, List<(String, String)> items) => items.isEmpty
+                      ? const SizedBox.shrink()
+                      : DropdownButton<String?>(
+                          hint: Text(label),
+                          value: _filters[key],
+                          items: [
+                            DropdownMenuItem(value: null, child: Text('$label: ${t.x('status.all')}')),
+                            for (final (id, name) in items) DropdownMenuItem(value: id, child: Text(name)),
+                          ],
+                          onChanged: (v) {
+                            setState(() => v == null ? _filters.remove(key) : _filters[key] = v);
+                            _reload(range.from, range.to);
+                          },
+                        );
+                  return Wrap(
+                    spacing: 12,
+                    children: [
+                      pick('agentId', t.x('fld.agent'), idName('agents')),
+                      pick('routeId', t.x('fld.route'), idName('routes')),
+                      pick('loanType', t.x('rev.loan_type'), plain('loanTypes')),
+                      pick('status', t.x('loan.status'), plain('statuses')),
+                      pick('paymentMode', t.x('loan.payment_mode'), plain('paymentModes')),
+                    ],
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              ),
           const SizedBox(height: 12),
           if (_report == null)
             Padding(

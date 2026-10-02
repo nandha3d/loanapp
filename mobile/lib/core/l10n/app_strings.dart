@@ -11923,4 +11923,12 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': '{total} ರಲ್ಲಿ {shown} ತೋರಿಸಲಾಗಿದೆ',
     'ml': '{total}-ൽ {shown} കാണിക്കുന്നു',
   },
+  'rep.overdue_amount': {
+    'en': 'Overdue amount',
+    'ta': 'நிலுவைத் தொகை',
+    'hi': 'बकाया राशि',
+    'te': 'బకాయి మొత్తం',
+    'kn': 'ಬಾಕಿ ಮೊತ್ತ',
+    'ml': 'കുടിശ്ശിക തുക',
+  },
 };
