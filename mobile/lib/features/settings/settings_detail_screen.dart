@@ -20,7 +20,7 @@ class SettingsDetailScreen extends ConsumerStatefulWidget {
   });
 
   final String title;
-  final String type; // packages, bulk, bureau, npa, security
+  final String type; // packages, bureau, npa (read-only), security, branding
 
   @override
   ConsumerState<SettingsDetailScreen> createState() =>
@@ -234,15 +234,10 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
             r['key'] as String: (r['value'] ?? '').toString(),
       };
 
-      if (widget.type == 'bulk') {
-        _boolVal1 = map['bulk_collection_allowed'] == 'true';
-        _textController1.text = map['bulk_limit_per_agent'] ?? '50';
-      } else if (widget.type == 'npa') {
-        _textController1.text = map['npa_threshold_days'] ?? '90';
-        _textController2.text = map['npa_penalty_rate'] ?? '2.0';
-      } else if (widget.type == 'security') {
+      // SET-01: bulk-collection, NPA config and session-timeout editors removed —
+      // nothing on the server reads those keys; NPA is a read-only table (web).
+      if (widget.type == 'security') {
         _boolVal1 = map['biometric_lock_required'] == 'true';
-        _textController1.text = map['session_timeout_minutes'] ?? '15';
       } else if (widget.type == 'branding') {
         _textController1.text = map['app_tagline'] ?? '';
         _textController2.text = map['logo_url'] ?? '';
@@ -270,15 +265,8 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
     setState(() => _loading = true);
     try {
       final patch = <String, dynamic>{};
-      if (widget.type == 'bulk') {
-        patch['bulk_collection_allowed'] = _boolVal1.toString();
-        patch['bulk_limit_per_agent'] = _textController1.text.trim();
-      } else if (widget.type == 'npa') {
-        patch['npa_threshold_days'] = _textController1.text.trim();
-        patch['npa_penalty_rate'] = _textController2.text.trim();
-      } else if (widget.type == 'security') {
+      if (widget.type == 'security') {
         patch['biometric_lock_required'] = _boolVal1.toString();
-        patch['session_timeout_minutes'] = _textController1.text.trim();
       } else if (widget.type == 'branding') {
         patch['app_tagline'] = _textController1.text.trim();
         patch['logo_url'] = _textController2.text.trim();
@@ -341,6 +329,39 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
     );
   }
 
+  /// SET-01: the web NPA tab — engine status and the RBI provisioning table.
+  Widget _buildNpaReadOnly() {
+    final t = T.of(ref);
+    TableRow row(String a, String b, String c) => TableRow(children: [
+          Padding(padding: const EdgeInsets.all(6), child: Text(a)),
+          Padding(padding: const EdgeInsets.all(6), child: Text(b)),
+          Padding(padding: const EdgeInsets.all(6), child: Text(c, textAlign: TextAlign.right)),
+        ]);
+    return ListView(
+      children: [
+        Text(t.x('npa_rbi.npa_module_active'), style: AppTypography.sectionTitle),
+        const SizedBox(height: 8),
+        Text('${t.x('npa_rbi.classification_schedule')}: ${t.x('npa_rbi.classification_schedule_val')}'),
+        Text('${t.x('npa_rbi.provisioning_basis')}: ${t.x('npa_rbi.provisioning_basis_val')}'),
+        const SizedBox(height: 16),
+        Text(t.x('npa_rbi.rbi_provisioning_rates'), style: AppTypography.sectionTitle),
+        const SizedBox(height: 8),
+        Table(
+          border: TableBorder.all(color: AppColors.border),
+          children: [
+            row(t.x('npa_rbi.col_category'), t.x('npa_rbi.col_overdue_days'), t.x('npa_rbi.col_provisioning_pct')),
+            row(t.x('npa_rbi.cat_standard'), '0', '0.40%'),
+            row(t.x('npa_rbi.cat_sma'), '1–90', '0.40%'),
+            row(t.x('npa_rbi.cat_sub_standard'), '91–365', '15%'),
+            row(t.x('npa_rbi.cat_doubtful_d1'), t.x('npa_rbi.npa_months1224'), t.x('npa_rbi.unsecured_suffix')),
+            row(t.x('npa_rbi.cat_doubtful_d2'), t.x('npa_rbi.npa_months2436'), t.x('npa_rbi.unsecured_suffix')),
+            row(t.x('npa_rbi.cat_doubtful_d3_loss'), t.x('npa_rbi.npa_months36plus'), '100%'),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildFormContent() {
     if (widget.type == 'packages') {
       return _buildPackagesList();
@@ -348,47 +369,12 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
     if (widget.type == 'bureau') {
       return _buildBureauReadOnly();
     }
+    if (widget.type == 'npa') {
+      return _buildNpaReadOnly();
+    }
 
     return ListView(
       children: [
-        if (widget.type == 'bulk') ...[
-          SwitchListTile(
-            title: const Text('Allow Bulk Collection Runs'),
-            subtitle: const Text(
-              'Enables mCollect batch sheet generation for offline agents',
-            ),
-            value: _boolVal1,
-            onChanged: (v) => setState(() => _boolVal1 = v),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _textController1,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Max Collections per run per agent',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
-        if (widget.type == 'npa') ...[
-          TextField(
-            controller: _textController1,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'NPA Threshold (Days Overdue) *',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _textController2,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Default NPA Penalty Rate (% per day) *',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
         if (widget.type == 'security') ...[
           ListTile(
             leading: const Icon(Icons.security_outlined),
@@ -405,15 +391,6 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
             ),
             value: _boolVal1,
             onChanged: (v) => setState(() => _boolVal1 = v),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _textController1,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Inactivity Timeout (Minutes) *',
-              border: OutlineInputBorder(),
-            ),
           ),
         ],
         if (widget.type == 'branding') ...[

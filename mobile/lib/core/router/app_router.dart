@@ -435,13 +435,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: 'bulk',
-            builder: (_, __) => const SettingsDetailScreen(
-              title: 'Bulk Collection',
-              type: 'bulk',
-            ),
-          ),
-          GoRoute(
             path: 'bureau',
             builder: (_, __) => const SettingsDetailScreen(
               title: 'Bureau Configuration',

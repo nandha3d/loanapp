@@ -419,27 +419,6 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     onTap: () => context.push('/settings/packages'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.apps_outage_outlined,
-                      color: AppColors.primary,
-                    ),
-                    title: Text(
-                      'Bulk Collection Settings',
-                      style: AppTypography.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      'Configure batch collection runs and sheet limits',
-                      style: AppTypography.caption,
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/bulk'),
-                  ),
                   if (user?.appType == AppType.microlending) ...[
                     const Divider(height: 1, color: AppColors.border),
                     ListTile(
