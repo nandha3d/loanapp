@@ -2,7 +2,7 @@
 
 import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
-import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus } from './actions';
+import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus } from './actions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -133,6 +133,8 @@ export default function SettingsClient({
   const [raAgentId, setRaAgentId] = useState('');
   const [editingPrimaryRouteId, setEditingPrimaryRouteId] = useState<string | null>(null);
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
+  // SET-06: the package being edited (null = create).
+  const [editingPackage, setEditingPackage] = useState<any>(null);
 
   // Theme state
   const [activeTheme, setActiveTheme] = useState(settings[THEME_SETTING_KEY] || 'default');
@@ -840,15 +842,16 @@ export default function SettingsClient({
         <div className={`tab-content ${activeTab === 'packages' ? 'active' : ''}`}>
         <div className="card-header">
           <h3>📦 {d.packagesTitle}</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setIsPackageModalOpen(true)}>
+          <button className="btn btn-primary btn-sm" onClick={() => { setEditingPackage(null); setPackageDeductionType('fixed'); setIsPackageModalOpen(true); }}>
             <span className="material-icons-outlined" style={{fontSize:'14px'}}>add</span> {d.createPackage}
           </button>
         </div>
         <div className="table-wrapper">
           <table>
-            <thead><tr><th>{d.packageName}</th><th>{d.principal}</th><th>{d.deduction}</th><th>{d.frequency}</th><th>{d.tenure}</th><th>{d.perInstalment}</th><th>{d.actions}</th></tr></thead>
+            <thead><tr><th>{d.packageName}</th><th>{d.principal}</th><th>{d.deduction}</th><th>{d.frequency}</th><th>{d.tenure}</th><th>{d.perInstalment}</th><th>{d.status}</th><th>{d.actions}</th></tr></thead>
             <tbody>
-              {packages.map(p => (
+              {/* SET-06: newest first, as on mobile. */}
+              {[...packages].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))).map(p => (
                 <tr key={p.id}>
                   <td><strong>{p.name}</strong></td>
                   <td>{currencySymbol}{Number(p.principal).toLocaleString()}</td>
@@ -856,8 +859,9 @@ export default function SettingsClient({
                   <td style={{textTransform:'capitalize'}}>{p.frequency}</td>
                   <td>{p.tenure} {p.frequency === 'daily' ? d.daysSuffix : p.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}</td>
                   <td>{currencySymbol}{Number(p.perInstalment).toLocaleString()}</td>
+                  <td><span className={`badge ${p.status === 'inactive' ? 'badge-pending' : 'badge-active'}`}>{p.status === 'inactive' ? d.inactiveStatus : d.activeStatus}</span></td>
                   <td>
-                    <button className="btn btn-ghost btn-sm">{d.edit}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setEditingPackage(p); setPackageDeductionType(p.deductionType === 'percentage' ? 'percentage' : 'fixed'); setIsPackageModalOpen(true); }}>{d.edit}</button>
                     <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={() => { if(confirm(d.deletePackage)) deleteLoanPackage(p.id); }}>{d.delete}</button>
                   </td>
                 </tr>
@@ -2043,20 +2047,30 @@ export default function SettingsClient({
       </Modal>
 
       {/* Package Modal */}
-      <Modal isOpen={isPackageModalOpen} onClose={() => setIsPackageModalOpen(false)} title={d.createLoanPackage}>
-        <form action={async (fd) => { await createLoanPackage(fd); setIsPackageModalOpen(false); showToast(d.packageCreated); }}>
+      <Modal isOpen={isPackageModalOpen} onClose={() => setIsPackageModalOpen(false)} title={editingPackage ? `${d.edit} · ${editingPackage.name}` : d.createLoanPackage}>
+        <form key={editingPackage?.id ?? 'new'} action={async (fd) => {
+          if (editingPackage) {
+            const res = await updateLoanPackage(editingPackage.id, fd);
+            if (!res.success) { alert((res as any).error || 'Failed'); return; }
+          } else {
+            await createLoanPackage(fd);
+            showToast(d.packageCreated);
+          }
+          setIsPackageModalOpen(false);
+          setEditingPackage(null);
+        }}>
           <div className="form-group">
             <label className="form-label">{d.packageName}</label>
-            <input type="text" name="name" className="form-control" required placeholder={d.packageNamePlaceholder} />
+            <input type="text" name="name" className="form-control" required placeholder={d.packageNamePlaceholder} defaultValue={editingPackage?.name ?? ''} />
           </div>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">{d.principalAmount}</label>
-              <input type="number" name="principal" className="form-control" required />
+              <input type="number" name="principal" className="form-control" required defaultValue={editingPackage ? Number(editingPackage.principal) : undefined} />
             </div>
             <div className="form-group">
               <label className="form-label">{d.deductionAmount}</label>
-              <input type="number" name="deduction" className="form-control" required />
+              <input type="number" name="deduction" className="form-control" required defaultValue={editingPackage ? (editingPackage.deductionType === 'percentage' && Number(editingPackage.principal) > 0 ? Math.round(Number(editingPackage.deduction) / Number(editingPackage.principal) * 10000) / 100 : Number(editingPackage.deduction)) : undefined} />
             </div>
           </div>
           <div className="form-group">
@@ -2091,7 +2105,7 @@ export default function SettingsClient({
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">{d.frequency}</label>
-              <select name="frequency" className="form-control">
+              <select name="frequency" className="form-control" defaultValue={editingPackage?.frequency ?? 'daily'}>
                 <option value="daily">{d.daily}</option>
                 <option value="weekly">{d.weekly}</option>
                 <option value="monthly">{d.monthly}</option>
@@ -2099,21 +2113,30 @@ export default function SettingsClient({
             </div>
             <div className="form-group">
               <label className="form-label">{d.tenureCount}</label>
-              <input type="number" name="tenure" className="form-control" required />
+              <input type="number" name="tenure" className="form-control" required defaultValue={editingPackage?.tenure ?? undefined} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">{d.perInstalment}</label>
-              <input type="number" name="perInstalment" className="form-control" required />
+              <input type="number" name="perInstalment" className="form-control" required defaultValue={editingPackage ? Number(editingPackage.perInstalment) : undefined} />
             </div>
             <div className="form-group">
               <label className="form-label">{d.penaltyRate}</label>
-              <input type="number" name="penaltyRate" className="form-control" required />
+              <input type="number" name="penaltyRate" className="form-control" required defaultValue={editingPackage ? Number(editingPackage.penaltyRate ?? 0) : undefined} />
             </div>
           </div>
+          {editingPackage && (
+            <div className="form-group">
+              <label className="form-label">{d.status}</label>
+              <select name="status" className="form-control" defaultValue={editingPackage.status ?? 'active'}>
+                <option value="active">{d.activeStatus}</option>
+                <option value="inactive">{d.inactiveStatus}</option>
+              </select>
+            </div>
+          )}
           <div className="form-actions" style={{marginTop:'20px'}}>
-            <button type="submit" className="btn btn-primary">{d.createPackage}</button>
+            <button type="submit" className="btn btn-primary">{editingPackage ? d.save : d.createPackage}</button>
             <button type="button" className="btn btn-ghost" onClick={() => setIsPackageModalOpen(false)}>{d.cancel}</button>
           </div>
         </form>

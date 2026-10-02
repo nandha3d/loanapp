@@ -22,7 +22,7 @@ import {
   removeManagedRouteAgent,
   setManagedPrimaryAgent,
 } from '@/lib/routes/service';
-import { createPackage, deletePackage, PackageError } from '@/lib/packages/service';
+import { createPackage, deletePackage, updatePackage, PackageError } from '@/lib/packages/service';
 import { saveManagedNotificationTemplate, TemplateError } from '@/lib/notify/templates';
 import { importCustomers as importCustomerRows } from '@/lib/imports/customers';
 
@@ -232,6 +232,17 @@ export async function createLoanPackage(formData: FormData) {
   try {
     const input = Object.fromEntries(formData.entries());
     await createPackage(actor, input);
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) { return packageFailure(error); }
+}
+
+/** SET-06: the Edit button — same service mobile's PATCH /packages/:id uses. */
+export async function updateLoanPackage(id: string, formData: FormData) {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+  try {
+    await updatePackage(actor, id, Object.fromEntries(formData.entries()));
     revalidatePath('/settings');
     return { success: true };
   } catch (error) { return packageFailure(error); }
