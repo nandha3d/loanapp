@@ -237,6 +237,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 16),
+          // SET-05: Features / Theme stay out of scope on mobile, and Data wipe is
+          // web-only by design (destructive, needs the web confirmation flow).
           _Section(
             title: t.x('set.account'),
             child: Column(
@@ -266,6 +268,21 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () => context.push('/profile'),
                     ),
                     const Divider(height: 1, color: AppColors.border),
+                    // SET-05: superadmin entries the web sidebar has (routes already exist).
+                    for (final (icon, label, path) in [
+                      (Icons.handshake_outlined, t.x('set.affiliate'), '/microlending/affiliate'),
+                      (Icons.add_business_outlined, t.x('set.branch_requests'), '/microlending/branch-requests'),
+                      (Icons.extension_outlined, t.x('set.module_requests'), '/microlending/module-requests'),
+                    ]) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(icon, color: AppColors.primary),
+                        title: Text(label, style: AppTypography.bodyLarge),
+                        trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                        onTap: () => context.push(path),
+                      ),
+                      const Divider(height: 1, color: AppColors.border),
+                    ],
                   ] else ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
