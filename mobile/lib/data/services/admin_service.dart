@@ -25,10 +25,12 @@ class AdminService {
     required String role,
     String? appType,
     String? branchId,
+    Map<String, dynamic> extra = const {},
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.adminUsers,
       data: {
+        ...extra,
         'name': name,
         'username': username,
         'phone': phone,
@@ -50,10 +52,12 @@ class AdminService {
     String? appType,
     String? branchId,
     String? status,
+    Map<String, dynamic> extra = const {},
   }) async {
     final res = await _dio.patch<Map<String, dynamic>>(
       Endpoints.adminUser(id),
       data: {
+        ...extra,
         'name': name,
         'username': username,
         'phone': phone,

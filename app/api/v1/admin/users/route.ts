@@ -37,6 +37,15 @@ export async function GET(req: NextRequest) {
         status: true,
         branchId: true,
         branch: { select: { name: true } },
+        // SET-04: the agent form fields web Settings edits.
+        aadharNumber: true,
+        dob: true,
+        experience: true,
+        age: true,
+        bypassLoanApproval: true,
+        bypassCustomerApproval: true,
+        autoReleaseFloat: true,
+        feeConfirmationMandatory: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -51,6 +60,14 @@ export async function GET(req: NextRequest) {
       status: u.status,
       branchId: u.branchId,
       branch: u.branch?.name || null,
+      aadharNumber: u.aadharNumber,
+      dob: u.dob ? u.dob.toISOString().slice(0, 10) : null,
+      experience: u.experience,
+      age: u.age,
+      bypassLoanApproval: u.bypassLoanApproval,
+      bypassCustomerApproval: u.bypassCustomerApproval,
+      autoReleaseFloat: u.autoReleaseFloat,
+      feeConfirmationMandatory: u.feeConfirmationMandatory,
     })));
   } catch (e: any) {
     return fail(e.message, 500);
@@ -72,6 +89,10 @@ export async function POST(req: NextRequest) {
     if (!isDeveloper && body.role && body.role.toLowerCase() === 'developer') {
       return fail('Forbidden: Only developers can create or assign developer role', 403);
     }
+    // SET-04 (SCOPE-13): an agent always belongs to a branch.
+    if (!body.id && String(body.role || '').toLowerCase() === 'agent' && !body.branchId) {
+      return fail('Agents must belong to a branch', 400);
+    }
     const { manageMasterUser, manageBranchAgent } = await import('@/app/admin/actions');
     // Server actions normally read the NextAuth cookie session; mobile auth is
     // a Bearer token, so pass the verified context as the acting user.
@@ -87,6 +108,10 @@ export async function POST(req: NextRequest) {
     if (body.appType) formData.append('appType', body.appType);
     if (body.branchId) formData.append('branchId', body.branchId);
     if (body.status) formData.append('status', body.status);
+    // SET-04: the rest of the web agent form.
+    for (const key of ['email', 'aadharNumber', 'dob', 'experience', 'age', 'bypassLoanApproval', 'bypassCustomerApproval', 'autoReleaseFloat', 'feeConfirmationMandatory']) {
+      if (body[key] !== undefined && body[key] !== null && body[key] !== '') formData.append(key, String(body[key]));
+    }
     if (body.branchIds && Array.isArray(body.branchIds)) {
       body.branchIds.forEach((id: string) => formData.append('branchIds', id));
     }

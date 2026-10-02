@@ -6,6 +6,7 @@ import 'package:zolofund/data/models/user.dart';
 
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/admin_service.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
@@ -161,7 +162,8 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final u = filtered[index];
-                                  final isSuspended = u['status'] == 'suspended';
+                                  // SET-04: web vocabulary is 'inactive' (legacy 'suspended' read the same).
+                                  final isSuspended = u['status'] == 'inactive' || u['status'] == 'suspended';
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     padding: const EdgeInsets.all(14),
@@ -242,7 +244,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        final isSuspended = user['status'] == 'suspended';
+        final isSuspended = user['status'] == 'inactive' || user['status'] == 'suspended';
         return Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -263,7 +265,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                   try {
                     await ref.read(adminServiceProvider).toggleUserStatus(
                           user['id'] as String,
-                          isSuspended ? 'active' : 'suspended',
+                          isSuspended ? 'active' : 'inactive',
                         );
                     await _fetchData();
                   } catch (e) {
@@ -377,6 +379,16 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
     
     String selectedRole = existingUser?['role'] as String? ?? 'agent';
     String? selectedBranchId = existingUser?['branchId'] as String?;
+    // SET-04: the rest of the web agent form.
+    final emailController = TextEditingController(text: existingUser?['email'] as String?);
+    final aadhaarController = TextEditingController(text: existingUser?['aadharNumber'] as String?);
+    final experienceController = TextEditingController(text: existingUser?['experience']?.toString());
+    final ageController = TextEditingController(text: existingUser?['age']?.toString());
+    String? dob = existingUser?['dob'] as String?;
+    final flags = <String, bool>{
+      for (final k in const ['bypassCustomerApproval', 'bypassLoanApproval', 'autoReleaseFloat', 'feeConfirmationMandatory'])
+        k: existingUser?[k] == true,
+    };
 
     // Validate that selectedBranchId exists in list, otherwise default to first or null
     if (selectedBranchId != null && !_branches.any((b) => b['id'] == selectedBranchId)) {
@@ -452,7 +464,9 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                     initialValue: selectedBranchId,
                     decoration: const InputDecoration(labelText: 'Branch', border: OutlineInputBorder()),
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('None (Cross-branch)')),
+                      // SET-04 (SCOPE-13): agents always belong to a branch.
+                      if (selectedRole != 'agent')
+                        const DropdownMenuItem(value: null, child: Text('None (Cross-branch)')),
                       ..._branches.map((b) => DropdownMenuItem(
                             value: b['id'] as String,
                             child: Text(b['name'] as String),
@@ -462,6 +476,50 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                       setModalState(() => selectedBranchId = val);
                     },
                   ),
+                  if (selectedRole == 'agent') ...[
+                    const SizedBox(height: 12),
+                    TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(labelText: T.of(ref).x('fld.email'), border: const OutlineInputBorder())),
+                    const SizedBox(height: 12),
+                    TextField(controller: aadhaarController, keyboardType: TextInputType.number,
+                        decoration: InputDecoration(labelText: T.of(ref).x('team.aadhaar_number'), border: const OutlineInputBorder())),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(T.of(ref).x('team.date_of_birth')),
+                      subtitle: Text(dob ?? '—'),
+                      trailing: const Icon(Icons.calendar_today, size: 18),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.tryParse(dob ?? '') ?? DateTime(1995),
+                          firstDate: DateTime(1940),
+                          lastDate: DateTime.now(),
+                        );
+                        if (d != null) {
+                          setModalState(() => dob = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}');
+                        }
+                      },
+                    ),
+                    Row(children: [
+                      Expanded(child: TextField(controller: experienceController,
+                          decoration: InputDecoration(labelText: T.of(ref).x('team.experience'), border: const OutlineInputBorder()))),
+                      const SizedBox(width: 12),
+                      Expanded(child: TextField(controller: ageController, keyboardType: TextInputType.number,
+                          decoration: InputDecoration(labelText: T.of(ref).x('team.age'), border: const OutlineInputBorder()))),
+                    ]),
+                    const SizedBox(height: 12),
+                    Text(T.of(ref).x('team.agent_permissions_title'), style: AppTypography.sectionTitle),
+                    for (final k in flags.keys)
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}')),
+                        subtitle: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}_desc'),
+                            style: AppTypography.caption),
+                        value: flags[k]!,
+                        onChanged: (v) => setModalState(() => flags[k] = v),
+                      ),
+                  ],
                   const SizedBox(height: 16),
                   AppButton(
                     label: isEdit ? 'Save Changes' : 'Create Member',
@@ -477,6 +535,22 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                         );
                         return;
                       }
+                      if (selectedRole == 'agent' && selectedBranchId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(T.of(ref).x('team.branch_required'))),
+                        );
+                        return;
+                      }
+                      final extra = <String, dynamic>{
+                        if (selectedRole == 'agent') ...{
+                          if (emailController.text.trim().isNotEmpty) 'email': emailController.text.trim(),
+                          if (aadhaarController.text.trim().isNotEmpty) 'aadharNumber': aadhaarController.text.trim(),
+                          if (dob != null) 'dob': dob,
+                          if (experienceController.text.trim().isNotEmpty) 'experience': experienceController.text.trim(),
+                          if (ageController.text.trim().isNotEmpty) 'age': ageController.text.trim(),
+                          for (final e in flags.entries) e.key: e.value,
+                        },
+                      };
 
                       final messenger = ScaffoldMessenger.of(this.context);
                       Navigator.pop(context);
@@ -491,6 +565,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                                 phone: phone,
                                 role: selectedRole,
                                 branchId: selectedBranchId,
+                                extra: extra,
                               );
                         } else {
                           await ref.read(adminServiceProvider).createUser(
@@ -500,6 +575,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                                 password: password,
                                 role: selectedRole,
                                 branchId: selectedBranchId,
+                                extra: extra,
                               );
                         }
                         await _fetchData();
