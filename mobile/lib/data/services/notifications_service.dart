@@ -60,6 +60,18 @@ class NotificationsService {
     });
   }
 
+  /// NOT-03: unread total for the bell badge (one row fetched, `total` read).
+  Future<int> unreadCount() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.notifications,
+      queryParameters: {'page': 1, 'pageSize': 1, 'unreadOnly': 'true'},
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final total = (d as Map<String, dynamic>)['total'];
+      return total is num ? total.toInt() : int.tryParse('$total') ?? 0;
+    });
+  }
+
   Future<void> markAllRead() async {
     await _dio.patch<Map<String, dynamic>>(
       Endpoints.notifications,
@@ -77,4 +89,9 @@ class NotificationsService {
 
 final notificationsServiceProvider = Provider<NotificationsService>(
   (ref) => NotificationsService(ref.watch(dioProvider)),
+);
+
+/// NOT-03: unread count for the dashboard bell; invalidated on read.
+final unreadNotificationsCountProvider = FutureProvider.autoDispose<int>(
+  (ref) => ref.watch(notificationsServiceProvider).unreadCount(),
 );

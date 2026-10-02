@@ -67,6 +67,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       _extraItems.clear();
       _hasMore = true;
       ref.invalidate(_notificationsProvider);
+      ref.invalidate(unreadNotificationsCountProvider);
     } finally {
       if (mounted) setState(() => _markingAll = false);
     }
@@ -78,7 +79,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         .read(notificationsServiceProvider)
         .markRead(item.id)
         .catchError((_) {});
+    // NOT-03: reload every page, not just the first, and the bell badge.
+    _page = 1;
+    _extraItems.clear();
+    _hasMore = true;
     ref.invalidate(_notificationsProvider);
+    ref.invalidate(unreadNotificationsCountProvider);
   }
 
   Future<void> _handleTileTap(NotificationItem item) async {

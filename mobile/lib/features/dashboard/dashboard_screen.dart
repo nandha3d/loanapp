@@ -39,6 +39,7 @@ import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
+import 'package:zolofund/data/services/notifications_service.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
@@ -89,8 +90,16 @@ class DashboardScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
+            // NOT-03: unread badge, same total as the web bell.
+            icon: Badge(
+              isLabelVisible: (ref.watch(unreadNotificationsCountProvider).asData?.value ?? 0) > 0,
+              label: Text('${ref.watch(unreadNotificationsCountProvider).asData?.value ?? 0}'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: () async {
+              await context.push('/notifications');
+              ref.invalidate(unreadNotificationsCountProvider);
+            },
           ),
           const SizedBox(width: 4),
         ],
