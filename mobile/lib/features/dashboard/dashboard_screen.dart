@@ -107,6 +107,7 @@ class DashboardScreen extends ConsumerWidget {
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
+          ref.invalidate(dailyCollectionHeatMapPointsProvider);
           await ref.read(authControllerProvider.notifier).refreshProfile();
           return isChit
               ? ref.refresh(chitDashboardSummaryProvider.future)

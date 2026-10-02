@@ -1,18 +1,16 @@
-import 'dart:typed_data';
-
-import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:zolofund/shared/utils/phone.dart';
-import 'package:zolofund/data/services/customer_service.dart';
 import 'package:printing/printing.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/network/dio_client.dart';
@@ -22,11 +20,11 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/data/services/kyc_service.dart';
-import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/features/location/location_picker_screen.dart';
+import 'package:zolofund/shared/utils/phone.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
-import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
 class CustomerDetailScreen extends ConsumerWidget {
@@ -345,9 +343,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(applied == null
-                              ? T.of(ref).x('msg.submitted_for_approval')
-                              : 'GPS coordinates registered successfully!'),
+                          content: Text(
+                            applied == null
+                                ? T.of(ref).x('msg.submitted_for_approval')
+                                : 'GPS coordinates registered successfully!',
+                          ),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -403,9 +403,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(applied == null
-                              ? T.of(ref).x('msg.submitted_for_approval')
-                              : 'GPS coordinates pinned on map successfully!'),
+                          content: Text(
+                            applied == null
+                                ? T.of(ref).x('msg.submitted_for_approval')
+                                : 'GPS coordinates pinned on map successfully!',
+                          ),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -489,7 +491,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
         SafeArea(
           top: false,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
               color: AppColors.surface,
               border: Border(top: BorderSide(color: AppColors.border)),
@@ -506,20 +508,44 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                           onPressed:
                               _printingReceipt ? null : _openCollectionReceipt,
                           icon: _printingReceipt
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
                                 )
-                              : const Icon(Icons.picture_as_pdf_outlined),
-                          label: const Text('Passbook'),
+                              : Icon(Icons.picture_as_pdf_outlined,
+                                  color: AppColors.primary, size: 18,),
+                          label: Text(
+                            t.x('cust.passbook'),
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.primary, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.success,
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 1,
                           ),
                           onPressed: () => context.push(
                             '/loans/new',
@@ -530,34 +556,69 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                             (ref.watch(authControllerProvider).user?.bypassLoanApproval ?? false)
                                 ? t.x('title.new_loan')
                                 : t.x('title.request_loan'),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                 ],
                 Row(
                   children: [
                     Expanded(
-                      child: AppButton(
-                        label: c.status == 'suspended'
-                            ? t.x('cust.unsuspend')
-                            : t.x('cust.suspend'),
-                        variant: c.status == 'suspended'
-                            ? AppButtonVariant.secondary
-                            : AppButtonVariant.danger,
-                        expand: true,
-                        loading: _suspending,
-                        onPressed: _toggleSuspend,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: c.status == 'suspended'
+                                ? AppColors.primary
+                                : AppColors.danger.withAlpha(160),
+                          ),
+                          foregroundColor: c.status == 'suspended'
+                              ? AppColors.primary
+                              : AppColors.danger,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _suspending ? null : _toggleSuspend,
+                        child: _suspending
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(
+                                c.status == 'suspended'
+                                    ? t.x('cust.unsuspend')
+                                    : t.x('cust.suspend'),
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       flex: 2,
-                      child: AppButton(
-                        label: t.x('cust.edit_profile'),
-                        expand: true,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: AppColors.primaryLight.withAlpha(90),
+                          side: BorderSide(color: AppColors.primary.withAlpha(90)),
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: Icon(Icons.edit_outlined, size: 17, color: AppColors.primary),
+                        label: Text(
+                          t.x('cust.edit_profile'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.primary,
+                          ),
+                        ),
                         onPressed: () async {
                           await context.push<Object?>(
                             '/customers/${c.id}/edit',
@@ -591,7 +652,7 @@ class _Header extends ConsumerWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF111827), Color(0xFF2D1F0E)],
+          colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -599,88 +660,104 @@ class _Header extends ConsumerWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   Text(
                     t.x('cust.title_360'),
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: Colors.white70,
-                      letterSpacing: 0.5,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                  Builder(
-                    builder: (context) {
-                      final role = ref.read(authControllerProvider).user?.role;
-                      final canDelete = role == UserRole.admin ||
-                          role == UserRole.superadmin ||
-                          role == UserRole.developer;
-                      return PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
-                        onSelected: (value) {
-                          if (value == 'edit') {
-                            context.push(
-                              '/customers/${customer.id}/edit',
-                              extra: customer,
-                            );
-                          } else if (value == 'delete') {
-                            _confirmDelete(context, ref, customer);
-                          } else if (value == 'reset_password') {
-                            _resetPortalPassword(context, ref, customer);
-                          }
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                        tooltip: t.x('cust.edit_profile'),
+                        onPressed: () async {
+                          await context.push<Object?>(
+                            '/customers/${customer.id}/edit',
+                            extra: customer,
+                          );
+                          ref.invalidate(customerDetailProvider(customer.id));
                         },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                              leading: Icon(Icons.edit_outlined),
-                              title: Text('Edit Profile'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                          if (role == UserRole.admin ||
-                              role == UserRole.superadmin)
-                            PopupMenuItem(
-                              value: 'reset_password',
-                              child: ListTile(
-                                leading: const Icon(Icons.lock_reset_outlined),
-                                title: Text(t.x('cust.reset_portal_password')),
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          if (canDelete)
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: ListTile(
-                                leading: Icon(Icons.delete_outline,
-                                    color: AppColors.danger,),
-                                title: Text(
-                                  'Delete Customer',
-                                  style: TextStyle(color: AppColors.danger),
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final role = ref.read(authControllerProvider).user?.role;
+                          final canDelete = role == UserRole.admin ||
+                              role == UserRole.superadmin ||
+                              role == UserRole.developer;
+                          return PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert, color: Colors.white),
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                context.push(
+                                  '/customers/${customer.id}/edit',
+                                  extra: customer,
+                                );
+                              } else if (value == 'delete') {
+                                _confirmDelete(context, ref, customer);
+                              } else if (value == 'reset_password') {
+                                _resetPortalPassword(context, ref, customer);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: Icon(Icons.edit_outlined),
+                                  title: Text('Edit Profile'),
+                                  contentPadding: EdgeInsets.zero,
                                 ),
-                                contentPadding: EdgeInsets.zero,
                               ),
-                            ),
-                        ],
-                      );
-                    },
+                              if (role == UserRole.admin ||
+                                  role == UserRole.superadmin)
+                                PopupMenuItem(
+                                  value: 'reset_password',
+                                  child: ListTile(
+                                    leading: const Icon(Icons.lock_reset_outlined),
+                                    title: Text(t.x('cust.reset_portal_password')),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              if (canDelete)
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    leading: Icon(Icons.delete_outline,
+                                        color: AppColors.danger,),
+                                    title: Text(
+                                      'Delete Customer',
+                                      style: TextStyle(color: AppColors.danger),
+                                    ),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              // Compact header: big photo on the left, identity on the right —
-              // fills the card width instead of a small centered circle.
+              const SizedBox(height: 8),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(width: 4),
-                  _PhotoOrInitials(customer: customer, size: 104),
+                  _PhotoOrInitials(customer: customer, size: 84),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -688,29 +765,83 @@ class _Header extends ConsumerWidget {
                       children: [
                         Text(
                           customer.name,
-                          style: AppTypography.heroLabel.copyWith(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          customer.customerCode,
-                          style: AppTypography.body.copyWith(
-                            color: Colors.white60,
-                            fontFamily: 'monospace',
-                          ),
+                        Row(
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: customer.customerCode));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Copied ${customer.customerCode}'),
+                                    duration: const Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white.withAlpha(35)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      customer.customerCode,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.copy_rounded, color: Colors.white70, size: 11),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            AppBadge(
+                              label: customer.status,
+                              kind: _badgeForStatus(customer.status),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: AppBadge(
-                            label: customer.status,
-                            kind: _badgeForStatus(customer.status),
+                        if (customer.routeName != null && customer.routeName!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.route_outlined, size: 13, color: Colors.white.withAlpha(180)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  customer.routeName!,
+                                  style: TextStyle(
+                                    color: Colors.white.withAlpha(200),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -841,7 +972,14 @@ class _PhotoOrInitials extends ConsumerWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white24, width: 2),
+          border: Border.all(color: Colors.white.withAlpha(80), width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(50),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
           image: DecorationImage(
             image: authedImage(ref, url),
             fit: BoxFit.cover,
@@ -853,16 +991,28 @@ class _PhotoOrInitials extends ConsumerWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.primary,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white24, width: 2),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8E24AA), Color(0xFF5E1B5F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white.withAlpha(80), width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(50),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Text(
         customer.initials,
-        style: AppTypography.heroNumber.copyWith(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: size * 0.38,
+          fontSize: size * 0.40,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -884,11 +1034,15 @@ class _QuickContact extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasAddress = (customer.lat != null && customer.lng != null) ||
+        (customer.address != null && customer.address!.isNotEmpty);
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withAlpha(120)),
         boxShadow: AppTokens.shadow,
       ),
       child: Row(
@@ -898,6 +1052,7 @@ class _QuickContact extends ConsumerWidget {
               icon: Icons.call_rounded,
               label: t.x('cust.call'),
               color: AppColors.success,
+              bg: AppColors.successBg,
               onTap: () => _launch(Uri(scheme: 'tel', path: customer.phone)),
             ),
           ),
@@ -906,6 +1061,7 @@ class _QuickContact extends ConsumerWidget {
               icon: Icons.chat_bubble_outline_rounded,
               label: t.x('cust.message'),
               color: AppColors.info,
+              bg: AppColors.infoBg,
               onTap: () => _launch(Uri(scheme: 'sms', path: customer.phone)),
             ),
           ),
@@ -914,6 +1070,7 @@ class _QuickContact extends ConsumerWidget {
               icon: Icons.send_rounded,
               label: t.x('cust.whatsapp'),
               color: const Color(0xFF25D366),
+              bg: const Color(0xFFE8F8EE),
               onTap: () => _launch(
                 Uri.parse(
                   'https://wa.me/${whatsappNumber(customer.phone, ref.read(authControllerProvider).user?.phoneCountryCode ?? '91')}',
@@ -921,13 +1078,13 @@ class _QuickContact extends ConsumerWidget {
               ),
             ),
           ),
-          if ((customer.lat != null && customer.lng != null) ||
-              (customer.address != null && customer.address!.isNotEmpty))
+          if (hasAddress)
             Expanded(
               child: _ContactBtn(
-                icon: Icons.directions_rounded,
+                icon: Icons.near_me_rounded,
                 label: t.x('cust.directions'),
-                color: AppColors.warning,
+                color: AppColors.primary,
+                bg: AppColors.primaryLight,
                 onTap: () => _launch(
                   Uri.parse(
                     customer.lat != null && customer.lng != null
@@ -948,37 +1105,41 @@ class _ContactBtn extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.color,
+    required this.bg,
     required this.onTap,
   });
   final IconData icon;
   final String label;
   final Color color;
+  final Color bg;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: color.withAlpha(36),
-                borderRadius: BorderRadius.circular(12),
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 6),
             Text(
               label,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textPrimary,
+              style: const TextStyle(
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1001,8 +1162,8 @@ class _RiskCard extends StatelessWidget {
     if (cs == null || !cs.rated) {
       return (
         label: t.x('cust.risk_unrated'),
-        color: AppColors.textLight,
-        bg: AppColors.background
+        color: AppColors.textSecondary,
+        bg: AppColors.background,
       );
     }
     final s = cs.score;
@@ -1013,14 +1174,14 @@ class _RiskCard extends StatelessWidget {
       return (
         label: cs.grade,
         color: AppColors.warning,
-        bg: AppColors.warningBg
+        bg: AppColors.warningBg,
       );
     }
     if (s < 750) {
       return (
         label: cs.grade,
-        color: const Color(0xFFEAB308),
-        bg: AppColors.warningBg
+        color: const Color(0xFFD97706),
+        bg: AppColors.warningBg,
       );
     }
     return (label: cs.grade, color: AppColors.success, bg: AppColors.successBg);
@@ -1032,10 +1193,11 @@ class _RiskCard extends StatelessWidget {
     final band = _band(cs);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withAlpha(120)),
         boxShadow: AppTokens.shadow,
       ),
       child: Column(
@@ -1044,22 +1206,62 @@ class _RiskCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(t.x('cust.risk_score'), style: AppTypography.sectionTitle),
-              const Icon(Icons.info_outline,
-                  color: AppColors.textLight, size: 18,),
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.speed_rounded, color: AppColors.primary, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    t.x('cust.risk_score'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: band.bg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: band.color.withAlpha(60)),
+                ),
+                child: Text(
+                  band.label.toUpperCase(),
+                  style: TextStyle(
+                    color: band.color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
           _ScoreMeter(
             score: cs?.score ?? 0,
             grade: band.label,
             color: band.color,
             isRated: cs?.rated ?? false,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Text(
             _explainer(cs),
-            style: AppTypography.caption,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1093,12 +1295,25 @@ class _ScoreMeter extends StatelessWidget {
     if (!isRated) {
       return Column(
         children: [
-          const Icon(Icons.speed_rounded, size: 48, color: AppColors.textLight),
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withAlpha(90),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary.withAlpha(50), width: 1.5),
+            ),
+            child: Icon(Icons.speed_rounded, size: 36, color: AppColors.primary),
+          ),
           const SizedBox(height: 12),
           Text(
             grade.toUpperCase(),
-            style: AppTypography.caption.copyWith(
-                color: AppColors.textLight, fontWeight: FontWeight.w800,),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              letterSpacing: 1.2,
+            ),
           ),
         ],
       );
@@ -1107,17 +1322,28 @@ class _ScoreMeter extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          width: 180,
-          height: 90,
+          width: 190,
+          height: 100,
           child: CustomPaint(
             painter: _ScoreMeterPainter(score: score),
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          grade.toUpperCase(),
-          style: AppTypography.caption
-              .copyWith(color: color, fontWeight: FontWeight.w800),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withAlpha(25),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            grade.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
       ],
     );
@@ -1134,19 +1360,38 @@ class _ScoreMeterPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 14
-      ..strokeCap = StrokeCap.butt;
+      ..strokeCap = StrokeCap.round;
 
-    // Draw arcs
+    // Draw background track arc
+    final bgPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.border.withAlpha(120);
+    canvas.drawArc(rect, math.pi, math.pi, false, bgPaint);
+
+    // Draw colored arcs
+    paint.strokeCap = StrokeCap.butt;
     paint.color = AppColors.danger;
     canvas.drawArc(rect, math.pi, math.pi * 0.36, false, paint);
 
     paint.color = AppColors.warning;
     canvas.drawArc(
-        rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint,);
+      rect,
+      math.pi + (math.pi * 0.36),
+      math.pi * 0.27,
+      false,
+      paint,
+    );
 
     paint.color = AppColors.success;
     canvas.drawArc(
-        rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint,);
+      rect,
+      math.pi + (math.pi * 0.63),
+      math.pi * 0.37,
+      false,
+      paint,
+    );
 
     // Calc pct for indicator
     final double pct = ((score - 300) / (850 - 300)).clamp(0.0, 1.0);
@@ -1175,41 +1420,52 @@ class _ScoreMeterPainter extends CustomPainter {
     // Texts
     final textPainter300 = TextPainter(
       text: const TextSpan(
-          text: '300',
-          style: TextStyle(
-              color: AppColors.textLight,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,),),
+        text: '300',
+        style: TextStyle(
+          color: AppColors.textLight,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    textPainter300.paint(canvas, Offset(0, size.height + 8));
+    textPainter300.paint(canvas, Offset(4, size.height + 6));
 
     final textPainter850 = TextPainter(
       text: const TextSpan(
-          text: '850',
-          style: TextStyle(
-              color: AppColors.textLight,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,),),
+        text: '850',
+        style: TextStyle(
+          color: AppColors.textLight,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     textPainter850.paint(
-        canvas, Offset(size.width - textPainter850.width, size.height + 8),);
+      canvas,
+      Offset(size.width - textPainter850.width - 4, size.height + 6),
+    );
 
     // Main Score
     final scorePainter = TextPainter(
       text: TextSpan(
-          text: '$score',
-          style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 36,
-              fontWeight: FontWeight.w900,),),
+        text: '$score',
+        style: const TextStyle(
+          color: Color(0xFF111827),
+          fontSize: 34,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     scorePainter.paint(
-        canvas,
-        Offset(center.dx - scorePainter.width / 2,
-            size.height - scorePainter.height + 6,),);
+      canvas,
+      Offset(
+        center.dx - scorePainter.width / 2,
+        size.height - scorePainter.height + 4,
+      ),
+    );
   }
 
   @override
@@ -1231,94 +1487,188 @@ class _KpiStrip extends ConsumerWidget {
     final cs = customer.creditScore;
     final totalBorrowed = cs?.totalBorrowed ?? 0;
     final outstanding = cs?.outstanding ?? 0;
+    final punctuality = cs?.punctuality ?? 0;
+    final activeLoans = cs?.activeLoans ?? 0;
+    final closedLoans = cs?.closedLoans ?? 0;
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _Kpi(
-            icon: Icons.south_west_rounded,
-            color: AppColors.danger,
-            label: t.x('cust.total_borrowed'),
-            value: fmt.format(totalBorrowed),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.south_west_rounded,
+                iconColor: AppColors.danger,
+                iconBg: AppColors.dangerBg,
+                label: t.x('cust.total_borrowed'),
+                value: fmt.format(totalBorrowed),
+                subtext: 'Disbursed',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.payments_outlined,
+                iconColor: AppColors.warning,
+                iconBg: AppColors.warningBg,
+                label: t.x('loan.outstanding'),
+                value: fmt.format(outstanding),
+                valueColor: outstanding > 0 ? AppColors.warningText : AppColors.textPrimary,
+                subtext: outstanding > 0 ? 'Pending dues' : 'Cleared',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _Kpi(
-            icon: Icons.payments_outlined,
-            color: AppColors.warning,
-            label: t.x('loan.outstanding'),
-            value: fmt.format(outstanding),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _Kpi(
-            icon: Icons.list_alt_rounded,
-            color: AppColors.info,
-            label: '${t.x('dash.active_loans')} / ${t.x('status.closed')}',
-            value: '${cs?.activeLoans ?? 0} / ${cs?.closedLoans ?? 0}',
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _Kpi(
-            icon: Icons.verified_outlined,
-            color: AppColors.success,
-            label: t.x('cust.punctuality'),
-            value: '${cs?.punctuality ?? 0}%',
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.receipt_long_rounded,
+                iconColor: AppColors.info,
+                iconBg: AppColors.infoBg,
+                label: t.x('dash.active_loans'),
+                value: '$activeLoans',
+                valueUnit: '/ $closedLoans',
+                subtext: '$closedLoans ${t.x('status.closed').toLowerCase()}',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.verified_outlined,
+                iconColor: AppColors.success,
+                iconBg: AppColors.successBg,
+                label: t.x('cust.punctuality'),
+                value: '$punctuality%',
+                valueColor: punctuality >= 80
+                    ? AppColors.success
+                    : (punctuality >= 50 ? AppColors.warning : AppColors.danger),
+                progress: punctuality / 100.0,
+                subtext: 'On-time track',
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _Kpi extends StatelessWidget {
-  const _Kpi({
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({
     required this.icon,
-    required this.color,
+    required this.iconColor,
+    required this.iconBg,
     required this.label,
     required this.value,
+    this.valueUnit,
+    this.valueColor,
+    this.subtext,
+    this.progress,
   });
+
   final IconData icon;
-  final Color color;
-  final String label, value;
+  final Color iconColor;
+  final Color iconBg;
+  final String label;
+  final String value;
+  final String? valueUnit;
+  final Color? valueColor;
+  final String? subtext;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withAlpha(120)),
         boxShadow: AppTokens.shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: color.withAlpha(36),
-              borderRadius: BorderRadius.circular(8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+              if (subtext != null && progress == null)
+                Text(
+                  subtext!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textLight,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: valueColor ?? AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                if (valueUnit != null) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    valueUnit!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.bodyLarge.copyWith(fontSize: 14),
-          ),
+          const SizedBox(height: 4),
           Text(
             label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypography.caption,
           ),
+          if (progress != null) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0.0, 1.0),
+                minHeight: 4,
+                backgroundColor: AppColors.border,
+                color: valueColor ?? AppColors.success,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1334,19 +1684,36 @@ class _LoansSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final count = customer.loans.length;
+    final trailing = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+
     if (customer.loans.isEmpty) {
       return _Card(
         title: t.x('cust.loans_tab'),
+        trailing: trailing,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Row(
             children: [
-              const Icon(Icons.info_outline,
-                  color: AppColors.textLight, size: 18,),
-              const SizedBox(width: 8),
+              const Icon(Icons.info_outline, color: AppColors.textLight, size: 20),
+              const SizedBox(width: 10),
               Text(
                 t.x('cust.no_loans_yet'),
-                style: const TextStyle(color: AppColors.textLight),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
             ],
           ),
@@ -1357,16 +1724,13 @@ class _LoansSection extends ConsumerWidget {
     final fmt = ref.watch(currencyFmtProvider);
     return _Card(
       title: t.x('cust.loans_tab'),
-      trailing: Text(
-        '${customer.loans.length}',
-        style: AppTypography.caption,
-      ),
+      trailing: trailing,
       child: Column(
         children: [
           for (final l in customer.loans) ...[
             _LoanRow(loan: l, fmt: fmt),
             if (l != customer.loans.last)
-              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: 10),
           ],
         ],
       ),
@@ -1395,63 +1759,166 @@ class _LoanRow extends StatelessWidget {
     }
   }
 
+  Color get _statusBg {
+    switch (loan.status) {
+      case 'active':
+        return AppColors.successBg;
+      case 'overdue':
+        return AppColors.dangerBg;
+      case 'closed':
+        return AppColors.infoBg;
+      case 'pending_review':
+      case 'pending':
+        return AppColors.warningBg;
+      default:
+        return AppColors.background;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () => context.go('/loans/${loan.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.background.withAlpha(120),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border.withAlpha(140)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: _statusColor.withAlpha(36),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.receipt_long_outlined,
-                color: _statusColor,
-                size: 18,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _statusBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.receipt_long_rounded,
+                    color: _statusColor,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        loan.loanCode ?? loan.id.substring(0, 8),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _statusBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              loan.status.replaceAll('_', ' ').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: _statusColor,
+                              ),
+                            ),
+                          ),
+                          if (loan.frequency != null) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '• ${loan.frequency}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                          if (loan.startDate != null) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '• ${DateFormat('dd MMM yyyy').format(loan.startDate!)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      fmt.format(loan.principal),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (loan.tenure > 0) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    loan.loanCode ?? loan.id.substring(0, 8),
-                    style: AppTypography.bodyLarge,
+                    '${loan.paidCount}/${loan.tenure} instalments paid',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   Text(
-                    [
-                      loan.status.toUpperCase(),
-                      if (loan.frequency != null) loan.frequency!,
-                      if (loan.startDate != null)
-                        DateFormat('dd MMM yyyy').format(loan.startDate!),
-                    ].join(' · '),
-                    style: AppTypography.tiny.copyWith(color: _statusColor),
-                  ),
-                  if (loan.tenure > 0) ...[
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(
-                      value: (loan.paidCount / loan.tenure).clamp(0.0, 1.0),
-                      minHeight: 4,
-                      backgroundColor: AppColors.border,
+                    '${((loan.paidCount / loan.tenure).clamp(0.0, 1.0) * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                       color: _statusColor,
                     ),
-                    Text('${loan.paidCount}/${loan.tenure}',
-                        style: AppTypography.tiny),
-                  ],
+                  ),
                 ],
               ),
-            ),
-            Text(fmt.format(loan.principal), style: AppTypography.bodyLarge),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: AppColors.textLight),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (loan.paidCount / loan.tenure).clamp(0.0, 1.0),
+                  minHeight: 5,
+                  backgroundColor: AppColors.border,
+                  color: _statusColor,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1487,6 +1954,8 @@ class _IdentitySection extends StatelessWidget {
             icon: Icons.phone_outlined,
             label: t.x('fld.phone'),
             value: customer.phone,
+            actionIcon: Icons.call_outlined,
+            onTap: () => launchUrl(Uri(scheme: 'tel', path: customer.phone)),
           ),
           if (customer.address != null && customer.address!.isNotEmpty)
             _IdRow(
@@ -1499,8 +1968,10 @@ class _IdentitySection extends StatelessWidget {
               icon: Icons.my_location_outlined,
               label: 'GPS location',
               value:
-                  '${customer.lat!.toStringAsFixed(5)}, ${customer.lng!.toStringAsFixed(5)} (View)',
+                  '${customer.lat!.toStringAsFixed(5)}, ${customer.lng!.toStringAsFixed(5)}',
               valueColor: AppColors.primary,
+              actionLabel: 'View Map',
+              actionIcon: Icons.open_in_new_rounded,
               onTap: () => launchUrl(
                 Uri.parse(
                   'https://www.google.com/maps/search/?api=1&query=${customer.lat},${customer.lng}',
@@ -1515,8 +1986,10 @@ class _IdentitySection extends StatelessWidget {
                 return _IdRow(
                   icon: Icons.my_location_outlined,
                   label: 'GPS location',
-                  value: 'View on map',
+                  value: '${p.latitude!.toStringAsFixed(5)}, ${p.longitude!.toStringAsFixed(5)}',
                   valueColor: AppColors.primary,
+                  actionLabel: 'View Map',
+                  actionIcon: Icons.open_in_new_rounded,
                   onTap: () => launchUrl(
                     Uri.parse(
                       'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}',
@@ -1577,47 +2050,90 @@ class _IdRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.actionLabel,
+    this.actionIcon,
     this.onTap,
   });
   final IconData icon;
   final String label, value;
   final Color? valueColor;
+  final String? actionLabel;
+  final IconData? actionIcon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final row = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.primaryLight.withAlpha(80),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 16, color: AppColors.textSecondary),
+            child: Icon(icon, size: 18, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
-          SizedBox(
-            width: 70,
-            child: Text(
-              label,
-              style: AppTypography.caption,
-            ),
-          ),
           Expanded(
-            child: Text(
-              value,
-              style: AppTypography.bodyLarge.copyWith(color: valueColor),
-              textAlign: TextAlign.right,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
+          if (actionLabel != null || actionIcon != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (actionIcon != null)
+                    Icon(actionIcon, size: 14, color: AppColors.primary),
+                  if (actionLabel != null && actionIcon != null)
+                    const SizedBox(width: 4),
+                  if (actionLabel != null)
+                    Text(
+                      actionLabel!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
-    return onTap != null ? GestureDetector(onTap: onTap, child: row) : row;
+    return onTap != null ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(8), child: row) : row;
   }
 }
 
@@ -2023,7 +2539,8 @@ class _Card extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withAlpha(120)),
         boxShadow: AppTokens.shadow,
       ),
       child: Column(
@@ -2032,12 +2549,20 @@ class _Card extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(title, style: AppTypography.sectionTitle),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
               ),
               if (trailing != null) trailing!,
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           child,
         ],
       ),
@@ -2112,12 +2637,19 @@ class _MissingGpsBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB),
-        borderRadius: BorderRadius.circular(AppTokens.radius),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFFCD34D)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_off, color: Color(0xFFD97706), size: 24),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.location_off, color: Color(0xFFD97706), size: 20),
+          ),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(
@@ -2143,12 +2675,14 @@ class _MissingGpsBanner extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRegister,
             icon: const Icon(Icons.my_location, size: 14),
-            label: const Text('Register', style: TextStyle(fontSize: 12)),
+            label: const Text('Register', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFD97706),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ],

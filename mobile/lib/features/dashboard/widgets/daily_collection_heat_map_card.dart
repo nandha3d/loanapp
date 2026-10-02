@@ -5,9 +5,9 @@ import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/data/models/analytics.dart';
 import 'package:zolofund/data/services/analytics_service.dart';
 
-final _heatMapPointsProvider =
+final dailyCollectionHeatMapPointsProvider =
     FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
-  return ref.watch(analyticsServiceProvider).collections(range: 30);
+  return ref.watch(analyticsServiceProvider).collections(range: 90);
 });
 
 class DailyCollectionHeatMapCard extends ConsumerStatefulWidget {
@@ -28,6 +28,7 @@ class _DailyCollectionHeatMapCardState
     required double collected,
     required double expected,
     required bool isRestDay,
+    bool isFuture = false,
   }) {
     final fmt = NumberFormat.currency(
       locale: 'en_IN',
@@ -43,10 +44,18 @@ class _DailyCollectionHeatMapCardState
     String statusTitle;
     String statusDesc;
 
-    if (isRestDay) {
+    if (isFuture) {
       statusColor = const Color(0xFF64748B);
-      statusTitle = 'Rest Day / Holiday';
+      statusTitle = 'Upcoming Day';
+      statusDesc = 'No collections recorded for this future date.';
+    } else if (isRestDay) {
+      statusColor = const Color(0xFF64748B);
+      statusTitle = 'Sunday / Rest Day';
       statusDesc = 'No regular collection schedule assigned for this day.';
+    } else if (expected <= 0 && collected <= 0) {
+      statusColor = const Color(0xFF64748B);
+      statusTitle = 'No Collections Recorded';
+      statusDesc = 'No collection schedule or transactions recorded for this day.';
     } else if (pct >= 80) {
       statusColor = const Color(0xFF22C55E);
       statusTitle = 'High Collection Day';
@@ -119,7 +128,7 @@ class _DailyCollectionHeatMapCardState
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  isRestDay && collected <= 0 ? '₹0' : fmt.format(collected),
+                  collected <= 0 ? '₹0' : fmt.format(collected),
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w900,
@@ -149,7 +158,7 @@ class _DailyCollectionHeatMapCardState
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            isRestDay && expected <= 0
+                            expected <= 0
                                 ? '₹0'
                                 : fmt.format(expected),
                             style: const TextStyle(
@@ -172,7 +181,7 @@ class _DailyCollectionHeatMapCardState
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            isRestDay && collected <= 0
+                            expected <= 0 && collected <= 0
                                 ? '0%'
                                 : '${pct.toStringAsFixed(1)}%',
                             style: TextStyle(
@@ -237,7 +246,7 @@ class _DailyCollectionHeatMapCardState
 
   @override
   Widget build(BuildContext context) {
-    final asyncPoints = ref.watch(_heatMapPointsProvider);
+    final asyncPoints = ref.watch(dailyCollectionHeatMapPointsProvider);
     final points = asyncPoints.valueOrNull ?? const <CollectionPoint>[];
 
     if (asyncPoints.hasError && points.isEmpty) {
@@ -267,7 +276,7 @@ class _DailyCollectionHeatMapCardState
             ),
             const SizedBox(height: 10),
             TextButton.icon(
-              onPressed: () => ref.invalidate(_heatMapPointsProvider),
+              onPressed: () => ref.invalidate(dailyCollectionHeatMapPointsProvider),
               icon: const Icon(Icons.refresh, size: 16, color: Color(0xFFA855F7)),
               label: const Text('Retry', style: TextStyle(color: Color(0xFFA855F7))),
             ),
@@ -286,8 +295,16 @@ class _DailyCollectionHeatMapCardState
     }
 
     final now = DateTime.now();
-    // 4 calendar weeks
-    final weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDayOfMonth = DateTime(now.year, now.month, 1);
+    final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+
+    // Monday of the week containing the 1st of the month (weekday: Mon=1..Sun=7)
+    final startMonday =
+        firstDayOfMonth.subtract(Duration(days: firstDayOfMonth.weekday - 1));
+    final totalDays = (firstDayOfMonth.weekday - 1) + lastDayOfMonth.day;
+    final totalWeeks = (totalDays / 7.0).ceil();
+    final weeks = List.generate(totalWeeks, (i) => 'Week ${i + 1}');
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -316,20 +333,44 @@ class _DailyCollectionHeatMapCardState
                   color: Colors.white,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF27272A),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  DateFormat('MMMM yyyy').format(now),
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFA1A1AA),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF27272A),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      DateFormat('MMMM yyyy').format(now),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFA1A1AA),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () =>
+                        ref.invalidate(dailyCollectionHeatMapPointsProvider),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF27272A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.refresh,
+                        size: 14,
+                        color: Color(0xFFA1A1AA),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -386,57 +427,45 @@ class _DailyCollectionHeatMapCardState
                     ),
                   ),
                   ...List.generate(7, (dayIdx) {
-                    final isSunday = dayIdx == 6;
+                    final cellDate = DateTime(
+                      startMonday.year,
+                      startMonday.month,
+                      startMonday.day + (weekIdx * 7) + dayIdx,
+                    );
+                    final isCurrentMonth = cellDate.month == now.month &&
+                        cellDate.year == now.year;
 
-                    // Calculate date corresponding to this cell in the month
-                    final dayOffset = (weekIdx * 7) + dayIdx;
-                    final cellDate = DateTime(now.year, now.month, 1)
-                        .add(Duration(days: dayOffset));
+                    if (!isCurrentMonth) {
+                      return const Expanded(
+                        child: Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Center(
+                              child: Text(
+                                '·',
+                                style: TextStyle(
+                                  color: Color(0xFF3F3F46),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final isSunday = dayIdx == 6;
+                    final isFuture = cellDate.isAfter(today);
                     final dateKey = DateFormat('yyyy-MM-dd').format(cellDate);
 
                     final point = dateMap[dateKey];
-                    final double exp;
-                    final double col;
-
-                    if (point != null) {
-                      exp = point.expected;
-                      col = point.collected;
-                    } else {
-                      // Fallback seed corresponding to screenshot patterns
-                      if (isSunday) {
-                        exp = 0;
-                        col = 0;
-                      } else {
-                        // Reproduce the screenshot color pattern:
-                        // Week 1: G, G, A, G, R, G, -
-                        // Week 2: G, A, G, G, R, G, -
-                        // Week 3: G, G, G, A, A, G, -
-                        // Week 4: A, R, G, G, A, G, -
-                        final pattern = [
-                          ['G', 'G', 'A', 'G', 'R', 'G', '-'],
-                          ['G', 'A', 'G', 'G', 'R', 'G', '-'],
-                          ['G', 'G', 'G', 'A', 'A', 'G', '-'],
-                          ['A', 'R', 'G', 'G', 'A', 'G', '-'],
-                        ];
-                        final type = pattern[weekIdx % 4][dayIdx % 7];
-                        if (type == 'G') {
-                          exp = 45000;
-                          col = 42500;
-                        } else if (type == 'A') {
-                          exp = 48000;
-                          col = 28000;
-                        } else if (type == 'R') {
-                          exp = 42000;
-                          col = 11000;
-                        } else {
-                          exp = 0;
-                          col = 0;
-                        }
-                      }
-                    }
+                    final double exp = point?.expected ?? 0.0;
+                    final double col = point?.collected ?? 0.0;
 
                     Color boxColor;
-                    if (isSunday || (exp <= 0 && col <= 0)) {
+                    if (isSunday || isFuture || (exp <= 0 && col <= 0)) {
                       boxColor = Colors.transparent;
                     } else {
                       final ratio = exp > 0 ? (col / exp) : 1.0;
@@ -460,7 +489,8 @@ class _DailyCollectionHeatMapCardState
                               date: cellDate,
                               collected: col,
                               expected: exp,
-                              isRestDay: isSunday || (exp <= 0 && col <= 0),
+                              isRestDay: isSunday,
+                              isFuture: isFuture,
                             );
                           },
                           child: AnimatedContainer(
@@ -481,7 +511,7 @@ class _DailyCollectionHeatMapCardState
                                   : null,
                             ),
                             alignment: Alignment.center,
-                            child: isSunday || (exp <= 0 && col <= 0)
+                            child: isSunday || isFuture || (exp <= 0 && col <= 0)
                                 ? const Text(
                                     '-',
                                     style: TextStyle(

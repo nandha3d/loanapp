@@ -2348,6 +2348,14 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ದಿಕ್ಕು',
     'ml': 'ദിശകൾ',
   },
+  'cust.passbook': {
+    'en': 'Passbook',
+    'ta': 'பாஸ்புக்',
+    'hi': 'पासबुक',
+    'te': 'పాస్‌బుక్',
+    'kn': 'ಪಾಸ್‌ಬುಕ್',
+    'ml': 'പാസ്ബുക്ക്',
+  },
 
   // ── Collection ─────────────────────────────────────────────────────────
   'coll.title': {
