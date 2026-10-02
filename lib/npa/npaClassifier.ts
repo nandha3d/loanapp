@@ -15,6 +15,16 @@ export type AssetCategory =
   | 'loss'
   | 'written_off';
 
+/**
+ * NPA-01 (D2): categories whose outstanding counts as Gross NPA in reports —
+ * SMA buckets included. `written_off` sits in the `loss` bucket of
+ * getTenantProvisioningSummary, so it is listed here too to keep both
+ * figures equal.
+ */
+export const GROSS_NPA_CATEGORIES: readonly AssetCategory[] = [
+  'sma_0', 'sma_1', 'sma_2', 'sub_standard', 'doubtful_d1', 'doubtful_d2', 'doubtful_d3', 'loss', 'written_off',
+];
+
 export interface ClassificationResult {
   loanId: string;
   previousCategory: AssetCategory;

@@ -347,7 +347,8 @@ class _LoanCardState extends ConsumerState<_LoanCard> {
                 label: 'Upgrade',
                 size: AppButtonSize.small,
                 loading: _upgrading,
-                onPressed: loan.upgradeEligible ? _upgrade : null,
+                // NPA-02: always tappable; the server re-checks eligibility.
+                onPressed: _upgrade,
               ),
             ],
           ),
@@ -369,6 +370,14 @@ class _LoanCardState extends ConsumerState<_LoanCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Loan upgraded to standard')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        // 400 UPGRADE_NOT_ELIGIBLE: <reason> — show the reason.
+        final msg = e.toString().replaceFirst('Exception: ', '').replaceFirst('UPGRADE_NOT_ELIGIBLE: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
         );
       }
     } finally {

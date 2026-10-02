@@ -607,6 +607,7 @@ RBI IRACP asset classification. Runs nightly per tenant via `/api/cron/npa-class
 - **NPA-1** — The overdue clock starts at the **oldest unpaid instalment's due date** (`calculateMaxOverdueDays`), not the most recent. A partially paid instalment still counts as overdue unless `receivedAmount >= dueAmount`.
 - **NPA-2** — Once a loan is classified NPA, `npaClassifiedAt` is set **once** and drives the doubtful sub-category ladder thereafter. Do not restamp it on subsequent runs — that would reset a 3-year-old doubtful asset to sub-standard.
 - **NPA-3** — A loan at `sub_standard` or worse also moves `Loan.status` to `npa`.
+- **NPA-11** — **Gross NPA for reporting includes SMA (D2, NPA-01)**: Gross NPA outstanding = Σ outstanding of `GROSS_NPA_CATEGORIES` (`sma_0..2`, `sub_standard`, `doubtful_d1..3`, `loss`, `written_off`; `lib/npa/npaClassifier.ts`). Gross NPA ratio = that ÷ Σ `max(0, totalPayable − totalCollected)` over every non-deleted loan in scope (tenant, module, branch). `getNpaSummary` (mobile) and the NPA classification report (web) both use this definition.
 
 #### Provisioning — `calculateProvisioning()`
 

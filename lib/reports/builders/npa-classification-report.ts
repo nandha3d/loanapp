@@ -1,5 +1,6 @@
 import prisma from '../../db';
 import { ReportBuilderParams, ReportPayload } from '../types';
+import { GROSS_NPA_CATEGORIES, type AssetCategory } from '../../npa/npaClassifier';
 
 export async function buildNpaClassificationReport(params: ReportBuilderParams): Promise<ReportPayload> {
   const { tenantId, appType, branchId, status } = params;
@@ -52,7 +53,8 @@ export async function buildNpaClassificationReport(params: ReportBuilderParams):
       totalOutstanding += outstanding;
       totalProvision += provisioningAmount;
       npaCount++;
-      npaOutstanding += outstanding;
+      // NPA-01: one Gross NPA definition (SMA included) for web and mobile.
+      if (GROSS_NPA_CATEGORIES.includes(l.npaStatus as AssetCategory)) npaOutstanding += outstanding;
 
       return {
         loanCode: l.loanCode,

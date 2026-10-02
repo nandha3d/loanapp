@@ -47,17 +47,31 @@ export async function getNpaSummary(actor: NpaActor, input: { asOfDate?: Date | 
     branchId: actor.branchId,
   });
 
+  // NPA-01 (D2, NPA-11): Gross NPA includes the SMA buckets; the denominator is
+  // the outstanding of every loan in scope — the web report's definition.
   const npaOutstanding =
+    summary.sma.outstanding +
     summary.sub_standard.outstanding +
     summary.doubtful.outstanding +
     summary.loss.outstanding;
-  const grossNpaRatio =
-    summary.total.outstanding > 0
-      ? (npaOutstanding / summary.total.outstanding) * 100
-      : 0;
+  const scopeLoans = await prisma.loan.findMany({
+    where: {
+      tenantId: actor.tenantId,
+      deletedAt: null,
+      ...(actor.appType ? { appType: actor.appType } : {}),
+      ...(actor.branchId ? { branchId: actor.branchId } : {}),
+    },
+    select: { totalPayable: true, totalCollected: true },
+  });
+  const totalOutstanding = scopeLoans.reduce(
+    (sum, l) => sum + Math.max(0, Number(l.totalPayable) - Number(l.totalCollected)),
+    0,
+  );
+  const grossNpaRatio = totalOutstanding > 0 ? (npaOutstanding / totalOutstanding) * 100 : 0;
 
   return {
     ...summary,
+    npaOutstanding,
     grossNpaRatio: Math.round(grossNpaRatio * 100) / 100,
     asOfDate: asOfDate.toISOString(),
   };
