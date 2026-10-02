@@ -26,14 +26,13 @@ class Penalty {
   final double waivedAmount;
   /// DEC-03 (B): server net due (gross − settled − waived); null on old payloads.
   final double? net;
-  double get netDue => net ?? (grossPenalty - settledAmount - waivedAmount);
   final String status; // pending | settled | waived
   final DateTime createdAt;
   final int missedDays;
   final String? routeId;
   final String? routeName;
 
-  double get netDue => (grossPenalty - settledAmount - waivedAmount).clamp(0, double.infinity);
+  double get netDue => net ?? (grossPenalty - settledAmount - waivedAmount).clamp(0, double.infinity);
 
   factory Penalty.fromJson(Map<String, dynamic> json) {
     double toDouble(dynamic v) =>
