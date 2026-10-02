@@ -8,6 +8,7 @@ class Penalty {
     required this.grossPenalty,
     required this.settledAmount,
     required this.waivedAmount,
+    this.net,
     required this.status,
     required this.createdAt,
     this.missedDays = 0,
@@ -23,6 +24,9 @@ class Penalty {
   final double grossPenalty;
   final double settledAmount;
   final double waivedAmount;
+  /// DEC-03 (B): server net due (gross − settled − waived); null on old payloads.
+  final double? net;
+  double get netDue => net ?? (grossPenalty - settledAmount - waivedAmount);
   final String status; // pending | settled | waived
   final DateTime createdAt;
   final int missedDays;
@@ -47,6 +51,7 @@ class Penalty {
       grossPenalty: toDouble(json['grossPenalty']),
       settledAmount: toDouble(json['settledAmount']),
       waivedAmount: toDouble(json['waivedAmount']),
+      net: json['net'] == null ? null : toDouble(json['net']),
       status: (json['status'] as String?) ?? 'pending',
       createdAt: DateTime.parse(json['createdAt'] as String),
       missedDays: (json['missedDays'] as num?)?.toInt() ?? 0,

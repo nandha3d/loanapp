@@ -356,7 +356,7 @@ class _LoanPenaltyGroup {
   double get gross => penalties.fold(0, (s, p) => s + p.grossPenalty);
   double get settled => penalties.fold(0, (s, p) => s + p.settledAmount);
   double get waived => penalties.fold(0, (s, p) => s + p.waivedAmount);
-  double get net => gross - settled - waived;
+  double get net => penalties.fold(0, (s, p) => s + p.netDue);
 
   /// Days the customer skipped on this loan (max across its penalty rows).
   int get skippedDays =>
@@ -679,7 +679,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     var remaining = amount;
     for (final p in pend) {
       if (remaining <= 0) break;
-      final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
+      final pNet = p.netDue;
       if (pNet <= 0) continue;
       final pay = remaining < pNet ? remaining : pNet;
       await svc.settle(id: p.id, amount: pay, paymentMode: paymentMode);

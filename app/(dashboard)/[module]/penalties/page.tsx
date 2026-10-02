@@ -2,7 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere } from '@/lib/penalties';
+import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere, penaltyNet } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
@@ -69,10 +69,16 @@ export default async function PenaltiesPage({
     totalGross: Number(aggregates._sum.grossPenalty || 0),
     totalSettled: Number(aggregates._sum.settledAmount || 0),
     totalWaived: Number(aggregates._sum.waivedAmount || 0),
+    // DEC-03 (B): server net (same as GET /api/v1/penalties kpis.net).
+    net: penaltyNet({
+      grossPenalty: aggregates._sum.grossPenalty ?? 0,
+      settledAmount: aggregates._sum.settledAmount ?? 0,
+      waivedAmount: aggregates._sum.waivedAmount ?? 0,
+    }),
     count: aggregates._count,
   };
 
-  const serialized = JSON.parse(JSON.stringify(penalties));
+  const serialized = JSON.parse(JSON.stringify(penalties.map((p) => ({ ...p, net: penaltyNet(p) }))));
 
   return (
     <PenaltiesClient

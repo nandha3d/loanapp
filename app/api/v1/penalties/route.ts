@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere } from '@/lib/penalties';
+import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere, penaltyNet } from '@/lib/penalties';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -66,9 +66,11 @@ export async function GET(req: NextRequest) {
         _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
       }),
     ]);
-    if (page === null) return ok(penalties);
+    // DEC-03 (B): net per row and in the KPIs, so clients do not subtract.
+    const rows = penalties.map((p) => ({ ...p, net: penaltyNet(p) }));
+    if (page === null) return ok(rows);
     return ok({
-      rows: penalties,
+      rows,
       total,
       page,
       pages: Math.ceil(total / 50),
@@ -76,6 +78,11 @@ export async function GET(req: NextRequest) {
         totalGross: Number(aggregates?._sum.grossPenalty || 0),
         totalSettled: Number(aggregates?._sum.settledAmount || 0),
         totalWaived: Number(aggregates?._sum.waivedAmount || 0),
+        net: penaltyNet({
+          grossPenalty: aggregates?._sum.grossPenalty ?? 0,
+          settledAmount: aggregates?._sum.settledAmount ?? 0,
+          waivedAmount: aggregates?._sum.waivedAmount ?? 0,
+        }),
       },
     });
   } catch (e: any) {

@@ -15,7 +15,7 @@ export default function PenaltiesClient({
   dict,
 }: {
   penalties: any[];
-  kpis: { totalGross: number; totalSettled: number; totalWaived: number; count: number };
+  kpis: { totalGross: number; totalSettled: number; totalWaived: number; net: number; count: number };
   routes: any[];
   currencySymbol: string;
   filters: { q: string; status: string; routeId: string };
@@ -31,11 +31,11 @@ export default function PenaltiesClient({
   const ld = dict.loanDetail;
   const [notes, setNotes] = useState('');
 
-  const netOutstanding = kpis.totalGross - kpis.totalSettled - kpis.totalWaived;
+  const netOutstanding = kpis.net;
 
   const openModal = (penalty: any) => {
     setAction('enforce');
-    const net = Number(penalty.grossPenalty) - Number(penalty.settledAmount) - Number(penalty.waivedAmount);
+    const net = Number(penalty.net);
     setSettleAmount(net);
     setNotes('');
     setModal(penalty);
@@ -139,7 +139,7 @@ export default function PenaltiesClient({
             </thead>
             <tbody>
               {penalties.map((p: any) => {
-                const net = Number(p.grossPenalty) - Number(p.settledAmount) - Number(p.waivedAmount);
+                const net = Number(p.net);
                 return (
                   <tr key={p.id}>
                     <td><Link href={`/loans/${p.loan.loanCode}`}><strong>{p.loan.loanCode}</strong></Link></td>

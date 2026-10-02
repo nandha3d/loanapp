@@ -244,6 +244,11 @@ export async function ensurePendingPenaltiesForMissedLoans(
   };
 }
 
+/** DEC-03 (B): a penalty row's net due — the one formula both clients render. */
+export function penaltyNet(p: { grossPenalty: unknown; settledAmount: unknown; waivedAmount: unknown }): number {
+  return Math.max(0, Number(p.grossPenalty) - Number(p.settledAmount) - Number(p.waivedAmount));
+}
+
 /** DEC-06: payment modes a penalty can be collected in (same list on web and mobile). */
 export const PENALTY_PAYMENT_MODES = ['cash', 'upi', 'bank_transfer', 'cheque'] as const;
 
