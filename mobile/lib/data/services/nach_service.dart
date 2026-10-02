@@ -5,18 +5,33 @@ import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/nach.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
+class NachLoanInfo {
+  const NachLoanInfo({this.mandate, this.isSubscribed = true});
+  final NachMandate? mandate;
+  final bool isSubscribed;
+}
+
 class NachService {
   NachService(this._dio);
   final Dio _dio;
 
-  /// Fetch the active mandate for a loan (if any).
-  Future<NachMandate?> getMandate(String loanId) async {
+  /// Fetch full mandate info for a loan (mandate + subscription status).
+  Future<NachLoanInfo> getLoanMandateInfo(String loanId) async {
     final res =
         await _dio.get<Map<String, dynamic>>(Endpoints.nachLoan(loanId));
-    return unwrapEnvelope(res, (dynamic d) {
-      if (d == null) return null;
-      return NachMandate.fromJson(d as Map<String, dynamic>);
-    });
+    final body = res.data ?? const <String, dynamic>{};
+    final isSub = body['isSubscribed'] == true || body['enabled'] == true;
+    final d = body['data'];
+    final mandate = d != null && d is Map<String, dynamic>
+        ? NachMandate.fromJson(d)
+        : null;
+    return NachLoanInfo(mandate: mandate, isSubscribed: isSub);
+  }
+
+  /// Fetch the active mandate for a loan (if any).
+  Future<NachMandate?> getMandate(String loanId) async {
+    final info = await getLoanMandateInfo(loanId);
+    return info.mandate;
   }
 
   /// Register a new e-NACH mandate. Returns the created mandate (which may

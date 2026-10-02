@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
     foreclosureEnabled: Boolean(subscription?.foreclosureEnabled),
     // SET-02: plan gate for receipt / document PDFs (web hides the toggle without it).
     receiptPdfAllowed: Boolean(subscription?.receiptPdfAllowed),
+    nachEnabled: (await getSetting(user.tenantId, 'nach_enabled', 'false')) === 'true',
     id: user.id,
     name: user.name,
     phone: user.phone,

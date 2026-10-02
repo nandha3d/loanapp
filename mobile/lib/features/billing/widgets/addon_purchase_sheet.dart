@@ -184,6 +184,32 @@ final Map<String, AddonMetadata> addonCatalogMetadata = {
       ),
     ],
   ),
+  'nach': const AddonMetadata(
+    key: 'nach',
+    title: 'e-NACH Auto-Debit Mandates',
+    priceLabel: '₹499 / month',
+    priceRupees: 499,
+    icon: Icons.account_balance_rounded,
+    color: Color(0xFF7D287E),
+    bgColor: Color(0xFFF6E8F7),
+    bullets: [
+      (
+        title: 'Automated Bank Collections',
+        subtitle: 'Schedule and auto-debit daily, weekly or monthly EMIs via NPCI e-mandates.',
+        icon: Icons.sync_rounded,
+      ),
+      (
+        title: 'Razorpay & NetBanking Checkout',
+        subtitle: 'Digital borrower authorization via NetBanking, Debit Card or Aadhaar OTP.',
+        icon: Icons.verified_user_outlined,
+      ),
+      (
+        title: 'Failed Debit Auto-Retries',
+        subtitle: 'Automatic presentation retries for bounced mandates with failure logging.',
+        icon: Icons.replay_rounded,
+      ),
+    ],
+  ),
 };
 
 void showAddonPurchaseSheet(

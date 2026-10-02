@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/services/collection_service.dart';
@@ -44,8 +45,12 @@ final _customerLoansProvider = FutureProvider.autoDispose
   return ref.watch(loanServiceProvider).list(customerId: customerId);
 });
 
-/// Server figure (metrics.dueNow, LD-03) — no client maths.
-double _dueNowForLoan(Loan loan) => loan.metrics?.dueNow ?? 0;
+/// Server figure (metrics.dueNow, LD-03) clamped defensively to totalOutstanding.
+double _dueNowForLoan(Loan loan) {
+  final out = loan.metrics?.totalOutstanding ?? 0.0;
+  final now = loan.metrics?.dueNow ?? 0.0;
+  return math.min(out, now);
+}
 
 class LoanDetailScreen extends ConsumerWidget {
   const LoanDetailScreen({super.key, required this.id});
@@ -880,20 +885,27 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: active
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color: active ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: active ? AppColors.primary : AppColors.border,
           ),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         margin: const EdgeInsets.only(right: 8),
         child: Text(
           label,
           style: AppTypography.caption.copyWith(
             fontWeight: FontWeight.w700,
-            color: active ? AppColors.primary : AppColors.textSecondary,
+            color: active ? Colors.white : AppColors.textSecondary,
           ),
         ),
       ),
@@ -915,45 +927,45 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF3C7),
+        color: AppColors.primaryLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(7),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF59E0B),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
+            child: const Icon(Icons.alarm_rounded, color: Colors.white, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Payment Due Today',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 13,
-                    color: Color(0xFF92400E),
+                    color: AppColors.primaryDark,
                   ),
                 ),
                 Text(
                   'Total due amount: ${fmt.format(dueNow)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF78350F),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
             ),
           ),
-          FilledButton.tonal(
+          FilledButton(
             onPressed: () {
               try {
                 final firstUnpaid = loan.instalments.firstWhere(
@@ -963,7 +975,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
               } catch (_) {}
             },
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFB45309),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: Size.zero,
@@ -1454,6 +1466,20 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
         _ => BadgeKind.info,
       };
 
+  Color _scoreColor(int score) {
+    if (score >= 750) return AppColors.success;
+    if (score >= 650) return AppColors.primary;
+    if (score >= 550) return AppColors.warning;
+    return AppColors.danger;
+  }
+
+  Color _scoreBg(int score) {
+    if (score >= 750) return AppColors.successBg;
+    if (score >= 650) return AppColors.primaryLight;
+    if (score >= 550) return AppColors.warningBg;
+    return AppColors.dangerBg;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
@@ -1471,394 +1497,477 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
     final phone = loan.customer?.phone ?? '';
     final photo = loan.customer?.photoUrl;
     final hasPhoto = photo != null && photo.isNotEmpty;
+    final cs = loan.customer?.creditScore;
 
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Borrower Identity & Quick Contact Header ────────────────────────
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppColors.primary, width: 3.5),
+            ),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () => context.push('/customers/${loan.customerId}'),
-                child: hasPhoto
-                    ? CircleAvatar(
-                        radius: 24,
-                        backgroundImage: authedImage(ref, photo),
-                      )
-                    : Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
-                          ),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.35),
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            loan.customer?.initials ?? '?',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => context.push('/customers/${loan.customerId}'),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary,
-                                letterSpacing: -0.3,
+              // ── Borrower Identity & Quick Contact Header ────────────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => context.push('/customers/${loan.customerId}'),
+                    child: hasPhoto
+                        ? CircleAvatar(
+                            radius: 24,
+                            backgroundImage: authedImage(ref, photo),
+                          )
+                        : Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.35),
+                                width: 2,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                loan.customer?.initials ?? '?',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                ),
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 11,
-                            color: AppColors.textLight,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => context.push('/customers/${loan.customerId}'),
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (code.isNotEmpty)
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: code));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Copied $code to clipboard'),
-                                    duration: const Duration(seconds: 1),
-                                    behavior: SnackBarBehavior.floating,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                    letterSpacing: -0.3,
                                   ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(4),
-                              child: Container(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 11,
+                                color: AppColors.textLight,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (code.isNotEmpty)
+                                InkWell(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: code));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Copied $code to clipboard'),
+                                        duration: const Duration(seconds: 1),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: AppColors.border),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          code,
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textSecondary,
+                                            fontFamily: 'monospace',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        const Icon(
+                                          Icons.copy_rounded,
+                                          size: 9,
+                                          color: AppColors.textLight,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.background,
+                                  color: AppColors.primaryLight,
                                   borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: AppColors.border),
+                                  border: Border.all(
+                                    color: AppColors.primary.withValues(alpha: 0.3),
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      code,
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textSecondary,
-                                        fontFamily: 'monospace',
+                                child: Text(
+                                  loan.loanCode,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                              AppBadge(label: loan.status, kind: _badge(loan.status)),
+                              // ── Customer Credit Score Pill ──────────────────────
+                              if (cs != null && cs.rated)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _scoreBg(cs.score),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: _scoreColor(cs.score).withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.speed_rounded,
+                                        size: 11,
+                                        color: _scoreColor(cs.score),
                                       ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'SCORE ${cs.score}',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: _scoreColor(cs.score),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (cs != null && cs.score > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: AppColors.primary.withValues(alpha: 0.3),
                                     ),
-                                    const SizedBox(width: 3),
-                                    const Icon(
-                                      Icons.copy_rounded,
-                                      size: 9,
-                                      color: AppColors.textLight,
-                                    ),
-                                  ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.speed_rounded,
+                                        size: 11,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'SCORE ${cs.score}',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              loan.loanCode,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
+                            ],
                           ),
-                          AppBadge(label: loan.status, kind: _badge(loan.status)),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              if (phone.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    InkWell(
-                      onTap: () => launchUrl(Uri(scheme: 'tel', path: phone)),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.phone_rounded,
-                          size: 18,
-                          color: Color(0xFF10B981),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    InkWell(
-                      onTap: () {
-                        final digits = phone.replaceAll(RegExp(r'\D'), '');
-                        launchUrl(
-                          Uri.parse('https://wa.me/$digits'),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF25D366).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: const Color(0xFF25D366).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.chat_bubble_rounded,
-                          size: 18,
-                          color: Color(0xFF25D366),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-
-          // ── Multi-loan switcher pills ──────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: _LoanPillRow(loan: loan),
-          ),
-
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-
-          // ── 2x2 Financial Metric Cards ─────────────────────────────────────
-          Row(
-            children: [
-              Expanded(
-                child: _MetricTile(
-                  icon: Icons.account_balance_wallet_outlined,
-                  iconColor: AppColors.primary,
-                  iconBg: AppColors.primaryLight,
-                  label: t.x('loan.lbl_principal'),
-                  value: fmt.format(loan.principalAmount),
-                  subtitle: 'Total: ${fmt.format(loan.totalPayable)}',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricTile(
-                  icon: Icons.pending_actions_outlined,
-                  iconColor: isOverdue ? AppColors.danger : AppColors.warning,
-                  iconBg: isOverdue ? AppColors.dangerBg : AppColors.warningBg,
-                  label: t.x('loan.lbl_outstanding'),
-                  value: fmt.format(outstanding),
-                  valueColor: isOverdue ? AppColors.danger : AppColors.textPrimary,
-                  subtitle: outstanding > 0 ? 'Remaining dues' : 'Settled',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricTile(
-                  icon: Icons.check_circle_outline_rounded,
-                  iconColor: AppColors.success,
-                  iconBg: AppColors.successBg,
-                  label: t.x('loan.lbl_collected'),
-                  value: fmt.format(totalCollected),
-                  valueColor: AppColors.success,
-                  subtitle: '$dynamicPaidCount of ${loan.instalmentCount} paid',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricTile(
-                  icon: Icons.event_repeat_rounded,
-                  iconColor: AppColors.info,
-                  iconBg: AppColors.infoBg,
-                  label: t.x('loan.lbl_per_inst'),
-                  value: fmt.format(perInstalment),
-                  subtitle: '${loan.frequency.toUpperCase()} cadence',
-                ),
-              ),
-            ],
-          ),
-
-          // ── Repayment Progress Ribbon ──────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.only(top: 14),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                  if (phone.isNotEmpty) ...[
+                    const SizedBox(width: 8),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '$pct% REPAID',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
+                        InkWell(
+                          onTap: () => launchUrl(Uri(scheme: 'tel', path: phone)),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.phone_rounded,
+                              size: 18,
+                              color: Color(0xFF10B981),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '$dynamicPaidCount / ${loan.instalmentCount} ${_periodUnit(loan, t)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () {
+                            final digits = phone.replaceAll(RegExp(r'\D'), '');
+                            launchUrl(
+                              Uri.parse('https://wa.me/$digits'),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF25D366).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFF25D366).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.chat_bubble_rounded,
+                              size: 18,
+                              color: Color(0xFF25D366),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    Text(
-                      '$remainingActual remaining',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: remainingActual > 0
-                            ? AppColors.danger
-                            : AppColors.success,
+                  ],
+                ],
+              ),
+
+              // ── Multi-loan switcher pills ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: _LoanPillRow(loan: loan),
+              ),
+
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: 14),
+
+              // ── 2x2 Financial Metric Cards ─────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _MetricTile(
+                      icon: Icons.account_balance_wallet_outlined,
+                      iconColor: AppColors.primary,
+                      iconBg: AppColors.primaryLight,
+                      label: t.x('loan.lbl_principal'),
+                      value: fmt.format(loan.principalAmount),
+                      subtitle: 'Total: ${fmt.format(loan.totalPayable)}',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MetricTile(
+                      icon: Icons.pending_actions_outlined,
+                      iconColor: isOverdue ? AppColors.danger : AppColors.warning,
+                      iconBg: isOverdue ? AppColors.dangerBg : AppColors.warningBg,
+                      label: t.x('loan.lbl_outstanding'),
+                      value: fmt.format(outstanding),
+                      valueColor: isOverdue ? AppColors.danger : AppColors.textPrimary,
+                      subtitle: outstanding > 0 ? 'Remaining dues' : 'Settled',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MetricTile(
+                      icon: Icons.check_circle_outline_rounded,
+                      iconColor: AppColors.success,
+                      iconBg: AppColors.successBg,
+                      label: t.x('loan.lbl_collected'),
+                      value: fmt.format(totalCollected),
+                      valueColor: AppColors.success,
+                      subtitle: '$dynamicPaidCount of ${loan.instalmentCount} paid',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MetricTile(
+                      icon: Icons.event_repeat_rounded,
+                      iconColor: AppColors.info,
+                      iconBg: AppColors.infoBg,
+                      label: t.x('loan.lbl_per_inst'),
+                      value: fmt.format(perInstalment),
+                      subtitle: '${loan.frequency.toUpperCase()} cadence',
+                    ),
+                  ),
+                ],
+              ),
+
+              // ── Repayment Progress Ribbon ──────────────────────────────────────
+              Container(
+                margin: const EdgeInsets.only(top: 14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '$pct% REPAID',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$dynamicPaidCount / ${loan.instalmentCount} ${_periodUnit(loan, t)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '$remainingActual remaining',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: remainingActual > 0
+                                ? AppColors.danger
+                                : AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        minHeight: 7,
+                        backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                        valueColor: AlwaysStoppedAnimation(AppColors.primary),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    minHeight: 7,
-                    backgroundColor: AppColors.border,
-                    valueColor: AlwaysStoppedAnimation(AppColors.primary),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
 
-          // ── Meta Details Ribbon ───────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _MetaChip(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Start Date',
-                  value: DateFormat('dd MMM yyyy').format(loan.startDate),
-                  // When the loan was actually started (disbursed).
-                  subtitle: loan.startedAt == null
-                      ? null
-                      : DateFormat('h:mm a').format(loan.startedAt!),
+              // ── Meta Details Ribbon ───────────────────────────────────────────
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
                 ),
-                Container(width: 1, height: 24, color: AppColors.border),
-                _MetaChip(
-                  icon: Icons.category_outlined,
-                  label: 'Scheme',
-                  value:
-                      '${loan.frequency.toUpperCase()} • ${(loan.loanType ?? 'standard').toUpperCase()}',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _MetaChip(
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Start Date',
+                      value: DateFormat('dd MMM yyyy').format(loan.startDate),
+                      // When the loan was actually started (disbursed).
+                      subtitle: loan.startedAt == null
+                          ? null
+                          : DateFormat('h:mm a').format(loan.startedAt!),
+                    ),
+                    Container(width: 1, height: 24, color: AppColors.border),
+                    _MetaChip(
+                      icon: Icons.category_outlined,
+                      label: 'Scheme',
+                      value:
+                          '${loan.frequency.toUpperCase()} • ${(loan.loanType ?? 'standard').toUpperCase()}',
+                    ),
+                    Container(width: 1, height: 24, color: AppColors.border),
+                    _MetaChip(
+                      icon: Icons.speed_rounded,
+                      label: 'Cust. Score',
+                      value: cs != null && cs.rated
+                          ? '${cs.score} (${cs.grade})'
+                          : (cs?.score != null && cs!.score > 0 ? '${cs.score}' : '—'),
+                      valueColor: cs != null && cs.rated ? _scoreColor(cs.score) : null,
+                    ),
+                    if (dueNow > 0) ...[
+                      Container(width: 1, height: 24, color: AppColors.border),
+                      _MetaChip(
+                        icon: Icons.alarm_rounded,
+                        label: 'Due Now',
+                        value: fmt.format(dueNow),
+                        valueColor: AppColors.primary,
+                      ),
+                    ],
+                  ],
                 ),
-                if (dueNow > 0) ...[
-                  Container(width: 1, height: 24, color: AppColors.border),
-                  _MetaChip(
-                    icon: Icons.alarm_rounded,
-                    label: 'Due Now',
-                    value: fmt.format(dueNow),
-                    valueColor: AppColors.warning,
-                  ),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1890,7 +1999,7 @@ class _MetricTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3151,9 +3260,16 @@ class _LoanBottomBar extends ConsumerWidget {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () => _exportStatement(context, ref),
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                label: Text(t.x('loan.statement')),
+                icon: Icon(Icons.picture_as_pdf_outlined, color: AppColors.primary),
+                label: Text(
+                  t.x('loan.statement'),
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.45)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),

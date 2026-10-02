@@ -103,6 +103,7 @@ class User {
     this.premiumAccountingEnabled = false,
     this.whatsappSmsEnabled = false,
     this.foreclosureEnabled = false,
+    this.nachEnabled = false,
     this.bypassLoanApproval = true,
     this.bulletTermEnabled = false,
     this.interestOnlyEnabled = false,
@@ -153,6 +154,7 @@ class User {
   final bool premiumAccountingEnabled;
   final bool whatsappSmsEnabled;
   final bool foreclosureEnabled;
+  final bool nachEnabled;
 
   bool hasModule(String module) => enabledModules.contains(module);
 
@@ -183,6 +185,9 @@ class User {
       case 'foreclosure':
       case 'foreclosureenabled':
         return foreclosureEnabled;
+      case 'nach':
+      case 'nachenabled':
+        return nachEnabled;
       default:
         return false;
     }
@@ -211,6 +216,7 @@ class User {
     bool? premiumAccountingEnabled,
     bool? whatsappSmsEnabled,
     bool? foreclosureEnabled,
+    bool? nachEnabled,
     bool? bypassLoanApproval,
     bool? bulletTermEnabled,
     bool? interestOnlyEnabled,
@@ -243,6 +249,7 @@ class User {
           premiumAccountingEnabled ?? this.premiumAccountingEnabled,
       whatsappSmsEnabled: whatsappSmsEnabled ?? this.whatsappSmsEnabled,
       foreclosureEnabled: foreclosureEnabled ?? this.foreclosureEnabled,
+      nachEnabled: nachEnabled ?? this.nachEnabled,
       bypassLoanApproval: bypassLoanApproval ?? this.bypassLoanApproval,
       bulletTermEnabled: bulletTermEnabled ?? this.bulletTermEnabled,
       interestOnlyEnabled: interestOnlyEnabled ?? this.interestOnlyEnabled,
@@ -282,6 +289,7 @@ class User {
           (json['premiumAccountingEnabled'] as bool?) ?? false,
       whatsappSmsEnabled: (json['whatsappSmsEnabled'] as bool?) ?? false,
       foreclosureEnabled: (json['foreclosureEnabled'] as bool?) ?? false,
+      nachEnabled: (json['nachEnabled'] as bool?) ?? false,
       bulletTermEnabled: json['bulletTermEnabled'] == true,
       interestOnlyEnabled: json['interestOnlyEnabled'] == true,
       receiptPdfAllowed: json['receiptPdfAllowed'] == true,
@@ -318,5 +326,6 @@ class User {
         'premiumAccountingEnabled': premiumAccountingEnabled,
         'whatsappSmsEnabled': whatsappSmsEnabled,
         'foreclosureEnabled': foreclosureEnabled,
+        'nachEnabled': nachEnabled,
       };
 }

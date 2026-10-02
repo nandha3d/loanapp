@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { getMandateForLoan } from '@/lib/nach';
+import { getSetting } from '@/lib/tenant';
 import prisma from '@/lib/db';
 import { loanAccessWhere } from '@/lib/loanPolicy';
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ loan
   });
   if (!loan) return NextResponse.json({ error: 'Loan not found' }, { status: 404 });
 
+  const nachEnabled = (await getSetting(user.tenantId, 'nach_enabled', 'false')) === 'true';
   const mandate = await getMandateForLoan(loanId);
-  return NextResponse.json({ ok: true, data: mandate ?? null });
+  return NextResponse.json({ ok: true, data: mandate ?? null, isSubscribed: nachEnabled, enabled: nachEnabled });
 }

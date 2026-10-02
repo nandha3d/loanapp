@@ -16,6 +16,7 @@ import {
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity, calculateDynamicOverdueAmount, distributeScheduleView, distributeExtendedRowsView } from '@/lib/repayments';
+import { calculateCreditScore } from '@/lib/creditScore';
 import { modulePath } from '@/types/modules';
 
 export async function GET(
@@ -208,12 +209,22 @@ export async function GET(
     : settledOrClosed
       ? loan.totalInstalments
       : Math.max(0, loan.totalInstalments - remainingExtended);
-  // Due now = unpaid dues up to today; past the term the normal instalment
-  // keeps falling due (EXT-1) — the figure mobile used to compute itself.
-  const dueTillToday = preMappedInstalments
-    .filter((i) => i.status !== 'waived' && i.status !== 'paid' && new Date(i.dueDate) < new Date(today.getTime() + 24 * 60 * 60 * 1000))
+  // Distributed schedule view: distributes totalCollected chronologically across instalments.
+  const distributedInstalments = distributeScheduleView(instalments, Number(loan.totalCollected), toDateStr(today));
+
+  // Same arrears calculation the web page uses (calculateDynamicOverdueAmount).
+  const overdueAmount = settledOrClosed
+    ? 0
+    : calculateDynamicOverdueAmount(loan.instalments as any, Number(loan.totalCollected), totalOutstanding, today);
+
+  // Today's instalment due from distributed schedule (if an instalment is due today)
+  const todayDue = distributedInstalments
+    .filter((i) => i.status !== 'waived' && toDateStr(i.dueDate) === toDateStr(today))
     .reduce((sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
-  const dueNow = settledOrClosed ? 0 : (dueTillToday > 0 ? dueTillToday : Math.min(perInstalment, totalOutstanding));
+
+  // Due now: overdue arrears + today's due, clamped to totalOutstanding so it never exceeds outstanding balance
+  const dueTillToday = overdueAmount + todayDue;
+  const dueNow = settledOrClosed ? 0 : Math.min(totalOutstanding, dueTillToday > 0 ? dueTillToday : Math.min(perInstalment, totalOutstanding));
   const totalInstalments = Number(loan.totalInstalments) || 0;
   const progress = settledOrClosed
     ? 1.0
@@ -223,10 +234,7 @@ export async function GET(
   const metrics = {
     totalOutstanding,
     dueNow,
-    // Same arrears calculation the web page uses (calculateDynamicOverdueAmount).
-    overdueAmount: settledOrClosed
-      ? 0
-      : calculateDynamicOverdueAmount(loan.instalments as any, Number(loan.totalCollected), totalOutstanding, today),
+    overdueAmount,
     missedCount,
     paidCount: countedInsts.filter((i) => i.status === 'paid').length,
     paidPeriod,
@@ -261,6 +269,7 @@ export async function GET(
   const customerOut = loan.customer
     ? {
         ...loan.customer,
+        creditScore: calculateCreditScore(loan.customer.loans || []),
         pan: maskPan(loan.customer.pan),
         aadharNumber: maskAadharNumber(decryptAadharNumber(loan.customer.aadharNumber)),
         guarantors: loan.customer.guarantors?.map((g) => ({

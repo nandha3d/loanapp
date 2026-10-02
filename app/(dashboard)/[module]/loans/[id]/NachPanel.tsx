@@ -91,6 +91,7 @@ export default function NachPanel({
   isAdmin: boolean;
 }) {
   const [mandate, setMandate] = useState<Mandate | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -113,6 +114,9 @@ export default function NachPanel({
       if (res.ok) {
         const json = await res.json();
         setMandate(json?.data ?? null);
+        if (typeof json?.isSubscribed === 'boolean') {
+          setIsSubscribed(json.isSubscribed);
+        }
       }
     } catch { /* panel stays in last state */ }
     setLoaded(true);
@@ -232,7 +236,18 @@ export default function NachPanel({
           </div>
         )}
 
-        {!mandate && !showForm && (
+        {!isSubscribed && !mandate ? (
+          <div style={{ padding: '14px 16px', background: 'rgba(125, 40, 126, 0.06)', borderRadius: '8px', border: '1px solid rgba(125, 40, 126, 0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '1rem' }}>🔒</span>
+              <strong style={{ fontSize: '.88rem', color: 'var(--primary)' }}>This feature is for Premium users</strong>
+              <span style={{ fontSize: '.68rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)', color: '#fff' }}>PREMIUM</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '.82rem', color: 'var(--text-secondary)' }}>
+              e-NACH auto-debit requires a Premium subscription. Automate EMI collections with bank e-mandates by upgrading to a Premium plan.
+            </p>
+          </div>
+        ) : !mandate && !showForm ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <p style={{ margin: 0, fontSize: '.85rem', color: 'var(--text-secondary)' }}>
               No auto-debit mandate. Register e-NACH so EMIs are pulled from the borrower&apos;s bank automatically.
@@ -243,7 +258,7 @@ export default function NachPanel({
               </button>
             )}
           </div>
-        )}
+        ) : null}
 
         {mandate && (
           <>

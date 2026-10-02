@@ -7,8 +7,11 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/models/nach.dart';
 import 'package:zolofund/data/services/nach_service.dart';
+import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 
 /// e-NACH Auto-Debit panel — embedded in the loan detail screen.
 /// Self-contained: reads/writes mandates via NachService.
@@ -42,6 +45,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
   bool _loaded = false;
   bool _showForm = false;
   bool _busy = false;
+  bool _isSubscribed = false;
   String? _error;
   bool _expanded = true;
 
@@ -89,13 +93,14 @@ class _NachPanelState extends ConsumerState<NachPanel> {
 
   Future<void> _refresh() async {
     try {
-      final mandate =
-          await ref.read(nachServiceProvider).getMandate(widget.loanId);
+      final info =
+          await ref.read(nachServiceProvider).getLoanMandateInfo(widget.loanId);
       if (mounted) {
         setState(() {
-        _mandate = mandate;
-        _loaded = true;
-      });
+          _mandate = info.mandate;
+          _isSubscribed = info.isSubscribed;
+          _loaded = true;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _loaded = true);
@@ -286,6 +291,9 @@ class _NachPanelState extends ConsumerState<NachPanel> {
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
     final fmt = ref.watch(currencyFmtProvider);
+    final user = ref.watch(authControllerProvider).user;
+    final isDev = user?.role == UserRole.developer;
+    final isTenantSubscribed = isDev || (user?.nachEnabled ?? false) || _isSubscribed;
     final style = _mandate != null
         ? _statusStyles[_mandate!.status] ?? _statusStyles['created']!
         : null;
@@ -295,6 +303,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
         boxShadow: AppTokens.shadow,
       ),
       child: Column(
@@ -325,11 +334,32 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                       child: Text(style.$3,
                           style: AppTypography.caption.copyWith(
                               color: style.$2, fontWeight: FontWeight.w700,),),
+                    )
+                  else if (!isTenantSubscribed)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3,),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radiusBadge),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_rounded, size: 11, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text('PREMIUM',
+                              style: AppTypography.caption.copyWith(
+                                  color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 10.5,),),
+                        ],
+                      ),
                     ),
                   const SizedBox(width: 8),
                   Icon(
                     _expanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.textSecondary,
+                    color: AppColors.primary,
                   ),
                 ],
               ),
@@ -351,8 +381,95 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                           .copyWith(color: AppColors.danger),),
                 ),
               ),
-            // No mandate — show prompt
-            if (_mandate == null && !_showForm)
+            // Locked for non-subscribed users when no mandate exists
+            if (!isTenantSubscribed && _mandate == null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.workspace_premium_rounded, color: AppColors.primary, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'This feature is for Premium users',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  'Automated bank recurring collections',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'e-NACH auto-debit automatically pulls scheduled EMIs directly from the borrower\'s bank account via NPCI mandate. Upgrade your subscription to enable this feature.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            showAddonPurchaseSheet(context, ref, addonKey: 'nach', onActivated: _refresh);
+                          },
+                          icon: const Icon(Icons.lock_open_rounded, size: 15),
+                          label: const Text(
+                            'Upgrade to Premium',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            // No mandate and subscribed — show prompt
+            else if (_mandate == null && !_showForm)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(
@@ -367,6 +484,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                     if (widget.isAdmin)
                       TextButton(
                         onPressed: () => setState(() => _showForm = true),
+                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                         child: const Text('Set up'),
                       ),
                   ],
