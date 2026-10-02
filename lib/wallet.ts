@@ -30,6 +30,50 @@ type LedgerMeta = {
   byUserId?: string | null;
 };
 
+type BalanceModel = {
+  update(args: { where: { id: string }; data: { balance: { increment: number } } }): Promise<unknown>;
+  updateMany(args: {
+    where: { id: string; balance: { gte: number } };
+    data: { balance: { increment: number } };
+  }): Promise<{ count: number }>;
+  findUnique(args: { where: { id: string }; select: { balance: true } }): Promise<{ balance: unknown } | null>;
+};
+
+/**
+ * Moves a balance by `delta` with a single atomic UPDATE, then reads the row
+ * back inside the same transaction. A debit under `hardBlock` is guarded in the
+ * WHERE clause (`balance >= amount`), so the database — not a JS read taken
+ * before another transaction committed — decides whether the cash is there.
+ * The old read-compute-write lost concurrent updates and let two disbursements
+ * both pass the float check (MONEY-16).
+ */
+async function moveBalance(model: BalanceModel, id: string, delta: number, hardBlock: boolean): Promise<number> {
+  if (hardBlock && delta < 0) {
+    const moved = await model.updateMany({
+      where: { id, balance: { gte: -delta } },
+      data: { balance: { increment: delta } },
+    });
+    if (moved.count !== 1) {
+      const current = await model.findUnique({ where: { id }, select: { balance: true } });
+      throw new InsufficientFloatError(Number(current?.balance ?? 0), -delta);
+    }
+  } else {
+    await model.update({ where: { id }, data: { balance: { increment: delta } } });
+  }
+  const after = await model.findUnique({ where: { id }, select: { balance: true } });
+  return Number(after?.balance ?? 0);
+}
+
+function requireBranchId(branchId: string | null | undefined, action: string): string {
+  if (!branchId) {
+    // An agent's float always has a branch pool on the other side. Without one
+    // the movement would create or destroy cash (SCOPE-4: an unbranched agent
+    // is a data defect to repair, never a reason to skip the branch leg).
+    throw new Error(`A branch is required to ${action}. Assign the agent to a branch first.`);
+  }
+  return branchId;
+}
+
 /**
  * Applies a signed delta to an agent account inside a transaction and writes a
  * ledger row. `hardBlock` throws InsufficientFloatError if the result is
@@ -50,8 +94,7 @@ async function applyAgent(
     create: { tenantId, appType, agentId, balance: 0 },
     update: {},
   });
-  const next = calculateFloatBalance(Number(acct.balance), delta, hardBlock);
-  await tx.agentAccount.update({ where: { id: acct.id }, data: { balance: next } });
+  const next = await moveBalance(tx.agentAccount as unknown as BalanceModel, acct.id, delta, hardBlock);
   // Stamp the agent's branch on the ledger row. Without it every agent-side
   // movement is unbranched, and the branch-scoped wallet view (which filters on
   // `branchId`) shows an admin nothing at all for their own agents (SCOPE-3).
@@ -92,8 +135,7 @@ async function applyBranch(
     create: { tenantId, appType, branchId, balance: 0 },
     update: {},
   });
-  const next = calculateFloatBalance(Number(acct.balance), delta, hardBlock);
-  await tx.branchCashAccount.update({ where: { id: acct.id }, data: { balance: next } });
+  const next = await moveBalance(tx.branchCashAccount as unknown as BalanceModel, acct.id, delta, hardBlock);
   await tx.walletTransaction.create({
     data: {
       tenantId,
@@ -138,13 +180,23 @@ export async function applyAccountingCashToBranch(
       : input.entryType === 'expense'
         ? 'Accounting cash expense'
         : 'Accounting cash capital withdrawal';
-  return applyBranch(tx, input.tenantId, input.appType, input.branchId, isAddition ? input.amount : -input.amount, {
-    type: isAddition ? 'inject' : 'adjustment',
-    refType: 'account_entry',
-    refId: input.accountEntryId,
-    note: input.note ?? defaultNote,
-    byUserId: input.byUserId ?? null,
-  });
+  // A withdrawal or cash expense takes physical cash out of the office; it can
+  // never take out more than the pool holds (MONEY-16).
+  return applyBranch(
+    tx,
+    input.tenantId,
+    input.appType,
+    input.branchId,
+    isAddition ? input.amount : -input.amount,
+    {
+      type: isAddition ? 'inject' : 'adjustment',
+      refType: 'account_entry',
+      refId: input.accountEntryId,
+      note: input.note ?? defaultNote,
+      byUserId: input.byUserId ?? null,
+    },
+    !isAddition,
+  );
 }
 
 /**
@@ -166,8 +218,7 @@ export async function checkBranchFloat(params: {
   return { balance, shortfall, hasShortfall: params.amount > balance };
 }
 
-/** Admin releases company cash to an agent. Debits branch pool, credits agent. */
-export async function releaseToAgent(input: {
+type ReleaseInput = {
   tenantId: string;
   appType: string;
   agentId: string;
@@ -176,34 +227,38 @@ export async function releaseToAgent(input: {
   byUserId: string;
   note?: string | null;
   hardBlock?: boolean;
-}): Promise<{ agentBalance: number }> {
+};
+
+/** Admin releases company cash to an agent. Debits branch pool, credits agent. */
+export async function releaseToAgentInTx(tx: Tx, input: ReleaseInput): Promise<{ agentBalance: number }> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
-  return prisma.$transaction(async (tx) => {
-    if (input.branchId) {
-      await applyBranch(
-        tx,
-        input.tenantId,
-        input.appType,
-        input.branchId,
-        -input.amount,
-        {
-          type: 'release',
-          refType: 'agent',
-          refId: input.agentId,
-          note: input.note,
-          byUserId: input.byUserId,
-        },
-        input.hardBlock ?? true,
-      );
-    }
-    const agentBalance = await applyAgent(tx, input.tenantId, input.appType, input.agentId, input.amount, {
+  const branchId = requireBranchId(input.branchId, 'release cash to an agent');
+  await applyBranch(
+    tx,
+    input.tenantId,
+    input.appType,
+    branchId,
+    -input.amount,
+    {
       type: 'release',
-      refType: 'manual',
+      refType: 'agent',
+      refId: input.agentId,
       note: input.note,
       byUserId: input.byUserId,
-    });
-    return { agentBalance };
+    },
+    input.hardBlock ?? true,
+  );
+  const agentBalance = await applyAgent(tx, input.tenantId, input.appType, input.agentId, input.amount, {
+    type: 'release',
+    refType: 'manual',
+    note: input.note,
+    byUserId: input.byUserId,
   });
+  return { agentBalance };
+}
+
+export async function releaseToAgent(input: ReleaseInput): Promise<{ agentBalance: number }> {
+  return prisma.$transaction((tx) => releaseToAgentInTx(tx, input));
 }
 
 /**
@@ -215,13 +270,14 @@ export async function collectFromAgentInTx(
     tenantId: string;
     appType: string;
     agentId: string;
-    branchId?: string | null;
+    branchId: string;
     amount: number;
     byUserId: string;
     note?: string | null;
   },
-): Promise<{ agentBalance: number; branchBalance: number | null }> {
+): Promise<{ agentBalance: number; branchBalance: number }> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
+  const branchId = requireBranchId(input.branchId, 'collect cash from an agent');
   const agentBalance = await applyAgent(
     tx,
     input.tenantId,
@@ -231,16 +287,13 @@ export async function collectFromAgentInTx(
     { type: 'deposit', refType: 'handover', note: input.note, byUserId: input.byUserId },
     true,
   );
-  let branchBalance: number | null = null;
-  if (input.branchId) {
-    branchBalance = await applyBranch(tx, input.tenantId, input.appType, input.branchId, input.amount, {
-      type: 'deposit',
-      refType: 'agent',
-      refId: input.agentId,
-      note: input.note,
-      byUserId: input.byUserId,
-    });
-  }
+  const branchBalance = await applyBranch(tx, input.tenantId, input.appType, branchId, input.amount, {
+    type: 'deposit',
+    refType: 'agent',
+    refId: input.agentId,
+    note: input.note,
+    byUserId: input.byUserId,
+  });
   return { agentBalance, branchBalance };
 }
 
@@ -254,11 +307,11 @@ export async function collectFromAgent(input: {
   tenantId: string;
   appType: string;
   agentId: string;
-  branchId?: string | null;
+  branchId: string;
   amount: number;
   byUserId: string;
   note?: string | null;
-}): Promise<{ agentBalance: number; branchBalance: number | null }> {
+}): Promise<{ agentBalance: number; branchBalance: number }> {
   return prisma.$transaction((tx) => collectFromAgentInTx(tx, input));
 }
 
@@ -425,7 +478,7 @@ export async function creditPenaltyCollection(
  * Agent hands collected cash back to the office: debits the agent's float
  * (hard block — can't deposit more than held) and credits the branch pool.
  */
-export async function depositToOffice(input: {
+type DepositInput = {
   tenantId: string;
   appType: string;
   agentId: string;
@@ -433,27 +486,32 @@ export async function depositToOffice(input: {
   amount: number;
   byUserId: string;
   note?: string | null;
-}): Promise<{ agentBalance: number }> {
+};
+
+export async function depositToOffice(input: DepositInput): Promise<{ agentBalance: number }> {
+  return prisma.$transaction((tx) => depositToOfficeInTx(tx, input));
+}
+
+/** MON-02: the deposit inside the caller's transaction (MONEY-18), e.g. run reconciliation. */
+export async function depositToOfficeInTx(tx: Tx, input: DepositInput): Promise<{ agentBalance: number }> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
-  return prisma.$transaction(async (tx) => {
-    const agentBalance = await applyAgent(
-      tx,
-      input.tenantId,
-      input.appType,
-      input.agentId,
-      -input.amount,
-      { type: 'deposit', refType: 'branch', refId: input.branchId, note: input.note, byUserId: input.byUserId },
-      true,
-    );
-    await applyBranch(tx, input.tenantId, input.appType, input.branchId, input.amount, {
-      type: 'deposit',
-      refType: 'agent',
-      refId: input.agentId,
-      note: input.note,
-      byUserId: input.byUserId,
-    });
-    return { agentBalance };
+  const agentBalance = await applyAgent(
+    tx,
+    input.tenantId,
+    input.appType,
+    input.agentId,
+    -input.amount,
+    { type: 'deposit', refType: 'branch', refId: input.branchId, note: input.note, byUserId: input.byUserId },
+    true,
+  );
+  await applyBranch(tx, input.tenantId, input.appType, input.branchId, input.amount, {
+    type: 'deposit',
+    refType: 'agent',
+    refId: input.agentId,
+    note: input.note,
+    byUserId: input.byUserId,
   });
+  return { agentBalance };
 }
 
 export async function getBranchAccounts(tenantId: string, appType: string, branchIds?: string[]) {

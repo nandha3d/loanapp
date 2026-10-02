@@ -6,10 +6,11 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { encryptAadharNumber } from '@/lib/pii';
 import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
+import { postSettledCollections, settleAgentCashInTx, type SettlementResult } from '@/lib/cashSettlement';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
-import { disburseFromAgent, disburseFromBranch, collectFromAgentInTx } from '@/lib/wallet';
+import { disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
 import { modulePath } from '@/types/modules';
 import { notifyUser } from '@/lib/notify/userNotify';
@@ -72,6 +73,9 @@ export async function PATCH(
     }
 
     if (request) {
+      // Cash settled by a cash_handover approval; its GL posts after commit (ACC-7).
+      let settledCash: SettlementResult | null = null;
+      const settleActor = { tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId, branchId: ctx.branchId ?? null };
       const result = await prisma.$transaction(async (tx) => {
         // Atomically claim — prevents double-approve debiting agent float twice (MON-04).
         const claimed = await tx.approvalRequest.updateMany({
@@ -320,13 +324,10 @@ export async function PATCH(
           const rawChanges = JSON.parse(request.requestedChanges || '{}');
           const handoverAmount = Number(rawChanges.amount ?? daily.totalCollected ?? 0);
           if (handoverAmount > 0) {
-            await collectFromAgentInTx(tx, {
-              tenantId: ctx.tenantId,
-              appType: ctx.appType,
+            // The one settlement path (lib/cashSettlement.ts, STRUCT-3).
+            settledCash = await settleAgentCashInTx(tx, settleActor, {
               agentId: daily.agentId,
-              branchId: daily.branchId ?? ctx.branchId,
               amount: handoverAmount,
-              byUserId: ctx.userId,
               note: `Cash handover approved: ${note || request.reason || ''}`.trim(),
             });
           }
@@ -347,6 +348,8 @@ export async function PATCH(
           });
         }
       });
+
+      if (settledCash) await postSettledCollections(settleActor, settledCash);
 
       if (result && typeof result === 'object' && 'isStale' in result && (result as any).isStale) {
         return ok({ isStale: true, status: 'rejected', message: 'Rejected as stale: another queued edit was already approved.' });

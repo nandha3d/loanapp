@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { getBranchAccounts } from '@/lib/wallet';
+import { handoverScopeWhere } from '@/lib/cashSettlement';
 
 /**
  * WAL-01: the staff wallet overview — branch pools, agent floats, pending
@@ -66,14 +67,8 @@ export async function getWalletSummary(tenantId: string, appType: string, branch
   const totalFloat = agentRows.reduce((sum, agent) => sum + agent.balance, 0);
 
   const pendingHandoversRaw = await prisma.cashHandover.findMany({
-    where: {
-      tenantId,
-      status: 'pending',
-      agent: {
-        appType,
-        ...(branchScope ? { branchId: branchScope } : {}),
-      },
-    },
+    // Same scope the collect action uses (handover's own module + branch).
+    where: { ...handoverScopeWhere({ tenantId, appType, userId: '', branchId: branchScope }), status: 'pending' },
     orderBy: { requestedAt: 'asc' },
     include: { agent: { select: { name: true } } },
   });

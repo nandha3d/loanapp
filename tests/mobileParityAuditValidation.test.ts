@@ -64,8 +64,8 @@ console.log('  Testing 2. Cash handover atomic settlement contract...');
 const approveRouteSrc = read('app/api/v1/approvals/[id]/approve/route.ts');
 assert.match(
   approveRouteSrc,
-  /collectFromAgentInTx\s*\(\s*tx\s*,\s*\{/s,
-  'app/api/v1/approvals/[id]/approve/route.ts must call collectFromAgentInTx within transaction tx',
+  /settleAgentCashInTx\s*\(\s*tx\s*,/s,
+  'app/api/v1/approvals/[id]/approve/route.ts must settle the handover inside transaction tx (lib/cashSettlement.ts, MON-02)',
 );
 assert.match(
   approveRouteSrc,

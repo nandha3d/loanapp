@@ -14,7 +14,7 @@ import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
-import { collectFromAgentInTx } from '@/lib/wallet';
+import { postSettledCollections, settleAgentCashInTx, type SettlementResult } from '@/lib/cashSettlement';
 import { CUSTOMER_EDIT_ALLOW_LIST } from '@/lib/customers/editPolicy';
 
 
@@ -58,6 +58,8 @@ export async function reviewRequest(formData: FormData) {
       return result;
     }
     const branchId = await getActiveBranchId();
+    // Cash settled by a cash_handover approval; its GL posts after commit (ACC-7).
+    let settledCash: SettlementResult | null = null;
     const branchScope = branchScopeWhere(branchId);
     const requestWhere: any = { id: requestId, tenantId, appType, status: 'pending' };
     if (branchId) {
@@ -360,14 +362,11 @@ export async function reviewRequest(formData: FormData) {
           const rawChanges = JSON.parse(request.requestedChanges || '{}');
           const handoverAmount = Number(rawChanges.amount ?? daily.totalCollected ?? 0);
           if (handoverAmount > 0) {
-            const fallbackBranchId = await getActiveBranchId();
-            await collectFromAgentInTx(tx, {
-              tenantId,
-              appType,
+            // The one settlement path (lib/cashSettlement.ts, STRUCT-3): float →
+            // branch pool and the agent's pending cash collections verified.
+            settledCash = await settleAgentCashInTx(tx, { tenantId, appType, userId, branchId }, {
               agentId: daily.agentId,
-              branchId: daily.branchId ?? fallbackBranchId,
               amount: handoverAmount,
-              byUserId: userId,
               note: `Cash handover approved: ${reviewNotes || request.reason || ''}`.trim(),
             });
           }
@@ -402,6 +401,8 @@ export async function reviewRequest(formData: FormData) {
 
       return { success: true as const, requestedById: request.requestedById, requestType: request.requestType };
     });
+
+    if (settledCash) await postSettledCollections({ tenantId, appType, userId, branchId }, settledCash);
 
     if ((result as any)?.isStale) {
       revalidatePath(modulePath(appType, '/approvals'));

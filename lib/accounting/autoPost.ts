@@ -212,6 +212,38 @@ export async function autoPostCollection(opts: {
 }
 
 /**
+ * Post the JE for one verified collection entry by id (cash settlement,
+ * lib/cashSettlement.ts). Reads the entry and its loan, then delegates to
+ * autoPostCollection, so the dedup key is the same `collection:<tenant>:<entry>`.
+ */
+export async function autoPostCollectionEntry(opts: { tenantId: string; entryId: string; createdById?: string | null }) {
+  try {
+    const entry = await prisma.collectionEntry.findFirst({
+      where: { id: opts.entryId, tenantId: opts.tenantId },
+      select: {
+        id: true, loanId: true, receivedAmount: true, paymentMode: true,
+        loan: { select: { loanCode: true, appType: true, branchId: true } },
+      },
+    });
+    if (!entry?.loan) return;
+    await autoPostCollection({
+      tenantId: opts.tenantId,
+      appType: entry.loan.appType,
+      entryId: entry.id,
+      loanId: entry.loanId,
+      loanCode: entry.loan.loanCode,
+      amount: Number(entry.receivedAmount),
+      date: new Date(),
+      branchId: entry.loan.branchId,
+      createdById: opts.createdById ?? null,
+      paymentMode: entry.paymentMode ?? 'cash',
+    });
+  } catch (e) {
+    console.error('[autoPost] collection entry JE failed:', e);
+  }
+}
+
+/**
  * DEC-06: post JE for a penalty collection — same shape as autoPostCollection.
  * Dr Cash/Bank (1100/1200, by payment mode) / Cr Penalty Income (4200).
  * `entryId` is the cash-book AccountEntry id (dedup key, ACC-5).

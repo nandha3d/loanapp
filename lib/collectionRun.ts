@@ -1,7 +1,8 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/db';
 import { recordCollection, type CollectionGpsCapture } from '@/lib/collectionWrite';
-import { depositToOffice } from '@/lib/wallet';
+import { depositToOfficeInTx } from '@/lib/wallet';
+import { postSettledCollections, settleAgentCashInTx } from '@/lib/cashSettlement';
 import { getCollectionSubmissionBlockReason, COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { modulePath } from '@/types/modules';
 import { startOfBusinessDayUtc, parseBusinessDayUtc } from '@/lib/businessTime';
@@ -411,57 +412,85 @@ export async function reconcileRun(
   if (!Number.isFinite(cashDeposited) || cashDeposited < 0) throw new Error('invalid_amount');
   const variance = Number((cashDeposited - cashCollected).toFixed(2));
 
-  // Deposit the declared cash to the branch pool (hard-blocked above held float).
-  if (cashDeposited > 0 && run.branchId) {
-    await depositToOffice({
-      tenantId: actor.tenantId,
-      appType: actor.appType,
-      agentId: run.agentId,
-      branchId: run.branchId,
-      amount: cashDeposited,
-      byUserId: actor.userId,
-      note: `Route run deposit${input.depositRef ? ` · ref ${input.depositRef}` : ''}`,
+  // MON-02 (X-6): the deposit, the variance approval, the run update and the
+  // audit commit together; the run is claimed so it can be reconciled once.
+  // An admin reconciling an agent's run settles the cash through the one
+  // settlement path (lib/cashSettlement.ts); an agent's own deposit keeps the
+  // plain float → branch move (an agent never verifies their own collections).
+  const settleActor = { tenantId: actor.tenantId, appType: actor.appType, userId: actor.userId, branchId: actor.branchId ?? null };
+  const isAdminSettle = actor.role !== 'agent';
+  const { updated, settled } = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.collectionRun.updateMany({
+      where: { id: run.id, status: 'closed' },
+      data: { status: 'reconciled' },
     });
-  }
+    if (claimed.count !== 1) throw new Error('already_reconciled');
 
-  if (variance !== 0) {
-    await prisma.approvalRequest.create({
+    let settled: Awaited<ReturnType<typeof settleAgentCashInTx>> | null = null;
+    if (cashDeposited > 0 && run.branchId) {
+      const note = `Route run deposit${input.depositRef ? ` · ref ${input.depositRef}` : ''}`;
+      if (isAdminSettle) {
+        settled = await settleAgentCashInTx(tx, settleActor, {
+          agentId: run.agentId,
+          amount: cashDeposited,
+          note,
+          routeId: run.routeId,
+        });
+      } else {
+        await depositToOfficeInTx(tx, {
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          agentId: run.agentId,
+          branchId: run.branchId,
+          amount: cashDeposited,
+          byUserId: actor.userId,
+          note,
+        });
+      }
+    }
+
+    if (variance !== 0) {
+      await tx.approvalRequest.create({
+        data: {
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          requestType: 'run_reconcile_variance',
+          entityType: 'collection_run',
+          entityId: run.id,
+          requestedById: actor.userId,
+          requestedChanges: JSON.stringify({ cashCollected, cashDeposited, variance }),
+          reason: input.note ?? `Deposit variance of ${variance} on route run`,
+          status: 'pending',
+        },
+      });
+    }
+
+    const updated = await tx.collectionRun.update({
+      where: { id: run.id },
       data: {
-        tenantId: actor.tenantId,
-        appType: actor.appType,
-        requestType: 'run_reconcile_variance',
-        entityType: 'collection_run',
-        entityId: run.id,
-        requestedById: actor.userId,
-        requestedChanges: JSON.stringify({ cashCollected, cashDeposited, variance }),
-        reason: input.note ?? `Deposit variance of ${variance} on route run`,
-        status: 'pending',
+        status: 'reconciled',
+        reconciledAt: new Date(),
+        cashDeposited,
+        depositRef: input.depositRef ?? null,
+        varianceAmount: variance,
+        notes: input.note ?? run.notes,
       },
     });
-  }
 
-  const updated = await prisma.collectionRun.update({
-    where: { id: run.id },
-    data: {
-      status: 'reconciled',
-      reconciledAt: new Date(),
-      cashDeposited,
-      depositRef: input.depositRef ?? null,
-      varianceAmount: variance,
-      notes: input.note ?? run.notes,
-    },
+    await tx.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'collection_run',
+        entityId: run.id,
+        newValue: JSON.stringify({ status: 'reconciled', cashCollected, cashDeposited, variance }),
+      },
+    });
+    return { updated, settled };
   });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId: actor.tenantId,
-      userId: actor.userId,
-      action: 'update',
-      entityType: 'collection_run',
-      entityId: run.id,
-      newValue: JSON.stringify({ status: 'reconciled', cashCollected, cashDeposited, variance }),
-    },
-  });
+  // GL for the collections the settlement verified, after commit (ACC-7).
+  if (settled) await postSettledCollections(settleActor, settled);
 
   // Announce the variance approval AFTER the reconciliation has committed
   // (NOTIF-1). Raising the ApprovalRequest without this left a cash discrepancy
