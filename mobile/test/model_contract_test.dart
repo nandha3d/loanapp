@@ -408,6 +408,17 @@ void main() {
             'paymentMode': 'cash',
           }
         ],
+        'distributedInstalments': [
+          {
+            'id': 'inst-dist-1',
+            'loanId': 'l1',
+            'instalmentNo': 1,
+            'dueDate': '2026-09-01T00:00:00.000Z',
+            'dueAmount': 4666,
+            'receivedAmount': 4666,
+            'status': 'paid',
+          }
+        ],
         'guarantor': {
           'id': 'g1',
           'name': 'Ramesh Kumar',
@@ -423,6 +434,9 @@ void main() {
       expect(loan.restructure?.remainingPeriods, 9);
       expect(loan.payments.length, 1);
       expect(loan.guarantor?.name, 'Ramesh Kumar');
+      expect(loan.distributedInstalments.length, 1);
+      expect(loan.distributedInstalments.first.status, 'paid');
+      expect(loan.distributedInstalments.first.receivedAmount, 4666);
     });
   });
 }

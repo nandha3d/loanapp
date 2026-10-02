@@ -86,7 +86,7 @@ The comprehensive catalog below documents every identified client-side calculati
   Server-side repayment allocation in [`reallocateLoanRepayments`](file:///v:/pers/Freelance/loanapp/lib/repayments.ts#L32-L110) (`lib/repayments.ts`).
 * **Divergence & Business Impact:**
   Wipes individual payment allocations from the database and replaces them with a synthetic linear fill. If a payment was collected on day 5 specifically, Dart may reallocate it to day 1, masking skipped payments or specific instalment receipts.
-* **Remediation Task:** **LD-02 & LD-03**. Read distributed rows directly from server response.
+* **Remediation Task:** **LD-02 & LD-03** (Resolved — DEC-03). Server exposes canonical `distributedInstalments` via `distributeScheduleView` (`lib/repayments.ts`) on `GET /api/v1/loans/[id]`. Mobile and Web bind directly to `loan.distributedInstalments`; all client-side cash redistribution loops removed.
 
 ---
 
@@ -506,7 +506,7 @@ The comprehensive catalog below documents every identified client-side calculati
 |---|---|---|---|---|---|
 | 1 | **Preclose Payoff** | `loan_detail_screen.dart:2645, 2733` | `totalPayable - totalCollected` | `lib/foreclosure.ts` (`buildForeclosureCalculation`) | Quotes ₹9,000 vs ₹7,000; blocks early settlement discount |
 | 2 | **Dynamic Overdue** | `loan_detail_screen.dart:913-964` | 50-line Dart loop allocating past dues | `lib/repayments.ts` (`calculateDynamicOverdueAmount`) | Timezone skew, mismatched overdue numbers |
-| 3 | **Instalment Waterfall** | `loan_detail_screen.dart:653-680` | Linear client re-distribution of cash | `lib/repayments.ts` (`reallocateLoanRepayments`) | Overwrites actual payment dates & statuses |
+| 3 | **Instalment Waterfall** | `loan_detail_screen.dart:672` | ~~Linear client re-distribution~~ **Resolved**: server `distributedInstalments` | `lib/repayments.ts` (`distributeScheduleView`) | None (resolved; reads server-computed schedule) |
 | 4 | **Instalment Status** | `instalment.dart:73-94` | `dueDate vs DateTime.now()` | `lib/businessTime.ts` (IST business day) | Instalments flip to missed prematurely |
 | 5 | **Paid / Remaining** | `loan_detail_screen.dart:1318-1321` | `(outstanding / perInstalment).ceil()` | `loan.metrics.paidPeriod / remaining*` | Fractional/incorrect counts on waived or restructured loans |
 | 6 | **Progress Ring** | `loan_detail_screen.dart:196, 1251` | `paid / totalInstalments` | `metrics.paidPeriod / totalInstalments` | Closed loans with waived rows never show 100% |

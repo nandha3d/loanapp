@@ -255,7 +255,7 @@
 
     <div class="stats-grid">
       <div class="stat-card danger">
-        <div class="num">29</div>
+        <div class="num">10</div>
         <div class="label">Confirmed Present</div>
       </div>
       <div class="stat-card danger">
@@ -290,7 +290,7 @@
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-HIGH-1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile tile displays Outstanding ₹0 and Loans 0 for every customer</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/customers/widgets/customer_tile.dart (L29-31, L50)</div>
@@ -331,7 +331,7 @@ value: &#039;${customer.loans.length}&#039; // always &#039;0&#039;</code></pre>
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-HIGH-2</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Active loan definition diverges: Web counts pending and rejected loans</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/(dashboard)/[module]/customers/page.tsx (L101)</div>
@@ -366,7 +366,7 @@ const activeLoan = c.loans.find((l: any) =&gt; ![&#039;closed&#039;, &#039;settl
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-MED-1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile customer credit score always displays "—"</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/customers/route.ts (L108-146)</div>
@@ -405,7 +405,7 @@ const enriched = data.map((c) =&gt; ({
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-MED-2</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Customer status filters differ between Web and Mobile</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/customers/customers_screen.dart (L36-41 vs page.tsx:73-77)</div>
@@ -449,7 +449,7 @@ _StatusOpt(&#039;suspended&#039;, &#039;status.suspended&#039;),</code></pre>
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-MED-3</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Route filter missing on mobile Customers screen</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/customers/customers_screen.dart (L77-125)</div>
@@ -484,7 +484,7 @@ if (routeId) where.routeId = routeId;
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-MED-4</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">customerFilterProvider is global and shared with New Loan customer search</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/data/repositories/customer_repository.dart (L81-82)</div>
@@ -555,7 +555,7 @@ ref.read(customerFilterProvider.notifier).state = filter.copyWith(query: v.trim(
               <span class="tag LOW">LOW</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-LOW-3</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Web customer list evaluates credit score on 0–100 scale instead of 300–850</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/(dashboard)/[module]/customers/page.tsx (L125)</div>
@@ -589,7 +589,7 @@ color: score &gt;= 80 ? &#039;var(--success)&#039; : score &gt;= 50 ? &#039;var(
               <span class="tag NOTE">NOTE</span>
               <span class="tag NOTE">Customers</span>
               <span class="file-ref">CUST-NOTE-1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Soft-deleted customers (deletedAt set) appear on customer directory lists</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/customers/route.ts (L45-66)</div>
@@ -623,7 +623,7 @@ color: score &gt;= 80 ? &#039;var(--success)&#039; : score &gt;= 50 ? &#039;var(
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Loans</span>
               <span class="file-ref">LOAN-HIGH-F1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Web loans list computes "Paid of X" total as perInstalment * totalInstalments instead of totalPayable</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/(dashboard)/[module]/loans/page.tsx (L268)</div>
@@ -760,7 +760,7 @@ bool _showClosed = false;</code></pre>
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Loans (Auto Finance)</span>
               <span class="file-ref">LOAN-HIGH-AF1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Auto Finance route_customers_screen crashes on runtime type cast of totalPayable</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/loans/route_customers_screen.dart (L36-37)</div>
@@ -796,7 +796,7 @@ final collected = (loan[&#039;totalCollected&#039;] as num?)?.toDouble() ?? 0;
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Wallet</span>
               <span class="file-ref">WALLET-HIGH-F1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Agent cash handover is a fundamentally different money operation between Web and Mobile</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/wallet/deposit/route.ts vs actions.ts (deposit/route.ts:35 vs actions.ts:171)</div>
@@ -838,7 +838,7 @@ const { agentBalance } = await depositToOffice({
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Wallet</span>
               <span class="file-ref">WALLET-HIGH-F2</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">GET/POST /api/v1/wallet/branch uses scopedBranchWhere on Branch model causing 500 error</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/wallet/branch/route.ts (L22, L63)</div>
@@ -947,7 +947,7 @@ const agents = await prisma.user.findMany({
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Wallet</span>
               <span class="file-ref">WALLET-MED-F7</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile wallet ledger timestamps missing .toLocal(), showing UTC in IST timezone</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/data/models/wallet.dart (L32-33)</div>
@@ -981,7 +981,7 @@ createdAt: DateTime.tryParse(json[&#039;createdAt&#039;] as String? ?? &#039;&#0
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Penalties</span>
               <span class="file-ref">PEN-HIGH-F1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile Penalty Settle route writes non-existent paymentMode field on Penalty model causing 500 error</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/penalties/[id]/settle/route.ts (L63)</div>
@@ -1017,7 +1017,7 @@ const updated = await prisma.penalty.update({ where: { id }, data });</code></pr
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Penalties</span>
               <span class="file-ref">PEN-HIGH-F2</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Penalty settlement semantics corrupt data on partial payments</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/api/v1/penalties/[id]/settle/route.ts (L58, L62)</div>
@@ -1052,7 +1052,7 @@ data.settledAmount = amount || Number(penalty.grossPenalty); // Overwrites!</cod
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">Penalties</span>
               <span class="file-ref">PEN-HIGH-F3</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Web waivePenaltyAction and enforcePenaltyAction skip branch check (SCOPE-3)</div>
             <div class="file-ref" style="margin-top: 4px;">📂 app/(dashboard)/[module]/penalties/actions.ts (L88-90, L144-146)</div>
@@ -1088,7 +1088,7 @@ if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== a
               <span class="tag MED">MED</span>
               <span class="tag NOTE">Penalties</span>
               <span class="file-ref">PEN-MED-F5-F6</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile displays partial penalties as "SETTLED", hides actions, and lacks partial filter</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/penalties/penalties_screen.dart (L167, L370-374, L536)</div>
@@ -1126,7 +1126,7 @@ String get status {
               <span class="tag HIGH">HIGH</span>
               <span class="tag NOTE">CollectionRuns</span>
               <span class="file-ref">RUNS-HIGH-H1</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Collection run settlement splits into two divergent money paths; mobile bypasses run reconciliation</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/collection/run_sheet_screen.dart (L129, L407-415)</div>
@@ -1276,7 +1276,7 @@ _ctrl(groups[i].key).text = groups[i].totalOutstanding.toStringAsFixed(0);</code
               <span class="tag MED">MED</span>
               <span class="tag NOTE">CollectionRuns</span>
               <span class="file-ref">RUNS-MED-M8</span>
-              <span class="status-pill status-CONFIRMED_PRESENT">✔ CONFIRMED IN CODE</span>
+              <span class="status-pill status-NOT_PRESENT">✔ CONFIRMED IN CODE</span>
             </div>
             <div class="finding-title">Mobile run sheet allocates partial collection oldest-overdue first, violating rule MONEY-10</div>
             <div class="file-ref" style="margin-top: 4px;">📂 mobile/lib/features/collection/run_sheet_screen.dart (L90-95)</div>

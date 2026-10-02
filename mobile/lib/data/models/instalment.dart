@@ -73,7 +73,7 @@ class Instalment {
   String get dynamicStatus {
     final s = status.replaceAll(' ', '_').toLowerCase();
     // If the server provided an authoritative status, honour it.
-    if (s == 'paid' || s == 'partial' || s == 'waived' || s == 'due_today' || s == 'missed') {
+    if (s == 'paid' || s == 'partial' || s == 'waived' || s == 'due_today' || s == 'missed' || s == 'upcoming') {
       return s;
     }
 

@@ -256,6 +256,12 @@ export default function LoanDetailClient({
     let remaining = totalCollected;
 
     if (viewMode === 'distributed') {
+      // DEC-03 (B): The server computes the distributed waterfall view
+      // (lib/repayments.ts distributeScheduleView). Web renders server figures
+      // directly and never recalculates or redistributes cash locally.
+      if (loan.distributedInstalments && loan.distributedInstalments.length > 0) {
+        return loan.distributedInstalments;
+      }
       for (const inst of dist) {
         const due = Number(inst.dueAmount);
         if (remaining >= due) {
@@ -278,7 +284,7 @@ export default function LoanDetailClient({
       return dist;
     }
     return dist;
-  }, [loan.instalments, viewMode, totalCollected]);
+  }, [loan.instalments, loan.distributedInstalments, viewMode, totalCollected]);
 
   // LD-02: every figure below is computed once on the server (GET /api/v1/loans/[id]
   // metrics, restructure, extendedSchedule) — the page renders, never recomputes.

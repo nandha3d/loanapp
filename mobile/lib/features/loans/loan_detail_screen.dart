@@ -685,33 +685,13 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           .toList();
     }
 
-    final dist = loan.instalments.map((i) => i.copyWith()).toList();
-    double remaining =
-        loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
-    final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-
-    for (var i = 0; i < dist.length; i++) {
-      final due = dist[i].dueAmount;
-      if (remaining >= due) {
-        dist[i] = dist[i].copyWith(receivedAmount: due, status: 'paid');
-        remaining -= due;
-      } else if (remaining > 0) {
-        dist[i] =
-            dist[i].copyWith(receivedAmount: remaining, status: 'partial');
-        remaining = 0;
-      } else {
-        final dDate = DateTime(
-            dist[i].dueDate.year, dist[i].dueDate.month, dist[i].dueDate.day);
-        dist[i] = dist[i].copyWith(
-          receivedAmount: 0,
-          status: dist[i].status == 'waived'
-              ? 'waived'
-              : (dDate.isBefore(todayStart) ? 'missed' : 'upcoming'),
-        );
-      }
+    // DEC-03 (B): The server computes the distributed waterfall view
+    // (lib/repayments.ts distributeScheduleView). Mobile renders server figures
+    // directly and never recalculates or redistributes cash locally.
+    if (loan.distributedInstalments.isNotEmpty) {
+      return loan.distributedInstalments;
     }
-    return dist;
+    return loan.instalments;
   }
 
   List<Widget> _buildProjectedExtraRows(
@@ -1000,30 +980,11 @@ class _PenaltySummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Prefer server-supplied summary (single source of truth) to eliminate calculation drift
     final summary = loan.penaltySummary;
-    final double totalPenalty;
-    final double settledPenalty;
-    final double waivedPenalty;
-    final double netPenalty;
-
-    if (summary != null) {
-      totalPenalty = summary.gross;
-      settledPenalty = summary.settled;
-      waivedPenalty = summary.waived;
-      netPenalty = summary.netDue;
-    } else {
-      final missedCount =
-          loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
-      final recordedPenalty =
-          loan.penalties.fold<double>(0, (s, p) => s + p.grossPenalty);
-      final potentialPenalty = missedCount * loan.penaltyRate;
-      totalPenalty =
-          recordedPenalty > potentialPenalty ? recordedPenalty : potentialPenalty;
-      settledPenalty =
-          loan.penalties.fold<double>(0, (s, p) => s + p.settledAmount);
-      waivedPenalty =
-          loan.penalties.fold<double>(0, (s, p) => s + p.waivedAmount);
-      netPenalty = totalPenalty - settledPenalty - waivedPenalty;
-    }
+    // DEC-03 (B): Penalty summary figures come directly from the server.
+    final totalPenalty = summary?.gross ?? 0.0;
+    final settledPenalty = summary?.settled ?? 0.0;
+    final waivedPenalty = summary?.waived ?? 0.0;
+    final netPenalty = summary?.netDue ?? 0.0;
 
     return Container(
       padding: const EdgeInsets.all(14),

@@ -272,6 +272,7 @@ class Loan {
     required this.totalCollected,
     required this.perInstalment,
     this.penalties = const [],
+    this.distributedInstalments = const [],
     this.extendedSchedule,
     this.customer,
     this.endDate,
@@ -310,6 +311,8 @@ class Loan {
   final int instalmentCount;
   final double penaltyRate;
   final List<Instalment> instalments;
+  /// Server-computed distributed waterfall schedule (lib/repayments.ts distributeScheduleView).
+  final List<Instalment> distributedInstalments;
   final List<Penalty> penalties;
   final ExtendedSchedule? extendedSchedule;
   final Customer? customer;
@@ -400,6 +403,9 @@ class Loan {
           : DateTime.tryParse(json['closedAt'] as String),
       deduction: json['deduction'] == null ? null : num$(json['deduction']),
       deductionType: json['deductionType'] as String?,
+      distributedInstalments: (json['distributedInstalments'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
