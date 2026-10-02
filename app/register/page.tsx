@@ -9,6 +9,7 @@ import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browse
 import { withBasePath } from '@/lib/public-path';
 import PasswordInput from '@/components/ui/PasswordInput';
 import AppLogo from '@/components/ui/AppLogo';
+import { DEFAULT_TRIAL_DAYS, PLAN_FEATURES, parseFeatureKeys } from '@/lib/planFeatures';
 
 type AvailabilityFieldState = {
   checking: boolean;
@@ -556,7 +557,7 @@ function RegisterForm() {
                 {num}
               </div>
               <span style={{ fontSize: '0.72rem', color: step >= num ? 'var(--text-primary)' : 'var(--text-light)', marginTop: '6px', fontWeight: step === num ? 600 : 400 }}>
-                {num === 1 ? 'Details' : num === 2 ? 'Verticals' : num === 3 ? 'Plan' : num === 4 ? 'Add-ons' : 'Review'}
+                {num === 1 ? 'Details' : num === 2 ? 'Verticals' : num === 3 ? 'Plan' : num === 4 ? 'Features' : 'Review'}
               </span>
             </div>
           ))}
@@ -962,53 +963,35 @@ function RegisterForm() {
             </div>
           )}
 
-          {/* Step 4: Add-ons */}
-          {step === 4 && (
-            <div>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Select add-on features to activate in your workspace. You can disable them anytime.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {catalog.addons.map((a: any) => {
-                  const isEnabled = selectedAddons.includes(a.addon);
-                  return (
+          {/* Step 4: Features included in the chosen plan (add-ons are bundled, no longer sold) */}
+          {step === 4 && (() => {
+            const chosen = catalog?.plans?.find((p: any) => p.plan === selectedPlan);
+            const includedKeys = parseFeatureKeys(chosen?.includedFeatures);
+            const included = PLAN_FEATURES.filter((f) => includedKeys.includes(f.key));
+            return (
+              <div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                  {included.length > 0
+                    ? `These features are included in the ${chosen?.displayName ?? 'selected'} plan at no extra cost.`
+                    : 'The selected plan has no extra premium features. You can upgrade any time to unlock them.'}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {included.map((f) => (
                     <div
-                      key={a.addon}
-                      onClick={() => handleAddonToggle(a.addon)}
+                      key={f.key}
                       style={{
-                        padding: '16px', borderRadius: '10px',
-                        background: isEnabled ? 'var(--bg-light)' : 'transparent',
-                        border: `2px solid ${isEnabled ? 'var(--primary)' : 'var(--border)'}`,
-                        cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        transition: 'all 0.2s'
+                        padding: '14px 16px', borderRadius: '10px', background: 'var(--bg-light)',
+                        border: '2px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '12px',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <span className="material-icons-outlined" style={{ fontSize: '24px', color: isEnabled ? 'var(--primary)' : 'var(--text-light)' }}>
-                          {a.addon === 'whatsapp_sms' ? 'sms' : a.addon === 'kyc' ? 'assignment_ind' : a.addon === 'gps_tracking' ? 'my_location' : a.addon === 'premium_accounting' ? 'receipt_long' : 'account_balance'}
-                        </span>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{a.displayName}</div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{a.description}</div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          +₹{a.monthlyPrice}/mo
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={isEnabled}
-                          onChange={() => {}}
-                          style={{ pointerEvents: 'none' }}
-                        />
-                      </div>
+                      <span className="material-icons-outlined" style={{ fontSize: '22px', color: 'var(--success)' }}>check_circle</span>
+                      <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>{f.label}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Step 5: Review & Submit */}
           {step === 5 && (
@@ -1136,11 +1119,6 @@ function RegisterForm() {
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.modules}/mo</strong>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Add-ons Activated ({selectedAddons.length} active)</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>+₹{quote.addons}/mo</strong>
-                    </div>
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', borderTop: '1px solid var(--border)', paddingTop: '14px', marginTop: '4px' }}>
                       <span style={{ fontWeight: 700 }}>Total Estimated Monthly Price</span>
                       <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>₹{quote.total}/mo</strong>
@@ -1199,7 +1177,7 @@ function RegisterForm() {
                   ? 'Register Free Workspace'
                   : paymentOption === 'pay_now'
                   ? `Proceed to Payment (₹${quote.total})`
-                  : `Start ${catalog?.plans?.find((p: any) => p.plan === selectedPlan)?.trialDays || 14}-Day Free Trial`}
+                  : `Start ${catalog?.plans?.find((p: any) => p.plan === selectedPlan)?.trialDays || DEFAULT_TRIAL_DAYS}-Day Free Trial`}
               </button>
             )}
           </div>

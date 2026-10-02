@@ -12,15 +12,24 @@ export function verifyRazorpayWebhookSignature(body: string, secret: string, sig
   return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
+export type BillingCycle = 'monthly' | 'yearly';
+
+export function normalizeBillingCycle(value: unknown): BillingCycle {
+  return value === 'yearly' ? 'yearly' : 'monthly';
+}
+
 type RazorpaySubscriptionOptions = {
   razorpayPlanId?: string;
   startAt?: number;
+  billingCycle?: BillingCycle;
 };
 
 type RazorpaySubscriptionResult = {
   id: string;
   short_url: string | null;
   status: string;
+  current_end?: number | null;
+  notes?: Record<string, string | undefined>;
 };
 
 /**
@@ -114,14 +123,20 @@ export function buildRazorpaySubscriptionRequest(
     throw new Error(`No Razorpay plan ID configured for plan "${planId}". Set RAZORPAY_PLAN_${planId.toUpperCase()} in your environment.`);
   }
 
+  // total_count is a number of billing cycles. The configured value is a count
+  // of months, so a yearly plan covers the same span in years.
+  const monthlyCount = parseInt(process.env.RAZORPAY_SUB_TOTAL_COUNT ?? '120', 10) || 120;
+  const yearly = options.billingCycle === 'yearly';
+
   return {
     plan_id: razorpayPlanId,
-    total_count: parseInt(process.env.RAZORPAY_SUB_TOTAL_COUNT ?? '120', 10) || 120,
+    total_count: yearly ? Math.max(1, Math.ceil(monthlyCount / 12)) : monthlyCount,
     customer_notify: 1,
     ...(options.startAt && Number.isInteger(options.startAt) ? { start_at: options.startAt } : {}),
     notes: {
       tenant_id: tenantId,
       ...(options.razorpayPlanId ? { loantrack_plan: planId } : {}),
+      ...(yearly ? { loantrack_cycle: 'yearly' } : {}),
     },
   };
 }
@@ -274,6 +289,20 @@ export async function createRazorpaySubscription(
   };
 }
 
+/**
+ * Where to send the payer to authorise a subscription.
+ *
+ * Razorpay's hosted `short_url` page has no return URL — after payment it parks
+ * the user on its own "subscription is active" screen. Real subscriptions are
+ * therefore opened in our own `/subscribe` page (Standard Checkout), which
+ * redirects back into the app on success. Mock subscriptions keep their own
+ * internal page.
+ */
+export function getSubscriptionCheckoutPath(subscription: { id: string; short_url: string | null }): string | null {
+  if (subscription.id.startsWith('sub_')) return `/subscribe?sub=${encodeURIComponent(subscription.id)}`;
+  return subscription.short_url;
+}
+
 export async function getRazorpaySubscription(subscriptionId: string): Promise<RazorpaySubscriptionResult | null> {
   if (!subscriptionId.startsWith('sub_')) return null;
 
@@ -288,5 +317,21 @@ export async function getRazorpaySubscription(subscriptionId: string): Promise<R
     id: data.id,
     short_url: typeof data.short_url === 'string' ? data.short_url : null,
     status: typeof data.status === 'string' ? data.status : 'created',
+    current_end: typeof data.current_end === 'number' ? data.current_end : null,
+    notes: data.notes && typeof data.notes === 'object' && !Array.isArray(data.notes) ? data.notes : {},
   };
+}
+
+/** Checkout success signature: HMAC-SHA256(`${payment_id}|${subscription_id}`, key_secret). */
+export function verifyRazorpaySubscriptionSignature(
+  paymentId: string,
+  subscriptionId: string,
+  signature: string,
+  keySecret: string,
+): boolean {
+  const expected = crypto.createHmac('sha256', keySecret).update(`${paymentId}|${subscriptionId}`).digest('hex');
+  if (!/^[0-9a-f]+$/i.test(signature)) return false;
+  const a = Buffer.from(expected, 'hex');
+  const b = Buffer.from(signature, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }

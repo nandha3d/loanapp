@@ -5,6 +5,8 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { normalizeEnabledModules } from '@/lib/subscription';
 import { revalidatePath } from 'next/cache';
+import { planFeatureUpdate } from '@/lib/planFeatures';
+import { reconcilePlanLimits } from '@/lib/planLimits';
 
 export default async function MockRazorpayCheckoutPage({
   searchParams,
@@ -77,6 +79,7 @@ export default async function MockRazorpayCheckoutPage({
         modulesPrice: pricing.modulesPrice,
         addonsPrice: pricing.addonsPrice,
         totalMonthlyPrice: pricing.totalMonthlyPrice,
+        ...planFeatureUpdate(targetCatalog, cur),
       },
     });
 
@@ -95,6 +98,8 @@ export default async function MockRazorpayCheckoutPage({
         },
       });
     }
+
+    await reconcilePlanLimits(tId);
 
     revalidatePath('/portal/billing');
     revalidatePath('/[module]/subscription', 'page');

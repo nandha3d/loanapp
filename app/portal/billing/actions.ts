@@ -10,6 +10,8 @@ import {
   createRazorpaySubscription,
   getConfiguredRazorpayPlanId,
   getRazorpaySubscription,
+  getSubscriptionCheckoutPath,
+  normalizeBillingCycle,
   normalizeRazorpayPlanId,
 } from '@/lib/razorpay';
 import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
@@ -32,6 +34,7 @@ function parseStringList(value: unknown): string[] {
 
 function validateCheckoutUrl(value: string | null): string | null {
   if (!value) return null;
+  if (value.startsWith('/subscribe?sub=sub_')) return value;
   if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true' && value.startsWith('/portal/billing/')) {
     return value;
   }
@@ -43,7 +46,8 @@ function validateCheckoutUrl(value: string | null): string | null {
   }
 }
 
-export async function initiateCheckout(planId: string): Promise<CheckoutResult> {
+export async function initiateCheckout(planId: string, cycle: string = 'monthly'): Promise<CheckoutResult> {
+  const billingCycle = normalizeBillingCycle(cycle);
   const session = await auth();
   if (!session?.user) return { error: 'Please sign in again to continue.' };
 
@@ -85,10 +89,11 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
     // multiple mandates for the same tenant.
     if (current.razorpaySubId?.startsWith('sub_')) {
       const existing = await getRazorpaySubscription(current.razorpaySubId);
-      const existingPlan = (existing as { notes?: { loantrack_plan?: string } } | null)?.notes?.loantrack_plan;
-      if (existing && (!existingPlan || existingPlan === planId)) {
+      const existingPlan = existing?.notes?.loantrack_plan;
+      const existingCycle = normalizeBillingCycle(existing?.notes?.loantrack_cycle);
+      if (existing && (!existingPlan || existingPlan === planId) && existingCycle === billingCycle) {
         if (['created', 'pending', 'halted'].includes(existing.status)) {
-          checkoutUrl = validateCheckoutUrl(existing.short_url);
+          checkoutUrl = validateCheckoutUrl(getSubscriptionCheckoutPath(existing));
           if (!checkoutUrl) {
             return { error: 'The existing Razorpay checkout link is unavailable. Please contact support.' };
           }
@@ -110,19 +115,23 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
       // write access to the Plans API and retries stop littering the account
       // with one new plan per attempt. Falls back to minting a plan from this
       // tenant's computed total.
-      let razorpayPlanId =
-        normalizeRazorpayPlanId(catalog.razorpayPlanId) ??
-        getConfiguredRazorpayPlanId(catalog.plan);
+      let razorpayPlanId: string | null;
+      if (billingCycle === 'yearly') {
+        // Yearly has no on-demand fallback: it needs the Razorpay yearly plan a
+        // developer pinned in Developer → Billing → Pricing.
+        razorpayPlanId = (catalog.yearlyPrice ?? 0) > 0
+          ? normalizeRazorpayPlanId(catalog.razorpayYearlyPlanId)
+          : null;
+        if (!razorpayPlanId) return { error: 'Yearly billing is not available for this plan.' };
+      } else {
+        razorpayPlanId =
+          normalizeRazorpayPlanId(catalog.razorpayPlanId) ??
+          getConfiguredRazorpayPlanId(catalog.plan);
+      }
       if (!razorpayPlanId) {
         const enabledModules = normalizeEnabledModules(current.enabledModules);
-        const selectedAddons = parseStringList(current.selectedAddons);
-        const addonRows = selectedAddons.length
-          ? await prisma.addonCatalog.findMany({
-              where: { addon: { in: selectedAddons }, isActive: true },
-              select: { monthlyPrice: true },
-            })
-          : [];
-        const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
+        // Add-ons are bundled into plans and add no price.
+        const addonsPrice = 0;
         const pricing = calculateVerticalSubscriptionPricing(
           catalog.monthlyPrice,
           enabledModules,
@@ -141,13 +150,14 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
       const subscription = await createRazorpaySubscription(catalog.plan, tenantId, {
         razorpayPlanId,
         startAt: undefined,
+        billingCycle,
       });
 
       await prisma.tenantSubscription.update({
         where: { tenantId },
         data: { razorpaySubId: subscription.id },
       });
-      checkoutUrl = validateCheckoutUrl(subscription.short_url);
+      checkoutUrl = validateCheckoutUrl(getSubscriptionCheckoutPath(subscription));
     }
   } catch (error) {
     console.error('Checkout initialization failed', {

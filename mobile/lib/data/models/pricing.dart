@@ -8,6 +8,7 @@ class PlanCatalogItem {
     required this.maxAgents,
     required this.maxActiveLoans,
     required this.features,
+    this.includedFeatures = const <String>[],
     this.description,
     this.razorpayPlanId,
     required this.isActive,
@@ -22,6 +23,9 @@ class PlanCatalogItem {
   final int maxAgents;
   final int maxActiveLoans;
   final List<String> features;
+
+  /// Feature keys bundled into this plan (server-driven; see lib/planFeatures.ts).
+  final List<String> includedFeatures;
   final String? razorpayPlanId;
   final bool isActive;
 
@@ -38,6 +42,10 @@ class PlanCatalogItem {
       features: (json['features'] as List<dynamic>? ?? const <dynamic>[])
           .map((dynamic e) => e as String)
           .toList(),
+      includedFeatures:
+          (json['includedFeatures'] as List<dynamic>? ?? const <dynamic>[])
+              .map((dynamic e) => e as String)
+              .toList(),
       razorpayPlanId: json['razorpayPlanId'] as String?,
       isActive: (json['isActive'] as bool?) ?? true,
     );
@@ -53,6 +61,7 @@ class PlanCatalogItem {
         'maxAgents': maxAgents,
         'maxActiveLoans': maxActiveLoans,
         'features': features,
+        'includedFeatures': includedFeatures,
         'razorpayPlanId': razorpayPlanId,
         'isActive': isActive,
       };

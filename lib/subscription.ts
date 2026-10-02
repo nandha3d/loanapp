@@ -42,7 +42,8 @@ function validDate(value: Date | string | null | undefined): Date | null {
 export function getEffectiveTrialEndsAt(
   sub: TenantSubscriptionAccess | null | undefined,
 ): Date | null {
-  if (!sub || sub.plan === 'lifetime' || sub.tenant?.customDomain) return null;
+  // Free is a permanent plan with no trial clock; only trial/paid plans expire.
+  if (!sub || sub.plan === 'lifetime' || sub.plan === 'free' || sub.tenant?.customDomain) return null;
   const explicit = validDate(sub.trialEndsAt);
   if (explicit) return explicit;
   if ((sub.plan === 'free' || sub.plan === 'trial') && sub.createdAt) {
@@ -76,6 +77,7 @@ export function getTenantSubscriptionAccessState(
 
   const effectiveTrialEndsAt = getEffectiveTrialEndsAt(sub);
   const currentPeriodEnd = validDate(sub.currentPeriodEnd);
+  const freePlan = sub.plan === 'free';
   const hasPaidCoverage = Boolean(currentPeriodEnd && currentPeriodEnd.getTime() >= now.getTime());
 
   if (sub.status === 'cancelled') {
@@ -93,6 +95,11 @@ export function getTenantSubscriptionAccessState(
       message: 'Your subscription has expired. Complete payment to restore access.',
       effectiveTrialEndsAt,
     };
+  }
+
+  // The Free plan never needs payment; it is only left by upgrading.
+  if (freePlan) {
+    return { blocked: false, reason: null, message: null, effectiveTrialEndsAt: null };
   }
 
   // A successfully paid period covers access through its end date, including
@@ -146,6 +153,23 @@ export function isTenantTrialExpired(
   now = new Date(),
 ): boolean {
   return getTenantSubscriptionAccessState(sub, now).reason === 'trial_expired';
+}
+
+/**
+ * An unpaid, expired trial: a non-free, non-lifetime tenant whose trial ended with
+ * no paid coverage and no authorised Razorpay mandate waiting to charge. Such a
+ * tenant is moved to the Free plan (lib/trialExpiry.ts) instead of being blocked.
+ */
+export function isUnpaidExpiredTrial(
+  sub: TenantSubscriptionAccess | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!sub || sub.plan === 'free' || sub.plan === 'lifetime' || sub.tenant?.customDomain) return false;
+  if (sub.status === 'authenticated') return false; // mandate authorised, first charge is scheduled
+  const trialEnd = getEffectiveTrialEndsAt(sub);
+  if (!trialEnd || trialEnd.getTime() >= now.getTime()) return false;
+  const paidThrough = validDate(sub.currentPeriodEnd);
+  return !(paidThrough && paidThrough.getTime() >= now.getTime());
 }
 
 export function isTenantSubscriptionExpired(
@@ -206,19 +230,34 @@ export function normalizeEnabledModules(rawModules: unknown): string[] {
   return ['microlending'];
 }
 
+/**
+ * Loads the subscription, first moving an unpaid expired trial onto the Free
+ * plan so every reader sees the settled state without waiting for the daily job.
+ */
+async function fetchSettledSubscription(tenantId: string) {
+  const load = () =>
+    prisma.tenantSubscription.findUnique({
+      where: { tenantId },
+      include: { tenant: { select: { customDomain: true } } },
+    });
+  const sub = await load();
+  if (sub && isUnpaidExpiredTrial(sub)) {
+    const { downgradeToFree } = await import('./trialExpiry');
+    if (await downgradeToFree(tenantId)) return load();
+  }
+  return sub;
+}
+
 export async function assertTenantSubscriptionAccess(tenantId: string): Promise<void> {
   if (!tenantId) return;
-  const sub = await prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    include: { tenant: { select: { customDomain: true } } },
-  });
+  const sub = await fetchSettledSubscription(tenantId);
   const state = getTenantSubscriptionAccessState(sub);
   if (state.blocked) throw new SubscriptionAccessError(state);
 }
 
 export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits' | 'branches') {
   if (!tenantId) return;
-  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  const sub = await fetchSettledSubscription(tenantId);
   if (!sub) throw new SubscriptionAccessError(getTenantSubscriptionAccessState(null));
   await assertTenantSubscriptionAccess(tenantId);
 
@@ -256,10 +295,7 @@ export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' 
 
 export async function getSubscription(tenantId: string | null | undefined) {
   if (!tenantId) return null;
-  return prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    include: { tenant: { select: { customDomain: true } } },
-  });
+  return fetchSettledSubscription(tenantId);
 }
 
 export async function upsertSubscription(

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
+import { PLAN_FEATURES, parseFeatureKeys } from '@/lib/planFeatures';
 
 type PlanCatalogItem = {
   id: string;
@@ -15,6 +16,9 @@ type PlanCatalogItem = {
   maxActiveLoans: number;
   features: string[];
   razorpayPlanId: string | null;
+  yearlyPrice?: number | null;
+  razorpayYearlyPlanId?: string | null;
+  includedFeatures?: string | null;
   trialDays?: number;
   isActive: boolean;
   sortOrder: number;
@@ -87,6 +91,10 @@ export default function PricingClient({
     const maxAgents = Number(formData.get('maxAgents'));
     const maxActiveLoans = Number(formData.get('maxActiveLoans'));
     const razorpayPlanId = formData.get('razorpayPlanId') as string;
+    const yearlyPriceRaw = String(formData.get('yearlyPrice') ?? '').trim();
+    const yearlyPrice = yearlyPriceRaw === '' ? null : Number(yearlyPriceRaw);
+    const razorpayYearlyPlanId = String(formData.get('razorpayYearlyPlanId') ?? '').trim();
+    const includedFeatures = PLAN_FEATURES.filter((f) => formData.get(`feature_${f.key}`) === 'true').map((f) => f.key);
     const trialDays = Number(formData.get('trialDays') ?? 0);
     const isActive = formData.get('isActive') === 'true';
     const sortOrder = Number(formData.get('sortOrder'));
@@ -112,6 +120,9 @@ export default function PricingClient({
           maxActiveLoans,
           features,
           razorpayPlanId,
+          yearlyPrice,
+          razorpayYearlyPlanId,
+          includedFeatures,
           trialDays,
           isActive,
           sortOrder,
@@ -277,21 +288,11 @@ export default function PricingClient({
           >
             <span className="material-icons-outlined">add</span> Add Vertical
           </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              setEditingAddon(null);
-              setError('');
-              setIsAddonModalOpen(true);
-            }}
-          >
-            <span className="material-icons-outlined">add</span> Add Add-on
-          </button>
         </div>
       </div>
 
       <div style={{ marginBottom: '18px', color: 'var(--text-secondary)', fontSize: '.86rem' }}>
-        Customers choose one of the vertical bases below, then pick Basic, Pro, or Enterprise for that vertical. Each additional vertical requires another subscription at the same selected plan price; add-ons remain separate.
+        Customers choose one of the vertical bases below, then pick Basic, Pro, or Enterprise for that vertical. Each additional vertical requires another subscription at the same selected plan price. Add-ons are bundled into plans — set each plan's Included Features when editing it.
       </div>
 
       {/* Subscription Plans */}
@@ -331,7 +332,14 @@ export default function PricingClient({
                         </div>
                       )}
                     </td>
-                    <td>₹{p.monthlyPrice}/mo</td>
+                    <td>
+                      ₹{p.monthlyPrice}/mo
+                      {p.yearlyPrice ? (
+                        <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
+                          ₹{p.yearlyPrice}/yr
+                        </div>
+                      ) : null}
+                    </td>
                     <td>{p.maxBranches === 999 ? 'Unlimited' : p.maxBranches}</td>
                     <td>{p.maxAgents === 999 ? 'Unlimited' : p.maxAgents}</td>
                     <td>{p.maxActiveLoans === 999999 ? 'Unlimited' : p.maxActiveLoans}</td>
@@ -417,59 +425,7 @@ export default function PricingClient({
           </div>
         </div>
 
-      {/* Addons */}
-        <div className="card" style={{ marginTop: '18px' }}>
-          <div className="card-header">
-            <h3>Add-on Pricing</h3>
-            <span className="text-muted" style={{ fontSize: '.8rem' }}>Optional capabilities billed separately from vertical subscriptions</span>
-          </div>
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Add-on Key</th>
-                  <th>Display Name</th>
-                  <th>Monthly Price</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {addons.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <span className="badge badge-pending" style={{ fontFamily: 'monospace' }}>
-                        {a.addon}
-                      </span>
-                    </td>
-                    <td><strong>{a.displayName}</strong></td>
-                    <td>₹{a.monthlyPrice}/mo</td>
-                    <td className="text-muted" style={{ fontSize: '0.8rem' }}>{a.description}</td>
-                    <td>
-                      <span className={`badge ${a.isActive ? 'badge-active' : 'badge-closed'}`}>
-                        {a.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => {
-                          setEditingAddon(a);
-                          setError('');
-                          setIsAddonModalOpen(true);
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+      {/* Add-ons are bundled into plans (Included Features above); no longer sold. */}
       {/* Plan modal */}
       <Modal
         isOpen={isPlanModalOpen}
@@ -572,6 +528,56 @@ export default function PricingClient({
               placeholder="Line 1 feature&#10;Line 2 feature"
               defaultValue={editingPlan?.features.join('\n') || ''}
             />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Included Features</label>
+            <small className="text-muted" style={{ display: 'block', fontSize: '.75rem', marginBottom: '6px' }}>
+              Tenants on this plan get exactly these. Higher plans should list the lower plans' features too.
+            </small>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px' }}>
+              {PLAN_FEATURES.map((f) => (
+                <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '.85rem' }}>
+                  <input
+                    type="checkbox"
+                    name={`feature_${f.key}`}
+                    value="true"
+                    defaultChecked={parseFeatureKeys(editingPlan?.includedFeatures).includes(f.key)}
+                  />
+                  {f.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Yearly Price (INR)</label>
+              <input
+                type="number"
+                name="yearlyPrice"
+                className="form-control"
+                min={1}
+                placeholder="Blank = monthly only"
+                defaultValue={editingPlan?.yearlyPrice ?? ''}
+              />
+              <small className="text-muted" style={{ fontSize: '.75rem' }}>
+                Shown when customers switch to Yearly. Must match the Razorpay yearly plan amount.
+              </small>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Razorpay Yearly Plan ID</label>
+              <input
+                type="text"
+                name="razorpayYearlyPlanId"
+                className="form-control"
+                placeholder="plan_XYZ123"
+                defaultValue={editingPlan?.razorpayYearlyPlanId || ''}
+              />
+              <small className="text-muted" style={{ fontSize: '.75rem' }}>
+                Required with a yearly price. Create it in Razorpay (period: yearly).
+              </small>
+            </div>
           </div>
 
           <div className="form-row">

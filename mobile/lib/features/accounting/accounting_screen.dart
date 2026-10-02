@@ -21,7 +21,7 @@ import 'package:zolofund/features/accounting/premium_settings_form.dart';
 import 'package:zolofund/features/accounting/vendor_bills_view.dart';
 import 'package:zolofund/features/accounting/tax_actions_view.dart';
 import 'package:zolofund/features/accounting/export_actions_view.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
@@ -298,8 +298,8 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                       button: true,
                       label: t.x('accounting.unlock_premium'),
                       child: InkWell(
-                        onTap: () => showAddonPurchaseSheet(context, ref,
-                            addonKey: 'premium_accounting'),
+                        onTap: () => showPlanUpgradeSheet(context, ref,
+                            featureKey: 'premium_accounting'),
                         child: Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,

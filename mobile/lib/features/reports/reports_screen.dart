@@ -20,7 +20,7 @@ import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
 import 'package:zolofund/data/services/reports_service.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -646,10 +646,10 @@ class _CatalogTabState extends ConsumerState<_CatalogTab> {
 
   void _open(Map<String, dynamic> item) {
     if (item['locked'] == true) {
-      showAddonPurchaseSheet(
+      showPlanUpgradeSheet(
         context,
         ref,
-        addonKey: 'premium_accounting',
+        featureKey: 'premium_accounting',
         onActivated: () => ref.invalidate(_catalogProvider),
       );
       return;

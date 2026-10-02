@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withStandardVerticalBases } from '@/lib/pricing';
+import { parseFeatureKeys } from '@/lib/planFeatures';
 
 export const dynamic = 'force-dynamic';
 
+// Add-ons are bundled into plans (lib/planFeatures.ts) and no longer sold, so the
+// catalog is always empty; the key stays so older clients keep parsing.
+
 export async function GET() {
   try {
-    const [plans, modules, addons] = await Promise.all([
+    const [plans, modules] = await Promise.all([
       prisma.subscriptionPlanCatalog.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' }
       }),
       prisma.modulePriceCatalog.findMany({
-        where: { isActive: true },
-        orderBy: { sortOrder: 'asc' }
-      }),
-      prisma.addonCatalog.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' }
       })
@@ -32,7 +32,9 @@ export async function GET() {
       }
       return {
         ...p,
-        features
+        features,
+        // Feature keys the plan bundles (lib/planFeatures.ts), as an array for clients.
+        includedFeatures: parseFeatureKeys(p.includedFeatures),
       };
     });
 
@@ -41,7 +43,7 @@ export async function GET() {
         success: true,
         plans: formattedPlans,
         modules: withStandardVerticalBases(modules),
-        addons
+        addons: [] as never[]
       },
       {
         status: 200,

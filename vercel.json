@@ -5,6 +5,7 @@
     { "path": "/api/cron/send-reminders",     "schedule": "30 2 * * *"  },
     { "path": "/api/cron/send-reports",       "schedule": "30 2 * * 1"  },
     { "path": "/api/cron/dunning",            "schedule": "0 4 * * *"   },
+    { "path": "/api/cron/trial-expiry",       "schedule": "30 3 * * *"  },
     { "path": "/api/cron/recompute-balances", "schedule": "0 21 * * 0"  }
   ]
 }

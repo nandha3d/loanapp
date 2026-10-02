@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { parseFeatureKeys } from '@/lib/planFeatures';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,9 @@ export async function POST(request: Request) {
       maxActiveLoans,
       features = [],
       razorpayPlanId,
+      yearlyPrice,
+      razorpayYearlyPlanId,
+      includedFeatures,
       trialDays = 0,
       isActive = true,
       sortOrder = 0
@@ -56,6 +60,34 @@ export async function POST(request: Request) {
 
     if (!plan || !displayName || monthlyPrice === undefined) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Yearly billing is optional: blank price = monthly-only. A price needs the
+    // matching Razorpay yearly plan, or checkout could never charge it.
+    const yearlyPriceNum = yearlyPrice === undefined || yearlyPrice === null || yearlyPrice === ''
+      ? null
+      : Number(yearlyPrice);
+    const yearlyPlanId = typeof razorpayYearlyPlanId === 'string' ? razorpayYearlyPlanId.trim() : '';
+    if (yearlyPriceNum !== null && (!Number.isInteger(yearlyPriceNum) || yearlyPriceNum <= 0)) {
+      return NextResponse.json({ success: false, error: 'Yearly price must be a positive whole number' }, { status: 400 });
+    }
+    if (yearlyPlanId && !yearlyPlanId.startsWith('plan_')) {
+      return NextResponse.json({ success: false, error: 'Razorpay yearly plan ID must start with "plan_"' }, { status: 400 });
+    }
+    // Feature checklist: omitted = leave the stored checklist untouched.
+    let includedFeaturesJson: string | undefined;
+    if (includedFeatures !== undefined) {
+      if (!Array.isArray(includedFeatures)) {
+        return NextResponse.json({ success: false, error: 'includedFeatures must be a list' }, { status: 400 });
+      }
+      const keys = parseFeatureKeys(includedFeatures);
+      if (keys.length !== includedFeatures.length) {
+        return NextResponse.json({ success: false, error: 'Unknown feature key in includedFeatures' }, { status: 400 });
+      }
+      includedFeaturesJson = JSON.stringify(keys);
+    }
+    if (yearlyPriceNum !== null && !yearlyPlanId) {
+      return NextResponse.json({ success: false, error: 'A yearly price needs a Razorpay yearly plan ID' }, { status: 400 });
     }
 
     // Build base data without trialDays first; add it only if the Prisma
@@ -70,6 +102,9 @@ export async function POST(request: Request) {
       maxActiveLoans: Number(maxActiveLoans),
       features: JSON.stringify(features),
       razorpayPlanId: razorpayPlanId || null,
+      yearlyPrice: yearlyPriceNum,
+      razorpayYearlyPlanId: yearlyPriceNum !== null ? yearlyPlanId : null,
+      ...(includedFeaturesJson !== undefined ? { includedFeatures: includedFeaturesJson } : {}),
       isActive: Boolean(isActive),
       sortOrder: Number(sortOrder),
     };

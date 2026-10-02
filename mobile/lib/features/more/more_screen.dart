@@ -9,7 +9,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
@@ -275,10 +275,10 @@ class MoreScreen extends ConsumerWidget {
                   item: m,
                   isLocked: isLocked,
                   onTap: isLocked && m.addonKey != 'npa'
-                      ? () => showAddonPurchaseSheet(ctx, ref, addonKey: m.addonKey!)
+                      ? () => showPlanUpgradeSheet(ctx, ref, featureKey: m.addonKey!)
                       : null,
                   onUpgradeTap: isLocked
-                      ? () => showAddonPurchaseSheet(ctx, ref, addonKey: m.addonKey!)
+                      ? () => showPlanUpgradeSheet(ctx, ref, featureKey: m.addonKey!)
                       : null,
                 );
               },

@@ -240,11 +240,11 @@ export default function NachPanel({
           <div style={{ padding: '14px 16px', background: 'rgba(125, 40, 126, 0.06)', borderRadius: '8px', border: '1px solid rgba(125, 40, 126, 0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <span style={{ fontSize: '1rem' }}>🔒</span>
-              <strong style={{ fontSize: '.88rem', color: 'var(--primary)' }}>This feature is for Premium users</strong>
+              <strong style={{ fontSize: '.88rem', color: 'var(--primary)' }}>eNACH is included in a higher plan</strong>
               <span style={{ fontSize: '.68rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: 'var(--primary)', color: '#fff' }}>PREMIUM</span>
             </div>
             <p style={{ margin: 0, fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-              e-NACH auto-debit requires a Premium subscription. Automate EMI collections with bank e-mandates by upgrading to a Premium plan.
+              e-NACH auto-debit is part of a higher subscription plan. Upgrade your plan (Billing → My Subscription) to automate EMI collections with bank e-mandates.
             </p>
           </div>
         ) : !mandate && !showForm ? (

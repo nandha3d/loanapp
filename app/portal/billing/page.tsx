@@ -12,7 +12,12 @@ import { formatDate } from '@/lib/utils';
 import { CheckoutButton } from './CheckoutButton';
 import prisma from '@/lib/db';
 
-export default async function PortalBillingPage() {
+export default async function PortalBillingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string }>;
+}) {
+  const paymentReturned = (await searchParams)?.payment === 'success';
   const session = await auth();
   if (!session?.user) redirect('/login');
 
@@ -70,6 +75,15 @@ export default async function PortalBillingPage() {
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '24px' }}>
       <h2 style={{ marginBottom: '24px' }}>Your Subscription</h2>
+
+      {paymentReturned ? (
+        <div role="status" className="card" style={{ marginBottom: 20, padding: 18, border: '1px solid #22c55e', background: '#f0fdf4' }}>
+          <strong style={{ color: '#166534' }}>Payment received</strong>
+          <p style={{ color: '#166534', margin: '6px 0 0' }}>
+            Your subscription is being activated. It can take a few moments to show here — refresh if the plan has not updated.
+          </p>
+        </div>
+      ) : null}
 
       {access.blocked ? (
         <div role="alert" className="card" style={{ marginBottom: 20, padding: 18, border: '1px solid #ef4444', background: '#fff7f7' }}>

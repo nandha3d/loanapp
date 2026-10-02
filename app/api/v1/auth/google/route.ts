@@ -1,3 +1,4 @@
+import { planFeatureUpdate } from '@/lib/planFeatures';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
@@ -18,9 +19,11 @@ export async function POST(req: NextRequest) {
       ownerPhone,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = [],
+      selectedAddons: _legacyAddons = [],
       referralCode,
     } = body;
+    // Add-ons are bundled into plans (planFeatures.ts); any client-sent list is ignored.
+    const selectedAddons: string[] = [];
 
     // ── 1. Verify Google ID token using Google API ───────────────────────────
     const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
@@ -174,6 +177,7 @@ export async function POST(req: NextRequest) {
           premiumAccountingEnabled: selectedAddons.includes('premium_accounting'),
           bureauEnabled: selectedAddons.includes('bureau'),
           npaEnabled: selectedAddons.includes('npa'),
+          ...(planCatalog ? planFeatureUpdate(planCatalog, { plan: '' }) : null),
 
           basePlanPrice,
           modulesPrice,

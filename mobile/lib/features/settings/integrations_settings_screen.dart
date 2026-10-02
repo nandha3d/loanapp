@@ -168,7 +168,7 @@ class _IntegrationsSettingsScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Add-on Integrations'),
+        title: const Text('Integrations'),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

@@ -2314,6 +2314,15 @@ export const te = {
     cancel: 'రద్దు చేయి',
     upgradeSuccess: 'చందా ప్లాన్ విజయవంతంగా అప్‌గ్రేడ్ చేయబడింది!',
     upgradeFailed: 'అప్‌గ్రేడ్ ప్రారంభించడం సాధ్యం కాలేదు. దయచేసి మళ్లీ ప్రయత్నించండి.',
+    billingMonthly: 'నెలవారీ',
+    billingYearly: 'వార్షిక',
+    perYear: '/సంవత్సరం',
+    yearlyTotal: 'మొత్తం వార్షిక ఛార్జీ',
+    planBilledYearly: 'Razorpay ద్వారా సురక్షితంగా వార్షిక ప్రాతిపదికన బిల్ చేయబడుతుంది.',
+    yearlySavePercent: '{percent}% ఆదా చేయండి',
+    monthlyOnlyNote: 'నెలవారీ బిల్లింగ్ మాత్రమే',
+    autoRenewsYearly: 'ప్రతి సంవత్సరం ఆటోమేటిక్‌గా పునరుద్ధరించబడుతుంది',
+    includedInPlan: '{plan} ప్లాన్‌లో చేర్చబడింది',
   },
 };
 

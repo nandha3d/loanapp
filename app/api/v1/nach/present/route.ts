@@ -1,3 +1,4 @@
+import { nachGate } from '@/lib/featureGate';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { presentPayment } from '@/lib/nach';
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
   if (!ADMIN_ROLES.has(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const notInPlan = await nachGate(user.tenantId);
+  if (notInPlan) return notInPlan;
 
   let body: unknown;
   try { body = await req.json(); } catch {

@@ -97,24 +97,13 @@ class _PricingCatalogScreenState extends ConsumerState<PricingCatalogScreen> {
                       ],
                       if (_catalog != null && _catalog!.modules.isNotEmpty) ...[
                         const SizedBox(height: 16),
-                        Text('Add-on Modules', style: AppTypography.sectionTitle),
+                        Text('Vertical Modules', style: AppTypography.sectionTitle),
                         const SizedBox(height: 12),
                         ..._catalog!.modules.map((m) => _CatalogItemTile(
                               title: m.displayName,
                               subtitle: m.description ?? '',
                               price: '₹${m.monthlyPrice}/mo',
                               icon: Icons.view_module,
-                            ),),
-                      ],
-                      if (_catalog != null && _catalog!.addons.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text('System Add-ons', style: AppTypography.sectionTitle),
-                        const SizedBox(height: 12),
-                        ..._catalog!.addons.map((a) => _CatalogItemTile(
-                              title: a.displayName,
-                              subtitle: a.description ?? '',
-                              price: '₹${a.monthlyPrice}/mo',
-                              icon: Icons.add_circle_outline,
                             ),),
                       ],
                     ],

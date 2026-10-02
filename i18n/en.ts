@@ -2422,6 +2422,15 @@ export const en = {
     cancel: 'Cancel',
     upgradeSuccess: 'Subscription plan upgraded successfully!',
     upgradeFailed: 'Unable to initiate upgrade. Please try again.',
+    billingMonthly: 'Monthly',
+    billingYearly: 'Yearly',
+    perYear: '/yr',
+    yearlyTotal: 'Total Yearly Charge',
+    planBilledYearly: 'Billed securely via Razorpay on a yearly cadence.',
+    yearlySavePercent: 'Save {percent}%',
+    monthlyOnlyNote: 'Monthly billing only',
+    autoRenewsYearly: 'Auto-renews yearly',
+    includedInPlan: 'Included in {plan}',
   },
 };
 

@@ -26,12 +26,14 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // unpkg.com: Leaflet (route-tracker live map) is loaded from CDN at runtime
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+      // checkout.razorpay.com: Razorpay Standard Checkout (/subscribe, NACH authorisation)
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://checkout.razorpay.com",
+      "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
       // OpenStreetMap tiles + Leaflet marker sprites for the live map
-      `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com${cspApiUrl}`,
+      `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com https://*.razorpay.com${cspApiUrl}`,
       "font-src 'self' https://fonts.gstatic.com",
-      `connect-src 'self'${cspApiUrl}${cspSupabase}`,
+      `connect-src 'self'${cspApiUrl}${cspSupabase} https://lumberjack.razorpay.com https://api.razorpay.com`,
       "frame-ancestors 'none'",
     ].join('; '),
   },

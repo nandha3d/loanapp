@@ -15,6 +15,9 @@ export type PlanCatalogItem = {
   maxActiveLoans: number;
   features: string[];
   razorpayPlanId: string | null;
+  /** Server-validated: non-null only when yearly billing can actually be charged. */
+  yearlyPrice: number | null;
+  yearlySavingsPercent: number;
   isActive: boolean;
   sortOrder: number;
   calculatedPrice: {
@@ -29,6 +32,7 @@ type Props = {
   plans: PlanCatalogItem[];
   currentPlanKey: string;
   currentStatus: string;
+  currentBillingCycle: 'monthly' | 'yearly';
   currentMaxBranches: number;
   currentMaxLoans: number;
   currentMaxAgents: number;
@@ -40,6 +44,7 @@ export default function SubscriptionPlansClient({
   plans,
   currentPlanKey,
   currentStatus,
+  currentBillingCycle,
   currentMaxBranches,
   currentMaxLoans,
   currentMaxAgents,
@@ -48,6 +53,15 @@ export default function SubscriptionPlansClient({
 }: Props) {
   const d = dict.subscription || {};
   const router = useRouter();
+
+  // The toggle only exists when at least one plan can be billed yearly.
+  const yearlyOffered = plans.some((p) => p.yearlyPrice !== null);
+  const [cycle, setCycle] = useState<'monthly' | 'yearly'>(
+    yearlyOffered && currentBillingCycle === 'yearly' ? 'yearly' : 'monthly',
+  );
+  // A plan with no yearly option keeps monthly billing even in the yearly view.
+  const cycleFor = (p: PlanCatalogItem): 'monthly' | 'yearly' =>
+    cycle === 'yearly' && p.yearlyPrice !== null ? 'yearly' : 'monthly';
 
   const [selectedPlan, setSelectedPlan] = useState<PlanCatalogItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,7 +89,7 @@ export default function SubscriptionPlansClient({
     setErrorMessage(null);
     startTransition(async () => {
       try {
-        const result = await initiateSubscriptionUpgrade(selectedPlan.plan);
+        const result = await initiateSubscriptionUpgrade(selectedPlan.plan, cycleFor(selectedPlan));
         if (result?.error) {
           setErrorMessage(result.error);
         }
@@ -123,6 +137,43 @@ export default function SubscriptionPlansClient({
         </p>
       </div>
 
+      {/* Billing cycle toggle (Developer → Billing → Pricing controls which plans offer yearly) */}
+      {yearlyOffered && (
+        <div
+          role="group"
+          style={{
+            display: 'inline-flex',
+            gap: '4px',
+            padding: '4px',
+            marginBottom: '20px',
+            borderRadius: '999px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg, #f8fafc)',
+          }}
+        >
+          {(['monthly', 'yearly'] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={cycle === c}
+              onClick={() => setCycle(c)}
+              style={{
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px 20px',
+                borderRadius: '999px',
+                fontWeight: 600,
+                fontSize: '0.88rem',
+                background: cycle === c ? 'var(--primary, #3b82f6)' : 'transparent',
+                color: cycle === c ? '#ffffff' : 'var(--text-secondary)',
+              }}
+            >
+              {c === 'monthly' ? (d.billingMonthly || 'Monthly') : (d.billingYearly || 'Yearly')}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Plans Grid */}
       <div
         style={{
@@ -136,6 +187,8 @@ export default function SubscriptionPlansClient({
           const isCurrent = p.plan.toLowerCase() === currentPlanKey.toLowerCase();
           const isPopular = p.plan.toLowerCase() === 'business';
           const isFree = p.monthlyPrice === 0;
+          const pYearly = cycleFor(p) === 'yearly';
+          const displayPrice = pYearly && p.yearlyPrice !== null ? p.yearlyPrice : p.monthlyPrice;
 
           return (
             <div
@@ -216,14 +269,34 @@ export default function SubscriptionPlansClient({
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                     <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {isFree ? 'Free' : `₹${p.monthlyPrice.toLocaleString('en-IN')}`}
+                      {isFree ? 'Free' : `₹${displayPrice.toLocaleString('en-IN')}`}
                     </span>
                     {!isFree && (
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-light)', fontWeight: 500 }}>
-                        {d.perMonth || '/mo'}
+                        {pYearly ? (d.perYear || '/yr') : (d.perMonth || '/mo')}
+                      </span>
+                    )}
+                    {pYearly && p.yearlySavingsPercent > 0 && (
+                      <span
+                        style={{
+                          marginLeft: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: '#16a34a',
+                          background: 'rgba(22, 163, 74, 0.1)',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        {(d.yearlySavePercent || 'Save {percent}%').replace('{percent}', String(p.yearlySavingsPercent))}
                       </span>
                     )}
                   </div>
+                  {cycle === 'yearly' && !isFree && !pYearly && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '4px' }}>
+                      {d.monthlyOnlyNote || 'Monthly billing only'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Core Resource Quotas */}
@@ -510,14 +583,22 @@ export default function SubscriptionPlansClient({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-                <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{d.monthlyTotal || 'Total Monthly Charge'}:</span>
+                <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                  {cycleFor(selectedPlan) === 'yearly'
+                    ? (d.yearlyTotal || 'Total Yearly Charge')
+                    : (d.monthlyTotal || 'Total Monthly Charge')}:
+                </span>
                 <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary, #3b82f6)' }}>
                   {selectedPlan.monthlyPrice === 0 ? (
                     'Free'
                   ) : (
                     <>
-                      ₹{selectedPlan.monthlyPrice.toLocaleString('en-IN')}
-                      <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-light)' }}>{d.perMonth || '/mo'}</span>
+                      ₹{(cycleFor(selectedPlan) === 'yearly' && selectedPlan.yearlyPrice !== null
+                        ? selectedPlan.yearlyPrice
+                        : selectedPlan.monthlyPrice).toLocaleString('en-IN')}
+                      <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-light)' }}>
+                        {cycleFor(selectedPlan) === 'yearly' ? (d.perYear || '/yr') : (d.perMonth || '/mo')}
+                      </span>
                     </>
                   )}
                 </span>
@@ -525,7 +606,9 @@ export default function SubscriptionPlansClient({
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-light)' }}>
                 {selectedPlan.monthlyPrice === 0
                   ? 'Free plan includes core branch, loan, and field agent limits.'
-                  : (d.planBilledMonthly || 'Billed securely via Razorpay on a monthly cadence.')}
+                  : cycleFor(selectedPlan) === 'yearly'
+                    ? (d.planBilledYearly || 'Billed securely via Razorpay on a yearly cadence.')
+                    : (d.planBilledMonthly || 'Billed securely via Razorpay on a monthly cadence.')}
               </p>
             </div>
 

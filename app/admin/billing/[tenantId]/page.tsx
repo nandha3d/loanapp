@@ -18,6 +18,14 @@ export default async function TenantBillingPage({ params }: { params: Promise<{ 
 
   const sub = tenant.subscription;
   const enabledModulesList = normalizeEnabledModules(sub?.enabledModules);
+  // Plans whose features come from their checklist; per-tenant toggles only
+  // apply to every other plan (Free demo, lifetime).
+  const planDrivenPlans = (
+    await prisma.subscriptionPlanCatalog.findMany({
+      where: { includedFeatures: { not: null }, plan: { not: 'free' } },
+      select: { plan: true },
+    })
+  ).map((p) => p.plan);
 
   return (
     <div className="card" style={{ maxWidth: '560px' }}>
@@ -31,6 +39,7 @@ export default async function TenantBillingPage({ params }: { params: Promise<{ 
         tenantName={tenant.name}
         subscription={sub}
         enabledModules={enabledModulesList}
+        planDrivenPlans={planDrivenPlans}
       />
     </div>
   );

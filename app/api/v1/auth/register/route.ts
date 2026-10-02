@@ -1,3 +1,4 @@
+import { planFeatureUpdate } from '@/lib/planFeatures';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { hash } from 'bcryptjs';
@@ -23,9 +24,11 @@ export async function POST(req: NextRequest) {
       ownerPassword,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = [],
+      selectedAddons: _legacyAddons = [],
       referralCode,
     } = body;
+    // Add-ons are bundled into plans (planFeatures.ts); any client-sent list is ignored.
+    const selectedAddons: string[] = [];
 
     // Validate fields (username is optional — defaults to the phone number)
     if (!businessName || !ownerName || !ownerPhone || !ownerPassword || !selectedPlan) {
@@ -119,6 +122,7 @@ export async function POST(req: NextRequest) {
           premiumAccountingEnabled: selectedAddons.includes('premium_accounting'),
           bureauEnabled: selectedAddons.includes('bureau'),
           npaEnabled: selectedAddons.includes('npa'),
+          ...(planCatalog ? planFeatureUpdate(planCatalog, { plan: '' }) : null),
 
           basePlanPrice,
           modulesPrice,

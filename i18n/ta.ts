@@ -2412,6 +2412,15 @@ export const ta = {
     cancel: 'ரத்து செய்',
     upgradeSuccess: 'சந்தா திட்டம் வெற்றிகரமாக மேம்படுத்தப்பட்டது!',
     upgradeFailed: 'மேம்படுத்தலைத் தொடங்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.',
+    billingMonthly: 'மாதாந்திரம்',
+    billingYearly: 'ஆண்டுதோறும்',
+    perYear: '/ஆண்டு',
+    yearlyTotal: 'மொத்த ஆண்டு கட்டணம்',
+    planBilledYearly: 'Razorpay மூலம் பாதுகாப்பாக ஆண்டுதோறும் கட்டணம் வசூலிக்கப்படும்.',
+    yearlySavePercent: '{percent}% சேமிக்கவும்',
+    monthlyOnlyNote: 'மாதாந்திர கட்டணம் மட்டும்',
+    autoRenewsYearly: 'ஆண்டுதோறும் தானாக புதுப்பிக்கப்படும்',
+    includedInPlan: '{plan} திட்டத்தில் சேர்க்கப்பட்டுள்ளது',
   },
 };
 

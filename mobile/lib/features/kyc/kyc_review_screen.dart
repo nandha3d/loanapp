@@ -12,7 +12,7 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/kyc_service.dart';
 import 'package:zolofund/core/network/dio_client.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -157,7 +157,7 @@ class _KycLockedView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Instant Aadhaar OTP verification, document OCR, and video KYC reviews are locked for your organization.',
+                'Instant Aadhaar OTP verification, document OCR, and video KYC reviews are included in higher plans and locked on your current plan.',
                 style: AppTypography.caption.copyWith(
                   color: AppColors.textSecondary,
                   height: 1.4,
@@ -183,47 +183,21 @@ class _KycLockedView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'KYC Add-on Plan',
-                      style: AppTypography.bodySmall.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                    Text(
-                      '₹199 / month',
-                      style: AppTypography.nameLg.copyWith(
-                        fontSize: 16,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    showAddonPurchaseSheet(
+                    showPlanUpgradeSheet(
                       context,
                       ref,
-                      addonKey: 'kyc',
+                      featureKey: 'kyc',
                       onActivated: () => ref.invalidate(kycQueueProvider),
                     );
                   },
                   icon: const Icon(Icons.flash_on_rounded, size: 18),
                   label: const Text(
-                    'Purchase KYC Add-on (₹199/mo)',
+                    'Included in higher plans · View details',
                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                   style: ElevatedButton.styleFrom(

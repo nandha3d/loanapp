@@ -72,16 +72,12 @@ function fallbackPricing(): PublicPricing {
  */
 export const getPublicPricing = cache(async (): Promise<PublicPricing> => {
   try {
-    const [plans, modules, addons] = await Promise.all([
+    const [plans, modules] = await Promise.all([
       prisma.subscriptionPlanCatalog.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },
       }),
       prisma.modulePriceCatalog.findMany({
-        where: { isActive: true },
-        orderBy: { sortOrder: 'asc' },
-      }),
-      prisma.addonCatalog.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },
       }),
@@ -111,8 +107,9 @@ export const getPublicPricing = cache(async (): Promise<PublicPricing> => {
 
     return {
       plans: formattedPlans,
+      // Add-ons are bundled into plans and no longer sold.
       modules: withStandardVerticalBases(modules),
-      addons,
+      addons: [],
     };
   } catch (err) {
     console.error('[PLAN_CATALOG] falling back to lib/plans.ts:', err);

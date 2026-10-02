@@ -1,3 +1,4 @@
+import { DEFAULT_TRIAL_DAYS, planFeatureUpdate } from '@/lib/planFeatures';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { hash } from 'bcryptjs';
@@ -10,6 +11,7 @@ import {
   createRazorpayPlan,
   createRazorpaySubscription,
   getConfiguredRazorpayPlanId,
+  getSubscriptionCheckoutPath,
   normalizeRazorpayPlanId,
 } from '@/lib/razorpay';
 
@@ -36,11 +38,13 @@ export async function POST(request: Request) {
       ownerPassword,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = [],
+      selectedAddons: _legacyAddons = [],
       paymentOption,
       referralCode,
       whatsappVerificationToken,
     } = body;
+    // Add-ons are bundled into plans (planFeatures.ts); any client-sent list is ignored.
+    const selectedAddons: string[] = [];
 
     // Validate fields (username is optional — defaults to the phone number)
     if (!businessName || !ownerName || !ownerPhone || !ownerPassword || (!standaloneClaim && !selectedPlan)) {
@@ -151,7 +155,7 @@ export async function POST(request: Request) {
       // If trial is explicitly requested, grant trialDays.
       const trialDays = (standaloneClaim || !isPaidPlan || effectivePaymentOption === 'pay_now')
         ? 0
-        : (planCatalog!.trialDays || 14);
+        : (planCatalog!.trialDays || DEFAULT_TRIAL_DAYS);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;
@@ -173,6 +177,7 @@ export async function POST(request: Request) {
           gpsTrackingEnabled: !standaloneClaim && selectedAddons.includes('gps_tracking'),
           premiumAccountingEnabled: !standaloneClaim && selectedAddons.includes('premium_accounting'),
           bureauEnabled: !standaloneClaim && selectedAddons.includes('bureau'),
+          ...(planCatalog ? planFeatureUpdate(planCatalog, { plan: '' }) : null),
 
           // Pricing Snapshots (0 for lifetime).
           basePlanPrice,
@@ -329,7 +334,7 @@ export async function POST(request: Request) {
           where: { tenantId: result.tenantId },
           data: { razorpaySubId: subscription.id },
         });
-        checkoutUrl = subscription.short_url;
+        checkoutUrl = getSubscriptionCheckoutPath(subscription);
       } catch (rzpErr) {
         console.error('[REGISTER_RAZORPAY_INIT_ERROR]', rzpErr);
       }

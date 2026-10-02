@@ -1920,10 +1920,17 @@ model TenantSubscription {
   kycEnabled               Boolean   @default(false) @map("kyc_enabled")
   gpsTrackingEnabled       Boolean   @default(false) @map("gps_tracking_enabled")
   premiumAccountingEnabled Boolean   @default(false) @map("premium_accounting_enabled")
+  /// eNACH mandates. Gated by plan (Enterprise); off for everyone else.
+  nachEnabled              Boolean   @default(false) @map("nach_enabled")
+  /// JSON array of feature keys a tenant keeps although its plan does not include
+  /// them (add-ons bought before bundling). Cleared on the next plan change.
+  grandfatheredFeatures    String?   @map("grandfathered_features") @db.LongText
   trialEndsAt              DateTime? @map("trial_ends_at")
 
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @unique @map("razorpay_sub_id")
+  /// 'monthly' | 'yearly' — the Razorpay billing cycle of the current subscription.
+  billingCycle     String    @default("monthly") @map("billing_cycle")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
   gracePeriodEnd   DateTime? @map("grace_period_end")
@@ -1950,6 +1957,13 @@ model SubscriptionPlanCatalog {
   maxActiveLoans Int      @map("max_active_loans")
   features       String   @map("features") @db.LongText
   razorpayPlanId String?  @map("razorpay_plan_id")
+  /// Optional yearly billing. NULL yearlyPrice (or no yearly Razorpay plan) = the
+  /// plan is monthly-only and the yearly toggle does not offer it.
+  yearlyPrice          Int?    @map("yearly_price")
+  razorpayYearlyPlanId String? @map("razorpay_yearly_plan_id")
+  /// JSON array of feature keys (lib/planFeatures.ts) this plan includes. NULL =
+  /// not configured: activating the plan leaves a tenant's feature flags alone.
+  includedFeatures     String? @map("included_features") @db.LongText
   /// Free trial duration in days. 0 = no trial. Applies to new subscribers
   /// only; enterprise = 15 days full access before billing starts.
   trialDays      Int      @default(0) @map("trial_days")

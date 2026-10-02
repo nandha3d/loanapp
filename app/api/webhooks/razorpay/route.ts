@@ -2,8 +2,10 @@ import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
-import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
+import { normalizeBillingCycle, verifyRazorpayWebhookSignature } from '@/lib/razorpay';
 import { getPlatformPaymentSettings } from '@/lib/platformPayment';
+import { planFeatureUpdate } from '@/lib/planFeatures';
+import { reconcilePlanLimits } from '@/lib/planLimits';
 import {
   normalizeEnabledModules,
   normalizeRazorpaySubscriptionStatus,
@@ -227,6 +229,7 @@ export async function POST(request: NextRequest) {
         addonsPrice,
       );
       Object.assign(updateData, {
+        billingCycle: normalizeBillingCycle(subscription.notes?.loantrack_cycle),
         plan: catalog.plan,
         maxActiveLoans: catalog.maxActiveLoans,
         maxAgents: catalog.maxAgents,
@@ -236,12 +239,18 @@ export async function POST(request: NextRequest) {
         addonsPrice: pricing.addonsPrice,
         totalMonthlyPrice: pricing.totalMonthlyPrice,
       });
+      // Features come from the plan's checklist (Developer → Billing → Pricing).
+      Object.assign(updateData, planFeatureUpdate(catalog, tenantSub));
     }
 
     const updatedSub = await prisma.tenantSubscription.update({
       where: { id: tenantSub.id },
       data: updateData,
     });
+
+    if (event === 'subscription.activated' || event === 'subscription.charged') {
+      await reconcilePlanLimits(updatedSub.tenantId);
+    }
 
     if (event === 'subscription.charged') {
       const payment = payload.payload?.payment?.entity;

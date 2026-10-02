@@ -6,6 +6,8 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { initiateCheckout } from '@/app/portal/billing/actions';
+import { planFeatureUpdate } from '@/lib/planFeatures';
+import { reconcilePlanLimits } from '@/lib/planLimits';
 import { revalidatePath } from 'next/cache';
 
 function parseStringList(value: unknown): string[] {
@@ -25,8 +27,8 @@ function parseStringList(value: unknown): string[] {
  * Initiates checkout via Razorpay (or mock-checkout).
  * Calls the central initiateCheckout action.
  */
-export async function initiateSubscriptionUpgrade(planId: string) {
-  return await initiateCheckout(planId);
+export async function initiateSubscriptionUpgrade(planId: string, cycle: string = 'monthly') {
+  return await initiateCheckout(planId, cycle);
 }
 
 /**
@@ -90,6 +92,7 @@ export async function simulatePlanUpgrade(planId: string) {
       addonsPrice: effectiveAddonsPrice,
       totalMonthlyPrice,
       razorpaySubId: `sim_${catalog.plan}_${Date.now()}`,
+      ...planFeatureUpdate(catalog, current),
     },
   });
 
@@ -108,6 +111,8 @@ export async function simulatePlanUpgrade(planId: string) {
       },
     });
   }
+
+  await reconcilePlanLimits(tenantId);
 
   // Also log the audit event if possible
   try {

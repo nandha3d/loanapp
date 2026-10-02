@@ -2278,6 +2278,15 @@ export const kn = {
     cancel: 'ರದ್ದುಮಾಡಿ',
     upgradeSuccess: 'ಚಂದಾದಾರಿಕೆ ಯೋಜನೆ ಯಶಸ್ವಿಯಾಗಿ ಅಪ್‌ಗ್ರೇಡ್ ಆಗಿದೆ!',
     upgradeFailed: 'ಅಪ್‌ಗ್ರೇಡ್ ಪ್ರಾರಂಭಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+    billingMonthly: 'ಮಾಸಿಕ',
+    billingYearly: 'ವಾರ್ಷಿಕ',
+    perYear: '/ವರ್ಷ',
+    yearlyTotal: 'ಒಟ್ಟು ವಾರ್ಷಿಕ ಶುಲ್ಕ',
+    planBilledYearly: 'Razorpay ಮೂಲಕ ಸುರಕ್ಷಿತವಾಗಿ ವಾರ್ಷಿಕ ಆಧಾರದ ಮೇಲೆ ಬಿಲ್ ಮಾಡಲಾಗುತ್ತದೆ.',
+    yearlySavePercent: '{percent}% ಉಳಿಸಿ',
+    monthlyOnlyNote: 'ಮಾಸಿಕ ಬಿಲ್ಲಿಂಗ್ ಮಾತ್ರ',
+    autoRenewsYearly: 'ಪ್ರತಿ ವರ್ಷ ಸ್ವಯಂ ನವೀಕರಣ',
+    includedInPlan: '{plan} ಯೋಜನೆಯಲ್ಲಿ ಸೇರಿದೆ',
   },
 };
 

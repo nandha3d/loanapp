@@ -11,7 +11,7 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/models/nach.dart';
 import 'package:zolofund/data/services/nach_service.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 
 /// e-NACH Auto-Debit panel — embedded in the loan detail screen.
 /// Self-contained: reads/writes mandates via NachService.
@@ -447,11 +447,11 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: () {
-                            showAddonPurchaseSheet(context, ref, addonKey: 'nach', onActivated: _refresh);
+                            showPlanUpgradeSheet(context, ref, featureKey: 'nach', onActivated: _refresh);
                           },
                           icon: const Icon(Icons.lock_open_rounded, size: 15),
                           label: const Text(
-                            'Upgrade to Premium',
+                            'Included in higher plans',
                             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                           ),
                           style: FilledButton.styleFrom(

@@ -6,13 +6,14 @@ import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/npa.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/npa_service.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -562,7 +563,7 @@ class _NpaLockedView extends StatelessWidget {
                 Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
                 SizedBox(width: 4),
                 Text(
-                  'PREMIUM ADD-ON',
+                  'PLAN FEATURE',
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
@@ -614,7 +615,7 @@ class _NpaLockedView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'WHAT IS INCLUDED IN THIS ADD-ON',
+                'WHAT THIS FEATURE INCLUDES',
                 style: AppTypography.tiny.copyWith(
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -658,124 +659,42 @@ class _NpaLockedView extends StatelessWidget {
         ),
         const SizedBox(height: 24),
 
-        // Action CTA
-        if (canPurchase) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary.withAlpha(20),
-                  AppColors.primaryLight,
+        // Locked: NPA is bundled into higher plans, so there is nothing to purchase here.
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.warningBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.warning.withAlpha(100)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.info_outline, color: AppColors.warning, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      T.of(ref).x('plan.upgrade_body'),
+                      style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
+                    ),
+                  ),
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary.withAlpha(80)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '₹499 / month',
-                          style: AppTypography.nameLg.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          'Billed monthly · Cancel anytime',
-                          style: AppTypography.extraTiny.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'ORGANIZATION ADD-ON',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
+              if (canPurchase) ...[
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.flash_on_rounded, size: 18),
-                    label: const Text(
-                      'Purchase Add-on · Subscribe via Razorpay',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                      ),
-                    ),
-                    onPressed: () => showAddonPurchaseSheet(
-                      context,
-                      ref,
-                      addonKey: 'npa',
-                      onActivated: () {
-                        ref.invalidate(_npaSummaryProvider);
-                        ref.invalidate(_npaLoansProvider);
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.verified_user_outlined, size: 12, color: AppColors.textLight),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Powered by Razorpay Payment Gateway',
-                      style: AppTypography.extraTiny.copyWith(color: AppColors.textLight),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ] else ...[
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.warningBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.warning.withAlpha(100)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: AppColors.warning, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'NPA Classification is an organization add-on. Please contact your workspace administrator to purchase.',
-                    style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
+                  child: FilledButton(
+                    onPressed: () => showPlanUpgradeSheet(context, ref, featureKey: 'npa'),
+                    child: Text(T.of(ref).x('plan.upgrade_title')),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
         const SizedBox(height: 30),
       ],
     );

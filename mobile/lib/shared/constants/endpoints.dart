@@ -219,8 +219,6 @@ class Endpoints {
   static const String adminBilling = '/admin/billing';
   static const String adminAffiliates = '/admin/affiliates';
   static const String adminRequests = '/admin/requests';
-  static const String addonCheckout = '/billing/addon-checkout';
-  static const String verifyAddonPayment = '/billing/verify-addon-payment';
 
   // Premium Accounting
   static const String accountingCoa = '/accounting/coa';

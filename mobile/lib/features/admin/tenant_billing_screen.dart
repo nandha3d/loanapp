@@ -7,7 +7,6 @@ import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/admin_service.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class TenantBillingScreen extends ConsumerStatefulWidget {
@@ -228,8 +227,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Add-ons & Premium Modules
-        Text('Add-ons & Premium Modules', style: AppTypography.sectionTitle),
+        // Plan features (bundled into plans; no separate purchase)
+        Text('Plan Features', style: AppTypography.sectionTitle),
         const SizedBox(height: 12),
         ..._buildAddonList(user, isDev),
         const SizedBox(height: 16),
@@ -403,7 +402,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'npa',
         name: 'NPA Monitoring & Provisioning',
-        priceText: '₹499/mo',
         desc: 'Overdue classification (SMA 0/1/2/NPA) & RBI provisioning engine',
         icon: Icons.health_and_safety_outlined,
         isSubscribed: user?.npaEnabled == true || isDev,
@@ -411,7 +409,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'gps_tracking',
         name: 'GPS Live Tracking',
-        priceText: '₹299/mo',
         desc: 'Real-time agent location, geotagged collections & route audit',
         icon: Icons.gps_fixed_rounded,
         isSubscribed: user?.gpsTrackingEnabled == true || isDev,
@@ -419,7 +416,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'kyc',
         name: 'KYC Verification Suite',
-        priceText: '₹199/mo',
         desc: 'Instant Aadhaar OTP verification, document OCR & Video KYC',
         icon: Icons.verified_user_outlined,
         isSubscribed: user?.kycEnabled == true || isDev,
@@ -427,7 +423,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'bureau',
         name: 'Credit Bureau Integration',
-        priceText: '₹399/mo',
         desc: 'Instant CRIF High Mark credit reports and risk scoring',
         icon: Icons.assignment_ind_outlined,
         isSubscribed: user?.bureauEnabled == true || isDev,
@@ -435,7 +430,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'premium_accounting',
         name: 'Premium Ledger & Accounting',
-        priceText: '₹399/mo',
         desc: 'Automated double-entry journals, trial balance & P&L exports',
         icon: Icons.account_balance_outlined,
         isSubscribed: user?.premiumAccountingEnabled == true || isDev,
@@ -443,7 +437,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       _BillingAddonItem(
         key: 'whatsapp_sms',
         name: 'WhatsApp & SMS Notifications',
-        priceText: '₹199/mo',
         desc: 'Instant collection receipts and automated repayment reminders',
         icon: Icons.chat_bubble_outline_rounded,
         isSubscribed: user?.whatsappSmsEnabled == true || isDev,
@@ -514,8 +507,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                       const SizedBox(height: 2),
                       Text(
                         addon.isSubscribed
-                            ? 'Active · Included in organization plan'
-                            : '${addon.priceText} · ${addon.desc}',
+                            ? 'Active · Included in your plan'
+                            : 'Included in a higher plan · ${addon.desc}',
                         style: AppTypography.extraTiny.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -555,40 +548,6 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                 ),
               ],
             ),
-            if (!addon.isSubscribed) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    showAddonPurchaseSheet(
-                      context,
-                      ref,
-                      addonKey: addon.key,
-                      onActivated: () {
-                        _fetchBilling();
-                        ref
-                            .read(authControllerProvider.notifier)
-                            .refreshProfile();
-                      },
-                    );
-                  },
-                  icon: const Icon(Icons.flash_on_rounded, size: 16),
-                  label: Text(
-                    'Subscribe to ${addon.name} (${addon.priceText})',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       );
@@ -600,14 +559,12 @@ class _BillingAddonItem {
   const _BillingAddonItem({
     required this.key,
     required this.name,
-    required this.priceText,
     required this.desc,
     required this.icon,
     required this.isSubscribed,
   });
   final String key;
   final String name;
-  final String priceText;
   final String desc;
   final IconData icon;
   final bool isSubscribed;

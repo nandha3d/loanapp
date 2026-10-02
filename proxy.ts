@@ -105,6 +105,7 @@ export function isPublicPath(pathname: string): boolean {
     pathname === '/firebase-messaging-sw.js' ||
     pathname === '/login' ||
     pathname === '/register' ||
+    pathname === '/subscribe' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname.startsWith('/auth/callback') ||

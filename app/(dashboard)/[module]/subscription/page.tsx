@@ -7,7 +7,9 @@ import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { ALL_MODULES, MODULE_LABELS, modulePath, normalizeModuleList } from '@/types/modules';
 import { getDictionary } from '@/lib/i18n';
 import { normalizeEnabledModules } from '@/lib/subscription';
-import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
+import { calculateVerticalSubscriptionPricing, yearlySavingsPercent } from '@/lib/pricing';
+import { normalizeBillingCycle, normalizeRazorpayPlanId } from '@/lib/razorpay';
+import { PLAN_FEATURES, parseFeatureKeys } from '@/lib/planFeatures';
 import SubscriptionPlansClient from './SubscriptionPlansClient';
 
 function parseStringList(value: unknown): string[] {
@@ -103,11 +105,38 @@ export default async function MySubscriptionPage() {
       maxActiveLoans: cp.maxActiveLoans,
       features: featuresList,
       razorpayPlanId: cp.razorpayPlanId,
+      // Yearly is offered only when a price AND a Razorpay yearly plan are set.
+      yearlyPrice: (cp.yearlyPrice ?? 0) > 0 && normalizeRazorpayPlanId(cp.razorpayYearlyPlanId)
+        ? cp.yearlyPrice
+        : null,
+      yearlySavingsPercent: yearlySavingsPercent(cp.monthlyPrice, cp.yearlyPrice ?? 0),
       isActive: cp.isActive,
       sortOrder: cp.sortOrder,
       calculatedPrice: pricing,
     };
   });
+
+  // Premium features (bundled into plans). Locked ones name the cheapest plan that includes them.
+  const featureMeta: Record<string, { icon: string; desc: string }> = {
+    kyc: { icon: 'assignment_ind', desc: 'Verify borrower identities instantly using Aadhaar OTP eKYC and live Video KYC verification.' },
+    foreclosure: { icon: 'lock_open', desc: 'Calculate precise early closing amounts, apply discretionary waivers, and generate settlement PDFs.' },
+    receipt_pdf: { icon: 'picture_as_pdf', desc: 'Export and print professional collection receipts, loan statements, and summaries.' },
+    whatsapp_sms: { icon: 'sms', desc: 'Automated SMS/WhatsApp transaction alerts, daily receipts, and overdue payment notifications.' },
+    gps_tracking: { icon: 'map', desc: 'Real-time geographic tracking of field agents, route check-ins, and GPS location proofs.' },
+    bureau: { icon: 'credit_score', desc: 'Perform direct consumer credit bureau queries and retrieve credit ratings dynamically.' },
+    nach: { icon: 'account_balance', desc: 'Collect instalments automatically with eNACH bank mandates and scheduled auto-debits.' },
+    premium_accounting: { icon: 'account_balance_wallet', desc: 'Full double-entry general ledger, fiscal years, tax codes, vendor accounts, and budget tracking.' },
+    npa: { icon: 'gavel', desc: 'Automated NPA classification, provisioning tracking, and compliance according to regulatory norms.' },
+  };
+  const paidPlansByPrice = [...catalogPlans].filter((cp) => cp.monthlyPrice > 0).sort((x, y) => x.monthlyPrice - y.monthlyPrice);
+  const featureCards = PLAN_FEATURES.map((f) => ({
+    key: f.key,
+    name: f.label,
+    icon: featureMeta[f.key]?.icon ?? 'star',
+    desc: featureMeta[f.key]?.desc ?? '',
+    active: Boolean((sub as Record<string, unknown> | null)?.[f.flag]),
+    includedIn: paidPlansByPrice.find((cp) => parseFeatureKeys(cp.includedFeatures).includes(f.key))?.displayName ?? null,
+  }));
 
   const maxBranchesAllowed = sub?.maxBranches ?? 1;
   const isBranchLimitReached = maxBranchesAllowed < 999 && activeBranchCount >= maxBranchesAllowed;
@@ -188,7 +217,9 @@ export default async function MySubscriptionPage() {
               : (sub?.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : 'N/A')}
           </div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-light)', marginTop: '4px' }}>
-            {sub?.currentPeriodEnd ? 'Auto-renews monthly' : 'No expiry set'}
+            {sub?.currentPeriodEnd
+              ? (normalizeBillingCycle(sub.billingCycle) === 'yearly' ? (d.autoRenewsYearly || 'Auto-renews yearly') : 'Auto-renews monthly')
+              : 'No expiry set'}
           </div>
         </div>
       </div>
@@ -198,6 +229,7 @@ export default async function MySubscriptionPage() {
         plans={formattedPlans}
         currentPlanKey={planKey}
         currentStatus={sub?.status || 'inactive'}
+        currentBillingCycle={normalizeBillingCycle(sub?.billingCycle)}
         currentMaxBranches={maxBranchesAllowed}
         currentMaxLoans={sub?.maxActiveLoans ?? 25}
         currentMaxAgents={sub?.maxAgents ?? 1}
@@ -261,64 +293,7 @@ export default async function MySubscriptionPage() {
             gap: '16px',
           }}
         >
-          {[
-            {
-              key: 'premiumAccountingEnabled',
-              name: 'Premium double-entry Accounting',
-              icon: 'account_balance_wallet',
-              desc: 'Full double-entry general ledger, fiscal years, tax codes, vendor accounts, and budget tracking.',
-              active: Boolean(sub?.premiumAccountingEnabled),
-            },
-            {
-              key: 'whatsappSmsEnabled',
-              name: 'WhatsApp & SMS Notifications',
-              icon: 'sms',
-              desc: 'Automated SMS/WhatsApp transaction alerts, daily receipts, and overdue payment notifications.',
-              active: Boolean(sub?.whatsappSmsEnabled),
-            },
-            {
-              key: 'receiptPdfAllowed',
-              name: 'Receipt PDF Downloads',
-              icon: 'picture_as_pdf',
-              desc: 'Export and print professional collection receipts, loan statements, and summaries.',
-              active: Boolean(sub?.receiptPdfAllowed),
-            },
-            {
-              key: 'bureauEnabled',
-              name: 'Credit Bureau Integration',
-              icon: 'credit_score',
-              desc: 'Perform direct consumer credit bureau queries and retrieve credit ratings dynamically.',
-              active: Boolean(sub?.bureauEnabled),
-            },
-            {
-              key: 'npaEnabled',
-              name: 'NPA Classification Engine',
-              icon: 'gavel',
-              desc: 'Automated NPA classification, provisioning tracking, and compliance according to regulatory norms.',
-              active: Boolean(sub?.npaEnabled),
-            },
-            {
-              key: 'kycEnabled',
-              name: 'Aadhaar eKYC & Video KYC',
-              icon: 'assignment_ind',
-              desc: 'Verify borrower identities instantly using Aadhaar OTP eKYC and live Video UAT verification.',
-              active: Boolean(sub?.kycEnabled),
-            },
-            {
-              key: 'gpsTrackingEnabled',
-              name: 'GPS Collection & Route Tracking',
-              icon: 'map',
-              desc: 'Real-time geographic tracking of field agents, route check-ins, and GPS location proofs.',
-              active: Boolean(sub?.gpsTrackingEnabled),
-            },
-            {
-              key: 'foreclosureEnabled',
-              name: 'Preclose & Early Settlement',
-              icon: 'lock_open',
-              desc: 'Calculate precise early closing amounts, apply discretionary waivers, and generate settlement PDFs.',
-              active: Boolean(sub?.foreclosureEnabled),
-            },
-          ].map((addon) => (
+          {featureCards.map((addon) => (
             <div
               key={addon.key}
               style={{
@@ -373,6 +348,11 @@ export default async function MySubscriptionPage() {
               >
                 {addon.desc}
               </p>
+              {!addon.active && addon.includedIn && (
+                <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--primary, #3b82f6)', margin: 0 }}>
+                  {(d.includedInPlan || 'Included in {plan}').replace('{plan}', addon.includedIn)}
+                </p>
+              )}
             </div>
           ))}
         </div>

@@ -244,6 +244,18 @@ Agents are field staff on shared devices. They may: create customers (pending re
 - **MOD-2** — Adding a module means updating `ALL_MODULES`, `MODULE_LABELS`, `MODULE_SLUGS`, `MODULE_ROUTES` in `types/modules.ts` — and nothing else may hardcode a module list.
 - **MOD-3** — Staff URLs are module-prefixed: `/[module]/loans`. Build them with `modulePath()` / `prefixDashboardHref()`; parse them with `parseModulePath()`. Never string-concatenate a module route.
 
+### 7.4 Plan-bundled features — `lib/planFeatures.ts`
+
+Premium capabilities (KYC, preclose, receipt PDF, WhatsApp/SMS, GPS, bureau, eNACH, premium accounting, NPA) are **bundled into subscription plans**, not sold as add-ons.
+
+- **PLAN-2** — Which plan includes which feature is data: `SubscriptionPlanCatalog.includedFeatures` (JSON array of keys), edited in Developer → Billing → Pricing. Code holds only the key ↔ `TenantSubscription` flag mapping (`PLAN_FEATURES`). `NULL` = unconfigured: activating the plan leaves flags alone.
+- **PLAN-3** — On every plan activation (webhook, `/api/subscribe/confirm`, simulated/mock upgrade, Developer form, registration, downgrade) the tenant's flags are recomputed with `planFeatureUpdate()`. A paid plan's checklist is the whole truth; the Developer's per-tenant toggles apply only to the Free plan (demo) and plans with no checklist.
+- **PLAN-4** — `TenantSubscription.grandfatheredFeatures` holds extras a live tenant had before bundling. They survive renewals on the same plan and are cleared on any plan change.
+- **PLAN-5** — eNACH is gated by `nachEnabled` (`nachGate()` in `lib/featureGate.ts` on every `/api/v1/nach/*` route, the `nach-present` cron, and the loan-detail panel). No grandfathering.
+- **PLAN-6** — Add-ons are no longer sold: registration ignores client-sent add-ons, the pricing APIs return `addons: []`, and `/api/v1/billing/{addon-checkout,verify-addon-payment}` return 410. `AddonCatalog` data is kept.
+- **PLAN-7** — Free is a permanent plan (no paywall, no trial clock). An unpaid expired trial is moved to Free by `downgradeToFree()` (lazily in `getSubscription`/`assertTenantSubscriptionAccess`, and by `/api/cron/trial-expiry`). Cancelled/expired/lapsed *paid* subscriptions still hit the paywall.
+- **PLAN-8** — Plan limits are reconciled by `reconcilePlanLimits()`: over the limit, the earliest-created branches/agents stay and the rest become `plan_locked` (reversible, never deleted; owners never locked); on upgrade the earliest are unlocked. Loans are never locked — `checkLimit` only refuses *new* ones. Trial length comes from `trialDays`, defaulting to `DEFAULT_TRIAL_DAYS`.
+
 ---
 
 ## 8. API contracts
@@ -454,7 +466,7 @@ Double-entry general ledger: `Account` (4-digit codes) → `JournalEntry` → `J
 - **ACC-1** — Account codes are resolved through `POSTING_DEFAULTS` (`lib/accounting/postingKeys.ts`) with per-tenant overrides from `AccountingSettings.postingOverrides` (JSON). Never hardcode a 4-digit code in business logic.
 - **ACC-2** — `postingKeys.ts` is the single posting-key module: default codes, `buildDedupKey`, `isDuplicateJournalEntry`. (A parallel `POSTING_MAP` in `postings.ts` was dead on arrival and has been deleted — do not resurrect a second key registry.)
 - **ACC-3** — A posting plan MUST balance. `buildOriginationPostingPlan` throws on unbalanced debit/credit and on payout legs that do not sum to the disbursed amount. Keep every new posting builder pure and testable the same way.
-- **ACC-4** — Statutory accounting is a **billable add-on**. Tenants without it keep base cash-book behaviour. `postLoanOrigination` checks the subscription and returns `null`; `autoPost*` checks `isPremiumAccountingEnabled` — new posting code MUST respect the same gate.
+- **ACC-4** — Statutory accounting is a **plan feature** (Enterprise by default, see §7.4). Tenants without it keep base cash-book behaviour. `postLoanOrigination` checks the subscription and returns `null`; `autoPost*` checks `isPremiumAccountingEnabled` — new posting code MUST respect the same gate.
 - **ACC-5** — Auto-generated journal entries MUST set `sourceType`, `sourceId` and `dedupKey` (DB-10). The unique index is the guard; the narration-tag scan in `autoPost.ts` is a legacy fallback for pre-`dedupKey` rows and must not be relied on for new paths.
 - **ACC-6** — Cash book (`AccountEntry`) and GL (`JournalEntry`) are **both** written for a money event. They are different ledgers for different audiences; writing only one is a bug.
 - **ACC-7** — `autoPost*` functions are fire-and-forget and swallow their own errors by design — a GL failure must never roll back the operational record. That is precisely why they cannot be the *only* place a money event is recorded (ACC-6).
@@ -651,7 +663,7 @@ RBI IRACP asset classification. Runs nightly per tenant via `/api/cron/npa-class
 
 ## 11. Background jobs
 
-Endpoints under `app/api/cron/`: `accrue-penalties`, `dunning`, `npa-classify`, `nach-present`, `send-reminders`, `send-reports`, `reports`, `recompute-balances`, `subscription-reminders`, `chit-auction-reminders`, `gps-purge`, `affiliate-sync`. Triggered by GitHub Actions (`.github/workflows/daily-cron.yml`, 18:30 UTC = midnight IST) and/or host cron.
+Endpoints under `app/api/cron/`: `accrue-penalties`, `dunning`, `npa-classify`, `nach-present`, `send-reminders`, `send-reports`, `reports`, `recompute-balances`, `subscription-reminders`, `trial-expiry`, `chit-auction-reminders`, `gps-purge`, `affiliate-sync`. Triggered by GitHub Actions (`.github/workflows/daily-cron.yml`, 18:30 UTC = midnight IST) and/or host cron.
 
 - **CRON-1** — Every cron route starts with `authorizeCron(req)`.
 - **CRON-2** — Cron jobs MUST be **idempotent**. They will be re-run — manually, by retry, by overlapping schedules. Covered by `npm run test:e2e-cron`.

@@ -6,7 +6,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/accounting_service.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class BankReconciliationScreen extends ConsumerStatefulWidget {
@@ -166,10 +166,10 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
               FilledButton.icon(
                 icon: const Icon(Icons.lock_open),
                 label: Text(t.x('accounting.unlock_premium')),
-                onPressed: () => showAddonPurchaseSheet(
+                onPressed: () => showPlanUpgradeSheet(
                   context,
                   ref,
-                  addonKey: 'premium_accounting',
+                  featureKey: 'premium_accounting',
                   onActivated: _fetchBankAccounts,
                 ),
               ),

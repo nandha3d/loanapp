@@ -3,17 +3,20 @@
 import { useState } from 'react';
 import { updateSubscription } from '../billingActions';
 import { MODULE_LABELS, PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
+import { PLAN_FEATURES as PLAN_FEATURE_LIST } from '@/lib/planFeatures';
 
 export default function SubscriptionForm({
   tenantId,
   tenantName,
   subscription,
   enabledModules: initialEnabledModules,
+  planDrivenPlans,
 }: {
   tenantId: string;
   tenantName: string;
   subscription: any;
   enabledModules: string[];
+  planDrivenPlans: string[];
 }) {
   const [plan, setPlan] = useState(subscription?.plan || 'trial');
   const [maxLoans, setMaxLoans] = useState(subscription?.maxActiveLoans ?? 50);
@@ -21,6 +24,7 @@ export default function SubscriptionForm({
   const [maxBranches, setMaxBranches] = useState(subscription?.maxBranches ?? 1);
   const [enabledModules, setEnabledModules] = useState<string[]>(initialEnabledModules);
 
+  const planDriven = planDrivenPlans.includes(plan);
   const PLANS = Object.keys(PLAN_LABELS);
   const MODULES = Object.keys(MODULE_LABELS);
 
@@ -136,80 +140,25 @@ export default function SubscriptionForm({
       </div>
 
       <div className="form-group" style={{ marginBottom: '16px' }}>
-        <label className="form-label">Add-ons</label>
+        <label className="form-label">Plan Features</label>
+        <small className="text-muted" style={{ display: 'block', fontSize: '.78rem', marginBottom: '6px' }}>
+          {planDriven
+            ? 'Features come from the plan checklist (Billing → Pricing) and update automatically. Manual toggles apply only on the Free plan.'
+            : 'Manual toggles (Free-plan demo or custom plans). A paid plan replaces these with its own checklist.'}
+        </small>
         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="whatsappSmsEnabled"
-              value="true"
-              defaultChecked={subscription?.whatsappSmsEnabled || false}
-            />
-            Allow WhatsApp & SMS Notifications
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="receiptPdfAllowed"
-              value="true"
-              defaultChecked={subscription?.receiptPdfAllowed || false}
-            />
-            Allow Receipt PDF Downloads
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="bureauEnabled"
-              value="true"
-              defaultChecked={subscription?.bureauEnabled || false}
-            />
-            Allow Credit Bureau Checks (CRIF/CIBIL)
-          </label>
-           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="npaEnabled"
-              value="true"
-              defaultChecked={subscription?.npaEnabled || false}
-            />
-            Allow NPA Classification Engine (RBI Compliance)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="kycEnabled"
-              value="true"
-              defaultChecked={subscription?.kycEnabled || false}
-            />
-            Allow Aadhaar OTP & Video KYC Verification (Digio)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="gpsTrackingEnabled"
-              value="true"
-              defaultChecked={subscription?.gpsTrackingEnabled || false}
-            />
-            Allow GPS Collection Tracking
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="premiumAccountingEnabled"
-              value="true"
-              defaultChecked={subscription?.premiumAccountingEnabled || false}
-            />
-            💎 Allow Premium Accounting (double-entry, GST, Tally export)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              name="foreclosureEnabled"
-              value="true"
-              defaultChecked={subscription?.foreclosureEnabled || false}
-            />
-            Allow Preclose & Early Settlement (Settlement Letters, Discretionary Discounts)
-          </label>
+          {PLAN_FEATURE_LIST.map((f) => (
+            <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: planDriven ? 'not-allowed' : 'pointer' }}>
+              <input
+                type="checkbox"
+                name={f.flag}
+                value="true"
+                disabled={planDriven}
+                defaultChecked={Boolean(subscription?.[f.flag])}
+              />
+              {f.label}
+            </label>
+          ))}
         </div>
       </div>
 

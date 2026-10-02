@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -41,7 +42,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   // Catalog data
   List<PlanCatalogItem> _plans = [];
   List<ModuleCatalogItem> _modules = [];
-  List<AddonCatalogItem> _addons = [];
 
   // Form Fields
   final _businessNameCtrl = TextEditingController();
@@ -53,7 +53,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   String _selectedPlan = 'basic';
   final List<String> _selectedModules = ['microlending'];
-  final List<String> _selectedAddons = [];
   bool _termsAccepted = false;
 
   @override
@@ -88,7 +87,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       setState(() {
         _plans = catalog.plans;
         _modules = catalog.modules;
-        _addons = catalog.addons;
         if (_plans.isNotEmpty) {
           _selectedPlan = _plans.first.plan;
         }
@@ -110,11 +108,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     for (final m in _modules) {
       if (_selectedModules.contains(m.module)) {
         total += m.monthlyPrice;
-      }
-    }
-    for (final a in _addons) {
-      if (_selectedAddons.contains(a.addon)) {
-        total += a.monthlyPrice;
       }
     }
     return total;
@@ -164,7 +157,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ownerPhone: _ownerPhoneCtrl.text,
               selectedPlan: _selectedPlan,
               selectedModules: _selectedModules,
-              selectedAddons: _selectedAddons,
+              selectedAddons: const <String>[],
               referralCode: _referralCtrl.text.trim(),
             );
       } else {
@@ -176,7 +169,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ownerPassword: _ownerPasswordCtrl.text,
               selectedPlan: _selectedPlan,
               selectedModules: _selectedModules,
-              selectedAddons: _selectedAddons,
+              selectedAddons: const <String>[],
               referralCode: _referralCtrl.text.trim(),
             );
       }
@@ -569,6 +562,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Widget _buildStep4() {
+    final t = T.of(ref);
+    final selected = _plans.where((p) => p.plan == _selectedPlan);
+    final included = selected.isEmpty ? const <String>[] : selected.first.includedFeatures;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -579,51 +575,34 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Select Add-on Features', style: AppTypography.sectionTitle),
+          Text(t.x('plan.included_title'), style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
-          const Text('Enable additional billing integrations inside your workspace.', style: TextStyle(color: AppColors.textSecondary)),
+          Text(
+            included.isEmpty ? t.x('plan.included_none') : t.x('plan.included_desc'),
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
           const SizedBox(height: 24),
-          ..._addons.map((a) {
-            final isSelected = _selectedAddons.contains(a.addon);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.grey[800]!,
-                  width: 2,
+          ...included.map((key) => Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.primary, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.amber.withValues(alpha: 0.05),
                 ),
-                borderRadius: BorderRadius.circular(12),
-                color: isSelected ? Colors.amber.withValues(alpha: 0.05) : null,
-              ),
-              child: SwitchListTile(
-                value: isSelected,
-                title: Text(a.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${a.description ?? ''} (+₹${a.monthlyPrice}/mo)', style: const TextStyle(fontSize: 11)),
-                secondary: Icon(
-                  a.addon == 'whatsapp_sms'
-                      ? Icons.sms
-                      : a.addon == 'kyc'
-                          ? Icons.assignment_ind
-                          : a.addon == 'gps_tracking'
-                              ? Icons.my_location
-                              : a.addon == 'premium_accounting'
-                                  ? Icons.receipt_long
-                                  : Icons.account_balance,
-                  color: isSelected ? AppColors.primary : Colors.grey,
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: AppColors.success),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.x('plan.feature.$key'),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
-                onChanged: (val) {
-                  setState(() {
-                    if (val == true) {
-                      _selectedAddons.add(a.addon);
-                    } else {
-                      _selectedAddons.remove(a.addon);
-                    }
-                  });
-                },
-                activeThumbColor: AppColors.primary,
-              ),
-            );
-          }),
+              ),),
         ],
       ),
     );
@@ -649,7 +628,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _buildReviewRow('Login Username', _ownerUsernameCtrl.text),
           _buildReviewRow('Plan Selected', _selectedPlan.toUpperCase()),
           _buildReviewRow('Modules Enabled', _selectedModules.join(', ')),
-          _buildReviewRow('Addons Enabled', _selectedAddons.isEmpty ? 'None' : _selectedAddons.join(', ')),
           const Divider(height: 32, color: Colors.white10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

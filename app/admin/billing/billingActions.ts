@@ -4,6 +4,8 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { upsertSubscription } from '@/lib/subscription';
+import { planFeatureUpdate } from '@/lib/planFeatures';
+import { reconcilePlanLimits } from '@/lib/planLimits';
 import { addonKeysFromSubscriptionFlags, calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 async function requireDeveloper() {
@@ -36,14 +38,8 @@ export async function updateSubscription(formData: FormData) {
     const gpsTrackingEnabled = formData.get('gpsTrackingEnabled') === 'true';
     const premiumAccountingEnabled = formData.get('premiumAccountingEnabled') === 'true';
     const foreclosureEnabled = formData.get('foreclosureEnabled') === 'true';
+    const nachEnabled = formData.get('nachEnabled') === 'true';
     const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
-    const selectedAddons = addonKeysFromSubscriptionFlags({
-      whatsappSmsEnabled,
-      bureauEnabled,
-      kycEnabled,
-      gpsTrackingEnabled,
-      premiumAccountingEnabled,
-    });
 
     const parseDate = (dStr: string | null) => {
       if (!dStr) return null;
@@ -53,10 +49,27 @@ export async function updateSubscription(formData: FormData) {
     const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
       where: { plan },
     });
-    const addonsCatalog = selectedAddons.length > 0
-      ? await prisma.addonCatalog.findMany({ where: { addon: { in: selectedAddons } } })
-      : [];
-    const addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
+    // Features are plan-driven on every paid plan. Only the Free plan (demo) and
+    // plans with no checklist (e.g. lifetime) honour the per-tenant toggles.
+    const existing = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+    const planDriven = planCatalog && plan !== 'free'
+      ? planFeatureUpdate(planCatalog, existing ?? { plan: '' })
+      : null;
+    const manualFlags = {
+      whatsappSmsEnabled,
+      receiptPdfAllowed,
+      bureauEnabled,
+      npaEnabled,
+      foreclosureEnabled,
+      kycEnabled,
+      gpsTrackingEnabled,
+      premiumAccountingEnabled,
+      nachEnabled,
+    };
+    const featureData = planDriven ?? manualFlags;
+    const selectedAddons = addonKeysFromSubscriptionFlags(featureData);
+    // Add-ons are bundled into plans and no longer sold, so they add no price.
+    const addonsPrice = 0;
     const { basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
       planCatalog?.monthlyPrice ?? 0,
       enabledModules,
@@ -71,15 +84,8 @@ export async function updateSubscription(formData: FormData) {
       maxBranches,
       enabledModules: JSON.stringify(enabledModules),
       selectedAddons: JSON.stringify(selectedAddons),
-      whatsappSmsEnabled,
-      receiptPdfAllowed,
-      bureauEnabled,
+      ...featureData,
       bureauPullsIncluded,
-      npaEnabled,
-      foreclosureEnabled,
-      kycEnabled,
-      gpsTrackingEnabled,
-      premiumAccountingEnabled,
       basePlanPrice,
       modulesPrice,
       addonsPrice,
@@ -89,6 +95,8 @@ export async function updateSubscription(formData: FormData) {
       razorpaySubId,
     });
 
+
+    await reconcilePlanLimits(tenantId);
 
     await prisma.branch.updateMany({
       where: {

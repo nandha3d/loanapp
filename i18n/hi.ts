@@ -2412,6 +2412,15 @@ export const hi = {
     cancel: 'रद्द करें',
     upgradeSuccess: 'सदस्यता योजना सफलतापूर्वक अपग्रेड की गई!',
     upgradeFailed: 'अपग्रेड शुरू करने में असमर्थ। कृपया पुनः प्रयास करें।',
+    billingMonthly: 'मासिक',
+    billingYearly: 'वार्षिक',
+    perYear: '/वर्ष',
+    yearlyTotal: 'कुल वार्षिक शुल्क',
+    planBilledYearly: 'Razorpay के माध्यम से सुरक्षित रूप से वार्षिक आधार पर बिल किया जाता है।',
+    yearlySavePercent: '{percent}% बचाएं',
+    monthlyOnlyNote: 'केवल मासिक बिलिंग',
+    autoRenewsYearly: 'हर साल स्वतः नवीनीकृत',
+    includedInPlan: '{plan} प्लान में शामिल',
   },
 };
 

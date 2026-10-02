@@ -491,7 +491,7 @@ class _SubscriptionCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Add-ons', style: AppTypography.bodyLarge),
+                Text('Plan features', style: AppTypography.bodyLarge),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,

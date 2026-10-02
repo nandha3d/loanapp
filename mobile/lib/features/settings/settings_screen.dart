@@ -16,7 +16,7 @@ import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/features/settings/customer_import_screen.dart';
-import 'package:zolofund/features/billing/widgets/addon_purchase_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -380,7 +380,7 @@ class SettingsScreen extends ConsumerWidget {
                       color: AppColors.primary,
                     ),
                     title: Text(
-                      'Add-on Integrations',
+                      'Integrations',
                       style: AppTypography.bodyLarge,
                     ),
                     subtitle: Text(
@@ -512,7 +512,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: Text(
                         isBureauSubscribed
                             ? 'Configure CRIF bureau pull API credentials'
-                            : '₹399/mo · Instant CRIF High Mark credit reports',
+                            : 'Included in higher plans · Instant CRIF High Mark credit reports',
                         style: AppTypography.caption,
                       ),
                       trailing: Row(
@@ -545,10 +545,10 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       onTap: isBureauSubscribed
                           ? () => context.push('/settings/bureau')
-                          : () => showAddonPurchaseSheet(
+                          : () => showPlanUpgradeSheet(
                                 context,
                                 ref,
-                                addonKey: 'bureau',
+                                featureKey: 'bureau',
                               ),
                     );
                   }(),
@@ -613,7 +613,7 @@ class SettingsScreen extends ConsumerWidget {
                       subtitle: Text(
                         isNpaSubscribed
                             ? 'Configure overdue days and automated penalties'
-                            : '₹499/mo · Overdue classification and provisioning engine',
+                            : 'Included in higher plans · Overdue classification and provisioning engine',
                         style: AppTypography.caption,
                       ),
                       trailing: Row(
@@ -646,10 +646,10 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       onTap: isNpaSubscribed
                           ? () => context.push('/settings/npa')
-                          : () => showAddonPurchaseSheet(
+                          : () => showPlanUpgradeSheet(
                                 context,
                                 ref,
-                                addonKey: 'npa',
+                                featureKey: 'npa',
                               ),
                     );
                   }(),

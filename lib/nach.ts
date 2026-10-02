@@ -442,6 +442,8 @@ export async function findInstalmentsForAutoPresent(tenantId?: string) {
     loan: {
       status: 'active',
       ...(tenantId ? { tenantId } : {}),
+      // eNACH is an Enterprise-plan feature: no auto-debits for tenants without it.
+      tenant: { subscription: { nachEnabled: true } },
       nachMandate: {
         status: 'active',
       },

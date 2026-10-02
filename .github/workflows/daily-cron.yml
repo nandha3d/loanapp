@@ -15,6 +15,11 @@ jobs:
             "${{ secrets.APP_URL }}/api/cron/accrue-penalties" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+      - name: Move unpaid expired trials to Free
+        if: always()
+        run: |
+          curl -f -X GET \n            "${{ secrets.APP_URL }}/api/cron/trial-expiry" \n            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
       - name: Purge expired GPS pings
         if: always()   # independent of accrual result
         run: |

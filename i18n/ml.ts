@@ -2278,6 +2278,15 @@ export const ml = {
     cancel: 'റദ്ദാക്കുക',
     upgradeSuccess: 'സബ്‌സ്‌ക്രിപ്ഷൻ പ്ലാൻ വിജയകരമായി അപ്‌ഗ്രേഡ് ചെയ്തു!',
     upgradeFailed: 'അപ്‌ഗ്രേഡ് ആരംഭിക്കാൻ കഴിഞ്ഞില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
+    billingMonthly: 'പ്രതിമാസം',
+    billingYearly: 'വാർഷികം',
+    perYear: '/വർഷം',
+    yearlyTotal: 'ആകെ വാർഷിക നിരക്ക്',
+    planBilledYearly: 'Razorpay വഴി സുരക്ഷിതമായി വാർഷിക അടിസ്ഥാനത്തിൽ ബിൽ ചെയ്യുന്നു.',
+    yearlySavePercent: '{percent}% ലാഭിക്കൂ',
+    monthlyOnlyNote: 'പ്രതിമാസ ബില്ലിംഗ് മാത്രം',
+    autoRenewsYearly: 'എല്ലാ വർഷവും സ്വയം പുതുക്കപ്പെടും',
+    includedInPlan: '{plan} പ്ലാനിൽ ഉൾപ്പെടുന്നു',
   },
 };
 

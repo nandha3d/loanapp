@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       whatsappSmsEnabled: true,
       foreclosureEnabled: true,
       receiptPdfAllowed: true,
+      nachEnabled: true,
     },
   });
   const verticals = await resolveUserVerticals(user);
@@ -59,7 +60,8 @@ export async function GET(req: NextRequest) {
     foreclosureEnabled: Boolean(subscription?.foreclosureEnabled),
     // SET-02: plan gate for receipt / document PDFs (web hides the toggle without it).
     receiptPdfAllowed: Boolean(subscription?.receiptPdfAllowed),
-    nachEnabled: (await getSetting(user.tenantId, 'nach_enabled', 'false')) === 'true',
+    // eNACH is a plan feature (Enterprise by default), not a tenant setting.
+    nachEnabled: Boolean(subscription?.nachEnabled),
     id: user.id,
     name: user.name,
     phone: user.phone,

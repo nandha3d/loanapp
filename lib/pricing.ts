@@ -100,6 +100,17 @@ export function calculateVerticalSubscriptionPricing(
   };
 }
 
+/**
+ * Whole-percent saving of paying a plan yearly versus twelve monthly payments.
+ * Computed here (server side) so clients only render the figure; 0 when the
+ * yearly price is not actually cheaper.
+ */
+export function yearlySavingsPercent(monthlyPrice: number, yearlyPrice: number): number {
+  const twelveMonths = monthlyPrice * 12;
+  if (!(monthlyPrice > 0) || !(yearlyPrice > 0) || yearlyPrice >= twelveMonths) return 0;
+  return Math.round(((twelveMonths - yearlyPrice) / twelveMonths) * 100);
+}
+
 export function addonKeysFromSubscriptionFlags(flags: {
   whatsappSmsEnabled?: boolean;
   bureauEnabled?: boolean;
@@ -107,6 +118,7 @@ export function addonKeysFromSubscriptionFlags(flags: {
   gpsTrackingEnabled?: boolean;
   premiumAccountingEnabled?: boolean;
   npaEnabled?: boolean;
+  [flag: string]: unknown;
 }) {
   const selectedAddons: string[] = [];
   if (flags.whatsappSmsEnabled) selectedAddons.push('whatsapp_sms');

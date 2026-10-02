@@ -1,3 +1,4 @@
+import { nachGate } from '@/lib/featureGate';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/api/dualAuth';
 import { cancelMandate } from '@/lib/nach';
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!ADMIN_ROLES.has(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const notInPlan = await nachGate(user.tenantId);
+  if (notInPlan) return notInPlan;
 
   const { id } = await params;
   const mandate = await prisma.nachMandate.findFirst({
@@ -44,6 +47,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!ADMIN_ROLES.has(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const notInPlan = await nachGate(user.tenantId);
+  if (notInPlan) return notInPlan;
 
   const { id } = await params;
 
