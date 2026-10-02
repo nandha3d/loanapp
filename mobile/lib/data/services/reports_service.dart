@@ -120,14 +120,24 @@ class ReportsService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
-  /// Fetch overdue loans report.
+  /// Fetch overdue loans report — every page (RPT-02; the API pages by 100).
   Future<List<OverdueItem>> fetchOverdueReport() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOverdue);
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .map((dynamic e) => OverdueItem.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false);
-    });
+    final all = <OverdueItem>[];
+    for (var page = 1; page <= 50; page++) {
+      final res = await _dio.get<Map<String, dynamic>>(
+        Endpoints.reportsOverdue,
+        queryParameters: {'page': page, 'pageSize': 100},
+      );
+      final rows = unwrapEnvelope(res, (dynamic d) {
+        return (d as List<dynamic>)
+            .map((dynamic e) => OverdueItem.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false);
+      });
+      all.addAll(rows);
+      final total = (res.data?['pagination'] as Map<String, dynamic>?)?['total'];
+      if (rows.isEmpty || total is! num || all.length >= total) break;
+    }
+    return all;
   }
 
   /// Fetch agent performance report for a date range.

@@ -10,6 +10,7 @@ import { TableReportPDF } from '@/lib/reports/pdf';
 import { getDictionary } from '@/lib/i18n';
 import { getBranding, getSetting } from '@/lib/tenant';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
+import prisma from '@/lib/db';
 
 export async function GET(
   req: NextRequest,
@@ -36,13 +37,28 @@ export async function GET(
     }
 
     const format = searchParams.get('format') || 'csv';
+    // RPT-03: Excel / PDF exports follow the plan's document gate, as on web.
+    if (format !== 'csv') {
+      const sub = await prisma.tenantSubscription.findUnique({
+        where: { tenantId: context.tenantId },
+        select: { receiptPdfAllowed: true },
+      });
+      if (!sub?.receiptPdfAllowed) {
+        return new NextResponse('Document exports are not allowed under your subscription plan.', { status: 403 });
+      }
+    }
+    // RPT-03: honour the requested branch exactly like the view route (SCOPE-3).
+    const requestedBranchId = searchParams.get('branchId');
+    if (context.branchId && requestedBranchId && requestedBranchId !== context.branchId) {
+      return new NextResponse('Report not found', { status: 404 });
+    }
 
     const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const defaultTo = new Date().toISOString().slice(0, 10);
 
     const from = searchParams.get('from') || defaultFrom;
     const to = searchParams.get('to') || defaultTo;
-    const branchId = context.branchId;
+    const branchId = context.branchId || requestedBranchId;
     const agentId = context.role === 'agent' ? context.userId : (searchParams.get('agentId') || undefined);
     const routeId = searchParams.get('routeId') || undefined;
     const customerId = searchParams.get('customerId') || undefined;

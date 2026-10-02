@@ -36,11 +36,25 @@ final _npaSummaryProvider = FutureProvider.autoDispose<NpaSummary>((ref) {
 
 final _npaCategoryProvider = StateProvider.autoDispose<String>((ref) => '');
 
-final _npaLoansProvider = FutureProvider.autoDispose<NpaLoansPage>((ref) {
+/// RPT-02: every page of the NPA list, not just the first 20.
+final _npaLoansProvider = FutureProvider.autoDispose<NpaLoansPage>((ref) async {
   final category = ref.watch(_npaCategoryProvider);
-  return ref.watch(npaServiceProvider).fetchLoans(
-        category: category.isEmpty ? null : category,
-      );
+  final svc = ref.watch(npaServiceProvider);
+  final first = await svc.fetchLoans(
+    category: category.isEmpty ? null : category,
+    pageSize: 100,
+  );
+  final loans = [...first.loans];
+  for (var page = 2; loans.length < first.total && page <= 50; page++) {
+    final next = await svc.fetchLoans(
+      category: category.isEmpty ? null : category,
+      page: page,
+      pageSize: 100,
+    );
+    if (next.loans.isEmpty) break;
+    loans.addAll(next.loans);
+  }
+  return NpaLoansPage(loans: loans, page: 1, pageSize: loans.length, total: first.total);
 });
 
 final _npaHistoryProvider = FutureProvider.autoDispose

@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
             dueDate: { lt: new Date() },
           },
           select: { id: true, dueDate: true, dueAmount: true, receivedAmount: true, status: true },
+          // RPT-02: oldest first, so overdueDays reads the oldest unpaid due.
+          orderBy: { dueDate: 'asc' },
         },
       },
     });
