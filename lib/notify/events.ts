@@ -5,6 +5,7 @@ import { sendWhatsApp } from './channels/whatsapp';
 import { sendEmail } from './channels/email';
 import { sendPushToUsers } from './channels/push';
 import { interpolateTemplate, extractPlaceholders } from './templateRenderer';
+import { notifyEventSettingKey } from './settingKey';
 
 // ── Message templates (EN / TA / HI) ─────────────────────────────────────────
 
@@ -135,7 +136,7 @@ export async function notify(params: NotifyParams): Promise<void> {
     });
 
     // Check if this event type is enabled for the tenant
-    const eventEnabled = await getSetting(tenantId, `notify_event_${event}`, 'true');
+    const eventEnabled = await getSetting(tenantId, notifyEventSettingKey(event), 'true');
     if (eventEnabled === 'false') return;
 
     // Check if general notifications are active
