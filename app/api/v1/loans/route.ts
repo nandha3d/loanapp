@@ -99,6 +99,14 @@ export async function GET(req: NextRequest) {
     createdAt: { createdAt: dir },
   };
   const orderBy = orderByMap[sort] || { id: 'desc' };
+  // DEC-03 (B): list progress is a server figure (closed = 1), not client maths.
+  const withProgress = <T extends { status: string; paidCount: number; totalInstalments: number }>(rows: T[]) =>
+    rows.map((l) => ({
+      ...l,
+      progressPct: l.status === 'closed'
+        ? 1
+        : l.totalInstalments > 0 ? Math.min(1, Math.max(0, l.paidCount / l.totalInstalments)) : 0,
+    }));
 
   try {
     if (pageParam) {
@@ -127,7 +135,7 @@ export async function GET(req: NextRequest) {
         }),
       ]);
 
-      return ok(rows, {
+      return ok(withProgress(rows), {
         page,
         limit,
         total,
@@ -155,7 +163,7 @@ export async function GET(req: NextRequest) {
       const hasMore = rows.length > limit;
       const data = hasMore ? rows.slice(0, limit) : rows;
       const nextCursor = hasMore ? data[data.length - 1]!.id : null;
-      return ok(data, { nextCursor, limit });
+      return ok(withProgress(data), { nextCursor, limit });
     }
   } catch (e: any) {
     console.error('[/api/v1/loans GET]', e);

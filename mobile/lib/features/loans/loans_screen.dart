@@ -384,7 +384,8 @@ class _LoanTile extends ConsumerWidget {
 
     final paid = (loan['paidCount'] as num?)?.toInt() ?? 0;
     final total = (loan['totalInstalments'] as num?)?.toInt() ?? 0;
-    final pct = total > 0 ? (paid / total).clamp(0.0, 1.0) : 0.0;
+    // DEC-03 (B): server figure (GET /loans progressPct).
+    final pct = (_toDouble(loan['progressPct'])).clamp(0.0, 1.0);
 
     final BadgeKind kind = switch (status) {
       'active' => BadgeKind.active,

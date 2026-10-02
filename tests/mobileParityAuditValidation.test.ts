@@ -375,6 +375,13 @@ assert.match(
   'app/api/v1/loans/[id]/route.ts must clamp missedCount to 0 for closed or zero-balance loans',
 );
 
+// DEC-03 (B) / API-7: server figures the clients render instead of computing.
+const loansListSrc = fs.readFileSync(path.join(process.cwd(), 'app/api/v1/loans/route.ts'), 'utf8');
+assert.match(loansListSrc, /progressPct:/, 'GET /api/v1/loans rows must carry progressPct');
+const accountingSrc = fs.readFileSync(path.join(process.cwd(), 'app/api/v1/accounting/route.ts'), 'utf8');
+assert.match(accountingSrc, /penaltyIncome: m\.penaltyIncome/, 'GET /api/v1/accounting must return penaltyIncome (DEC-06)');
+const fcSrc = fs.readFileSync(path.join(process.cwd(), 'app/api/v1/loans/[id]/foreclosure-calc/route.ts'), 'utf8');
+assert.match(fcSrc, /calculateForeclosure\(/, 'v1 foreclosure-calc must use the shared quote (DEC-01)');
 // Unit logic: part-paid instalment must have missedCount = 0
 const sampleInsts = [
   { status: 'paid', dueAmount: 100, receivedAmount: 100 },
