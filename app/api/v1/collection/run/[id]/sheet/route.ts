@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { buildRouteSheet, runAccessWhere } from '@/lib/collectionRun';
+import { buildRouteSheet, groupRunSheetByLoan, runAccessWhere } from '@/lib/collectionRun';
 
 /**
  * GET /api/v1/collection/run/:id/sheet  (agent/admin)
@@ -20,14 +20,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!run) return fail('Run not found', 404);
     // RUN-01: another agent's run does not exist for this agent.
     if (ctx.role === 'agent' && run.agentId !== ctx.userId) return fail('Run not found', 404);
-    if (!run.routeId) return ok({ run, sheet: [] });
+    if (!run.routeId) return ok({ run, sheet: [], loans: [] });
 
     const sheet = await buildRouteSheet(
       { tenantId: ctx.tenantId, appType: ctx.appType },
       run.routeId,
       run.date,
     );
-    return ok({ run, sheet });
+    // DEC-03 (B): per-loan totals from the server; clients do not sum rows.
+    return ok({ run, sheet, loans: groupRunSheetByLoan(sheet) });
   } catch (e: any) {
     return fail(e?.message ?? 'Failed to load sheet', 500);
   }

@@ -30,30 +30,25 @@ class RunSheetScreen extends ConsumerStatefulWidget {
 
 /// One row per loan (not per instalment) — a loan with several missed dues
 /// shows as a single stop with a total, like the default collection process.
+/// DEC-03 (B): totals, counts and the amount split all come from the server
+/// (`loans` on GET /collection/run/:id/sheet; loan-level collect lines).
 class _LoanGroup {
-  _LoanGroup(this.rows);
+  _LoanGroup(this.loan, this.rows);
+  final RunSheetLoan loan;
   final List<RunSheetRow> rows;
 
-  String get key => '${rows.first.customerId}|${rows.first.loanCode}';
+  String get key => loan.loanId;
   RunSheetRow get primary => rows.first;
-  double get totalOutstanding =>
-      rows.fold(0.0, (s, r) => s + r.outstanding);
-  int get maxDaysOverdue =>
-      rows.fold(0, (m, r) => r.daysOverdue > m ? r.daysOverdue : m);
-  bool get overdue => rows.any((r) => r.overdue);
-
-  /// Rows in the server's MONEY-10 order (today's due first, then overdue
-  /// oldest-first) from GET /api/v1/collection/run/:id/sheet.
-  List<RunSheetRow> get serverOrder => rows;
+  double get totalOutstanding => loan.totalOutstanding;
+  int get maxDaysOverdue => loan.maxDaysOverdue;
+  bool get overdue => loan.overdue;
 }
 
-List<_LoanGroup> _groupByLoan(List<RunSheetRow> rows) {
-  final byKey = <String, List<RunSheetRow>>{};
-  for (final r in rows) {
-    byKey.putIfAbsent('${r.customerId}|${r.loanCode}', () => []).add(r);
-  }
-  return byKey.values.map(_LoanGroup.new).toList(growable: false);
-}
+List<_LoanGroup> _groupByLoan(RunSheet sheet) => [
+      for (final l in sheet.loans)
+        if (sheet.rows.any((r) => r.loanCode == l.loanCode))
+          _LoanGroup(l, sheet.rows.where((r) => r.loanCode == l.loanCode).toList()),
+    ];
 
 class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
   final Map<String, TextEditingController> _amounts = {};
@@ -84,20 +79,14 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
   Future<void> _collect(List<_LoanGroup> groups) async {
     final lines = <Map<String, dynamic>>[];
     for (final g in groups) {
-      var remaining = double.tryParse(_ctrl(g.key).text.trim()) ?? 0;
-      if (remaining <= 0) continue;
-      final mode = _modes[g.key] ?? 'cash';
-      for (final r in g.serverOrder) {
-        if (remaining <= 0) break;
-        final toPay = remaining < r.outstanding ? remaining : r.outstanding;
-        if (toPay <= 0) continue;
-        lines.add({
-          'instalmentId': r.instalmentId,
-          'receivedAmount': toPay,
-          'paymentMode': mode,
-        });
-        remaining -= toPay;
-      }
+      final amount = double.tryParse(_ctrl(g.key).text.trim()) ?? 0;
+      if (amount <= 0) continue;
+      // The server splits a loan-level amount over the dues (MONEY-10).
+      lines.add({
+        'loanId': g.loan.loanId,
+        'receivedAmount': amount,
+        'paymentMode': _modes[g.key] ?? 'cash',
+      });
     }
     if (lines.isEmpty) {
       _snack('Enter at least one amount', error: true);
@@ -138,7 +127,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
     try {
       final url = await ref
           .read(collectionRunServiceProvider)
-          .selfPayLink(g.serverOrder.first.instalmentId);
+          .selfPayLink(g.loan.firstInstalmentId);
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
@@ -165,7 +154,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
         ),
         data: (sheet) {
           final run = sheet.run;
-          final groups = _groupByLoan(sheet.rows);
+          final groups = _groupByLoan(sheet);
           return Column(
             children: [
               _Header(run: run, fmt: fmt),
@@ -319,8 +308,8 @@ class _GroupTile extends StatelessWidget {
                   children: [
                     Text(row.name, style: AppTypography.bodyLarge),
                     Text(
-                        group.rows.length > 1
-                            ? '${row.loanCode} · ${group.rows.length} dues'
+                        group.loan.dueCount > 1
+                            ? '${row.loanCode} · ${group.loan.dueCount} dues'
                             : '${row.loanCode} · #${row.instalmentNo}',
                         style: AppTypography.caption,),
                   ],

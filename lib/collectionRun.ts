@@ -247,7 +247,10 @@ async function refreshRunTotals(tx: Prisma.TransactionClient, runId: string) {
 }
 
 export type RunCollectLine = {
+  /** One instalment row — or leave empty and send `loanId` for a loan-level line. */
   instalmentId: string;
+  /** DEC-03 (B): loan-level line; the server splits it over the loan's rows (MONEY-10). */
+  loanId?: string;
   receivedAmount: number;
   paymentMode?: string;
   lat?: number | null;
@@ -266,6 +269,61 @@ export type RunCollectResult = {
  * float credit for cash). Invalid lines are skipped & reported, never abort the
  * whole batch — a field agent must not lose 9 good collections to 1 bad row.
  */
+/** DEC-03 (B): one entry per loan on the sheet — the totals both clients show. */
+export type RunSheetLoan = {
+  loanId: string;
+  loanCode: string;
+  customerId: string;
+  customerCode: string | null;
+  name: string;
+  phone: string | null;
+  stopSeq: number;
+  totalOutstanding: number;
+  dueCount: number;
+  overdue: boolean;
+  maxDaysOverdue: number;
+  firstInstalmentId: string;
+};
+
+/** Groups sheet rows per loan, keeping the sheet (MONEY-10) order. */
+export function groupRunSheetByLoan(rows: RunSheetRow[]): RunSheetLoan[] {
+  const byLoan = new Map<string, RunSheetLoan>();
+  for (const r of rows) {
+    const g = byLoan.get(r.loanId);
+    if (!g) {
+      byLoan.set(r.loanId, {
+        loanId: r.loanId, loanCode: r.loanCode, customerId: r.customerId, customerCode: r.customerCode,
+        name: r.name, phone: r.phone, stopSeq: r.stopSeq, totalOutstanding: r.outstanding, dueCount: 1,
+        overdue: r.overdue, maxDaysOverdue: r.daysOverdue, firstInstalmentId: r.instalmentId,
+      });
+    } else {
+      g.totalOutstanding = Math.round((g.totalOutstanding + r.outstanding) * 100) / 100;
+      g.dueCount += 1;
+      g.overdue = g.overdue || r.overdue;
+      g.maxDaysOverdue = Math.max(g.maxDaysOverdue, r.daysOverdue);
+    }
+  }
+  return [...byLoan.values()];
+}
+
+/**
+ * DEC-03 (B): split a loan-level amount over that loan's sheet rows in sheet
+ * order (today first, then overdue oldest-first — MONEY-10). Returns the
+ * per-instalment amounts and whatever exceeds the rows on the sheet.
+ */
+export function splitLoanAmount(rows: Array<{ instalmentId: string; outstanding: number }>, amount: number) {
+  const parts: Array<{ instalmentId: string; amount: number }> = [];
+  let remaining = Math.round(amount * 100) / 100;
+  for (const r of rows) {
+    if (remaining <= 0) break;
+    const pay = Math.round(Math.min(remaining, r.outstanding) * 100) / 100;
+    if (pay <= 0) continue;
+    parts.push({ instalmentId: r.instalmentId, amount: pay });
+    remaining = Math.round((remaining - pay) * 100) / 100;
+  }
+  return { parts, unapplied: Math.max(0, remaining) };
+}
+
 export async function collectRunLines(
   actor: RunActor,
   runId: string,
@@ -280,6 +338,25 @@ export async function collectRunLines(
 
   const posted: RunCollectResult['posted'] = [];
   const skipped: RunCollectResult['skipped'] = [];
+
+  // DEC-03 (B): expand loan-level lines on the server, in sheet order.
+  if (lines.some((l) => l.loanId && !l.instalmentId)) {
+    const sheet = run.routeId ? await buildRouteSheet(actor, run.routeId, run.date) : [];
+    const expanded: RunCollectLine[] = [];
+    for (const line of lines) {
+      if (!line.loanId || line.instalmentId) { expanded.push(line); continue; }
+      const amount = Number(line.receivedAmount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        skipped.push({ instalmentId: '', reason: 'invalid_amount' });
+        continue;
+      }
+      const { parts, unapplied } = splitLoanAmount(sheet.filter((r) => r.loanId === line.loanId), amount);
+      if (parts.length === 0) skipped.push({ instalmentId: '', reason: 'nothing_due' });
+      if (unapplied > 0) skipped.push({ instalmentId: parts.at(-1)?.instalmentId ?? '', reason: 'exceeds_due' });
+      for (const p of parts) expanded.push({ ...line, instalmentId: p.instalmentId, receivedAmount: p.amount });
+    }
+    lines = expanded;
+  }
   // Digital (verified) lines need a GL entry now — cash lines wait for handover.
   const digitalPosts: { entryId: string; loanId: string; loanCode: string; amount: number; branchId: string | null }[] = [];
 

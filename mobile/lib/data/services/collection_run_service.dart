@@ -53,7 +53,10 @@ class CollectionRunService {
       final rows = (m['sheet'] as List<dynamic>? ?? const [])
           .map((dynamic e) => RunSheetRow.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
-      return RunSheet(run: run, rows: rows);
+      final loans = (m['loans'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => RunSheetLoan.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+      return RunSheet(run: run, rows: rows, loans: loans);
     });
   }
 

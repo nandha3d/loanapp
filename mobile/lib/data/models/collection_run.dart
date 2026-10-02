@@ -96,8 +96,43 @@ class RunSheetRow {
   }
 }
 
+/// DEC-03 (B): one loan on the sheet with its server total.
+class RunSheetLoan {
+  const RunSheetLoan({
+    required this.loanId,
+    required this.loanCode,
+    required this.name,
+    required this.totalOutstanding,
+    required this.dueCount,
+    required this.overdue,
+    required this.maxDaysOverdue,
+    required this.firstInstalmentId,
+  });
+
+  final String loanId;
+  final String loanCode;
+  final String name;
+  final double totalOutstanding;
+  final int dueCount;
+  final bool overdue;
+  final int maxDaysOverdue;
+  final String firstInstalmentId;
+
+  factory RunSheetLoan.fromJson(Map<String, dynamic> j) => RunSheetLoan(
+        loanId: (j['loanId'] as String?) ?? '',
+        loanCode: (j['loanCode'] as String?) ?? '',
+        name: (j['name'] as String?) ?? '',
+        totalOutstanding: CollectionRun._d(j['totalOutstanding']),
+        dueCount: CollectionRun._i(j['dueCount']),
+        overdue: j['overdue'] == true,
+        maxDaysOverdue: CollectionRun._i(j['maxDaysOverdue']),
+        firstInstalmentId: (j['firstInstalmentId'] as String?) ?? '',
+      );
+}
+
 class RunSheet {
-  const RunSheet({required this.run, required this.rows});
+  const RunSheet({required this.run, required this.rows, this.loans = const []});
   final CollectionRun run;
   final List<RunSheetRow> rows;
+  final List<RunSheetLoan> loans;
 }
