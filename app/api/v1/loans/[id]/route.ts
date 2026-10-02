@@ -15,7 +15,7 @@ import {
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
-import { hasFinancialActivity, calculateDynamicOverdueAmount } from '@/lib/repayments';
+import { hasFinancialActivity, calculateDynamicOverdueAmount, distributeScheduleView } from '@/lib/repayments';
 import { modulePath } from '@/types/modules';
 
 export async function GET(
@@ -298,6 +298,8 @@ export async function GET(
     customer: customerOut,
     collectionEntries,
     instalments: instalmentsOut,
+    // DEC-03 (B): the "Distributed" schedule view, computed here for both clients.
+    distributedInstalments: distributeScheduleView(instalments, Number(loan.totalCollected), toDateStr(today)),
     restructure,
     extendedSchedule,
     metrics,

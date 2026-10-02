@@ -619,3 +619,31 @@ export function getDistributedInstalmentsAndMetrics<
     metricsByLoan,
   };
 }
+
+/**
+ * DEC-03 (B): the loan page "Distributed" schedule view — total collected laid
+ * over the schedule in order (display only; the stored rows are untouched).
+ * Statuses use the IST business day passed in. Both clients render this.
+ */
+export function distributeScheduleView<T extends { dueDate: Date | string; dueAmount: unknown; status?: string | null }>(
+  instalments: T[],
+  totalCollected: number,
+  todayStr: string,
+): Array<T & { receivedAmount: number; status: string }> {
+  let remaining = Math.round(Number(totalCollected) * 100) / 100;
+  return instalments.map((inst) => {
+    const due = Number(inst.dueAmount);
+    if (remaining >= due) {
+      remaining = Math.round((remaining - due) * 100) / 100;
+      return { ...inst, receivedAmount: due, status: 'paid' };
+    }
+    if (remaining > 0) {
+      const part = remaining;
+      remaining = 0;
+      return { ...inst, receivedAmount: part, status: 'partial' };
+    }
+    const d = getBusinessDateStr(inst.dueDate);
+    const status = inst.status === 'waived' ? 'waived' : d < todayStr ? 'missed' : d === todayStr ? 'due today' : 'upcoming';
+    return { ...inst, receivedAmount: 0, status };
+  });
+}
