@@ -1861,6 +1861,12 @@ export default function SettingsClient({
               <span><strong>{dict.precloseRequest.feature}</strong><span style={{ display: 'block' }}>{dict.precloseRequest.hint}</span></span>
             </label>
           )}
+          {effAppType === 'microlending' && (
+            <label style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input type="checkbox" name="loan_funding_alerts_enabled" value="true" defaultChecked={settings.loan_funding_alerts_enabled === '1'} />
+              <span><strong>{dict.loanFunding.feature}</strong><span style={{ display: 'block' }}>{dict.loanFunding.featureHint}</span></span>
+            </label>
+          )}
           {/* Every flag here is registered in FEATURE_FLAG_KEYS (lib/features.ts);
               the save action writes exactly that list, so a checkbox without a
               registered key would silently do nothing. */}

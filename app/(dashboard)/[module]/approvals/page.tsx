@@ -1,13 +1,14 @@
 import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ApprovalsClient from './ApprovalsClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { branchScopeWhere } from '@/lib/branchScope';
+import { buildPendingLoanFunding } from '@/lib/loanFunding';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -87,6 +88,11 @@ export default async function ApprovalsPage() {
       floatMap.set(acc.agentId, Number(acc.balance ?? 0));
     }
 
+    // FUND-3: server-computed funding per pending loan; the client only renders it.
+    const fundingByLoan = await buildPendingLoanFunding(
+      { tenantId, appType },
+      rawLoans.map((l: any) => ({ id: l.id, createdById: l.createdById, branchId: l.branchId, disbursed: l.disbursed, creatorRole: l.createdBy?.role })),
+    );
     pendingLoans = rawLoans.map((l: any) => {
       const isAgent = l.createdBy?.role === 'agent';
       const agentFloat = isAgent && l.createdById ? (floatMap.get(l.createdById) ?? 0) : null;
@@ -100,6 +106,7 @@ export default async function ApprovalsPage() {
         agentFloatBalance: agentFloat,
         insufficientFloat,
         floatDeficit,
+        funding: fundingByLoan.get(l.id) ?? null,
       };
     });
 
@@ -142,6 +149,7 @@ export default async function ApprovalsPage() {
       userRole={userRole}
       dict={dict}
       appType={appType}
+      currencySymbol={await getSetting(tenantId, 'currency_symbol', '₹')}
     />
   );
 }

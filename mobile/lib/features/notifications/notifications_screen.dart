@@ -102,7 +102,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     } else if (item.type == 'collection_received' || item.type == 'payment') {
       context.push('/admin/tracking');
     } else if (item.type == 'float_insufficient') {
-      context.push('/wallet');
+      // FUND-4: keep the server's agent/amount so the wallet opens prefilled.
+      final u = Uri.tryParse(item.link ?? '');
+      context.push(u != null && u.hasQuery ? '/wallet?${u.query}' : '/wallet');
+    } else if (item.type == 'float_ready') {
+      context.push((item.link ?? '').contains('/approvals') ? '/approvals' : '/loans');
     }
   }
 

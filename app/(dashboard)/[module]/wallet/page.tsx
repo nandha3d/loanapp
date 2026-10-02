@@ -7,8 +7,13 @@ import { getWalletSummary } from '@/lib/walletSummary';
 import WalletClient from './WalletClient';
 import AgentWalletClient from './AgentWalletClient';
 import { notFound } from 'next/navigation';
+import { getDictionary } from '@/lib/i18n';
 
-export default async function WalletPage() {
+export default async function WalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ agent?: string; release?: string; branch?: string; topup?: string }>;
+}) {
   const session = await auth();
   const role = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id as string | undefined;
@@ -69,8 +74,21 @@ export default async function WalletPage() {
   // WAL-01: same figures as GET /api/v1/wallet/summary (lib/walletSummary.ts).
   const { pools, agents: agentRows, pendingHandovers, summary } = await getWalletSummary(tenantId, appType, branchScope);
 
+  // FUND-4: a funding popup/alert links here with the server's figure; open
+  // that row with the amount filled in. The admin still confirms the release.
+  const sp = await searchParams;
+  const num = (v?: string) => (v && Number(v) > 0 ? Number(v) : undefined);
+  const prefill = {
+    agentId: sp.agent,
+    release: num(sp.release),
+    branchId: sp.branch,
+    topup: num(sp.topup),
+    hint: (await getDictionary(tenantId)).loanFunding.prefillHint,
+  };
+
   return (
     <WalletClient
+      prefill={prefill}
       pools={pools}
       agents={agentRows}
       pendingHandovers={pendingHandovers}

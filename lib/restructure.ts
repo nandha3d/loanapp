@@ -22,6 +22,8 @@ export type RInstalment = {
   instalmentNo?: number;
   id?: string;
   collectionEntryId?: string | null;
+  /** Last payment correction on the row (MONEY-34). */
+  correctedAt?: Date | string | null;
 };
 
 function startOfDay(value: Date): Date {
@@ -376,6 +378,8 @@ export function computeExtendedSchedule(
         if (row && row.collectionEntryId === coll.id
           && round2(Number(row.receivedAmount ?? 0)) === round2(recAmt)) {
           editInstalmentId = row.id!;
+          // MONEY-34: the day's one payment was edited — show the edit time.
+          if (row.correctedAt) recAt = row.correctedAt;
         }
       }
     } else {

@@ -298,7 +298,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           onJump: _jumpTo,
           extraPeriods: loan.extendedSchedule?.extraPeriods ?? 0,
           projectedEndDate: loan.extendedSchedule?.projectedEndDate,
-          extendedRows: loan.extendedSchedule?.extendedRows ?? const [],
+          extendedRows: _displayExtendedRows(loan),
         ),
         if (!_showRestructuredRates &&
             loan.extendedSchedule != null &&
@@ -717,14 +717,25 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     return loan.instalments;
   }
 
+  /// Extended days for the current view. Distributed: the server already laid
+  /// their cash on the original rows, so each day holds only what is left
+  /// (lib/repayments.ts distributeExtendedRowsView, EXT-1).
+  List<ExtendedScheduleRow> _displayExtendedRows(Loan loan) {
+    if (_viewMode == 'distributed' && loan.distributedExtendedRows.isNotEmpty) {
+      return loan.distributedExtendedRows;
+    }
+    return loan.extendedSchedule?.extendedRows ?? const [];
+  }
+
   List<Widget> _buildProjectedExtraRows(
       Loan loan, NumberFormat fmt, bool compactSchedule,) {
     final ext = loan.extendedSchedule;
     if (ext == null || ext.extraPeriods <= 0) return const [];
 
-    if (ext.extendedRows.isNotEmpty) {
+    final extendedRows = _displayExtendedRows(loan);
+    if (extendedRows.isNotEmpty) {
       final rows = <Widget>[];
-      for (final r in ext.extendedRows) {
+      for (final r in extendedRows) {
         rows.add(
           _ProjectedExtraRow(
             no: r.no,
@@ -1823,6 +1834,10 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                   icon: Icons.calendar_today_outlined,
                   label: 'Start Date',
                   value: DateFormat('dd MMM yyyy').format(loan.startDate),
+                  // When the loan was actually started (disbursed).
+                  subtitle: loan.startedAt == null
+                      ? null
+                      : DateFormat('h:mm a').format(loan.startedAt!),
                 ),
                 Container(width: 1, height: 24, color: AppColors.border),
                 _MetaChip(
@@ -1944,12 +1959,14 @@ class _MetaChip extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.subtitle,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color? valueColor;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -1978,6 +1995,14 @@ class _MetaChip extends StatelessWidget {
                 color: valueColor ?? AppColors.textPrimary,
               ),
             ),
+            if (subtitle != null)
+              Text(
+                subtitle!,
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: AppColors.textLight,
+                ),
+              ),
           ],
         ),
       ],
@@ -1987,6 +2012,15 @@ class _MetaChip extends StatelessWidget {
 
 // Restructured rate is now computed server-side (lib/restructure.ts) and arrives
 // per-instalment as `Instalment.restructuredAmount` — no client recomputation.
+
+/// Schedule received time: only when money is on the row. An edited payment
+/// shows its edit time (MONEY-34); the date is added when it was not the due day.
+String? _receivedStamp(double received, DateTime? at, DateTime due) {
+  if (received <= 0 || at == null) return null;
+  final sameDay =
+      at.year == due.year && at.month == due.month && at.day == due.day;
+  return DateFormat(sameDay ? 'h:mm a' : 'dd MMM, h:mm a').format(at);
+}
 
 class _InstalmentRow extends ConsumerWidget {
   const _InstalmentRow({
@@ -2031,10 +2065,12 @@ class _InstalmentRow extends ConsumerWidget {
     final dynStatus = inst.dynamicStatus;
     final kind = _badgeKind(dynStatus);
     final dateFmt = DateFormat('dd MMM');
-    final timeFmt = DateFormat('h:mm a');
     final isPaid = inst.receivedAmount > 0;
-    final collectedTime =
-        inst.receivedAt != null ? timeFmt.format(inst.receivedAt!) : null;
+    final collectedTime = _receivedStamp(
+      inst.receivedAmount,
+      inst.correctedAt ?? inst.receivedAt,
+      inst.dueDate,
+    );
 
     // Determine if Pay button should show
     // LD-04: waived and missed rows are not paid from the row (match web).
@@ -2054,13 +2090,19 @@ class _InstalmentRow extends ConsumerWidget {
       )..maximumFractionDigits = 2;
       final adjustedDue =
           '${ref.watch(currencySymbolProvider)}${preciseAmount.format(restructuredAmount)}';
+      // Overdue rows read red, like the missed extended days and the web table.
+      final isMissed = dynStatus == 'missed';
       return AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: highlighted ? AppColors.primaryLight : AppColors.surface,
-          border: Border.all(color: AppColors.border),
+          color: highlighted
+              ? AppColors.primaryLight
+              : (isMissed ? AppColors.danger.withAlpha(20) : AppColors.surface),
+          border: Border.all(
+            color: isMissed ? AppColors.danger.withAlpha(90) : AppColors.border,
+          ),
           borderRadius: BorderRadius.circular(AppTokens.radius),
         ),
         child: Column(
@@ -2071,7 +2113,9 @@ class _InstalmentRow extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     '${inst.instalmentNo}  •  ${dateFmt.format(inst.dueDate)}',
-                    style: AppTypography.bodyLarge,
+                    style: isMissed
+                        ? AppTypography.bodyLarge.copyWith(color: AppColors.danger)
+                        : AppTypography.bodyLarge,
                   ),
                 ),
                 AppBadge(label: _statusLabel(dynStatus, t), kind: kind),
@@ -2166,7 +2210,9 @@ class _InstalmentRow extends ConsumerWidget {
             ? AppColors.primaryLight
             : (dynStatus == 'paid'
                 ? AppColors.background.withAlpha(128)
-                : Colors.transparent),
+                : dynStatus == 'missed'
+                    ? AppColors.danger.withAlpha(15)
+                    : Colors.transparent),
         border: const Border(
           bottom: BorderSide(color: AppColors.border),
         ),
@@ -2564,7 +2610,6 @@ class _ProjectedExtraRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final dateFmt = DateFormat('dd MMM');
-    final timeFmt = DateFormat('h:mm a');
     final isPaid = status == 'paid';
     final isDueToday = status == 'due today';
     final isMissed = status == 'missed';
@@ -2572,7 +2617,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
     final canPay = loan.status != 'closed' && (isDueToday || isMissed);
     final canEdit = loan.status != 'closed' && editInstalmentId != null && receivedAmount > 0;
     final kind = _badgeKind(status);
-    final collectedTime = receivedAt != null ? timeFmt.format(receivedAt!) : null;
+    final collectedTime = _receivedStamp(receivedAmount, receivedAt, date);
 
     final inst = Instalment(
       id: collectionEntryId ?? 'ext-${loan.id}-$no',

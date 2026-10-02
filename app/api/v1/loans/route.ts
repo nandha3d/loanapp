@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
+import { ok, fail, failWithData, parseCursorPaging } from '@/lib/api/v1-envelope';
+import { getAgentFunding, isFundingAlertsEnabled, notifyFundingShort } from '@/lib/loanFunding';
+import { computeLoanFunding } from '@/lib/loanFundingPolicy';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
@@ -180,6 +182,8 @@ export async function POST(req: NextRequest) {
     return fail('Forbidden', 403);
   }
 
+  // Branch whose pool funds an admin payout; read by the MONEY-16 409 below.
+  let fundingBranchId: string | null = null;
   try {
     const body = await req.json();
     const customerId = String(body.customerId || '');
@@ -492,6 +496,7 @@ export async function POST(req: NextRequest) {
     // sits. Resolved before the transaction so the lookup it may need never
     // widens the write window.
     const loanBranchId = await resolveWriteBranchId(ctx, customer.branchId);
+    fundingBranchId = loanBranchId;
 
     const result = await prisma.$transaction(async (tx) => {
       // Tenant-wide, no appType in the key: loan codes are unique per tenant, so
@@ -970,33 +975,63 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // FUND-2: an agent's pending loan the float cannot cover is still queued;
+    // the response carries the figures for the agent's popup, and (opt-in) the
+    // agent and approvers are told how much must be released. After commit.
+    if (ctx.role === 'agent' && status === 'pending_review') {
+      const scope = { tenantId: ctx.tenantId, appType: ctx.appType };
+      const funding = await getAgentFunding(scope, {
+        agentId: ctx.userId,
+        required: Number(loan.disbursed),
+        excludeLoanId: loan.id,
+      });
+      const alertsSent = !funding.sufficient && await isFundingAlertsEnabled(scope);
+      if (alertsSent) {
+        const agent = await prisma.user.findFirst({ where: { id: ctx.userId, tenantId: ctx.tenantId }, select: { name: true, branchId: true } });
+        await notifyFundingShort({
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          funding,
+          loan: { id: loan.id, loanCode, branchId: loan.branchId },
+          agent: { id: ctx.userId, name: agent?.name ?? null, branchId: agent?.branchId ?? null },
+          stage: 'submitted',
+          actorBranchId: ctx.branchId,
+          actorRole: ctx.role,
+        });
+      }
+      return ok({ ...loan, funding: { ...funding, alertsSent } });
+    }
+
     return ok(loan);
   } catch (e: any) {
     console.error('[/api/v1/loans POST]', e);
     if (e instanceof OriginationInputError) return fail(e.message, 400);
     if (e instanceof InsufficientFloatError) {
+      // MONEY-16 block. FUND-2: same message as before, plus the figures the
+      // clients' popup renders (shortfall, release / capital to add).
+      const scope = { tenantId: ctx.tenantId, appType: ctx.appType };
+      let funding = computeLoanFunding({ source: ctx.role === 'agent' ? 'agent' : 'branch', required: e.required, available: e.available });
       try {
-        const { notifyApprovers } = await import('@/lib/notify/approvers');
-        await notifyApprovers({
+        funding = ctx.role === 'agent'
+          ? await getAgentFunding(scope, { agentId: ctx.userId, required: e.required })
+          : computeLoanFunding({ source: 'branch', required: e.required, available: e.available, branchId: fundingBranchId, branchPool: e.available });
+        const agent = ctx.role === 'agent'
+          ? await prisma.user.findFirst({ where: { id: ctx.userId, tenantId: ctx.tenantId }, select: { name: true, branchId: true } })
+          : null;
+        await notifyFundingShort({
           tenantId: ctx.tenantId,
-          branchId: ctx.branchId,
-          requesterBranchId: ctx.branchId,
-          requesterRole: ctx.role,
           appType: ctx.appType,
-          type: 'float_insufficient',
-          icon: 'account_balance_wallet',
-          title: '⚠️ Insufficient Float Cash',
-          message: `Cannot disburse loan: Float balance ₹${Number(e.available).toLocaleString('en-IN')} is insufficient for required ₹${Number(e.required).toLocaleString('en-IN')}`,
-          link: '/wallet',
-          data: {
-            available: String(e.available),
-            required: String(e.required),
-          },
+          funding,
+          loan: null,
+          agent: agent ? { id: ctx.userId, name: agent.name, branchId: agent.branchId } : null,
+          stage: 'blocked',
+          actorBranchId: ctx.branchId,
+          actorRole: ctx.role,
         });
       } catch (notifErr) {
         console.error('[loans route] notify insufficient float failed:', notifErr);
       }
-      return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
+      return failWithData(`Insufficient float: available ${e.available}, required ${e.required}`, 409, { code: 'insufficient_float', funding });
     }
     if (e instanceof AccountingConfigurationError) return fail(e.message, 409);
     return fail(e?.message ?? 'Loan create failed', 500);

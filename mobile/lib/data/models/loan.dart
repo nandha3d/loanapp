@@ -38,7 +38,8 @@ class ExtendedScheduleRow {
     final dateStr = json['date'];
     final date = dateStr != null ? DateTime.tryParse(dateStr.toString()) ?? DateTime.now() : DateTime.now();
     final recAtStr = json['receivedAt'];
-    final recAt = recAtStr != null ? DateTime.tryParse(recAtStr.toString()) : null;
+    // Local time, as Instalment.receivedAt — the server sends UTC.
+    final recAt = recAtStr != null ? DateTime.tryParse(recAtStr.toString())?.toLocal() : null;
 
     return ExtendedScheduleRow(
       no: (json['no'] as num?)?.toInt() ?? 0,
@@ -273,6 +274,8 @@ class Loan {
     required this.perInstalment,
     this.penalties = const [],
     this.distributedInstalments = const [],
+    this.distributedExtendedRows = const [],
+    this.startedAt,
     this.extendedSchedule,
     this.customer,
     this.endDate,
@@ -313,6 +316,11 @@ class Loan {
   final List<Instalment> instalments;
   /// Server-computed distributed waterfall schedule (lib/repayments.ts distributeScheduleView).
   final List<Instalment> distributedInstalments;
+  /// Extended days in the distributed view (lib/repayments.ts
+  /// distributeExtendedRowsView): only the cash left after the original rows.
+  final List<ExtendedScheduleRow> distributedExtendedRows;
+  /// When the loan started — its disbursement time (GET /api/v1/loans/[id]).
+  final DateTime? startedAt;
   final List<Penalty> penalties;
   final ExtendedSchedule? extendedSchedule;
   final Customer? customer;
@@ -411,6 +419,13 @@ class Loan {
           .toList(growable: false),
       penalties: (json['penalties'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Penalty.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      startedAt: json['startedAt'] == null
+          ? null
+          : DateTime.tryParse(json['startedAt'].toString())?.toLocal(),
+      distributedExtendedRows: (json['distributedExtendedRows'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ExtendedScheduleRow.fromJson)
           .toList(growable: false),
       extendedSchedule: json['extendedSchedule'] is Map<String, dynamic>
           ? ExtendedSchedule.fromJson(

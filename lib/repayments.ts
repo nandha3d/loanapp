@@ -629,21 +629,95 @@ export function distributeScheduleView<T extends { dueDate: Date | string; dueAm
   instalments: T[],
   totalCollected: number,
   todayStr: string,
+  receipts?: DistributionReceipt[],
 ): Array<T & { receivedAmount: number; status: string }> {
   let remaining = Math.round(Number(totalCollected) * 100) / 100;
+  // Running total laid so far — with `receipts`, each filled row is stamped
+  // with the receipt that brought the money up to its share.
+  let laid = 0;
+  const stamp = <R extends object>(row: R, upTo: number) =>
+    receipts ? { ...row, receivedAt: receiptTimeAt(receipts, upTo) } : row;
   return instalments.map((inst) => {
     const due = Number(inst.dueAmount);
     if (remaining >= due) {
       remaining = Math.round((remaining - due) * 100) / 100;
-      return { ...inst, receivedAmount: due, status: 'paid' };
+      laid = Math.round((laid + due) * 100) / 100;
+      return stamp({ ...inst, receivedAmount: due, status: 'paid' }, laid);
     }
     if (remaining > 0) {
       const part = remaining;
       remaining = 0;
-      return { ...inst, receivedAmount: part, status: 'partial' };
+      laid = Math.round((laid + part) * 100) / 100;
+      return stamp({ ...inst, receivedAmount: part, status: 'partial' }, laid);
     }
     const d = getBusinessDateStr(inst.dueDate);
     const status = inst.status === 'waived' ? 'waived' : d < todayStr ? 'missed' : d === todayStr ? 'due today' : 'upcoming';
-    return { ...inst, receivedAmount: 0, status };
+    return receipts
+      ? { ...inst, receivedAmount: 0, status, receivedAt: null }
+      : { ...inst, receivedAmount: 0, status };
+  });
+}
+
+/** One collection, oldest first, for the "Distributed" view's received times. */
+export type DistributionReceipt = { amount: number; at: Date | string | null };
+
+/** The receipt whose running total first reaches `upTo` (null when they never do). */
+function receiptTimeAt(receipts: DistributionReceipt[], upTo: number): Date | string | null {
+  let sum = 0;
+  for (const r of receipts) {
+    sum = Math.round((sum + Number(r.amount || 0)) * 100) / 100;
+    if (sum >= upTo - 0.005) return r.at;
+  }
+  return null;
+}
+
+/**
+ * DEC-03 (B): the extended days (EXT-1) in the "Distributed" view. Total
+ * collected is laid over the original rows first (`distributeScheduleView`),
+ * so cash taken on an extended day is already counted there — only what is
+ * left after the whole schedule reaches the extended days, in order. A day it
+ * does not reach shows nothing received and takes its status from its date
+ * (missed / due today / projected). Display only: no entry, mode or Edit.
+ */
+export function distributeExtendedRowsView<R extends { date: Date | string; amount: number }>(
+  rows: R[],
+  instalments: Array<{ dueAmount: unknown }>,
+  totalCollected: number,
+  todayStr: string,
+  receipts?: DistributionReceipt[],
+): Array<R & {
+  receivedAmount: number;
+  status: 'paid' | 'partial' | 'missed' | 'due today' | 'projected';
+  receivedAt: Date | string | null;
+  collectionEntryId: null;
+  paymentMode: null;
+  editInstalmentId: null;
+}> {
+  // Same waterfall as distributeScheduleView: what the original rows leave.
+  let remaining = Math.round(Number(totalCollected) * 100) / 100;
+  let laid = 0;
+  for (const inst of instalments) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, Number(inst.dueAmount));
+    remaining = Math.round((remaining - take) * 100) / 100;
+    laid = Math.round((laid + take) * 100) / 100;
+  }
+  return rows.map((row) => {
+    const blank = { collectionEntryId: null, paymentMode: null, editInstalmentId: null } as const;
+    const take = Math.min(remaining, Number(row.amount));
+    if (take > 0) {
+      remaining = Math.round((remaining - take) * 100) / 100;
+      laid = Math.round((laid + take) * 100) / 100;
+      return {
+        ...row,
+        ...blank,
+        receivedAmount: take,
+        status: take >= Number(row.amount) ? 'paid' as const : 'partial' as const,
+        receivedAt: receipts ? receiptTimeAt(receipts, laid) : null,
+      };
+    }
+    const d = getBusinessDateStr(row.date);
+    const status = d < todayStr ? 'missed' as const : d === todayStr ? 'due today' as const : 'projected' as const;
+    return { ...row, ...blank, receivedAmount: 0, status, receivedAt: null };
   });
 }

@@ -8,6 +8,7 @@ import { branchScopeWhere } from '@/lib/branchScope';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { modulePath } from '@/types/modules';
 import { maskPan } from '@/lib/pii';
+import { buildPendingLoanFunding } from '@/lib/loanFunding';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -122,6 +123,11 @@ export async function GET(req: NextRequest) {
           })
         : [];
       const agentBalanceMap = new Map(agentAccounts.map((a) => [a.agentId, Number(a.balance)]));
+      // FUND-3: shortfall, queue commitment and capital chain, computed here; clients render it.
+      const fundingByLoan = await buildPendingLoanFunding(
+        { tenantId: ctx.tenantId, appType: ctx.appType },
+        pendingLoans.map((l) => ({ id: l.id, createdById: l.createdById, branchId: l.branchId, disbursed: l.disbursed, creatorRole: l.createdBy?.role })),
+      );
 
       for (const loan of pendingLoans) {
         const isAgent = loan.createdBy?.role === 'agent';
@@ -169,6 +175,7 @@ export async function GET(req: NextRequest) {
           agentFloat,
           floatDeficit: insufficientFloat && agentFloat !== null ? disbursed - agentFloat : 0,
           floatWarning: insufficientFloat ? `Agent float is ₹${agentFloat} (needs ₹${disbursed})` : null,
+          funding: fundingByLoan.get(loan.id) ?? null,
         } as any);
       }
     }

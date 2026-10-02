@@ -10,6 +10,7 @@ class Instalment {
     required this.status,
     this.paidAt,
     this.receivedAt,
+    this.correctedAt,
     this.paymentMode,
     this.restructuredAmount,
     this.ledgerReceivedAmount,
@@ -25,6 +26,9 @@ class Instalment {
   final String status; // upcoming | paid | partial | missed
   final DateTime? paidAt;
   final DateTime? receivedAt;
+  /// When the payment on this row was last edited (MONEY-34); the schedule
+  /// shows this over [receivedAt].
+  final DateTime? correctedAt;
   final String? paymentMode; // cash | upi | bank
   /// Server-computed restructured rate for this instalment (lib/restructure.ts).
   /// Equals dueAmount unless the row is a still-collectable future/today due.
@@ -45,6 +49,7 @@ class Instalment {
     String? status,
     DateTime? paidAt,
     DateTime? receivedAt,
+    DateTime? correctedAt,
     String? paymentMode,
     double? restructuredAmount,
     double? ledgerReceivedAmount,
@@ -60,6 +65,7 @@ class Instalment {
       status: status ?? this.status,
       paidAt: paidAt ?? this.paidAt,
       receivedAt: receivedAt ?? this.receivedAt,
+      correctedAt: correctedAt ?? this.correctedAt,
       paymentMode: paymentMode ?? this.paymentMode,
       restructuredAmount: restructuredAmount ?? this.restructuredAmount,
       ledgerReceivedAmount: ledgerReceivedAmount ?? this.ledgerReceivedAmount,
@@ -113,6 +119,9 @@ class Instalment {
       receivedAt: receivedAtRaw == null
           ? null
           : DateTime.parse(receivedAtRaw as String).toLocal(),
+      correctedAt: json['correctedAt'] == null
+          ? null
+          : DateTime.tryParse(json['correctedAt'].toString())?.toLocal(),
       paymentMode: json['paymentMode'] as String?,
       restructuredAmount:
           json['restructuredAmount'] == null ? null : toNum(json['restructuredAmount']),

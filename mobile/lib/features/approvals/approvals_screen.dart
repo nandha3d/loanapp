@@ -13,6 +13,9 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/approval.dart';
+import 'package:zolofund/data/models/loan_funding.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/shared/widgets/funding_dialog.dart';
 import 'package:zolofund/data/services/approval_service.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
@@ -244,6 +247,10 @@ class _ApprovalCard extends ConsumerWidget {
 
     final insufficientFloat = approval.insufficientFloat;
     final floatWarning = approval.floatWarning;
+    // FUND-3: server figures; a short payout blocks Approve until cash is released.
+    final funding = approval.funding;
+    final fundingShort = funding != null && !funding.sufficient;
+    final money = ref.watch(currencyFmtProvider);
 
     String entityLabel;
     if (approval.entityType == 'customer') {
@@ -352,6 +359,9 @@ class _ApprovalCard extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text('${t.x('appr.reviewed_by')} ${approval.reviewedByName}',
                             style: AppTypography.caption),
+                        if (approval.reviewedAt != null)
+                          Text(fmt.format(approval.reviewedAt!),
+                              style: AppTypography.caption),
                       ],
                       if (approval.reviewNote != null) ...[
                         const SizedBox(height: 4),
@@ -388,7 +398,10 @@ class _ApprovalCard extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      floatWarning ?? t.x('appr.insufficient_float_warn'),
+                      fundingShort
+                          ? fundingText(t, 'loan_funding.approve_blocked', funding, money, agentName: approval.requestedByName) +
+                              (funding.committed > 0 ? ' ${fundingText(t, 'loan_funding.queue_note', funding, money)}' : '')
+                          : floatWarning ?? t.x('appr.insufficient_float_warn'),
                       style: AppTypography.caption.copyWith(
                         color: const Color(0xFFB45309),
                         fontWeight: FontWeight.w600,
@@ -435,7 +448,9 @@ class _ApprovalCard extends ConsumerWidget {
                     ),
                     onPressed: ref.watch(_processingIdsProvider).contains(approval.id)
                         ? null
-                        : () => showActionDialog(context, ref, approval, true, onAction, isUnderfunded: insufficientFloat),
+                        : fundingShort
+                            ? () => showFundingDialog(context, ref, funding, canAct: true, agentName: approval.requestedByName)
+                            : () => showActionDialog(context, ref, approval, true, onAction, isUnderfunded: insufficientFloat),
                   ),
                 ),
               ],
@@ -527,6 +542,15 @@ class _ApprovalCard extends ConsumerWidget {
         }
         onAction();
       } catch (e) {
+        // FUND-2: the MONEY-16 409 carries the server figures.
+        final blocked = e is ApiException && e.isConflict && e.data is Map
+            ? LoanFunding.tryParse((e.data as Map)['funding'])
+            : null;
+        if (blocked != null && context.mounted) {
+          onAction();
+          await showFundingDialog(context, ref, blocked, canAct: true, agentName: approval.requestedByName);
+          return;
+        }
         if (context.mounted) {
           final errorMsg = e is ApiException
               ? e.message

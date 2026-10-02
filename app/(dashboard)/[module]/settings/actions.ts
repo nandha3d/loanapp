@@ -5,6 +5,7 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
 import { FEATURE_FLAG_KEYS } from '@/lib/features';
 import { AGENT_PRECLOSE_FLAG } from '@/lib/loanPreclosePolicy';
+import { LOAN_FUNDING_ALERTS_FLAG } from '@/lib/loanFundingPolicy';
 import { canManageAdmins } from '@/lib/roles';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
@@ -150,7 +151,7 @@ export async function saveFeatureFlags(formData: FormData) {
 
   const featureAppType = await getUserAppType();
   for (const key of FEATURE_FLAG_KEYS) {
-    if (key === AGENT_PRECLOSE_FLAG && featureAppType !== 'microlending') continue;
+    if ((key === AGENT_PRECLOSE_FLAG || key === LOAN_FUNDING_ALERTS_FLAG) && featureAppType !== 'microlending') continue;
     const value = formData.get(key) === 'on' || formData.get(key) === 'true' ? '1' : '0';
     await setSetting(tenantId, key, value, 'features');
     saved[key] = value;

@@ -3,7 +3,10 @@
 import { compressFormDataImages } from '@/lib/imageCompression';
 import { formatCurrency } from '@/lib/utils';
 import { useState, useEffect } from 'react';
-import { createLoan } from '../actions';
+import { createLoan, checkLoanFunding } from '../actions';
+import { useRouter } from 'next/navigation';
+import FundingPopup, { fundingVars, type FundingView } from '@/components/loans/FundingPopup';
+import { fillTemplate, fundingWalletLink } from '@/lib/loanFundingPolicy';
 import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
 import { addGoldMaster } from '../../settings/gold-master/actions';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
@@ -25,7 +28,7 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
           <path d="M 30 15.3 A 40 40 0 0 1 50 10" fill="none" stroke="#F59E0B" strokeWidth="10" />
           <path d="M 50 10 A 40 40 0 0 1 70 15.3" fill="none" stroke="#EAB308" strokeWidth="10" />
           <path d="M 70 15.3 A 40 40 0 0 1 90 50" fill="none" stroke="#16A34A" strokeWidth="10" />
-          <g style={{ transform: `rotate(${gauge.rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+          <g style={{ transform: `rotate(${gauge.rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.25, 1, 0.5, 1)' }}>
             <circle cx="50" cy="10" r="5" fill="#FFF" stroke={gauge.color} strokeWidth="2" />
           </g>
         </svg>
@@ -55,7 +58,6 @@ export default function LoanForm({
   goldConfig,
   interestOnlyEnabled,
   bulletTermEnabled,
-  agentFloatBalance,
   bypassLoanApproval = true,
 }: {
   customers: any[];
@@ -79,6 +81,11 @@ export default function LoanForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const router = useRouter();
+  // FUND-1/FUND-2: server-computed funding for the current preview, and the popup.
+  const [funding, setFunding] = useState<FundingView | null>(null);
+  const [fundingPopup, setFundingPopup] = useState<{ funding: FundingView; submitted: boolean; redirectTo?: string } | null>(null);
+  const canMoveCash = viewerRole !== 'agent';
   const [localCustomers, setLocalCustomers] = useState(customers);
   const [localPackages, setLocalPackages] = useState(packages);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
@@ -363,6 +370,19 @@ export default function LoanForm({
     return () => clearTimeout(timer);
   }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay, termType, termDays, customEndDate]);
 
+  // FUND-1: ask the server whether the funding source covers the previewed
+  // payout (agent float, or the customer's branch pool for admins).
+  const previewPayout = Number(calculatedData?.disbursedAmount ?? 0);
+  const selectedCustomerId = selectedCustomer?.id ?? null;
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const result = previewPayout > 0 ? await checkLoanFunding(previewPayout, selectedCustomerId) : null;
+      if (!cancelled) setFunding(result);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [previewPayout, selectedCustomerId]);
+
   const handleCustomerChange = async (id: string) => {
     const cust = localCustomers.find(c => c.id === id);
     setSelectedCustomer(cust || null);
@@ -537,6 +557,12 @@ export default function LoanForm({
         </div>
 
         <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} action={async (fd: FormData) => {
+          // FUND-2: a branch pool that cannot cover the payout never creates
+          // the loan — the popup sends the admin to add capital first.
+          if (funding && !funding.sufficient && funding.source === 'branch') {
+            setFundingPopup({ funding, submitted: false });
+            return;
+          }
           setLoading(true);
           setLimitError(null);
           fd.set('collateralDetails', getCollateralDetailsJson());
@@ -560,9 +586,13 @@ export default function LoanForm({
           // Shrink camera photos before they hit the Server Action body limit.
           await compressFormDataImages(fd);
           const result = await createLoan(fd);
-          if (result && 'error' in result) {
+          if (result && 'pendingFunding' in result && result.pendingFunding) {
+            setLoading(false);
+            setFundingPopup({ funding: result.pendingFunding, submitted: true, redirectTo: result.redirectTo });
+          } else if (result && 'error' in result) {
             setLimitError(result.error);
             setLoading(false);
+            if ('funding' in result && result.funding) setFundingPopup({ funding: result.funding, submitted: false });
           }
         }}>
           {limitError && (
@@ -1055,27 +1085,35 @@ export default function LoanForm({
               )}
             </div>
 
-            {agentFloatBalance !== null && agentFloatBalance !== undefined && (
+            {/* FUND-1: figures come from /api/v1/loans/funding; nothing is compared here. */}
+            {funding && funding.source !== 'none' && (
               <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-alt)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '.88rem', color: 'var(--text-secondary)' }}>
-                  💼 {dict.loans.agentFloat || 'Agent Cash Float'}:
+                  💼 {funding.source === 'agent' ? (dict.loans.agentFloat || dict.loanFunding.labelFloat) : dict.loanFunding.labelPool}:
                 </span>
-                <span style={{ fontWeight: 700, color: calculatedData.disbursedAmount > agentFloatBalance ? 'var(--danger)' : 'var(--success)' }}>
-                  {currencySymbol}{agentFloatBalance.toLocaleString()}
+                <span style={{ fontWeight: 700, color: funding.sufficient ? 'var(--success)' : 'var(--danger)' }}>
+                  {fundingVars(funding, currencySymbol).available}
                 </span>
               </div>
             )}
-            {agentFloatBalance !== null && agentFloatBalance !== undefined && calculatedData.disbursedAmount > agentFloatBalance && (
+            {funding && !funding.sufficient && (
               <div role="alert" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '12px' }}>
                 <span className="material-icons-outlined" style={{ color: '#d97706', fontSize: '20px' }}>warning</span>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '.9rem' }}>
-                    {dict.loans.insufficientFloatWarn || 'Agent has insufficient float for disbursement. A float release will be needed in the Wallet module before approval.'}
+                    {fillTemplate(funding.source === 'agent' ? dict.loanFunding.floatPopupBody : dict.loanFunding.capitalPopupBody, fundingVars(funding, currencySymbol))}
                   </div>
-                  <div style={{ fontSize: '.8rem', marginTop: '3px', opacity: 0.9 }}>
-                    {dict.loans.availableFloat || 'Available Float'}: {currencySymbol}{agentFloatBalance.toLocaleString()} · {dict.loans.netDisbursed || 'Net Cash Disbursed'}: {currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}
-                  </div>
+                  {funding.source === 'agent' && funding.committed > 0 && (
+                    <div style={{ fontSize: '.8rem', marginTop: '3px', opacity: 0.9 }}>
+                      {fillTemplate(dict.loanFunding.queueNote, fundingVars(funding, currencySymbol))}
+                    </div>
+                  )}
                 </div>
+                {canMoveCash && funding.source === 'branch' && (
+                  <a className="btn btn-sm btn-primary" href={fundingWalletLink(appType || 'microlending', funding)} style={{ whiteSpace: 'nowrap' }}>
+                    {dict.loanFunding.addCapital}
+                  </a>
+                )}
               </div>
             )}
 
@@ -1462,11 +1500,11 @@ export default function LoanForm({
               <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
 
-            {agentFloatBalance !== null && agentFloatBalance !== undefined && calculatedData.disbursedAmount > agentFloatBalance && (
+            {funding && !funding.sufficient && (
               <div role="alert" style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '16px' }}>
                 <span className="material-icons-outlined" style={{ color: '#d97706', fontSize: '20px' }}>warning</span>
                 <div style={{ fontSize: '.88rem', fontWeight: 600 }}>
-                  {dict.loans.insufficientFloatWarn || 'Agent has insufficient float for disbursement. A float release will be needed in the Wallet module before approval.'}
+                  {fillTemplate(funding.source === 'agent' ? dict.loanFunding.floatPopupBody : dict.loanFunding.capitalPopupBody, fundingVars(funding, currencySymbol))}
                 </div>
               </div>
             )}
@@ -1637,6 +1675,19 @@ export default function LoanForm({
         )}
       </div>
 
+      <FundingPopup
+        funding={fundingPopup?.funding ?? null}
+        submitted={fundingPopup?.submitted}
+        dict={dict}
+        currencySymbol={currencySymbol}
+        appType={appType || 'microlending'}
+        canAct={canMoveCash}
+        onClose={() => {
+          const to = fundingPopup?.redirectTo;
+          setFundingPopup(null);
+          if (to) router.push(to);
+        }}
+      />
       <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={dict.customers.registerTitle}>
         {routes && agents ? (
           <CustomerForm appType={appType || 'microlending'} routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} viewerRole={viewerRole} />

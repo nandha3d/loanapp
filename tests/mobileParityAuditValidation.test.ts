@@ -391,4 +391,17 @@ const sampleInsts = [
 const unitMissedCount = sampleInsts.filter((i) => i.status === 'missed').length;
 assert.equal(unitMissedCount, 0, 'part-paid row must not count as a missed day');
 
-console.log('All mobile parity audit validation tests passed successfully! [11/11]');
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. FUND-1..FUND-4: loan funding figures are server-only, both clients render
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('  Testing 12. Loan funding contract...');
+read('app/api/v1/loans/funding/route.ts');
+assert.ok(read('app/api/v1/approvals/route.ts').includes('funding: fundingByLoan.get(loan.id)'), 'v1 approvals sends funding per pending loan');
+assert.match(read('mobile/lib/data/models/approval.dart'), /final\s+LoanFunding\?\s+funding;/, 'mobile Approval model carries funding');
+const mobileLoanService = read('mobile/lib/data/services/loan_service.dart');
+assert.ok(mobileLoanService.includes('${Endpoints.loans}/funding'), 'mobile calls POST /loans/funding');
+assert.ok(mobileLoanService.includes("funding: LoanFunding.tryParse(d['funding'])"), 'mobile reads funding from the create response');
+assert.doesNotMatch(read('mobile/lib/features/loans/new_loan_screen.dart'), /_netDisbursed\(\)\s*>/, 'mobile never compares payout with float itself (STABLE-8)');
+assert.doesNotMatch(read('app/(dashboard)/[module]/loans/new/LoanForm.tsx'), /disbursedAmount\s*>\s*agentFloatBalance/, 'web never compares payout with float itself (STABLE-8)');
+
+console.log('All mobile parity audit validation tests passed successfully! [12/12]');

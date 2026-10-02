@@ -857,6 +857,9 @@ export async function correctInstalmentPaymentInTx(
       paymentMode: correctedAmount > 0 ? paymentMode : null,
       remarks,
       receivedAt: correctedAmount > 0 ? (instalment.receivedAt || new Date()) : null,
+      // MONEY-34: the schedule shows when the payment was last edited; the
+      // original receipt time above is what reports and today's lists read.
+      correctedAt: correctedAmount > 0 ? new Date() : null,
     },
   });
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
-import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, formatTime, getBadgeClass, calcPercentage } from '@/lib/utils';
 import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, requestPenaltyWaiver, closeLoan, renewLoan, precloseLoanAdmin, getForeclosureQuote, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
@@ -47,6 +47,15 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
 };
 
 // Gold pledge servicing panel — outstanding, interest due, redemption + actions.
+// Schedule "Time": shown only when money is on the row. An edited payment
+// shows its edit time (MONEY-34); the date is added when it was not the due day.
+function receivedStamp(row: { receivedAmount?: unknown; receivedAt?: string | Date | null; correctedAt?: string | Date | null; dueDate: string | Date }): string | null {
+  if (!(Number(row.receivedAmount) > 0)) return null;
+  const at = row.correctedAt ?? row.receivedAt;
+  if (!at) return null;
+  return formatDate(at) === formatDate(row.dueDate) ? formatTime(at) : formatDateTime(at);
+}
+
 function GoldServicingPanel({ data, loanId, currencySymbol, d }: { data: any; loanId: string; currencySymbol: string; d: any }) {
   const [interestAmt, setInterestAmt] = useState<number>(Math.round(Number(data?.interestDue) || Number(data?.monthlyInterest) || 0));
   const [partAmt, setPartAmt] = useState<number>(0);
@@ -304,6 +313,11 @@ export default function LoanDetailClient({
   // Projected rows BEYOND the original schedule's last date — appended
   // to the schedule in extend mode so the extra days are visible.
   const projectedExtraRows = useMemo(() => {
+    // DEC-03 (B): in the Distributed view the server lays extended-day cash
+    // on the original rows first, so the days show only what is left (EXT-1).
+    if (viewMode === 'distributed' && loan.distributedExtendedRows?.length > 0) {
+      return loan.distributedExtendedRows as ExtendedScheduleResult['extendedRows'];
+    }
     if (extended.extendedRows && extended.extendedRows.length > 0) {
       return extended.extendedRows;
     }
@@ -322,7 +336,7 @@ export default function LoanDetailClient({
       paymentMode: null,
       editInstalmentId: null,
     }));
-  }, [extended, loan.perInstalment, loan.totalInstalments]);
+  }, [extended, loan.perInstalment, loan.totalInstalments, loan.distributedExtendedRows, viewMode]);
 
   const dynamicPaidCount = Number(metrics.paidPeriod ?? 0);
   const pct = loan.totalInstalments > 0 ? Math.round((dynamicPaidCount / loan.totalInstalments) * 100) : 0;
@@ -942,7 +956,7 @@ export default function LoanDetailClient({
               <div><div className="cm-label">{d.disbursed}</div><div className="cm-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.frequency}</div><div className="cm-value" style={{ textTransform: 'capitalize' }}>{loan.frequency}</div></div>
               <div><div className="cm-label">{d.tenure}</div><div className="cm-value">{loan.tenure} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}</div></div>
-              <div><div className="cm-label">{d.startDate}</div><div className="cm-value">{formatDate(loan.startDate)}</div></div>
+              <div><div className="cm-label">{d.startDate}</div><div className="cm-value">{formatDate(loan.startDate)}</div>{loan.startedAt && <div style={{ fontSize: '.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{formatDateTime(loan.startedAt)}</div>}</div>
               <div><div className="cm-label">{d.perInst}</div><div className="cm-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.collected}</div><div className="cm-value" style={{ color: 'var(--success)' }}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.outstanding}</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
@@ -1144,7 +1158,7 @@ export default function LoanDetailClient({
               </thead>
               <tbody>
                  {displayInstalments.map((inst: any) => {
-                  const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+                  const collectedTime = receivedStamp(inst);
                   const isPaid = Number(inst.receivedAmount) > 0;
                   const isHighlighted = highlightedInstalmentNo === inst.instalmentNo;
                   // Overdue = past-due and not fully paid. These rows are shown
@@ -1262,9 +1276,7 @@ export default function LoanDetailClient({
                       <td style={{ fontWeight: 600 }}>#{r.no}</td>
                       <td>{formatDate(r.date)}</td>
                       <td style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
-                        {Number(r.receivedAmount) > 0 && r.receivedAt
-                          ? new Date(r.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-                          : '—'}
+                        {receivedStamp({ ...r, dueDate: r.date }) || '—'}
                       </td>
                       <td style={{ fontWeight: 600 }}>{formatCurrency(r.amount, currencySymbol)}</td>
                       <td style={{ color: isPaid ? 'var(--success)' : 'inherit', fontWeight: isPaid ? 600 : 'normal' }}>
@@ -1333,7 +1345,7 @@ export default function LoanDetailClient({
             {displayInstalments.map((inst: any) => {
               const isPaid = Number(inst.receivedAmount) > 0;
               const isOverdue = inst.status === 'missed';
-              const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+              const collectedTime = receivedStamp(inst);
               const accent = inst.status === 'paid' ? 'var(--success)' : isOverdue ? 'var(--danger)' : 'var(--primary)';
               return (
                 <div
@@ -1387,7 +1399,7 @@ export default function LoanDetailClient({
               const isMissed = r.status === 'missed';
               const isDueToday = r.status === 'due today';
               const isProjected = r.status === 'projected';
-              const collectedTime = r.receivedAt ? new Date(r.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+              const collectedTime = receivedStamp({ ...r, dueDate: r.date });
               const accent = isPaid ? 'var(--success)' : isMissed ? 'var(--danger)' : isDueToday ? 'var(--warning, #f59e0b)' : '#6366F1';
               const bg = isPaid
                 ? 'rgba(16,185,129,0.05)'

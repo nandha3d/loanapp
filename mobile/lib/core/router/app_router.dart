@@ -345,7 +345,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
-      GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
+      GoRoute(
+        path: '/wallet',
+        builder: (_, s) => WalletScreen(prefill: WalletPrefill.fromQuery(s.uri.queryParameters)),
+      ),
       GoRoute(
         path: '/approvals',
         builder: (_, state) => ApprovalsScreen(

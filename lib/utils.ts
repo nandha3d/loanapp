@@ -37,6 +37,19 @@ export function formatDate(date: Date | string | null, format: string = 'dd MMM 
     .replace('dddd', weekday);
 }
 
+/** "02 Oct 2026, 10:12 am" — a moment something happened (receipt, approval, release). */
+export function formatDateTime(date: Date | string | null): string {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '—';
+  return `${formatDate(d)}, ${formatTime(d)}`;
+}
+
+/** "10:12 am" */
+export function formatTime(date: Date | string): string {
+  return new Date(date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
 export function formatDateLong(date: Date | string | null): string {
   if (!date) return '—';
   const d = typeof date === 'string' ? new Date(date) : date;

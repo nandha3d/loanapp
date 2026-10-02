@@ -15,7 +15,8 @@ reference for this project. It is binding, not advisory.
 
 - Read **§16.0 "Change discipline"** first. It is the standing rule for this repo: shipped
   behaviour is frozen, new capability is additive and defaults to today's behaviour, the four
-  scoping axes never widen, nothing is hardcoded, every string ships in all six locales, and
+  scoping axes never widen, nothing is hardcoded, every string ships in all six locales,
+  every calculation is done on the server and the clients only render API values (STABLE-8), and
   `npm run test:calc` is green before and after. Existing logic changes **only** for a
   demonstrated defect — never to tidy or modernise.
 - Read §0–§5 (precedence, stack, structure, request lifecycle, the four scoping axes) before any change.

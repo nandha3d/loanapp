@@ -632,6 +632,9 @@ model Instalment {
   paymentMode        String?             @map("payment_mode")
   status             String              @default("upcoming")
   receivedAt         DateTime?           @map("received_at")
+  /// When the payment on this row was last corrected (MONEY-34). `receivedAt`
+  /// stays the original receipt — reports and today's lists read it.
+  correctedAt        DateTime?           @map("corrected_at")
   agentId            String?             @map("agent_id")
   remarks            String?             @db.Text
   lockedAt           DateTime?           @map("locked_at")

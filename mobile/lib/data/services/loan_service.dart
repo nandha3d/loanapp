@@ -5,6 +5,7 @@ import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/data/models/loan_funding.dart';
 import 'package:intl/intl.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
@@ -126,7 +127,19 @@ class LoanService {
     );
   }
 
-  Future<Loan> create({
+  /// FUND-1: does the caller's float / branch pool cover this payout?
+  /// [amount] is the net payout the server preview returned.
+  Future<LoanFunding?> funding({required double amount, String? customerId}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.loans}/funding',
+      data: {'amount': amount, if (customerId != null) 'customerId': customerId},
+    );
+    return unwrapEnvelope(res, LoanFunding.tryParse);
+  }
+
+  /// Creates a loan. [funding] is set when an agent's loan was queued for
+  /// approval (FUND-2) — the server's view of their float for it.
+  Future<({Loan loan, LoanFunding? funding})> create({
     required String customerId,
     required double principal,
     required double deduction,
@@ -176,7 +189,10 @@ class LoanService {
     );
     return unwrapEnvelope(
       res,
-      (dynamic d) => Loan.fromJson(d as Map<String, dynamic>),
+      (dynamic d) => (
+        loan: Loan.fromJson(d as Map<String, dynamic>),
+        funding: LoanFunding.tryParse(d['funding']),
+      ),
     );
   }
 

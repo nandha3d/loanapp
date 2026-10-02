@@ -10,6 +10,7 @@ import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
 import { collectCashFromAgent, collectCashHandover, rejectCashHandover, requestCashHandover } from '@/lib/cashHandover';
+import { notifyNewlyFundableLoans } from '@/lib/loanFunding';
 
 async function requirePrivileged() {
   const session = await auth();
@@ -113,7 +114,7 @@ export async function releaseFundsAction(formData: FormData) {
     }
   }
 
-  await releaseToAgent({
+  const { agentBalance } = await releaseToAgent({
     tenantId,
     appType,
     agentId,
@@ -130,6 +131,8 @@ export async function releaseFundsAction(formData: FormData) {
     entityId: agentId,
     newValue: { amount },
   });
+  // FUND-5: pending loans this release made payable (opt-in alert, after commit).
+  await notifyNewlyFundableLoans({ tenantId, appType, agentId, before: agentBalance - amount, after: agentBalance });
 
   revalidatePath(modulePath(appType, '/wallet'));
   return { success: true as const };

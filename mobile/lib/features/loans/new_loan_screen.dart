@@ -17,12 +17,14 @@ import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/data/models/loan_funding.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/shared/widgets/funding_dialog.dart';
 import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
 import 'package:zolofund/data/services/loan_service.dart';
 import 'package:zolofund/data/services/settings_service.dart';
-import 'package:zolofund/data/services/wallet_service.dart';
 import 'package:zolofund/data/services/gold_service.dart';
 import 'package:zolofund/features/loans/loans_screen.dart' show loansProvider;
 import 'package:zolofund/data/services/upload_service.dart';
@@ -641,6 +643,29 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
 
   double _netDisbursed() => _calc?.disbursedAmount ?? 0;
 
+  /// FUND-1: server answer for the previewed payout (agent float, or the
+  /// customer's branch pool for admins). Never compared on the device.
+  LoanFunding? _funding;
+
+  Future<void> _refreshFunding() async {
+    final amount = _netDisbursed();
+    if (amount <= 0) {
+      if (mounted) setState(() => _funding = null);
+      return;
+    }
+    try {
+      final f = await ref.read(loanServiceProvider).funding(amount: amount, customerId: _customer?.id);
+      if (mounted) setState(() => _funding = f);
+    } catch (_) {
+      if (mounted) setState(() => _funding = null);
+    }
+  }
+
+  bool get _canMoveCash {
+    final role = ref.read(authControllerProvider).user?.role;
+    return role == UserRole.admin || role == UserRole.superadmin || role == UserRole.developer;
+  }
+
   static const _weekdays = [
     'Sunday',
     'Monday',
@@ -681,11 +706,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     } finally {
       if (mounted) setState(() => _calculating = false);
     }
+    await _refreshFunding();
   }
 
   // ── Submit ────────────────────────────────────────────────────────────
   Future<void> _submit() async {
     if (_customer == null) return;
+    // FUND-2: a branch pool that cannot cover the payout never creates the
+    // loan; the popup sends the admin to add capital first.
+    final f = _funding;
+    if (f != null && !f.sufficient && f.isBranch) {
+      await showFundingDialog(context, ref, f, canAct: _canMoveCash);
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -767,7 +800,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       final isCustom = _frequency == 'custom_duration';
       final tenureVal = isSingle || _isBullet ? 1 : _tenureNum;
 
-      final loan = await ref.read(loanServiceProvider).create(
+      final created = await ref.read(loanServiceProvider).create(
             termType: _isBullet ? 'bullet' : null,
             termDays: _isBullet ? _tenureNum : null,
             customerId: _customer!.id,
@@ -805,9 +838,15 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 : null,
           );
       if (!mounted) return;
+      final loan = created.loan;
       ref.invalidate(loansProvider);
       final t = T.of(ref);
-      if (loan.status == 'pending_review') {
+      final queued = created.funding;
+      if (loan.status == 'pending_review' && queued != null && !queued.sufficient) {
+        // FUND-2: queued for approval; show what must be released first.
+        await showFundingDialog(context, ref, queued, canAct: false, submitted: true);
+        if (mounted) context.go('/approvals');
+      } else if (loan.status == 'pending_review') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(t.x('msg.loan_request_submitted')),
@@ -824,6 +863,13 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       }
     } catch (e) {
       setState(() => _error = e.toString());
+      // FUND-2: the MONEY-16 409 carries the server figures.
+      final blocked = e is ApiException && e.isConflict && e.data is Map
+          ? LoanFunding.tryParse((e.data as Map)['funding'])
+          : null;
+      if (blocked != null && mounted) {
+        await showFundingDialog(context, ref, blocked, canAct: _canMoveCash);
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -1025,7 +1071,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                       borderRadius: BorderRadius.circular(AppTokens.radius),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppTokens.radius),
-                        onTap: () => setState(() => _customer = c),
+                        onTap: () {
+                          setState(() => _customer = c);
+                          _refreshFunding();
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -1091,6 +1140,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     ref.invalidate(loanEligibleCustomersProvider);
     if (result is Customer) {
       setState(() => _customer = result);
+      _refreshFunding();
       _go(1);
     }
   }
@@ -1397,8 +1447,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   Widget _stepTerms() {
     final tr = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
-    final walletAsync = ref.watch(walletMeProvider);
-    final floatBalance = walletAsync.asData?.value.balance;
+    // FUND-1: server figures only (POST /loans/funding).
+    final funding = _funding;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1751,19 +1801,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                     Text(fmt.format(_netDisbursed()), style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
                   ],
                 ),
-                if (floatBalance != null) ...[
+                if (funding != null && funding.source != 'none') ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(tr.x('loan.agent_float'), style: AppTypography.caption),
+                      Text(tr.x(funding.isAgent ? 'loan.agent_float' : 'loan_funding.label_pool'), style: AppTypography.caption),
                       Text(
-                        fmt.format(floatBalance),
+                        fmt.format(funding.available),
                         style: AppTypography.bodyLarge.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: _netDisbursed() > floatBalance
-                              ? AppColors.danger
-                              : AppColors.success,
+                          color: funding.sufficient
+                              ? AppColors.success
+                              : AppColors.danger,
                         ),
                       ),
                     ],
@@ -1772,7 +1822,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               ],
             ),
           ),
-              if (floatBalance != null && _netDisbursed() > floatBalance) ...[
+              if (funding != null && !funding.sufficient) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1788,7 +1838,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      tr.x('loan.insufficient_float_warn'),
+                      fundingText(tr, funding.isAgent ? 'loan_funding.float_popup_body' : 'loan_funding.capital_popup_body', funding, fmt),
                       style: AppTypography.caption.copyWith(
                         color: AppColors.warning,
                         fontWeight: FontWeight.w600,
@@ -2051,10 +2101,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   tr.x('rev.net_disbursed'),
                   fmt.format(_netDisbursed()),
                 ),
-                if (ref.watch(walletMeProvider).asData?.value.balance != null)
+                if (_funding != null && _funding!.source != 'none')
                   _kv(
-                    tr.x('loan.agent_float'),
-                    fmt.format(ref.watch(walletMeProvider).asData!.value.balance),
+                    tr.x(_funding!.isAgent ? 'loan.agent_float' : 'loan_funding.label_pool'),
+                    fmt.format(_funding!.available),
                   ),
                 _kv(
                   tr.x('rev.total_payable'),
@@ -2080,8 +2130,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             ],
           ),
         ),
-        if (ref.watch(walletMeProvider).asData?.value.balance != null &&
-            _netDisbursed() > ref.watch(walletMeProvider).asData!.value.balance) ...[
+        if (_funding != null && !_funding!.sufficient) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -2097,7 +2146,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    tr.x('loan.insufficient_float_warn'),
+                    fundingText(tr, _funding!.isAgent ? 'loan_funding.float_popup_body' : 'loan_funding.capital_popup_body', _funding!, fmt),
                     style: AppTypography.caption.copyWith(
                       color: AppColors.warning,
                       fontWeight: FontWeight.w600,

@@ -1,6 +1,7 @@
 'use server';
 
-import { apiFetch } from '@/lib/api-client/index';
+import { apiFetch, ApiError } from '@/lib/api-client/index';
+import type { FundingView } from '@/lib/loanFundingPolicy';
 import {
   getApiRequestContext,
   type ApiRequestContext,
@@ -164,6 +165,10 @@ export async function createLoan(formData: FormData) {
     const createdLoan = res.data;
     revalidatePath(modulePath(appType, '/loans'));
     if (createdLoan?.status === 'pending_review') {
+      // FUND-2: queued despite a short float — the form shows the popup first.
+      if (createdLoan.funding && !createdLoan.funding.sufficient) {
+        return { pendingFunding: createdLoan.funding as FundingView, redirectTo: modulePath(appType, '/approvals') };
+      }
       redirect(modulePath(appType, '/approvals'));
     }
     redirect(modulePath(appType, `/loans/${createdLoan.loanCode}`));
@@ -174,7 +179,32 @@ export async function createLoan(formData: FormData) {
     if (e.message === 'Unauthenticated') {
       redirect(modulePath(appType, '/collection'));
     }
-    return { error: e.message || 'Failed to create loan' };
+    const funding = fundingFromApiError(e);
+    return funding ? { error: e.message as string, funding } : { error: e.message || 'Failed to create loan' };
+  }
+}
+
+/** FUND-2: the MONEY-16 409 carries the server's funding figures in `data`. */
+function fundingFromApiError(e: unknown): FundingView | null {
+  if (!(e instanceof ApiError) || e.status !== 409) return null;
+  try {
+    return JSON.parse(e.body)?.data?.funding ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** FUND-1: does the caller's funding source cover this payout? Server-computed. */
+export async function checkLoanFunding(amount: number, customerId: string | null): Promise<FundingView | null> {
+  try {
+    const res = await apiFetch<{ data: FundingView | null }>('/loans/funding', {
+      method: 'POST',
+      body: JSON.stringify({ amount, customerId }),
+      ...(await getApiRequestContext()),
+    });
+    return res?.data ?? null;
+  } catch {
+    return null;
   }
 }
 

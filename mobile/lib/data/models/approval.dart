@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:zolofund/data/models/loan_funding.dart';
+
 class Approval {
   const Approval({
     required this.id,
@@ -12,10 +14,12 @@ class Approval {
     this.reviewNote,
     this.reason,
     this.reviewedByName,
+    this.reviewedAt,
     this.insufficientFloat = false,
     this.agentFloat,
     this.floatDeficit,
     this.floatWarning,
+    this.funding,
   });
 
   final String id;
@@ -28,10 +32,14 @@ class Approval {
   final String? reviewNote;
   final String? reason;
   final String? reviewedByName;
+  /// When the request was approved or rejected.
+  final DateTime? reviewedAt;
   final bool insufficientFloat;
   final double? agentFloat;
   final double? floatDeficit;
   final String? floatWarning;
+  /// FUND-3: server-computed funding for a pending loan (null for other requests).
+  final LoanFunding? funding;
 
   factory Approval.fromJson(Map<String, dynamic> json) {
     final req = json['requestedBy'] as Map<String, dynamic>?;
@@ -73,10 +81,14 @@ class Approval {
       reviewNote: (json['reviewNotes'] as String?) ?? (json['reviewNote'] as String?),
       reason: json['reason'] as String?,
       reviewedByName: (json['reviewedBy'] as Map<String, dynamic>?)?['name'] as String?,
+      reviewedAt: json['reviewedAt'] == null
+          ? null
+          : DateTime.tryParse(json['reviewedAt'].toString())?.toLocal(),
       insufficientFloat: insufficient,
       agentFloat: agentF,
       floatDeficit: deficit,
       floatWarning: warning,
+      funding: LoanFunding.tryParse(json['funding']),
     );
   }
 }

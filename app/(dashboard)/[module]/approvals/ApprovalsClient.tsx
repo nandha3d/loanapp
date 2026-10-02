@@ -5,6 +5,9 @@ import Modal from '@/components/Modal';
 import { reviewRequest, reviewPendingLoan, approveCustomerCreation, rejectCustomerCreation, approveVehicleCreation, rejectVehicleCreation } from './actions';
 import { useRouter } from 'next/navigation';
 import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { formatDateTime } from '@/lib/utils';
+import FundingPopup, { fundingVars, type FundingView } from '@/components/loans/FundingPopup';
+import { fillTemplate, fundingWalletLink } from '@/lib/loanFundingPolicy';
 
 export default function ApprovalsClient({
   requests,
@@ -14,6 +17,7 @@ export default function ApprovalsClient({
   userRole,
   dict,
   appType = 'microlending',
+  currencySymbol = '₹',
 }: {
   requests: any[];
   pendingLoans?: any[];
@@ -22,7 +26,10 @@ export default function ApprovalsClient({
   userRole: string;
   dict: any;
   appType?: string;
+  currencySymbol?: string;
 }) {
+  // FUND-2: an approval the server says is short opens this instead of approving.
+  const [fundingPopup, setFundingPopup] = useState<{ funding: FundingView; agentName: string | null } | null>(null);
   const d = dict.approvals;
   const precloseDetails = (request: any) => {
     const changes = JSON.parse(request.requestedChanges);
@@ -79,16 +86,12 @@ export default function ApprovalsClient({
 
   async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
     const targetLoan = pendingLoans.find((l: any) => l.id === loanId);
-    const isUnderfunded = action === 'approve' && targetLoan?.insufficientFloat;
-    const needsConfirm = action === 'reject' || isUnderfunded;
-    if (!confirmStep(`loan:${loanId}:${action}`, needsConfirm)) {
-      if (isUnderfunded) {
-        setActionError(
-          `⚠️ ${d.insufficientFloatWarning || 'Agent has insufficient float'}: ₹${Number(targetLoan.agentFloatBalance ?? 0).toLocaleString()} available, ₹${Number(targetLoan.disbursed ?? targetLoan.principal ?? 0).toLocaleString()} needed. Click Confirm to attempt anyway, or release funds in the Wallet module.`
-        );
-      }
+    // FUND-2: the payout is short — approval stays blocked until cash is released.
+    if (action === 'approve' && targetLoan?.funding && !targetLoan.funding.sufficient) {
+      setFundingPopup({ funding: targetLoan.funding, agentName: targetLoan.createdBy?.name ?? null });
       return;
     }
+    if (!confirmStep(`loan:${loanId}:${action}`, action === 'reject')) return;
     setLoanLoading(loanId);
     try {
       const fd = new FormData();
@@ -97,6 +100,9 @@ export default function ApprovalsClient({
       fd.set('reviewNotes', '');
       const res = await reviewPendingLoan(fd);
       if (res.success) {
+        router.refresh();
+      } else if ('funding' in res && res.funding) {
+        setFundingPopup({ funding: res.funding, agentName: targetLoan?.createdBy?.name ?? null });
         router.refresh();
       } else {
         setActionError(res.error || 'Failed to process request');
@@ -150,6 +156,15 @@ export default function ApprovalsClient({
 
   return (
     <div style={{ padding: '24px' }}>
+      <FundingPopup
+        funding={fundingPopup?.funding ?? null}
+        agentName={fundingPopup?.agentName}
+        dict={dict}
+        currencySymbol={currencySymbol}
+        appType={appType}
+        canAct={userRole !== 'agent'}
+        onClose={() => setFundingPopup(null)}
+      />
       {actionError && (
         <div
           role="alert"
@@ -347,7 +362,7 @@ export default function ApprovalsClient({
                 ) : (
                   pendingCustomers.map((cust) => (
                     <tr key={cust.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ padding: '16px 20px' }}>{new Date(cust.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '16px 20px' }}>{formatDateTime(cust.createdAt)}</td>
                       <td style={{ padding: '16px 20px' }}>
                         <strong>{cust.name}</strong>
                         {cust.customerCode && <div style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>{cust.customerCode}</div>}
@@ -417,7 +432,7 @@ export default function ApprovalsClient({
                 ) : (
                   pendingLoans.map((loan: any) => (
                     <tr key={loan.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ padding: '16px 20px' }}>{new Date(loan.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '16px 20px' }}>{formatDateTime(loan.createdAt)}</td>
                       <td style={{ padding: '16px 20px' }}><strong>{loan.loanCode}</strong></td>
                       <td style={{ padding: '16px 20px' }}>{loan.customer?.name} ({loan.customer?.customerCode})</td>
                       <td style={{ padding: '16px 20px' }}>₹{Number(loan.principal).toLocaleString()}</td>
@@ -440,11 +455,16 @@ export default function ApprovalsClient({
                             <span className="material-icons-outlined" style={{ fontSize: 14 }}>warning</span>
                             <span>{d.insufficientFloat || 'Low float'}: ₹{Number(loan.agentFloatBalance ?? 0).toLocaleString()} / ₹{Number(loan.disbursed ?? loan.principal ?? 0).toLocaleString()}</span>
                             <a
-                              href={`/${appType}/wallet`}
+                              href={loan.funding ? fundingWalletLink(appType, loan.funding) : `/${appType}/wallet`}
                               style={{ textDecoration: 'underline', color: '#b45309', marginLeft: 4, fontWeight: 600 }}
                             >
-                              {d.releaseFloat || 'Release funds'}
+                              {loan.funding ? fillTemplate(dict.loanFunding.releaseAmount, fundingVars(loan.funding, currencySymbol)) : (d.releaseFloat || 'Release funds')}
                             </a>
+                          </div>
+                        )}
+                        {loan.funding?.source === 'agent' && loan.funding.committed > 0 && loan.funding.queueShortfall > 0 && (
+                          <div style={{ marginTop: 4, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            {fillTemplate(dict.loanFunding.queueNote, fundingVars(loan.funding, currencySymbol))}
                           </div>
                         )}
                       </td>
@@ -509,7 +529,7 @@ export default function ApprovalsClient({
                 ) : (
                   pendingVehicles.map((v: any) => (
                     <tr key={v.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ padding: '16px 20px' }}>{new Date(v.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '16px 20px' }}>{formatDateTime(v.createdAt)}</td>
                       <td style={{ padding: '16px 20px' }}><strong>{v.registrationNo}</strong></td>
                       <td style={{ padding: '16px 20px' }}>{v.make} {v.model} {v.year ? `(${v.year})` : ''}</td>
                       <td style={{ padding: '16px 20px' }}>{v.customer?.name} {v.customer?.customerCode ? `(${v.customer.customerCode})` : ''}</td>
@@ -577,7 +597,7 @@ export default function ApprovalsClient({
                     const changes = JSON.parse(req.requestedChanges || '{}');
                     return (
                       <tr key={req.id} style={{ borderTop: '1px solid var(--border)' }}>
-                        <td style={{ padding: '16px 20px' }}>{new Date(req.createdAt).toLocaleDateString()}</td>
+                        <td style={{ padding: '16px 20px' }}>{formatDateTime(req.createdAt)}</td>
                         <td style={{ padding: '16px 20px' }}>{req.requestedBy?.name}</td>
                         <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>
                           {req.requestType === LOAN_PRECLOSE_REQUEST ? dict.precloseRequest.title : req.requestType === 'cash_handover' ? d.cashHandover : req.entityType}
@@ -605,7 +625,7 @@ export default function ApprovalsClient({
                           {req.status === 'pending' && userRole !== 'agent' ? (
                             <button className="btn btn-primary btn-sm" onClick={() => setSelectedRequest(req)}>{d.review}</button>
                           ) : (
-                            req.reviewedBy && <span style={{ fontSize: '0.85rem' }}>{d.reviewedBy} {req.reviewedBy.name}</span>
+                            req.reviewedBy && <span style={{ fontSize: '0.85rem' }}>{d.reviewedBy} {req.reviewedBy.name}{req.reviewedAt && <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-light)' }}>{formatDateTime(req.reviewedAt)}</span>}</span>
                           )}
                         </td>
                       </tr>

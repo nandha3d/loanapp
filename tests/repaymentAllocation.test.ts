@@ -45,7 +45,7 @@ assert.equal(overdue[2].status, 'missed');
 assert.equal(overdue[2].overdueAmount, 110);
 
 // --- Tests for getDistributedInstalmentsAndMetrics (MONEY-22 & MONEY-10) ---
-import { getDistributedInstalmentsAndMetrics } from '../lib/repayments';
+import { getDistributedInstalmentsAndMetrics, distributeScheduleView, distributeExtendedRowsView } from '../lib/repayments';
 
 const todayDate = new Date('2026-09-24T00:00:00.000Z');
 
@@ -126,3 +126,53 @@ assert.equal(todayRowExcess.outstandingAmount, 300, 'Today outstanding must be f
 assert.notEqual(todayRowExcess.status, 'paid', 'Today status must NOT be paid when cToday is 0');
 
 console.log('repayment allocation tests passed');
+
+// DEC-03 (B) Distributed view past the term (EXT-1): 10 days × ₹2000 from
+// 16 Sep, days 1–6 paid on time, then ₹2000 taken on extended day 27 Sep.
+// The whole ₹14000 is laid over the original rows first, so the 27 Sep cash
+// fills day 7 and the extended day itself shows nothing received.
+{
+  const days = Array.from({ length: 10 }, (_, i) => ({
+    dueDate: new Date(Date.UTC(2026, 8, 16 + i)),
+    dueAmount: 2000,
+    status: 'missed',
+  }));
+  const receipts = [
+    ...Array.from({ length: 6 }, (_, i) => ({ amount: 2000, at: `2026-09-${16 + i}T04:00:00.000Z` })),
+    { amount: 2000, at: '2026-09-27T03:53:00.000Z' },
+  ];
+  const ext = ['2026-09-26', '2026-09-27', '2026-10-02', '2026-10-03'].map((d, i) => ({
+    no: 11 + i,
+    date: new Date(`${d}T00:00:00.000Z`),
+    amount: 2000,
+    receivedAmount: d === '2026-09-27' ? 2000 : 0,
+    status: d === '2026-09-27' ? 'paid' : 'missed',
+    receivedAt: d === '2026-09-27' ? '2026-09-27T03:53:00.000Z' : null,
+    collectionEntryId: d === '2026-09-27' ? 'ce7' : null,
+    paymentMode: d === '2026-09-27' ? 'cash' : null,
+    editInstalmentId: d === '2026-09-27' ? 'inst7' : null,
+  }));
+
+  const rows = distributeScheduleView(days, 14000, '2026-10-02', receipts);
+  assert.deepEqual(rows.map((r) => r.status), ['paid', 'paid', 'paid', 'paid', 'paid', 'paid', 'paid', 'missed', 'missed', 'missed']);
+  assert.equal((rows[6] as any).receivedAt, '2026-09-27T03:53:00.000Z', 'day 7 is stamped with the 27 Sep collection');
+  assert.equal((rows[0] as any).receivedAt, '2026-09-16T04:00:00.000Z');
+  assert.equal((rows[7] as any).receivedAt, null, 'an unfilled row has no received time');
+
+  const extRows = distributeExtendedRowsView(ext, days, 14000, '2026-10-02', receipts);
+  assert.deepEqual(
+    extRows.map((r) => [r.receivedAmount, r.status, r.receivedAt, r.editInstalmentId]),
+    [[0, 'missed', null, null], [0, 'missed', null, null], [0, 'due today', null, null], [0, 'projected', null, null]],
+    'extended-day cash is already on the original rows — the days are zeroed',
+  );
+
+  // Only cash beyond the whole original schedule reaches the extended days.
+  const over = distributeExtendedRowsView(ext, days, 23000, '2026-10-02');
+  assert.deepEqual(over.map((r) => [r.receivedAmount, r.status]), [[2000, 'paid'], [1000, 'partial'], [0, 'due today'], [0, 'projected']]);
+
+  // Without receipts the existing view is unchanged (no receivedAt added).
+  const plain = distributeScheduleView([{ dueDate: days[9].dueDate, dueAmount: 2000, status: 'missed' }], 0, '2026-10-02');
+  assert.equal('receivedAt' in plain[0], false);
+}
+
+console.log('distributed view tests passed');

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { formatDateTime } from '@/lib/utils';
 import {
   releaseFundsAction,
   injectBranchAction,
@@ -18,6 +19,20 @@ type PendingHandover = {
   requestedAt: string;
   remarks: string | null;
 };
+/** FUND-4: row + amount handed over by a funding popup or alert link. */
+type Prefill = { agentId?: string; release?: number; branchId?: string; topup?: number; hint?: string };
+
+/** Scrolls a prefilled row into view once. */
+function usePrefillFocus(active: boolean) {
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [active]);
+  return ref;
+}
+
+const prefillStyle = { boxShadow: 'inset 4px 0 0 var(--primary)', background: 'var(--primary-light)' };
+
 type CashSummary = {
   accountingCapital: number;
   releasedToAgents: number;
@@ -90,6 +105,7 @@ export default function WalletClient({
   currencySymbol,
   summary,
   appType,
+  prefill,
 }: {
   pools: Pool[];
   agents: Agent[];
@@ -97,6 +113,7 @@ export default function WalletClient({
   currencySymbol: string;
   summary: CashSummary;
   appType?: string;
+  prefill?: Prefill;
 }) {
   const isChitFunds = appType === 'chitfunds';
   const branchCount = pools.length;
@@ -240,7 +257,8 @@ export default function WalletClient({
         ) : (
           <div>
             {pools.map((pool) => (
-              <BranchRow key={pool.branchId} pool={pool} currencySymbol={currencySymbol} />
+              <BranchRow key={pool.branchId} pool={pool} currencySymbol={currencySymbol}
+                prefill={prefill?.branchId === pool.branchId ? prefill : undefined} />
             ))}
           </div>
         )}
@@ -262,7 +280,8 @@ export default function WalletClient({
               {agents.map((agent) => (
                 // WAL-02: the warning compares against the agent's own branch pool.
                 <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol}
-                  branchCashAvailable={pools.find((p) => p.branchId === agent.branchId)?.balance ?? summary.branchCashAvailable} />
+                  branchCashAvailable={pools.find((p) => p.branchId === agent.branchId)?.balance ?? summary.branchCashAvailable}
+                  prefill={prefill?.agentId === agent.agentId ? prefill : undefined} />
               ))}
             </div>
           )}
@@ -272,8 +291,9 @@ export default function WalletClient({
   );
 }
 
-function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: string }) {
+function BranchRow({ pool, currencySymbol, prefill }: { pool: Pool; currencySymbol: string; prefill?: Prefill }) {
   const [busy, setBusy] = useState(false);
+  const rowRef = usePrefillFocus(!!prefill?.topup);
   // Single click: topping up a branch pool from company capital is additive and
   // reversible. Errors surface inline — never behind window.confirm(), which a
   // browser can silence, making the button look dead.
@@ -298,6 +318,7 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
           setBusy(false);
         }
       }}
+      ref={rowRef}
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
@@ -305,6 +326,7 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         alignItems: 'center',
         padding: '16px 24px',
         borderBottom: '1px solid var(--border)',
+        ...(prefill?.topup ? prefillStyle : {}),
       }}
     >
       <input type="hidden" name="branchId" value={pool.branchId} />
@@ -332,6 +354,7 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         step="any"
         placeholder="Amount"
         required
+        defaultValue={prefill?.topup}
         className="form-control"
       />
       <button
@@ -343,6 +366,9 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'add_circle'}</span>
         {busy ? 'Posting...' : 'Top up'}
       </button>
+      {prefill?.topup && prefill.hint && (
+        <div style={{ gridColumn: '1 / -1', color: 'var(--primary-dark)', fontSize: '.8rem', fontWeight: 600 }}>{prefill.hint}</div>
+      )}
       {error && (
         <div role="alert" style={{ gridColumn: '1 / -1', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 600 }}>
           {error}
@@ -356,12 +382,15 @@ function AgentRow({
   agent,
   currencySymbol,
   branchCashAvailable,
+  prefill,
 }: {
   agent: Agent;
   currencySymbol: string;
   branchCashAvailable?: number;
+  prefill?: Prefill;
 }) {
   const [busy, setBusy] = useState(false);
+  const rowRef = usePrefillFocus(!!prefill?.release);
   // Two-step confirmation, deliberately NOT window.confirm(). A suppressed
   // browser dialog (Firefox's "prevent this page from creating additional
   // dialogs" sticks for the whole tab) makes confirm() return false silently,
@@ -370,7 +399,7 @@ function AgentRow({
   const [armed, setArmed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [topUp, setTopUp] = useState<{ balance: number; shortfall: number; amount: number; note: string } | null>(null);
-  const [inputAmount, setInputAmount] = useState('');
+  const [inputAmount, setInputAmount] = useState(prefill?.release ? String(prefill.release) : '');
   const hasFloat = agent.balance > 0;
   const tone = hasFloat ? tones.green : tones.slate;
 
@@ -428,9 +457,14 @@ function AgentRow({
         alignItems: 'center',
         padding: '16px 24px',
         borderBottom: '1px solid var(--border)',
+        ...(prefill?.release ? prefillStyle : {}),
       }}
+      ref={rowRef}
     >
       <input type="hidden" name="agentId" value={agent.agentId} />
+      {prefill?.release && prefill.hint && (
+        <div style={{ gridColumn: '1 / -1', color: 'var(--primary-dark)', fontSize: '.8rem', fontWeight: 600 }}>{prefill.hint}</div>
+      )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
         <div style={{ width: 42, height: 42, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tone.bg, color: tone.color, fontWeight: 800, flexShrink: 0 }}>
           {initials(agent.name)}
@@ -580,7 +614,7 @@ function HandoverRow({ handover, currencySymbol }: { handover: PendingHandover; 
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{handover.agentName}</div>
           <div style={{ color: 'var(--text-light)', fontSize: '.74rem' }}>
-            {new Date(handover.requestedAt).toLocaleDateString('en-IN')}{handover.remarks ? ` · ${handover.remarks}` : ''}
+            {formatDateTime(handover.requestedAt)}{handover.remarks ? ` · ${handover.remarks}` : ''}
           </div>
         </div>
       </div>

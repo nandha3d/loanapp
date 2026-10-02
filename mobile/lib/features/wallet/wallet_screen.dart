@@ -14,8 +14,52 @@ import 'package:zolofund/data/models/wallet.dart';
 import 'package:zolofund/data/services/wallet_service.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 
+/// FUND-4: the row and server amount a funding popup or alert links to.
+class WalletPrefill {
+  const WalletPrefill({this.agentId, this.release, this.branchId, this.topup});
+  final String? agentId;
+  final double? release;
+  final String? branchId;
+  final double? topup;
+
+  static WalletPrefill? fromQuery(Map<String, String> q) {
+    double? n(String? v) {
+      final d = double.tryParse(v ?? '');
+      return d != null && d > 0 ? d : null;
+    }
+    final p = WalletPrefill(agentId: q['agent'], release: n(q['release']), branchId: q['branch'], topup: n(q['topup']));
+    return (p.agentId != null && p.release != null) || (p.branchId != null && p.topup != null) ? p : null;
+  }
+}
+
+String _amountText(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+/// Runs [onOpen] once after the first frame — opens a prefilled dialog.
+class _OpenOnce extends StatefulWidget {
+  const _OpenOnce({required this.onOpen, required this.child});
+  final VoidCallback onOpen;
+  final Widget child;
+
+  @override
+  State<_OpenOnce> createState() => _OpenOnceState();
+}
+
+class _OpenOnceState extends State<_OpenOnce> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onOpen();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class WalletScreen extends ConsumerWidget {
-  const WalletScreen({super.key});
+  const WalletScreen({super.key, this.prefill});
+  final WalletPrefill? prefill;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +80,7 @@ class WalletScreen extends ConsumerWidget {
               context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
       ),
-      body: privileged ? const _AdminWallet() : const _AgentWallet(),
+      body: privileged ? _AdminWallet(prefill: prefill) : const _AgentWallet(),
     );
   }
 }
@@ -186,7 +230,8 @@ class _BalanceHero extends StatelessWidget {
 
 // ── Admin view: agents + release funds ───────────────────────────────────
 class _AdminWallet extends ConsumerWidget {
-  const _AdminWallet();
+  const _AdminWallet({this.prefill});
+  final WalletPrefill? prefill;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -278,7 +323,12 @@ class _AdminWallet extends ConsumerWidget {
                 else
                   ...branches.map((b) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _BranchRow(pool: b, fmt: fmt, t: t),
+                        child: prefill?.branchId == b.branchId && prefill?.topup != null
+                            ? _OpenOnce(
+                                onOpen: () => _BranchRow(pool: b, fmt: fmt, t: t)._topUp(context, ref, initialAmount: prefill!.topup),
+                                child: _BranchRow(pool: b, fmt: fmt, t: t),
+                              )
+                            : _BranchRow(pool: b, fmt: fmt, t: t),
                       ),),
                 const SizedBox(height: 22),
               ],
@@ -307,7 +357,12 @@ class _AdminWallet extends ConsumerWidget {
                       for (final a in agents)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: _AgentRow(agent: a, fmt: fmt, t: t),
+                          child: prefill?.agentId == a.agentId && prefill?.release != null
+                              ? _OpenOnce(
+                                  onOpen: () => _AgentRow(agent: a, fmt: fmt, t: t)._openRelease(context, ref, initialAmount: prefill!.release),
+                                  child: _AgentRow(agent: a, fmt: fmt, t: t),
+                                )
+                              : _AgentRow(agent: a, fmt: fmt, t: t),
                         ),
                     ],
                   ),
@@ -389,8 +444,11 @@ class _AmountActionDialog extends ConsumerStatefulWidget {
     this.maxBalance,
     this.balanceLabel,
     this.warningExceeds,
+    this.initialAmount,
   });
   final String title;
+  /// FUND-4: server amount handed over by a funding link.
+  final double? initialAmount;
   final String actionLabel;
   final String? successMsg;
   final double? maxBalance;
@@ -411,6 +469,7 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialAmount != null) _amount.text = _amountText(widget.initialAmount!);
     _amount.addListener(_onAmountChanged);
   }
 
@@ -483,6 +542,15 @@ class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+          ],
+          if (widget.initialAmount != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                t.x('loan_funding.prefill_hint'),
+                style: AppTypography.caption.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -613,10 +681,11 @@ class _BranchRow extends ConsumerWidget {
     );
   }
 
-  void _topUp(BuildContext context, WidgetRef ref) {
+  void _topUp(BuildContext context, WidgetRef ref, {double? initialAmount}) {
     showDialog<void>(
       context: context,
       builder: (_) => _AmountActionDialog(
+        initialAmount: initialAmount,
         title: '${t.x('wallet.topup')} — ${pool.branchName}',
         actionLabel: t.x('wallet.topup'),
         successMsg: t.x('wallet.topped_up'),
@@ -699,7 +768,7 @@ class _AgentRow extends ConsumerWidget {
     );
   }
 
-  void _openRelease(BuildContext context, WidgetRef ref) {
+  void _openRelease(BuildContext context, WidgetRef ref, {double? initialAmount}) {
     final branches = ref.read(walletBranchesProvider).asData?.value ?? const [];
     // WAL-02: warn against the agent's own branch pool, not the sum of pools.
     final own = branches.where((b) => b.branchId == agent.branchId);
@@ -708,7 +777,7 @@ class _AgentRow extends ConsumerWidget {
         : branches.fold<double>(0.0, (s, b) => s + b.balance);
     showDialog<void>(
       context: context,
-      builder: (_) => _ReleaseDialog(agent: agent, poolBalance: poolBalance),
+      builder: (_) => _ReleaseDialog(agent: agent, poolBalance: poolBalance, initialAmount: initialAmount),
     );
   }
 
@@ -735,9 +804,11 @@ class _AgentRow extends ConsumerWidget {
 }
 
 class _ReleaseDialog extends ConsumerStatefulWidget {
-  const _ReleaseDialog({required this.agent, this.poolBalance});
+  const _ReleaseDialog({required this.agent, this.poolBalance, this.initialAmount});
   final AgentWallet agent;
   final double? poolBalance;
+  /// FUND-4: server amount handed over by a funding link.
+  final double? initialAmount;
 
   @override
   ConsumerState<_ReleaseDialog> createState() => _ReleaseDialogState();
@@ -751,6 +822,7 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialAmount != null) _amount.text = _amountText(widget.initialAmount!);
     _amount.addListener(_onAmountChanged);
   }
 
@@ -824,6 +896,15 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+          ],
+          if (widget.initialAmount != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                t.x('loan_funding.prefill_hint'),
+                style: AppTypography.caption.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
               ),
             ),
           ],

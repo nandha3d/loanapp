@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { releaseToAgent, InsufficientFloatError } from '@/lib/wallet';
 import { writeAudit } from '@/lib/audit';
+import { notifyNewlyFundableLoans } from '@/lib/loanFunding';
 
 /**
  * POST /api/v1/wallet/release
@@ -53,6 +54,8 @@ export async function POST(req: NextRequest) {
       entityId: agentId,
       newValue: { amount, agentBalance },
     });
+    // FUND-5: pending loans this release made payable (opt-in alert, after commit).
+    await notifyNewlyFundableLoans({ tenantId: ctx.tenantId, appType: ctx.appType, agentId, before: agentBalance - amount, after: agentBalance });
 
     return ok({ agentId, agentBalance });
   } catch (e: any) {

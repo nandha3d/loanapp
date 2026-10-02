@@ -15,7 +15,7 @@ import {
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
-import { hasFinancialActivity, calculateDynamicOverdueAmount, distributeScheduleView } from '@/lib/repayments';
+import { hasFinancialActivity, calculateDynamicOverdueAmount, distributeScheduleView, distributeExtendedRowsView } from '@/lib/repayments';
 import { modulePath } from '@/types/modules';
 
 export async function GET(
@@ -293,13 +293,39 @@ export async function GET(
     agentPreclose = { enabled, amount: precloseOutstanding(loan), status: last?.status ?? null, reviewNotes: last?.reviewNotes ?? null };
   }
 
+  // When the loan started: its disbursement is written in the activation
+  // transaction (lib/wallet.ts disburseFrom*); a loan with no wallet payout
+  // falls back to when it was created.
+  const disbursal = await prisma.walletTransaction.findFirst({
+    where: { tenantId: ctx.tenantId, appType: ctx.appType, type: 'disburse', refType: 'loan', refId: loan.id },
+    orderBy: { createdAt: 'asc' },
+    select: { createdAt: true },
+  });
+  const startedAt = loan.status === 'pending_review' ? null : (disbursal?.createdAt ?? loan.createdAt);
+
+  // DEC-03 (B): the "Distributed" view stamps each filled row with the
+  // collection that brought the money up to it (entries arrive oldest first).
+  const receipts = collectionEntries.map((c: any) => ({
+    amount: Number(c.receivedAmount || 0),
+    at: c.submittedAt ?? null,
+  }));
+
   return ok({
     ...loan,
     customer: customerOut,
     collectionEntries,
     instalments: instalmentsOut,
+    startedAt,
     // DEC-03 (B): the "Distributed" schedule view, computed here for both clients.
-    distributedInstalments: distributeScheduleView(instalments, Number(loan.totalCollected), toDateStr(today)),
+    // A spread row is not the row that was edited, so it carries no correction time.
+    distributedInstalments: distributeScheduleView(
+      instalments.map((i) => ({ ...i, correctedAt: null })), Number(loan.totalCollected), toDateStr(today), receipts,
+    ),
+    // …and its extended days: the original rows already hold that cash, so an
+    // extended day keeps only what is left after the whole schedule (EXT-1).
+    distributedExtendedRows: distributeExtendedRowsView(
+      extendedSchedule.extendedRows, instalments, Number(loan.totalCollected), toDateStr(today), receipts,
+    ),
     restructure,
     extendedSchedule,
     metrics,

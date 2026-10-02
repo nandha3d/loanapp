@@ -43,3 +43,12 @@ export function fail(error: string, status = 400): NextResponse {
   const body: Envelope<null> = { data: null, error, pagination: null };
   return NextResponse.json(body, { status });
 }
+
+/**
+ * An error that still carries a payload — e.g. a 409 funding block whose
+ * figures the client renders in its popup (FUND-2). Same envelope shape.
+ */
+export function failWithData<T>(error: string, status: number, data: T): NextResponse {
+  const body: Envelope<T> = { data, error, pagination: null };
+  return NextResponse.json(body, { status });
+}

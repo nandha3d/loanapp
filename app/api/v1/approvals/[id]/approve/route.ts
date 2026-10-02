@@ -2,7 +2,8 @@ import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import { PrecloseRequestError, reviewLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, failWithData } from '@/lib/api/v1-envelope';
+import { reportBlockedPendingLoan } from '@/lib/loanFunding';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { encryptAadharNumber } from '@/lib/pii';
 import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
@@ -519,30 +520,17 @@ export async function PATCH(
         return ok({ status: 'approved' });
       } catch (err: any) {
         if (err.name === 'InsufficientFloatError') {
-          try {
-            const { notifyApprovers } = await import('@/lib/notify/approvers');
-            await notifyApprovers({
-              tenantId: ctx.tenantId,
-              branchId: loan.branchId,
-              requesterBranchId: ctx.branchId,
-              requesterRole: ctx.role,
-              appType: ctx.appType,
-              type: 'float_insufficient',
-              icon: 'account_balance_wallet',
-              title: '⚠️ Insufficient Float Cash',
-              message: `Cannot disburse loan ${loan.loanCode}: Float balance ₹${Number(err.available).toLocaleString('en-IN')} is insufficient for required ₹${Number(err.required).toLocaleString('en-IN')}`,
-              link: modulePath(ctx.appType, '/wallet'),
-              data: {
-                available: String(err.available),
-                required: String(err.required),
-                loanId: loan.id,
-                loanCode: loan.loanCode,
-              },
-            });
-          } catch (notifErr) {
-            console.error('[approvals approve route] notify insufficient float failed:', notifErr);
-          }
-          return fail(`Agent has insufficient float to disburse ₹${err.required} (available: ₹${err.available}). Please release funds first in the Wallet module.`, 409);
+          // MONEY-16 block; FUND-2 adds the figures and tells the agent too.
+          const funding = await reportBlockedPendingLoan({
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            loan,
+            available: Number(err.available),
+            required: Number(err.required),
+            actorBranchId: ctx.branchId,
+            actorRole: ctx.role,
+          });
+          return failWithData(`Agent has insufficient float to disburse ₹${err.required} (available: ₹${err.available}). Please release funds first in the Wallet module.`, 409, { code: 'insufficient_float', funding });
         }
         throw err;
       }

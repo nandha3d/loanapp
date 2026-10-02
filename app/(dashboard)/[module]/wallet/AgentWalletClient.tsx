@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { requestFloatHandoverAction } from './actions';
 
 type Txn = {
@@ -139,7 +139,7 @@ export default function AgentWalletClient({
                   const badge = HANDOVER_BADGE[h.status] || { label: h.status, bg: 'var(--bg)', color: 'var(--text-secondary)' };
                   return (
                     <tr key={h.id}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDate(h.requestedAt)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(h.requestedAt)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(h.amount, currencySymbol)}</td>
                       <td>
                         <span style={{ background: badge.bg, color: badge.color, fontSize: '.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: '12px' }}>
@@ -173,7 +173,7 @@ export default function AgentWalletClient({
                 const credit = t.amount >= 0;
                 return (
                   <tr key={t.id}>
-                    <td data-label="Date" style={{ whiteSpace: 'nowrap' }}>{formatDate(t.createdAt)}</td>
+                    <td data-label="Date" style={{ whiteSpace: 'nowrap' }}>{formatDateTime(t.createdAt)}</td>
                     <td data-label="Activity">
                       {TYPE_LABEL[t.type] || t.type}
                       {t.note ? <span style={{ color: 'var(--text-light)', fontSize: '.78rem' }}> · {t.note}</span> : null}
