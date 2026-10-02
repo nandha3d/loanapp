@@ -123,31 +123,19 @@ export async function markLoanCollection(formData: FormData) {
 export async function waiveLoanPenalty(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();
-    const penaltyId = formData.get('penaltyId') as string;
     const waivedAmount = Number(formData.get('waivedAmount'));
     const notes = formData.get('notes') as string || '';
     const loanId = formData.get('loanId') as string;
-    const grossPenalty = Number(formData.get('grossPenalty'));
 
-    // Fetch loan details via API to get loanCode
     const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
     if (loanRes.error) return { success: false, error: loanRes.error };
     const loanCode = loanRes.data?.loanCode;
 
-    let targetPenaltyId = penaltyId;
-    if (penaltyId === 'new') {
-      const createRes = await apiFetch<any>('/penalties', {
-        method: 'POST',
-        body: JSON.stringify({ loanId, grossPenalty, notes }),
-        ...apiContext,
-      });
-      if (createRes.error) return { success: false, error: createRes.error };
-      targetPenaltyId = createRes.data.id;
-    }
-
-    const res = await apiFetch<any>(`/penalties/${targetPenaltyId}/waive`, {
+    // DEC-03 (B): the server waives the loan's own open penalties, oldest first
+    // (it used to create an extra penalty row for the whole net first).
+    const res = await apiFetch<any>(`/penalties/loan/${loanId}/waive`, {
       method: 'POST',
-      body: JSON.stringify({ amount: waivedAmount, reason: notes }),
+      body: JSON.stringify({ amount: waivedAmount > 0 ? waivedAmount : undefined, reason: notes }),
       ...apiContext,
     });
 
@@ -229,32 +217,20 @@ export async function requestPenaltyWaiver(formData: FormData) {
 export async function settleLoanPenalty(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();
-    const penaltyId = formData.get('penaltyId') as string;
     const paymentMode = (formData.get('paymentMode') as string) || 'cash';
     const settledAmount = Number(formData.get('settledAmount'));
     const notes = formData.get('notes') as string || '';
     const loanId = formData.get('loanId') as string;
-    const grossPenalty = Number(formData.get('grossPenalty'));
 
-    // Fetch loan details via API to get loanCode
     const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
     if (loanRes.error) return { success: false, error: loanRes.error };
     const loanCode = loanRes.data?.loanCode;
 
-    let targetPenaltyId = penaltyId;
-    if (penaltyId === 'new') {
-      const createRes = await apiFetch<any>('/penalties', {
-        method: 'POST',
-        body: JSON.stringify({ loanId, grossPenalty, notes }),
-        ...apiContext,
-      });
-      if (createRes.error) return { success: false, error: createRes.error };
-      targetPenaltyId = createRes.data.id;
-    }
-
-    const res = await apiFetch<any>(`/penalties/${targetPenaltyId}/settle`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action: 'settle', amount: settledAmount, paymentMode }),
+    // DEC-03 (B): the server splits the amount over the loan's own open
+    // penalties, oldest first (it used to create an extra penalty row first).
+    const res = await apiFetch<any>(`/penalties/loan/${loanId}/settle`, {
+      method: 'POST',
+      body: JSON.stringify({ amount: settledAmount, paymentMode, notes }),
       ...apiContext,
     });
 

@@ -634,3 +634,159 @@ export async function waivePenalty(input: {
   return updated;
 }
 
+// ── DEC-03 (B): per-loan penalty figures and actions, server-side ─────────────
+// Each loan's penalty comes from that loan's own missed dates; rows of one loan
+// are summed here (never across loans) so no client adds or splits amounts.
+
+type LoanPenaltyActor = { tenantId: string; appType: string; branchId?: string | null; userId: string; role: string };
+
+/** The loan the actor may act on (agent: linked customer; staff: active branch). */
+async function loanForPenaltyAction(actor: LoanPenaltyActor, loanId: string) {
+  const loan = await prisma.loan.findFirst({
+    where: {
+      id: loanId,
+      tenantId: actor.tenantId,
+      appType: actor.appType,
+      ...(actor.role === 'agent'
+        ? { customer: buildAgentCustomerAccessWhere({ userId: actor.userId }) }
+        : actor.branchId ? { branchId: actor.branchId } : {}),
+    },
+    select: { id: true, loanCode: true, branchId: true },
+  });
+  if (!loan) throw new Error('Penalty not found');
+  return loan;
+}
+
+/** Open penalty rows of one loan, oldest first, with their net due. */
+async function openLoanPenalties(db: Prisma.TransactionClient, loanId: string) {
+  return (await db.penalty.findMany({ where: { loanId }, orderBy: { createdAt: 'asc' } }))
+    .map((p) => ({ id: p.id, net: penaltyNet(p) }))
+    .filter((p) => p.net > 0.005);
+}
+
+/**
+ * Settle `amount` across one loan's open penalties, oldest first, in one
+ * transaction (MONEY-28, MONEY-32). Rejects an amount above the loan's net due.
+ */
+export async function settleLoanPenalties(
+  actor: LoanPenaltyActor,
+  input: { loanId: string; amount: number; paymentMode: string; notes?: string | null },
+) {
+  if (!(PENALTY_PAYMENT_MODES as readonly string[]).includes(input.paymentMode)) {
+    throw new Error(`Invalid settle amount: unknown payment mode ${input.paymentMode}`);
+  }
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  const loan = await loanForPenaltyAction(actor, input.loanId);
+  const entries = await prisma.$transaction(async (tx) => {
+    const open = await openLoanPenalties(tx, loan.id);
+    const due = Math.round(open.reduce((s, p) => s + p.net, 0) * 100) / 100;
+    if (!(amount > 0) || amount > due + 0.005) {
+      throw new Error(`Invalid settle amount: must be > 0 and <= ${due}`);
+    }
+    const posted: Array<Awaited<ReturnType<typeof settlePenaltyInTx>>['accountEntry']> = [];
+    let remaining = amount;
+    for (const p of open) {
+      if (remaining <= 0.005) break;
+      const pay = Math.round(Math.min(remaining, p.net) * 100) / 100;
+      const { accountEntry } = await settlePenaltyInTx(tx, {
+        tenantId: actor.tenantId, appType: actor.appType, userId: actor.userId, penaltyId: p.id,
+        amount: pay, paymentMode: input.paymentMode, collectedById: actor.userId,
+        notes: input.notes ?? null, loan: { branchId: loan.branchId, loanCode: loan.loanCode },
+      });
+      posted.push(accountEntry);
+      remaining = Math.round((remaining - pay) * 100) / 100;
+    }
+    return posted;
+  });
+  for (const entry of entries) await postPenaltyCollection(actor.tenantId, actor.appType, actor.userId, entry);
+  return { success: true, loanId: loan.id, settled: amount };
+}
+
+/**
+ * Waive one loan's open penalties (all, or `amount` oldest-first) in one
+ * transaction. Admin roles only (D6); agents request a waiver instead.
+ */
+export async function waiveLoanPenalties(
+  actor: LoanPenaltyActor,
+  input: { loanId: string; amount?: number | null; reason?: string | null },
+) {
+  if (!['admin', 'superadmin', 'developer'].includes(actor.role)) {
+    throw new Error('Forbidden: Agents cannot waive penalties');
+  }
+  const loan = await loanForPenaltyAction(actor, input.loanId);
+  await prisma.$transaction(async (tx) => {
+    const open = await openLoanPenalties(tx, loan.id);
+    const due = Math.round(open.reduce((s, p) => s + p.net, 0) * 100) / 100;
+    let remaining = input.amount == null ? due : Math.round(Number(input.amount) * 100) / 100;
+    if (!(remaining > 0) || remaining > due + 0.005) {
+      throw new Error(`Invalid waive amount: must be > 0 and <= ${due}`);
+    }
+    for (const p of open) {
+      if (remaining <= 0.005) break;
+      const part = Math.round(Math.min(remaining, p.net) * 100) / 100;
+      await waivePenalty({
+        tenantId: actor.tenantId, appType: actor.appType, userId: actor.userId, role: actor.role,
+        penaltyId: p.id, amount: part >= p.net - 0.005 ? undefined : part, reason: input.reason ?? null,
+        prismaClient: tx,
+      });
+      remaining = Math.round((remaining - part) * 100) / 100;
+    }
+  });
+  return { success: true, loanId: loan.id };
+}
+
+/** One row per loan for the penalties lists (web + mobile). */
+export type LoanPenaltyGroup = {
+  loanId: string;
+  loanCode: string;
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  routeId: string | null;
+  routeName: string | null;
+  gross: number;
+  settled: number;
+  waived: number;
+  net: number;
+  missedDays: number;
+  status: 'pending' | 'partial' | 'waived' | 'settled';
+  penalties: Array<{ id: string; status: string; net: number; missedDays: number; createdAt: Date }>;
+  latestAt: Date;
+};
+
+/** Groups penalty rows by loan (each loan's own rows only). */
+export function groupPenaltiesByLoan(rows: Array<{
+  id: string; loanId: string; status: string; missedDays: number; createdAt: Date;
+  grossPenalty: unknown; settledAmount: unknown; waivedAmount: unknown;
+  loan: { loanCode: string } | null;
+  customer: { id: string; name: string; customerCode: string; routeId: string | null; route: { name: string } | null } | null;
+}>): LoanPenaltyGroup[] {
+  const byLoan = new Map<string, LoanPenaltyGroup>();
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  for (const p of rows) {
+    let g = byLoan.get(p.loanId);
+    if (!g) {
+      g = {
+        loanId: p.loanId, loanCode: p.loan?.loanCode ?? '', customerId: p.customer?.id ?? '',
+        customerName: p.customer?.name ?? '', customerCode: p.customer?.customerCode ?? '',
+        routeId: p.customer?.routeId ?? null, routeName: p.customer?.route?.name ?? null,
+        gross: 0, settled: 0, waived: 0, net: 0, missedDays: 0, status: 'settled', penalties: [], latestAt: p.createdAt,
+      };
+      byLoan.set(p.loanId, g);
+    }
+    const net = penaltyNet(p);
+    g.gross = r2(g.gross + Number(p.grossPenalty));
+    g.settled = r2(g.settled + Number(p.settledAmount));
+    g.waived = r2(g.waived + Number(p.waivedAmount));
+    g.net = r2(g.net + net);
+    g.missedDays = Math.max(g.missedDays, p.missedDays);
+    if (p.createdAt > g.latestAt) g.latestAt = p.createdAt;
+    g.penalties.push({ id: p.id, status: p.status, net, missedDays: p.missedDays, createdAt: p.createdAt });
+  }
+  for (const g of byLoan.values()) {
+    const st = g.penalties.map((p) => p.status);
+    g.status = st.includes('pending') ? 'pending' : st.includes('partial') ? 'partial' : st.includes('waived') ? 'waived' : 'settled';
+    g.penalties.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+  return [...byLoan.values()].sort((a, b) => b.latestAt.getTime() - a.latestAt.getTime());
+}

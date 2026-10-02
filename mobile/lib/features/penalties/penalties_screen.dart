@@ -32,8 +32,8 @@ final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
 });
 
-final _penaltiesProvider = FutureProvider.autoDispose<PenaltyPage>((ref) {
-  return ref.watch(penaltyServiceProvider).listPage(
+final _penaltiesProvider = FutureProvider.autoDispose<LoanPenaltyPage>((ref) {
+  return ref.watch(penaltyServiceProvider).listLoanGroups(
         page: ref.watch(_pageFilter),
         status: ref.watch(_statusFilter),
         routeId: ref.watch(_routeFilter),
@@ -83,7 +83,7 @@ class PenaltiesScreen extends ConsumerWidget {
 
 class _PenaltiesBody extends ConsumerWidget {
   const _PenaltiesBody({required this.page});
-  final PenaltyPage page;
+  final LoanPenaltyPage page;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -95,22 +95,17 @@ class _PenaltiesBody extends ConsumerWidget {
     final totalGross = page.totalGross;
     final totalSettled = page.totalSettled;
     final totalWaived = page.totalWaived;
-    final netOutstanding = totalGross - totalSettled - totalWaived;
+    final netOutstanding = page.net; // server figure (DEC-03)
 
     // Group by customer, then by loan — combine same-loan penalties into one
     // page; a customer with multiple loans becomes a swipeable card.
-    final byCustomer = <String, Map<String, List<Penalty>>>{};
-    for (final p in page.rows) {
-      final ck = p.customerCode.isNotEmpty ? p.customerCode : p.customerName;
-      final lk = p.loanId.isNotEmpty ? p.loanId : p.loanCode;
-      byCustomer
-          .putIfAbsent(ck, () => <String, List<Penalty>>{})
-          .putIfAbsent(lk, () => <Penalty>[])
-          .add(p);
+    // Cards per customer; each loan keeps its own server totals (DEC-03).
+    final byCustomer = <String, List<_LoanPenaltyGroup>>{};
+    for (final g in page.rows) {
+      final ck = g.customerCode.isNotEmpty ? g.customerCode : g.customerName;
+      byCustomer.putIfAbsent(ck, () => <_LoanPenaltyGroup>[]).add(_LoanPenaltyGroup(g));
     }
-    final customerGroups = byCustomer.values
-        .map((m) => m.values.map((ps) => _LoanPenaltyGroup(ps)).toList())
-        .toList();
+    final customerGroups = byCustomer.values.toList();
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -345,35 +340,22 @@ class _SummaryCard extends StatelessWidget {
 }
 
 /// All penalties for one loan, combined into a single set of figures.
+/// One loan's penalties — every figure is the server's (DEC-03, MONEY-1).
 class _LoanPenaltyGroup {
-  _LoanPenaltyGroup(this.penalties);
-  final List<Penalty> penalties;
+  _LoanPenaltyGroup(this.g);
+  final LoanPenaltyGroup g;
 
-  Penalty get primary => penalties.first;
-  String get loanCode => primary.loanCode;
-  String get customerName => primary.customerName;
-
-  double get gross => penalties.fold(0, (s, p) => s + p.grossPenalty);
-  double get settled => penalties.fold(0, (s, p) => s + p.settledAmount);
-  double get waived => penalties.fold(0, (s, p) => s + p.waivedAmount);
-  double get net => penalties.fold(0, (s, p) => s + p.netDue);
-
-  /// Days the customer skipped on this loan (max across its penalty rows).
-  int get skippedDays =>
-      penalties.fold(0, (m, p) => p.missedDays > m ? p.missedDays : m);
-
-  String get loanId => primary.loanId;
-
-  List<Penalty> get pending =>
-      penalties.where((p) => p.status == 'pending' || p.status == 'partial').toList();
-  bool get hasPending => pending.isNotEmpty;
-
-  String get status {
-    if (penalties.any((p) => p.status == 'pending')) return 'pending';
-    if (penalties.any((p) => p.status == 'partial')) return 'partial';
-    if (penalties.any((p) => p.status == 'waived')) return 'waived';
-    return 'settled';
-  }
+  String get loanCode => g.loanCode;
+  String get customerName => g.customerName;
+  double get gross => g.gross;
+  double get settled => g.settled;
+  double get waived => g.waived;
+  double get net => g.net;
+  int get skippedDays => g.missedDays;
+  String get loanId => g.loanId;
+  List<({String id, double net})> get pending => g.open;
+  bool get hasPending => g.open.isNotEmpty;
+  String get status => g.status;
 }
 
 /// One card per customer. Penalties of the same loan are combined; a customer
@@ -671,21 +653,9 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     );
   }
 
-  /// Settles [amount] across the loan's pending penalties, oldest first.
-  Future<void> _settleGroup(_LoanPenaltyGroup g, double amount, String paymentMode) async {
-    final svc = ref.read(penaltyServiceProvider);
-    final pend = [...g.pending]
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    var remaining = amount;
-    for (final p in pend) {
-      if (remaining <= 0) break;
-      final pNet = p.netDue;
-      if (pNet <= 0) continue;
-      final pay = remaining < pNet ? remaining : pNet;
-      await svc.settle(id: p.id, amount: pay, paymentMode: paymentMode);
-      remaining -= pay;
-    }
-  }
+  /// The server splits [amount] over the loan's open penalties (DEC-03).
+  Future<void> _settleGroup(_LoanPenaltyGroup g, double amount, String paymentMode) =>
+      ref.read(penaltyServiceProvider).settleLoan(loanId: g.loanId, amount: amount, paymentMode: paymentMode);
 
   void _showSettleSheet(_LoanPenaltyGroup g) {
     final t = T.of(ref);
@@ -816,6 +786,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
       context: context,
       builder: (_) => _WaiveDialog(
         pending: g.pending,
+        loanId: g.loanId,
         customerName: g.customerName,
         net: g.net,
         isRequest: isRequest,
@@ -915,11 +886,13 @@ class _ErrorState extends ConsumerWidget {
 class _WaiveDialog extends ConsumerStatefulWidget {
   const _WaiveDialog({
     required this.pending,
+    required this.loanId,
     required this.customerName,
     required this.net,
     this.isRequest = false,
   });
-  final List<Penalty> pending;
+  final List<({String id, double net})> pending;
+  final String loanId;
   final String customerName;
   final double net;
   final bool isRequest;
@@ -959,7 +932,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
             requestType: 'penalty_waive',
             entityType: 'penalty',
             entityId: p.id,
-            requestedChanges: {'amount': p.netDue},
+            requestedChanges: {'amount': p.net},
             reason: reason,
           );
         }
@@ -973,10 +946,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
           Navigator.pop(context, true);
         }
       } else {
-        final svc = ref.read(penaltyServiceProvider);
-        for (final p in widget.pending) {
-          await svc.waive(id: p.id, reason: reason);
-        }
+        await ref.read(penaltyServiceProvider).waiveLoan(loanId: widget.loanId, reason: reason);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -1100,15 +1100,11 @@ class _PenaltySummaryCard extends ConsumerWidget {
   }
 }
 
-/// DEC-06: collect [amount] across the loan's open penalty rows, oldest first.
+/// DEC-06: collect a penalty on this loan. The server splits the amount over
+/// the loan's own open penalties, oldest first (DEC-03) — no local maths.
 Future<void> _collectPenaltyDialog(BuildContext context, WidgetRef ref, Loan loan) async {
   final t = T.of(ref);
-  final open = loan.penalties
-      .where((p) => p.grossPenalty - p.settledAmount - p.waivedAmount > 0)
-      .toList()
-    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-  final max = open.fold<double>(
-      0, (s, p) => s + p.grossPenalty - p.settledAmount - p.waivedAmount);
+  final max = loan.penaltySummary?.netDue ?? 0;
   if (max <= 0) return;
   final ctrl = TextEditingController(text: max.toStringAsFixed(2));
   var paymentMode = 'cash';
@@ -1156,15 +1152,7 @@ Future<void> _collectPenaltyDialog(BuildContext context, WidgetRef ref, Loan loa
     return;
   }
   try {
-    final svc = ref.read(penaltyServiceProvider);
-    var remaining = amount;
-    for (final p in open) {
-      if (remaining <= 0) break;
-      final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
-      final pay = remaining < pNet ? remaining : pNet;
-      await svc.settle(id: p.id, amount: pay, paymentMode: paymentMode);
-      remaining -= pay;
-    }
+    await ref.read(penaltyServiceProvider).settleLoan(loanId: loan.id, amount: amount, paymentMode: paymentMode);
     ref.invalidate(loanDetailProvider(loan.id));
   } catch (e) {
     if (context.mounted) {

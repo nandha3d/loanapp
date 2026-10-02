@@ -77,7 +77,7 @@
     "test:interest-only": "tsx tests/interestOnly.test.ts",
     "test:roles": "tsx tests/roles.test.ts",
     "test:branch-scoping": "tsx tests/branchScoping.test.ts",
-    "test:penalty-list-where": "tsx tests/penaltyListWhere.test.ts",
+    "test:penalty-list-where": "tsx tests/penaltyListWhere.test.ts && tsx tests/loanPenaltyGroups.test.ts",
     "test:journal-input": "tsx tests/journalInput.test.ts",
     "test:customer-import": "tsx tests/customerImport.test.ts",
     "test:dashboard-today": "tsx tests/dashboardTodayMetrics.test.ts && tsx tests/dashboardOverdueInsights.test.ts",

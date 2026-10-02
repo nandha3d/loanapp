@@ -23,9 +23,83 @@ class PenaltyPage {
   final double totalWaived;
 }
 
+/// DEC-03 (B): a page of per-loan penalty groups plus the KPIs (server figures).
+class LoanPenaltyPage {
+  const LoanPenaltyPage({
+    required this.rows,
+    required this.page,
+    required this.pages,
+    required this.totalGross,
+    required this.totalSettled,
+    required this.totalWaived,
+    required this.net,
+  });
+  final List<LoanPenaltyGroup> rows;
+  final int page;
+  final int pages;
+  final double totalGross;
+  final double totalSettled;
+  final double totalWaived;
+  final double net;
+}
+
 class PenaltyService {
   PenaltyService(this._dio);
   final Dio _dio;
+
+  /// DEC-03 (B): one row per loan, totals computed by the server.
+  Future<LoanPenaltyPage> listLoanGroups({
+    required int page,
+    String? status,
+    String? routeId,
+    String? query,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.penalties,
+      queryParameters: {
+        'groupBy': 'loan',
+        'page': page,
+        if (status != null && status != 'all') 'status': status,
+        if (routeId != null) 'routeId': routeId,
+        if (query != null && query.isNotEmpty) 'q': query,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic data) {
+      final d = data as Map<String, dynamic>;
+      final kpis = d['kpis'] as Map<String, dynamic>;
+      double amount(dynamic value) =>
+          value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+      return LoanPenaltyPage(
+        rows: (d['rows'] as List<dynamic>)
+            .map((dynamic item) => LoanPenaltyGroup.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+        page: (d['page'] as num).toInt(),
+        pages: (d['pages'] as num).toInt(),
+        totalGross: amount(kpis['totalGross']),
+        totalSettled: amount(kpis['totalSettled']),
+        totalWaived: amount(kpis['totalWaived']),
+        net: amount(kpis['net']),
+      );
+    });
+  }
+
+  /// DEC-03 (B): the server splits [amount] over the loan's open penalties.
+  Future<void> settleLoan({required String loanId, required double amount, String paymentMode = 'cash'}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.penalties}/loan/$loanId/settle',
+      data: {'amount': amount, 'paymentMode': paymentMode},
+    );
+    unwrapEnvelope(res, (dynamic d) => d);
+  }
+
+  /// DEC-03 (B): waive the loan's open penalties (all, or [amount]) on the server.
+  Future<void> waiveLoan({required String loanId, double? amount, String? reason}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.penalties}/loan/$loanId/waive',
+      data: {if (amount != null) 'amount': amount, if (reason != null && reason.isNotEmpty) 'reason': reason},
+    );
+    unwrapEnvelope(res, (dynamic d) => d);
+  }
 
   Future<PenaltyPage> listPage({
     required int page,

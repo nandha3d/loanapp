@@ -59,3 +59,56 @@ class Penalty {
     );
   }
 }
+
+/// DEC-03 (B): one loan's penalties with the server's totals — each loan's
+/// figures come from that loan's own missed dates (GET /penalties?groupBy=loan).
+class LoanPenaltyGroup {
+  const LoanPenaltyGroup({
+    required this.loanId,
+    required this.loanCode,
+    required this.customerName,
+    required this.customerCode,
+    required this.gross,
+    required this.settled,
+    required this.waived,
+    required this.net,
+    required this.missedDays,
+    required this.status,
+    required this.open,
+  });
+
+  final String loanId;
+  final String loanCode;
+  final String customerName;
+  final String customerCode;
+  final double gross;
+  final double settled;
+  final double waived;
+  final double net;
+  final int missedDays;
+  final String status; // pending | partial | waived | settled
+  /// Open penalty rows (oldest first) with their server net due.
+  final List<({String id, double net})> open;
+
+  factory LoanPenaltyGroup.fromJson(Map<String, dynamic> json) {
+    double d(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse('$v') ?? 0);
+    final rows = (json['penalties'] as List<dynamic>? ?? const [])
+        .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+        .where((p) => p['status'] == 'pending' || p['status'] == 'partial')
+        .map((p) => (id: '${p['id']}', net: d(p['net'])))
+        .toList(growable: false);
+    return LoanPenaltyGroup(
+      loanId: (json['loanId'] as String?) ?? '',
+      loanCode: (json['loanCode'] as String?) ?? '',
+      customerName: (json['customerName'] as String?) ?? '',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      gross: d(json['gross']),
+      settled: d(json['settled']),
+      waived: d(json['waived']),
+      net: d(json['net']),
+      missedDays: (json['missedDays'] as num?)?.toInt() ?? 0,
+      status: (json['status'] as String?) ?? 'settled',
+      open: rows,
+    );
+  }
+}
