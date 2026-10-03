@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -8,15 +9,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:zolofund/core/auth/auth_storage.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/notifications/notification_text.dart';
 import 'package:zolofund/core/router/app_router.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 import 'package:zolofund/data/services/approval_service.dart';
 import 'package:zolofund/data/services/notifications_service.dart';
 
 // Top-level entry-point required by Android for background action handling
 @pragma('vm:entry-point')
-void notificationTapBackground(NotificationResponse response) {
+Future<void> notificationTapBackground(NotificationResponse response) async {
   // Executed in an isolated background engine if action is tapped while terminated/backgrounded.
   debugPrint('[Notification] Background action tapped: ${response.actionId} payload: ${response.payload}');
+  // Approve is decided right here, with no app launch. Reject deliberately opens
+  // the app (showsUserInterface) so the reviewer can type a reason.
+  if (response.actionId == NotificationActionService.actionApprove) {
+    await NotificationActionService.approveInBackground(response);
+  }
 }
 
 /// Manages interactive notifications on Android & iOS.
@@ -158,11 +170,25 @@ class NotificationActionService {
 
   /// Handles incoming push notifications received in background/terminated isolates
   Future<void> showBackgroundNotification(RemoteMessage message) async {
-    final data = message.data;
+    final data = Map<String, dynamic>.from(message.data);
     final notification = message.notification;
 
-    final title = (notification?.title ?? data['title'] ?? 'ZoloFund Alert').toString();
-    final body = (notification?.body ?? data['body'] ?? data['message'] ?? '').toString();
+    // Server ships an i18n key + params next to the English text; render in the
+    // device language, falling back to the English text.
+    final lang = await readStoredLanguageCode();
+    final params = decodeNotificationParams(data['params']);
+    final title = localizeNotificationText(
+      key: data['titleKey']?.toString(),
+      fallback: (notification?.title ?? data['title'] ?? 'ZoloFund Alert').toString(),
+      params: params,
+      langCode: lang,
+    );
+    final body = localizeNotificationText(
+      key: data['messageKey']?.toString(),
+      fallback: (notification?.body ?? data['body'] ?? data['message'] ?? '').toString(),
+      params: params,
+      langCode: lang,
+    );
     if (title.isEmpty && body.isEmpty) return;
 
     if (!_initialized) {
@@ -178,13 +204,13 @@ class NotificationActionService {
 
     final type = data['type']?.toString() ?? '';
     final link = (data['link'] ?? '').toString();
-    final isApproval = type.contains('approval') ||
-        data['actionable'] == 'true' ||
-        data.containsKey('approvalId') ||
-        title.toLowerCase().contains('approv') ||
-        body.toLowerCase().contains('approv') ||
-        link.contains('approvals');
-    final channelId = isApproval ? channelApprovals : channelGeneral;
+    // Buttons only when the SERVER marked the push actionable (a real pending
+    // request this recipient may decide). Matching on "approv" in the text also
+    // matched result notices such as "Request approved".
+    final isApproval = data['actionable'] == 'true';
+    final channelId = (isApproval || type.contains('approval'))
+        ? channelApprovals
+        : channelGeneral;
 
     String? approvalId = data['approvalId']?.toString();
     if (approvalId == null || approvalId.isEmpty) {
@@ -232,17 +258,24 @@ class NotificationActionService {
       largeIcon: const DrawableResourceAndroidBitmap('app_logo'),
       color: const Color(0xFF7D287E),
       category: isApproval ? AndroidNotificationCategory.reminder : null,
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: 'ZoloFund',
+      ),
       actions: isApproval
-          ? const <AndroidNotificationAction>[
+          ? <AndroidNotificationAction>[
+              // Approve runs in the background isolate — no app launch.
               AndroidNotificationAction(
                 actionApprove,
-                'Approve',
-                showsUserInterface: true,
+                _shadeLabel(lang, 'btn.approve', 'Approve'),
+                showsUserInterface: false,
                 cancelNotification: true,
               ),
+              // Reject opens the app on the request so a reason can be typed.
               AndroidNotificationAction(
                 actionReject,
-                'Reject',
+                _shadeLabel(lang, 'btn.reject', 'Reject'),
                 showsUserInterface: true,
                 cancelNotification: true,
               ),
@@ -257,6 +290,132 @@ class NotificationActionService {
       NotificationDetails(android: androidDetails),
       payload: jsonEncode(data),
     );
+  }
+
+  static String _shadeLabel(String lang, String key, String fallback) =>
+      localizeNotificationText(key: key, fallback: fallback, params: null, langCode: lang);
+
+  /// Approve straight from the notification shade. Runs in the background
+  /// isolate: no Riverpod, so it talks to the API with a standalone Dio built
+  /// from the stored session. Anything that cannot be decided here (expired
+  /// session, offline, server error) degrades to a tappable notification that
+  /// opens the request in the app. The server stays the source of truth: a
+  /// request another admin already decided answers 409 and is reported as such.
+  static Future<void> approveInBackground(NotificationResponse response) async {
+    Map<String, dynamic> data = {};
+    try {
+      final p = response.payload;
+      if (p != null && p.isNotEmpty) data = Map<String, dynamic>.from(jsonDecode(p) as Map);
+    } catch (_) {}
+    final approvalId = (data['approvalId'] ?? data['id'])?.toString() ??
+        RegExp(r'[?&]id=([^&]+)').firstMatch(data['link']?.toString() ?? '')?.group(1);
+    final lang = await readStoredLanguageCode();
+    final notifId = response.id ?? 0;
+
+    Future<void> post(String key, String fallback, {bool openApp = false}) async {
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('ic_notification'),
+          iOS: DarwinInitializationSettings(),
+        ),
+      );
+      final text = localizeNotificationText(key: key, fallback: fallback, params: null, langCode: lang);
+      await plugin.show(
+        notifId,
+        'ZoloFund',
+        text,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelApprovals,
+            'Approvals & Action Alerts',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: 'ic_notification',
+            largeIcon: DrawableResourceAndroidBitmap('app_logo'),
+            color: Color(0xFF7D287E),
+          ),
+        ),
+        // A payload that routes to the request when the user taps the result.
+        payload: openApp
+            ? jsonEncode({
+                'type': 'approval_request',
+                'actionable': 'true',
+                'approvalId': approvalId,
+                'link': '/approvals?id=$approvalId',
+              })
+            : null,
+      );
+    }
+
+    if (approvalId == null || approvalId.isEmpty) {
+      await post('notif.shade.approve_failed', 'Could not approve — tap to open', openApp: true);
+      return;
+    }
+
+    try {
+      final storage = AuthStorage.standalone();
+      final token = await storage.readToken();
+      if (token == null || token.isEmpty) {
+        await post('notif.shade.approve_failed', 'Could not approve — tap to open', openApp: true);
+        return;
+      }
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: kDefaultBaseUrl,
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 20),
+          validateStatus: (s) => s != null && s < 500,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+      // Same context headers the in-app interceptor sends.
+      final tenantSlug = await storage.readTenantSlug();
+      final branchId = await storage.readBranchId();
+      final appType = await storage.readAppType();
+
+      Future<Response<dynamic>> send(String bearer) => dio.patch<dynamic>(
+            Endpoints.approvalApprove(approvalId),
+            data: <String, dynamic>{},
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $bearer',
+                if (tenantSlug != null) 'X-Tenant-Slug': tenantSlug,
+                if (branchId != null) 'X-Branch-Id': branchId,
+                if (appType != null) 'X-App-Type': appType,
+              },
+            ),
+          );
+
+      var res = await send(token);
+      if (res.statusCode == 401) {
+        // One silent refresh, same contract as the in-app interceptor.
+        final refresh = await storage.readRefreshToken();
+        if (refresh != null && refresh.isNotEmpty) {
+          final r = await dio.post<dynamic>('/auth/refresh', data: {'refreshToken': refresh});
+          final d = r.data is Map ? (r.data as Map)['data'] : null;
+          final nt = d is Map ? d['token'] as String? : null;
+          final nr = d is Map ? d['refreshToken'] as String? : null;
+          if (nt != null && nr != null) {
+            await storage.updateTokens(token: nt, refreshToken: nr);
+            res = await send(nt);
+          }
+        }
+      }
+
+      final body = res.data;
+      final ok = res.statusCode == 200 && body is Map && body['error'] == null;
+      if (ok) {
+        await post('notif.shade.approved', 'Approved');
+      } else if (res.statusCode == 404 || res.statusCode == 409) {
+        await post('notif.shade.already_handled', 'Already handled');
+      } else {
+        await post('notif.shade.approve_failed', 'Could not approve — tap to open', openApp: true);
+      }
+    } catch (e) {
+      debugPrint('[Notification] Background approve failed: $e');
+      await post('notif.shade.approve_failed', 'Could not approve — tap to open', openApp: true);
+    }
   }
 
   Future<String?> _cacheAvatarImage(String? url, String id) async {
@@ -287,21 +446,29 @@ class NotificationActionService {
     return null;
   }
 
-  void _handleForegroundFcm(RemoteMessage message) {
-    final data = message.data;
+  Future<void> _handleForegroundFcm(RemoteMessage message) async {
+    final data = Map<String, dynamic>.from(message.data);
     final notification = message.notification;
 
-    final title = (notification?.title ?? data['title'] ?? 'ZoloFund Alert').toString();
-    final body = (notification?.body ?? data['body'] ?? data['message'] ?? '').toString();
+    final lang = _ref?.read(languageProvider).code ?? await readStoredLanguageCode();
+    final params = decodeNotificationParams(data['params']);
+    final title = localizeNotificationText(
+      key: data['titleKey']?.toString(),
+      fallback: (notification?.title ?? data['title'] ?? 'ZoloFund Alert').toString(),
+      params: params,
+      langCode: lang,
+    );
+    final body = localizeNotificationText(
+      key: data['messageKey']?.toString(),
+      fallback: (notification?.body ?? data['body'] ?? data['message'] ?? '').toString(),
+      params: params,
+      langCode: lang,
+    );
 
     final type = data['type']?.toString() ?? '';
     final link = (data['link'] ?? '').toString();
-    final isApproval = type.contains('approval') ||
-        data['actionable'] == 'true' ||
-        data.containsKey('approvalId') ||
-        title.toLowerCase().contains('approv') ||
-        body.toLowerCase().contains('approv') ||
-        link.contains('approvals');
+    // Server-flagged only: a real pending request this recipient may decide.
+    final isApproval = data['actionable'] == 'true';
     final isCollection = type == 'collection_received' || type == 'payment' || type.contains('collect');
     final isFloatInsufficient = type == 'float_insufficient' || type.contains('float');
 
@@ -363,26 +530,34 @@ class NotificationActionService {
     String? payload,
     String? approvalId,
   }) async {
-    const androidDetails = AndroidNotificationDetails(
+    final lang = _ref?.read(languageProvider).code ?? await readStoredLanguageCode();
+    final androidDetails = AndroidNotificationDetails(
       channelApprovals,
       'Approvals & Action Alerts',
       channelDescription: 'Actionable approval requests and urgent alerts',
       importance: Importance.max,
       priority: Priority.high,
       icon: 'ic_notification',
-      largeIcon: DrawableResourceAndroidBitmap('app_logo'),
-      color: Color(0xFF7D287E), // Brand primary purple
+      largeIcon: const DrawableResourceAndroidBitmap('app_logo'),
+      color: const Color(0xFF7D287E), // Brand primary purple
       category: AndroidNotificationCategory.reminder,
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: 'ZoloFund',
+      ),
       actions: <AndroidNotificationAction>[
+        // Approve is decided in place (see approveInBackground) — no app launch.
         AndroidNotificationAction(
           actionApprove,
-          'Approve',
-          showsUserInterface: true,
+          _shadeLabel(lang, 'btn.approve', 'Approve'),
+          showsUserInterface: false,
           cancelNotification: true,
         ),
+        // Reject opens the app on the request so a reason can be typed.
         AndroidNotificationAction(
           actionReject,
-          'Reject',
+          _shadeLabel(lang, 'btn.reject', 'Reject'),
           showsUserInterface: true,
           cancelNotification: true,
         ),
@@ -395,7 +570,7 @@ class NotificationActionService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: darwinDetails,
     );

@@ -503,6 +503,16 @@ export async function submitCollectionEntry(
             collectionEntryId: result.entry.id,
           },
         });
+        // The customer's agent, when someone else took the money.
+        const { notifyPaymentReceived } = await import('@/lib/notify/staffAlerts');
+        await notifyPaymentReceived({
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          loanId: instalment.loanId,
+          amount: result.applied,
+          collectedByUserId: actor.userId,
+          dedupeId: result.entry.id,
+        });
       } catch (err) {
         console.error('[submitCollectionEntry] notify collection failed:', err);
       }
@@ -769,6 +779,16 @@ export async function recordActualLoanCollection(
             loanId: input.loanId,
             collectionEntryId: result.entryId ?? '',
           },
+        });
+        // The customer's agent, when someone else took the money.
+        const { notifyPaymentReceived } = await import('@/lib/notify/staffAlerts');
+        await notifyPaymentReceived({
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          loanId: input.loanId,
+          amount: result.applied,
+          collectedByUserId: actor.userId,
+          dedupeId: result.entryId ?? `${input.loanId}:${Date.now()}`,
         });
       } catch (err) {
         console.error('[recordActualLoanCollection] notify collection failed:', err);

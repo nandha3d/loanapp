@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { buildSystemNotificationWhere } from '@/lib/notificationVisibility';
+import { resolveApprovalStates } from '@/lib/notificationApprovalState';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -40,11 +41,25 @@ export async function GET(req: NextRequest) {
           link: true,
           isRead: true,
           createdAt: true,
+          titleKey: true,
+          messageKey: true,
+          params: true,
         },
       }),
     ]);
 
-    return ok({ data: rows, total }, { page, pageSize, total });
+    // Server decides whether Approve/Reject may be shown (pending + viewer may
+    // decide); the clients only render these flags.
+    const states = await resolveApprovalStates(ctx, rows);
+    const data = rows.map((r) => {
+      let params: Record<string, string> | null = null;
+      if (r.params) {
+        try { params = JSON.parse(r.params); } catch { params = null; }
+      }
+      return { ...r, params, ...states.get(r.id) };
+    });
+
+    return ok({ data, total }, { page, pageSize, total });
   } catch (e: any) {
     return fail(e?.message ?? 'Notifications list failed', 500);
   }

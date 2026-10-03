@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:zolofund/core/l10n/app_strings.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/notifications/notification_text.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -236,6 +238,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   String? _extractApprovalId(NotificationItem item) {
+    // Server-resolved id first; the link parse stays as a fallback for rows
+    // that predate it.
+    if (item.approvalId != null && item.approvalId!.isNotEmpty) {
+      return item.approvalId;
+    }
     if (item.link != null) {
       final uri = Uri.tryParse(item.link!);
       if (uri != null) {
@@ -613,9 +620,12 @@ class _NotificationTile extends ConsumerWidget {
     final (iconData, iconColor, iconBg) = _iconForType(item.type);
     final relTime = _relativeTime(item.createdAt, t);
 
-    final isApproval = item.type.contains('approval') ||
-        (item.title != null &&
-            item.title!.toLowerCase().contains('approval')) ||
+    // Approve/Reject appear only when the SERVER says this viewer can decide a
+    // still-pending request (`canAct`). Result notices, other admins' handled
+    // requests and agents' copies are approval-linked but get no buttons.
+    final isApproval = item.canAct;
+    final isApprovalLinked = item.approvalId != null ||
+        item.type.contains('approval') ||
         (item.link != null && item.link!.contains('approvals'));
     final isCollection = item.type == 'collection_received' ||
         item.type == 'payment' ||
@@ -726,7 +736,13 @@ class _NotificationTile extends ConsumerWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  item.title ?? _typeLabel(ref, item.type),
+                                  localizeNotificationText(
+                                    key: item.titleKey,
+                                    fallback:
+                                        item.title ?? _typeLabel(ref, item.type),
+                                    params: item.params,
+                                    langCode: t.lang.code,
+                                  ),
                                   style: AppTypography.bodyLarge.copyWith(
                                     fontWeight: item.isRead
                                         ? FontWeight.w600
@@ -758,7 +774,12 @@ class _NotificationTile extends ConsumerWidget {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            item.message,
+                            localizeNotificationText(
+                              key: item.messageKey,
+                              fallback: item.message,
+                              params: item.params,
+                              langCode: t.lang.code,
+                            ),
                             style: AppTypography.body.copyWith(
                               color: AppColors.textSecondary,
                             ),
@@ -796,6 +817,16 @@ class _NotificationTile extends ConsumerWidget {
                           onPressed: onReject ?? () {},
                         ),
                         const SizedBox(width: 8),
+                      ] else if (isApprovalLinked) ...[
+                        // Approval-linked but not actionable by this viewer (already
+                        // decided, a result notice, or an agent's copy): open it.
+                        _NotificationActionButton(
+                          icon: Icons.open_in_new,
+                          label: t.x('notif.action_view'),
+                          color: AppColors.primary,
+                          onPressed: onTap,
+                        ),
+                        const SizedBox(width: 8),
                       ] else if (isCollection) ...[
                         _NotificationActionButton(
                           icon: Icons.map_outlined,
@@ -830,7 +861,10 @@ class _NotificationTile extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      if (!isApproval && !isCollection && !isFloatInsufficient)
+                      if (!isApproval &&
+                          !isApprovalLinked &&
+                          !isCollection &&
+                          !isFloatInsufficient)
                         _NotificationActionButton(
                           icon: Icons.notifications_off_outlined,
                           label: t.x('notif.action_mute'),

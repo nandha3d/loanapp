@@ -5,6 +5,13 @@ import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
 import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
 import { apiError } from '@/lib/utils';
 import { notify } from '@/lib/notify/events';
+import {
+  dayKey,
+  outstandingOf,
+  overdueBucket,
+  sendInstalmentDigests,
+  type DigestInstalment,
+} from '@/lib/notify/staffAlerts';
 
 /**
  * GET /api/cron/accrue-penalties
@@ -75,7 +82,8 @@ export async function GET(req: NextRequest) {
         loan: {
           select: {
             id: true, loanCode: true, status: true, customerId: true, tenantId: true,
-            customer: { select: { id: true, name: true, phone: true, email: true } },
+            appType: true, branchId: true,
+            customer: { select: { id: true, name: true, phone: true, email: true, agentId: true } },
           },
         },
       },
@@ -110,6 +118,8 @@ export async function GET(req: NextRequest) {
     let created = 0;
     let updated = 0;
     let failed = 0;
+    // Loans whose penalty STARTED accruing this run — fed to the staff digest.
+    const newPenaltyRows: DigestInstalment[] = [];
 
     for (const [loanId, instalments] of loanMap) {
       try {
@@ -156,6 +166,7 @@ export async function GET(req: NextRequest) {
             },
           });
           created++;
+          newPenaltyRows.push({ amount: Number(grossPenalty), loan });
         }
 
         // Mark the loan as overdue if it isn't already
@@ -192,6 +203,30 @@ export async function GET(req: NextRequest) {
         failed++;
         console.error(`[accrue-penalties] Failed for loan ${loanId}:`, loanErr);
       }
+    }
+
+    // ── Staff digests: new penalties, newly-overdue EMIs, weekly overdue ──
+    // Agent / branch admins / superadmins. Idempotent per bucket and never
+    // fails the accrual run (NOTIF-1).
+    try {
+      const yesterdayStart = new Date(today);
+      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+      const toRow = (i: (typeof overdueInstalments)[number]): DigestInstalment => ({
+        amount: outstandingOf(i.dueAmount, i.receivedAmount),
+        loan: i.loan,
+      });
+      const newlyOverdue = overdueInstalments
+        .filter((i) => i.dueDate >= yesterdayStart && i.dueDate < today)
+        .map(toRow);
+      await sendInstalmentDigests('penalty_new', newPenaltyRows, dayKey(today));
+      await sendInstalmentDigests('emi_overdue_new', newlyOverdue, dayKey(today));
+      // The weekly bucket is per tenant (its own cadence setting), so group first.
+      for (const tid of tenantIds) {
+        const rows = overdueInstalments.filter((i) => i.loan.tenantId === tid).map(toRow);
+        await sendInstalmentDigests('emi_overdue_weekly', rows, await overdueBucket(tid, today));
+      }
+    } catch (digestErr) {
+      console.error('[accrue-penalties] staff digests failed', digestErr);
     }
 
     // ── Midnight ledger lock ──────────────────────────────────────────

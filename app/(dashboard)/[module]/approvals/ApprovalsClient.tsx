@@ -605,7 +605,7 @@ export default function ApprovalsClient({
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ fontSize: '0.85rem' }}>
                             {req.requestType === LOAN_PRECLOSE_REQUEST ? precloseDetails(req) : Object.keys(changes).map(k => (
-                              <div key={k}><strong>{k}:</strong> {req.requestType === 'cash_handover' && k === 'amount' ? `₹${changes[k]}` : changes[k]}</div>
+                              <div key={k}><strong>{k}:</strong> {req.requestType === 'cash_handover' && k === 'amount' ? `₹${changes[k]}` : (req.changeLabels?.[k] ?? changes[k])}</div>
                             ))}
                           </div>
                           {req.reason && <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.reason}: {req.reason}</div>}
@@ -657,7 +657,7 @@ export default function ApprovalsClient({
             <div>
               <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem', fontWeight: 600 }}>{d.requestedChanges}:</h4>
               {selectedRequest.requestType === LOAN_PRECLOSE_REQUEST ? <>{precloseDetails(selectedRequest)}<p>{dict.precloseRequest.reviewHint}</p></> : <pre style={{ background: 'var(--bg-dark)', padding: '12px', borderRadius: 'var(--radius-sm)', overflowX: 'auto', fontSize: '0.85rem', margin: 0 }}>
-                {JSON.stringify(JSON.parse(selectedRequest.requestedChanges), null, 2)}
+                {JSON.stringify({ ...JSON.parse(selectedRequest.requestedChanges), ...selectedRequest.changeLabels }, null, 2)}
               </pre>}
               <p style={{ marginTop: '12px', fontSize: '0.9rem' }}><strong>{d.reason}:</strong> {selectedRequest.reason}</p>
             </div>

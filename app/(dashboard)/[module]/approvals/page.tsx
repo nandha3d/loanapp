@@ -9,6 +9,7 @@ import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { branchScopeWhere } from '@/lib/branchScope';
 import { buildPendingLoanFunding } from '@/lib/loanFunding';
+import { attachChangeLabels } from '@/lib/approvalChangeLabels';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -40,14 +41,14 @@ export default async function ApprovalsPage() {
     ];
   }
 
-  const requests = await prisma.approvalRequest.findMany({ 
+  const requests = await attachChangeLabels(tenantId, await prisma.approvalRequest.findMany({
     where,
     include: {
       requestedBy: { select: { name: true } },
       reviewedBy: { select: { name: true } }
     },
     orderBy: { createdAt: 'desc' }
-  });
+  }));
 
   // Fetch pending_review loans for admin/superadmin/developer
   let pendingLoans: any[] = [];

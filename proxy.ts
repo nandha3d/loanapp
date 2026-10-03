@@ -106,6 +106,7 @@ export function isPublicPath(pathname: string): boolean {
     pathname === '/login' ||
     pathname === '/register' ||
     pathname === '/subscribe' ||
+    pathname === '/subscribe/success' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname.startsWith('/auth/callback') ||

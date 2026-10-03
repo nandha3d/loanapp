@@ -409,19 +409,16 @@ export async function PATCH(
 
       // Send system notification
       if (customer.agentId) {
-        await prisma.systemNotification.create({
-          data: {
-            tenantId: ctx.tenantId,
-            branchId: customer.branchId,
-            appType: ctx.appType,
-            targetUserId: customer.agentId,
-            targetRole: 'agent',
-            type: 'customer_approved',
-            icon: 'check_circle',
-            title: 'Customer approved',
-            message: `Your customer ${customer.name} has been approved and is now active.`,
-            link: modulePath(ctx.appType, '/customers'),
-          },
+        await notifyUser({
+          tenantId: ctx.tenantId,
+          branchId: customer.branchId,
+          appType: ctx.appType,
+          targetUserId: customer.agentId,
+          type: 'customer_approved',
+          icon: 'check_circle',
+          title: 'Customer approved',
+          message: `Your customer ${customer.name} has been approved and is now active.`,
+          link: modulePath(ctx.appType, '/customers'),
         }).catch(() => {});
       }
 
@@ -501,19 +498,16 @@ export async function PATCH(
         });
 
         if (loan.createdById) {
-          await prisma.systemNotification.create({
-            data: {
-              tenantId: ctx.tenantId,
-              branchId: loan.branchId,
-              appType: ctx.appType,
-              targetUserId: loan.createdById,
-              targetRole: 'agent',
-              type: 'loan_approved',
-              icon: 'check_circle',
-              title: 'Loan approved',
-              message: `Loan ${loan.loanCode} has been approved.`,
-              link: modulePath(ctx.appType, '/loans'),
-            },
+          await notifyUser({
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            appType: ctx.appType,
+            targetUserId: loan.createdById,
+            type: 'loan_approved',
+            icon: 'check_circle',
+            title: 'Loan approved',
+            message: `Loan ${loan.loanCode} has been approved.`,
+            link: modulePath(ctx.appType, '/loans'),
           }).catch(() => {});
         }
 

@@ -24,6 +24,11 @@ type NotifyApproversInput = {
   icon?: string | null;
   link?: string | null;
   data?: Record<string, string>;
+  /** i18n + idempotency, passed straight through to notifyUser. */
+  titleKey?: string | null;
+  messageKey?: string | null;
+  params?: Record<string, string> | null;
+  dedupeKey?: string | null;
 };
 
 /**
@@ -61,6 +66,11 @@ export async function notifyApprovers(input: NotifyApproversInput): Promise<void
   }
   if (data.approvalId && !data.actionable) {
     data.actionable = 'true';
+  }
+  // The stored row keeps only `link`, so the approval id must ride on it — that
+  // is how the notification list resolves "is this still pending / can I act".
+  if (rest.link && data.approvalId && !/[?&]id=/.test(rest.link)) {
+    rest.link = `${rest.link}${rest.link.includes('?') ? '&' : '?'}id=${encodeURIComponent(data.approvalId)}`;
   }
 
   // Only an agent's own manager gets the extra ping; see above.

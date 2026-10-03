@@ -20,6 +20,7 @@ class Approval {
     this.floatDeficit,
     this.floatWarning,
     this.funding,
+    this.changeLabels = const {},
   });
 
   final String id;
@@ -40,6 +41,8 @@ class Approval {
   final String? floatWarning;
   /// FUND-3: server-computed funding for a pending loan (null for other requests).
   final LoanFunding? funding;
+  /// Server-resolved display names for id fields in [payload] (routeId, agentId, branchId).
+  final Map<String, String> changeLabels;
 
   factory Approval.fromJson(Map<String, dynamic> json) {
     final req = json['requestedBy'] as Map<String, dynamic>?;
@@ -89,6 +92,9 @@ class Approval {
       floatDeficit: deficit,
       floatWarning: warning,
       funding: LoanFunding.tryParse(json['funding']),
+      changeLabels: json['changeLabels'] is Map
+          ? (json['changeLabels'] as Map).map((k, v) => MapEntry('$k', '$v'))
+          : const {},
     );
   }
 }

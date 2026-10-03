@@ -120,19 +120,16 @@ export async function PATCH(
       });
 
       if (customer.agentId) {
-        await prisma.systemNotification.create({
-          data: {
-            tenantId: ctx.tenantId,
-            branchId: customer.branchId,
-            appType: ctx.appType,
-            targetUserId: customer.agentId,
-            targetRole: 'agent',
-            type: 'customer_rejected',
-            icon: 'cancel',
-            title: 'Customer rejected',
-            message: `Your customer ${customer.name} was not approved.${note ? ` Note: ${note}` : ''}`,
-            link: modulePath(ctx.appType, '/customers'),
-          },
+        await notifyUser({
+          tenantId: ctx.tenantId,
+          branchId: customer.branchId,
+          appType: ctx.appType,
+          targetUserId: customer.agentId,
+          type: 'customer_rejected',
+          icon: 'cancel',
+          title: 'Customer rejected',
+          message: `Your customer ${customer.name} was not approved.${note ? ` Note: ${note}` : ''}`,
+          link: modulePath(ctx.appType, '/customers'),
         }).catch(() => {});
       }
 
@@ -162,19 +159,16 @@ export async function PATCH(
       });
 
       if (loan.createdById) {
-        await prisma.systemNotification.create({
-          data: {
-            tenantId: ctx.tenantId,
-            branchId: loan.branchId,
-            appType: ctx.appType,
-            targetUserId: loan.createdById,
-            targetRole: 'agent',
-            type: 'loan_rejected',
-            icon: 'cancel',
-            title: 'Loan rejected',
-            message: `Loan ${loan.loanCode} has been rejected.${note ? ` Note: ${note}` : ''}`,
-            link: modulePath(ctx.appType, '/loans'),
-          },
+        await notifyUser({
+          tenantId: ctx.tenantId,
+          branchId: loan.branchId,
+          appType: ctx.appType,
+          targetUserId: loan.createdById,
+          type: 'loan_rejected',
+          icon: 'cancel',
+          title: 'Loan rejected',
+          message: `Loan ${loan.loanCode} has been rejected.${note ? ` Note: ${note}` : ''}`,
+          link: modulePath(ctx.appType, '/loans'),
         }).catch(() => {});
       }
 

@@ -251,6 +251,20 @@ export async function reconcileSelfPayToken(input: {
         paymentMode: 'upi',
       }),
     ).catch((e) => console.error('[selfPay] collection JE failed:', e));
+
+    // Staff alert: nobody was told a digital payment landed. Dynamic import keeps
+    // `server-only` out of this module's static graph; never throws.
+    void import('@/lib/notify/staffAlerts').then(({ notifyPaymentReceived }) =>
+      notifyPaymentReceived({
+        tenantId: tok.tenantId,
+        appType: instalment.loan.appType,
+        loanId: instalment.loanId,
+        amount: result.applied ?? amount,
+        collectedByUserId: input.agentId ?? null,
+        dedupeId: result.entryId!,
+        alertAdmins: true,
+      }),
+    ).catch((e) => console.error('[selfPay] payment alert failed:', e));
   }
 
   return result;

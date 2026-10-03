@@ -42,10 +42,10 @@ export default async function SubscribePage({
     );
   }
 
-  // Signed in (upgrade from Billing) -> back to Billing; otherwise (fresh
-  // registration) -> sign-in, where the new account can now log in.
+  // Success lands on the thank-you page for everyone (it offers My Subscription or
+  // sign-in); cancelling returns to Billing or sign-in.
   const session = await auth();
-  const returnUrl = session?.user ? '/portal/billing?payment=success' : '/login?payment=success';
+  const returnUrl = `/subscribe/success?sub=${encodeURIComponent(subscriptionId)}`;
   const cancelUrl = session?.user ? '/portal/billing' : '/login';
 
   return (

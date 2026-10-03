@@ -15,6 +15,18 @@ class AuthStorage {
 
   final FlutterSecureStorage _storage;
 
+  /// Same secure-storage options as [authStorageProvider], for code that runs
+  /// outside Riverpod (the background notification isolate).
+  factory AuthStorage.standalone() => AuthStorage(
+        const FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            encryptedSharedPreferences: true,
+            resetOnError: true,
+          ),
+          iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+        ),
+      );
+
   Future<void> saveSession({
     required String token,
     required String tenantSlug,

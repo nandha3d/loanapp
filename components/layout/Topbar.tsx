@@ -8,6 +8,7 @@ import { updateLanguage } from '@/app/(dashboard)/[module]/settings/actions';
 import { markNotificationRead, markAllNotificationsRead } from '@/app/(dashboard)/[module]/notifications/actions';
 import { parseModulePath } from '@/types/modules';
 import { formatNotificationTime } from '@/lib/utils';
+import { renderNotificationText } from '@/lib/notificationText';
 import { useBreadcrumbLabels } from './BreadcrumbLabelContext';
 
 interface BreadcrumbItem {
@@ -257,14 +258,14 @@ export default function Topbar({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
                         <div style={{ fontSize: '.82rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {n.title}
+                          {renderNotificationText(dict, n.titleKey, n.title, n.params)}
                         </div>
                         <span style={{ fontSize: '.68rem', color: 'var(--text-light)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {formatNotificationTime(n.createdAt, { justNow: dict.notifications?.justNow || 'now', minutesAgo: dict.notifications?.minutesAgo || 'min ago', hoursAgo: dict.notifications?.hoursAgo || 'h ago' })}
                         </span>
                       </div>
                       <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {n.message}
+                        {renderNotificationText(dict, n.messageKey, n.message, n.params)}
                       </div>
                     </div>
                   </Link>

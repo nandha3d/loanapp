@@ -78,12 +78,24 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
   if (!ids.length || !ensureApp()) return;
   const rows = await prisma.deviceToken.findMany({
     where: { userId: { in: ids } },
-    select: { token: true },
+    select: { token: true, platform: true },
   });
-  await sendToTokens(rows.map((r) => r.token), payload);
+  // Android is sent DATA-ONLY: with a `notification` block the OS draws the
+  // notification itself while the app is closed — no logo, no Approve/Reject
+  // buttons. Data-only wakes the app's background handler, which draws both.
+  // iOS and web keep the `notification` block (they cannot draw either from data).
+  const android = rows.filter((r) => (r.platform || 'android') === 'android').map((r) => r.token);
+  const other = rows.filter((r) => (r.platform || 'android') !== 'android').map((r) => r.token);
+  await sendToTokens(android, payload, true);
+  await sendToTokens(other, payload, false);
 }
 
-async function sendToTokens(tokens: string[], payload: PushPayload): Promise<void> {
+/** FCM rejects a non-URL `imageUrl` with invalid-argument — and we prune on that. */
+function validImageUrl(u: string | undefined): string | undefined {
+  return u && /^https:\/\//i.test(u) ? u : undefined;
+}
+
+async function sendToTokens(tokens: string[], payload: PushPayload, androidDataOnly: boolean): Promise<void> {
   const unique = [...new Set(tokens)].filter(Boolean);
   if (!unique.length) return;
 
@@ -103,53 +115,50 @@ async function sendToTokens(tokens: string[], payload: PushPayload): Promise<voi
   if (!data.icon) data.icon = 'ic_notification';
   if (!data.click_action) data.click_action = 'FLUTTER_NOTIFICATION_CLICK';
 
-  const isApproval =
-    data?.type?.includes('approval') ||
-    data?.actionable === 'true' ||
-    Boolean(data?.approvalId) ||
-    payload.title?.toLowerCase().includes('approv') ||
-    payload.body?.toLowerCase().includes('approv') ||
-    payload.link?.includes('approvals');
+  // Only the server's explicit flag makes a push actionable (Approve/Reject
+  // buttons). Matching on "approv" in the text also hit result notices such as
+  // "Request approved", which agents cannot act on. `notifyApprovers` sets
+  // `actionable` + `approvalId` for every real pending request.
+  const isActionable = data.actionable === 'true';
+  const isApproval = isActionable || Boolean(data?.type?.includes('approval'));
 
-  if (isApproval) {
-    data.actionable = 'true';
-    if (!data.type) data.type = 'approval_request';
-    if (!data.approvalId && payload.link) {
-      const m = payload.link.match(/[?&]id=([^&]+)/);
-      if (m) data.approvalId = m[1];
-    }
+  if (isActionable && !data.approvalId && payload.link) {
+    const m = payload.link.match(/[?&]id=([^&]+)/);
+    if (m) data.approvalId = m[1];
   }
 
   const messaging = getMessaging();
   for (let i = 0; i < unique.length; i += 500) {
     const batch = unique.slice(i, i + 500);
-    const imgUrl = payload.data?.imageUrl || payload.data?.logoUrl || payload.data?.avatarUrl || undefined;
+    const imgUrl = validImageUrl(payload.data?.imageUrl || payload.data?.logoUrl || payload.data?.avatarUrl);
     const notifObj: { title: string; body: string; imageUrl?: string } = {
       title: payload.title,
       body: payload.body,
     };
     if (imgUrl) notifObj.imageUrl = imgUrl;
+    const channelId =
+      isApproval || data?.type === 'float_insufficient' ? 'approvals_channel' : 'general_channel';
 
     try {
       const res = await messaging.sendEachForMulticast({
         tokens: batch,
-        notification: notifObj,
-        data,
-        android: {
-          priority: 'high',
-          notification: {
-            sound: 'default',
-            icon: 'ic_notification',
-            color: '#7D287E',
-            imageUrl: imgUrl,
-            channelId:
-              isApproval || data?.type === 'float_insufficient'
-                ? 'approvals_channel'
-                : 'general_channel',
-            defaultSound: true,
-            defaultVibrateTimings: true,
-          },
-        },
+        // Android: data-only (see sendPushToUsers). Everyone else: visible push.
+        ...(androidDataOnly ? {} : { notification: notifObj }),
+        data: androidDataOnly ? { ...data, channelId, ...(imgUrl ? { imageUrl: imgUrl } : {}) } : data,
+        android: androidDataOnly
+          ? { priority: 'high', ttl: 60 * 60 * 1000 }
+          : {
+              priority: 'high',
+              notification: {
+                sound: 'default',
+                icon: 'ic_notification',
+                color: '#7D287E',
+                imageUrl: imgUrl,
+                channelId,
+                defaultSound: true,
+                defaultVibrateTimings: true,
+              },
+            },
         apns: {
           payload: {
             aps: {

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { initiateSubscriptionUpgrade, simulatePlanUpgrade } from './actions';
+import { PLAN_FEATURES } from '@/lib/planFeatures';
 
 export type PlanCatalogItem = {
   id: string;
@@ -18,6 +19,10 @@ export type PlanCatalogItem = {
   /** Server-validated: non-null only when yearly billing can actually be charged. */
   yearlyPrice: number | null;
   yearlySavingsPercent: number;
+  /** Feature keys this plan bundles (cumulative; set per plan in Developer → Pricing). */
+  premiumFeatures: string[];
+  /** The next-cheaper paid plan, so higher plans read as "includes everything in X". */
+  includesPlan: string | null;
   isActive: boolean;
   sortOrder: number;
   calculatedPrice: {
@@ -370,6 +375,29 @@ export default function SubscriptionPlansClient({
                     ))}
                   </ul>
                 </div>
+
+                {p.premiumFeatures.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '6px' }}>
+                      {d.premiumFeatures || 'Premium features'}
+                    </div>
+                    {p.includesPlan && (
+                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--primary, #3b82f6)', marginBottom: '8px' }}>
+                        {(d.includesEverythingIn || 'Includes everything in {plan}').replace('{plan}', p.includesPlan)}
+                      </div>
+                    )}
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {PLAN_FEATURES.filter((f) => p.premiumFeatures.includes(f.key)).map((f) => (
+                        <li key={f.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                          <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a', marginTop: '2px', flexShrink: 0 }}>
+                            check_circle
+                          </span>
+                          <span>{d[`featureName_${f.key}`] || f.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}

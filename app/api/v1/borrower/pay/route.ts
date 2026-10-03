@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireBorrowerMobileContext } from '@/lib/api/borrower-mobile';
 import { reallocateLoanRepayments } from '@/lib/repayments';
+import { notifyPaymentReceived } from '@/lib/notify/staffAlerts';
 
 async function getOrCreateDailyCollectionForBorrower(
   tx: any,
@@ -188,6 +189,18 @@ export async function POST(req: NextRequest) {
       });
 
       return { paymentId: payment.id, allocated: amount - remaining };
+    });
+
+    // After commit (NOTIF-1): tell the customer's agent and the branch admins a
+    // self-service payment landed. Never throws.
+    await notifyPaymentReceived({
+      tenantId: borrower.tenantId,
+      appType: loan.appType,
+      loanId,
+      amount: result.allocated,
+      collectedByUserId: null,
+      dedupeId: result.paymentId,
+      alertAdmins: true,
     });
 
     return ok({ success: true, ...result });

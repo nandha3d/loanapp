@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { notify } from '@/lib/notify/events';
+import { dayKey, outstandingOf, sendInstalmentDigests } from '@/lib/notify/staffAlerts';
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     include: {
       loan: {
         include: {
-          customer: { select: { name: true, phone: true, email: true } },
+          customer: { select: { name: true, phone: true, email: true, agentId: true } },
         },
       },
     },
@@ -62,6 +63,39 @@ export async function GET(req: NextRequest) {
     sent++;
     // Throttle: 100ms between messages to respect provider rate limits
     await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Staff digests (agent / branch admins / superadmins): EMIs due tomorrow and
+  // today. Independent of the customer SMS above; never fails the cron.
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const dueToday = await prisma.instalment.findMany({
+      where: {
+        dueDate: { gte: todayStart, lte: todayEnd },
+        status: 'upcoming',
+        loan: { status: 'active' },
+      },
+      select: {
+        dueAmount: true,
+        receivedAmount: true,
+        loan: {
+          select: {
+            tenantId: true, appType: true, branchId: true,
+            customer: { select: { agentId: true } },
+          },
+        },
+      },
+      take: 5000,
+    });
+    const asRows = (list: Array<{ dueAmount: unknown; receivedAmount: unknown; loan: any }>) =>
+      list.map((i) => ({ amount: outstandingOf(i.dueAmount, i.receivedAmount), loan: i.loan }));
+    await sendInstalmentDigests('emi_due_tomorrow', asRows(instalments), dayKey(tomorrowStart));
+    await sendInstalmentDigests('emi_due_today', asRows(dueToday), dayKey(todayStart));
+  } catch (err) {
+    console.error('[send-reminders] staff digests failed', err);
   }
 
   return NextResponse.json({ ok: true, remindersSent: sent, processedAt: new Date().toISOString() });

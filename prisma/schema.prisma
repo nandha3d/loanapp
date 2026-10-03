@@ -868,9 +868,18 @@ model SystemNotification {
   readAt       DateTime? @map("read_at")
   expiresAt    DateTime? @map("expires_at")
   createdAt    DateTime  @default(now()) @map("created_at")
+  /// Optional i18n: when set, clients render `titleKey`/`messageKey` (with
+  /// `params`, a JSON object of pre-formatted strings) in the device language and
+  /// fall back to the stored English `title`/`message`. Null = legacy row.
+  titleKey     String?   @map("title_key")
+  messageKey   String?   @map("message_key")
+  params       String?   @db.Text
+  /// Idempotency key for scheduled alerts (e.g. `emi_due:<instalmentId>:2026-10-03`).
+  dedupeKey    String?   @map("dedupe_key")
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, appType, isRead])
+  @@index([targetUserId, dedupeKey])
   @@index([targetUserId, isRead])
   @@index([branchId])
   @@index([createdAt])

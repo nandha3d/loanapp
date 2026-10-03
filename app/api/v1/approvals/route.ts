@@ -9,6 +9,7 @@ import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { modulePath } from '@/types/modules';
 import { maskPan } from '@/lib/pii';
 import { buildPendingLoanFunding } from '@/lib/loanFunding';
+import { attachChangeLabels } from '@/lib/approvalChangeLabels';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    const mappedList = [...approvals];
+    // routeId/agentId/branchId in the filed changes resolve to names here so mobile renders words, not cuids.
+    const mappedList = await attachChangeLabels(ctx.tenantId, approvals);
 
     // 2. Fetch pending customers and loans for admins if listing pending
     if (ctx.role !== 'agent' && (!status || status === 'pending')) {

@@ -82,6 +82,9 @@ export default async function MySubscriptionPage() {
     : [];
   const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
 
+  // Paid plans by price: each plan's card lists its full (cumulative) premium set and
+  // names the plan below it, so higher plans visibly include the lower ones.
+  const paidByPrice = [...catalogPlans].filter((p) => p.monthlyPrice > 0).sort((x, y) => x.monthlyPrice - y.monthlyPrice);
   const formattedPlans = catalogPlans.map((cp) => {
     const pricing = calculateVerticalSubscriptionPricing(
       cp.monthlyPrice,
@@ -110,6 +113,11 @@ export default async function MySubscriptionPage() {
         ? cp.yearlyPrice
         : null,
       yearlySavingsPercent: yearlySavingsPercent(cp.monthlyPrice, cp.yearlyPrice ?? 0),
+      premiumFeatures: parseFeatureKeys(cp.includedFeatures),
+      includesPlan: (() => {
+        const i = paidByPrice.findIndex((p) => p.plan === cp.plan);
+        return i > 0 ? paidByPrice[i - 1].displayName : null;
+      })(),
       isActive: cp.isActive,
       sortOrder: cp.sortOrder,
       calculatedPrice: pricing,
@@ -131,7 +139,7 @@ export default async function MySubscriptionPage() {
   const paidPlansByPrice = [...catalogPlans].filter((cp) => cp.monthlyPrice > 0).sort((x, y) => x.monthlyPrice - y.monthlyPrice);
   const featureCards = PLAN_FEATURES.map((f) => ({
     key: f.key,
-    name: f.label,
+    name: d[`featureName_${f.key}`] || f.label,
     icon: featureMeta[f.key]?.icon ?? 'star',
     desc: featureMeta[f.key]?.desc ?? '',
     active: Boolean((sub as Record<string, unknown> | null)?.[f.flag]),
@@ -280,10 +288,10 @@ export default async function MySubscriptionPage() {
       {/* Premium Add-ons & Integrations */}
       <div className="card" style={{ padding: '24px', marginTop: '24px' }}>
         <h3 style={{ marginBottom: '6px', fontSize: '1rem' }}>
-          {d.premiumAddonsTitle || 'Premium Add-ons & Integrations'}
+          {d.planFeaturesTitle || 'Features in your plan'}
         </h3>
         <p style={{ marginBottom: '20px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
-          {d.premiumAddonsDesc || 'Unlock premium business capabilities and automated integrations for your lending enterprise.'}
+          {d.planFeaturesDesc || 'Premium capabilities bundled into your subscription plan. Upgrade to unlock the locked ones.'}
         </p>
 
         <div

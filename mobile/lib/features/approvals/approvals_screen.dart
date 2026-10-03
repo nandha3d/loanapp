@@ -374,7 +374,7 @@ class _ApprovalCard extends ConsumerWidget {
                       ],
                       if (approval.payload != '{}' && approval.payload.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        _ChangesPreview(payload: approval.payload),
+                        _ChangesPreview(payload: approval.payload, labels: approval.changeLabels),
                       ],
                     ],
                   ),
@@ -618,8 +618,9 @@ class _LoadingState extends StatelessWidget {
 }
 
 class _ChangesPreview extends StatelessWidget {
-  const _ChangesPreview({required this.payload});
+  const _ChangesPreview({required this.payload, this.labels = const {}});
   final String payload;
+  final Map<String, String> labels;
 
   @override
   Widget build(BuildContext context) {
@@ -655,7 +656,7 @@ class _ChangesPreview extends StatelessWidget {
           const SizedBox(height: 8),
           ...filteredEntries.map((e) {
             final keyStr = formatKey(e.key);
-            final valStr = e.value.toString();
+            final valStr = labels[e.key] ?? e.value.toString();
 
             if (e.value is Map) {
               final valMap = e.value as Map;

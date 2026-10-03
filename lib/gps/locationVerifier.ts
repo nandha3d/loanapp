@@ -233,18 +233,20 @@ export async function verifyAndPersistCollectionLocation(input: {
         ? `Agent ${agentName} used a mock/fake GPS location to collect payment from ${customerName}.`
         : `Agent ${agentName} collected payment from ${customerName} outside the geofence (${distanceMetres}m away).`;
 
-      await prisma.systemNotification.create({
-        data: {
-          tenantId: input.tenantId,
-          branchId: branchId,
-          appType: appType,
-          type: isMock ? 'mock_gps_alert' : 'geofence_violation',
-          icon: isMock ? 'gps_fixed' : 'gps_off',
-          title,
-          message,
-          link: `/loans/${loanCode}`,
-          targetRole: 'admin',
-        },
+      // Per-user rows + push (NOTIF-4/8) instead of one shared role row.
+      const [{ notifyApprovers }, { modulePath }] = await Promise.all([
+        import('../notify/approvers'),
+        import('../../types/modules'),
+      ]);
+      await notifyApprovers({
+        tenantId: input.tenantId,
+        branchId,
+        appType,
+        type: isMock ? 'mock_gps_alert' : 'geofence_violation',
+        icon: isMock ? 'gps_fixed' : 'gps_off',
+        title,
+        message,
+        link: modulePath(appType, `/loans/${entry.loanId}`),
       });
     } catch (err) {
       console.error('Failed to create geofence notification:', err);

@@ -5,6 +5,7 @@ import { markNotificationRead, markAllNotificationsRead } from './actions';
 import { useRouter } from 'next/navigation';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 import { formatNotificationTime } from '@/lib/utils';
+import { renderNotificationText } from '@/lib/notificationText';
 
 
 const iconColorMap: Record<string, string> = {
@@ -133,14 +134,14 @@ export default function NotificationsClient({
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                   <h4 style={{ fontSize: '.9rem', fontWeight: 600 }}>
-                    {n.title || d.notificationFallback}
+                    {renderNotificationText(dict, n.titleKey, n.title, n.params) || d.notificationFallback}
                     {!n.isRead && (
                       <span style={{ width: '8px', height: '8px', background: 'var(--primary)', borderRadius: '50%', display: 'inline-block', marginLeft: '6px' }} />
                     )}
                   </h4>
                   <span style={{ fontSize: '.72rem', color: 'var(--text-light)', whiteSpace: 'nowrap' }}>{timeAgo(n.createdAt, d)}</span>
                 </div>
-                <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{n.message}</p>
+                <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{renderNotificationText(dict, n.messageKey, n.message, n.params)}</p>
               </div>
             </div>
           );

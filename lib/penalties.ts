@@ -616,20 +616,26 @@ export async function waivePenalty(input: {
 
   const updated = prismaClient ? await applyWaiver(prismaClient) : await prisma.$transaction(applyWaiver);
 
-  try {
-    await prisma.systemNotification.create({
-      data: {
+  // Per-user rows + push via notifyApprovers (NOTIF-4/8). The old untargeted
+  // row matched no visibility scope, so nobody ever saw it. Inside a caller's
+  // transaction (prismaClient) it is not awaited so FCM latency cannot hold the
+  // transaction open; notifyApprovers never throws (NOTIF-1).
+  // Dynamic imports keep `server-only` out of the pure-maths test graph.
+  const waiveNotice = Promise.all([import('./notify/approvers'), import('../types/modules')])
+    .then(([{ notifyApprovers }, { modulePath }]) =>
+      notifyApprovers({
         tenantId,
-        type: 'success',
+        appType: penalty.loan.appType ?? appType,
+        branchId: penalty.loan.branchId ?? branchId ?? null,
+        type: 'penalty_waived',
         icon: 'money_off',
         title: 'Penalty Waived',
         message: `Penalty of ${gross} waived for loan ${penalty.loan.loanCode} by admin.`,
-        link: `/loans/${penalty.loan.loanCode}`,
-      },
-    });
-  } catch (err) {
-    console.error('Failed to create penalty waiver notification:', err);
-  }
+        link: `${modulePath(penalty.loan.appType ?? appType, '/loans')}/${penalty.loan.id}`,
+      }),
+    )
+    .catch((err) => console.error('Failed to create penalty waiver notification:', err));
+  if (!prismaClient) await waiveNotice;
 
   return updated;
 }

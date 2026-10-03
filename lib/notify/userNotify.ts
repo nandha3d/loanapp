@@ -37,6 +37,19 @@ export type UserNotifyInput = {
   icon?: string | null;
   link?: string | null;
   data?: Record<string, string>;
+  /**
+   * Optional i18n keys + pre-formatted params. Clients render these in the
+   * device language and fall back to the English `title`/`message` (STABLE-5,
+   * STABLE-8: every figure in `params` is formatted here, never client-side).
+   */
+  titleKey?: string | null;
+  messageKey?: string | null;
+  params?: Record<string, string> | null;
+  /**
+   * Idempotency key for scheduled alerts. A recipient that already holds a row
+   * with this key is skipped, so a cron re-run never double-notifies.
+   */
+  dedupeKey?: string | null;
 };
 
 /**
@@ -96,6 +109,27 @@ export async function notifyUser(input: UserNotifyInput): Promise<number> {
 
   if (userIds.length === 0) return 0;
 
+  // Scheduled alerts: drop recipients who already hold this alert.
+  if (input.dedupeKey) {
+    try {
+      const existing = await prisma.systemNotification.findMany({
+        where: {
+          tenantId: input.tenantId,
+          targetUserId: { in: userIds },
+          dedupeKey: input.dedupeKey,
+        },
+        select: { targetUserId: true },
+      });
+      const have = new Set(existing.map((r) => r.targetUserId));
+      userIds = userIds.filter((uid) => !have.has(uid));
+    } catch (e) {
+      console.error('[notifyUser] dedupe lookup failed', e);
+    }
+    if (userIds.length === 0) return 0;
+  }
+
+  const paramsJson = input.params ? JSON.stringify(input.params) : null;
+
   // 1. One in-app notification PER user (per-user read state; no shared row).
   try {
     await prisma.systemNotification.createMany({
@@ -110,6 +144,10 @@ export async function notifyUser(input: UserNotifyInput): Promise<number> {
         title: input.title,
         message: input.message,
         link: input.link ?? null,
+        titleKey: input.titleKey ?? null,
+        messageKey: input.messageKey ?? null,
+        params: paramsJson,
+        dedupeKey: input.dedupeKey ?? null,
       })),
     });
   } catch (e) {
@@ -125,7 +163,12 @@ export async function notifyUser(input: UserNotifyInput): Promise<number> {
       data: {
         type: input.type,
         ...(input.link ? { link: input.link } : {}),
-        ...(input.icon ? { avatarUrl: input.icon } : {}),
+        // `icon` is usually a material icon NAME ('check_circle'); only a real
+        // image reference may travel as an avatar.
+        ...(input.icon && /^(https?:\/\/|\/)/i.test(input.icon) ? { avatarUrl: input.icon } : {}),
+        ...(input.titleKey ? { titleKey: input.titleKey } : {}),
+        ...(input.messageKey ? { messageKey: input.messageKey } : {}),
+        ...(paramsJson ? { params: paramsJson } : {}),
         ...(input.data || {}),
       },
     });

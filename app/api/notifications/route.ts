@@ -31,7 +31,7 @@ export async function GET() {
         where,
         orderBy: { createdAt: 'desc' },
         take: 5,
-        select: { id: true, type: true, icon: true, title: true, message: true, link: true, createdAt: true, isRead: true },
+        select: { id: true, type: true, icon: true, title: true, message: true, link: true, createdAt: true, isRead: true, titleKey: true, messageKey: true, params: true },
       }),
     ]);
     return NextResponse.json({ count, items });
