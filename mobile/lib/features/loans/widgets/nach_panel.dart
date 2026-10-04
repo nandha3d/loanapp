@@ -39,7 +39,8 @@ class NachPanel extends ConsumerStatefulWidget {
   ConsumerState<NachPanel> createState() => _NachPanelState();
 }
 
-class _NachPanelState extends ConsumerState<NachPanel> {
+class _NachPanelState extends ConsumerState<NachPanel>
+    with AutomaticKeepAliveClientMixin {
   NachMandate? _mandate;
   late final Razorpay _razorpay;
   bool _loaded = false;
@@ -48,6 +49,9 @@ class _NachPanelState extends ConsumerState<NachPanel> {
   bool _isSubscribed = false;
   String? _error;
   bool _expanded = true;
+
+  @override
+  bool get wantKeepAlive => true;
 
   // Form fields
   late TextEditingController _holderCtrl;
@@ -62,6 +66,10 @@ class _NachPanelState extends ConsumerState<NachPanel> {
   @override
   void initState() {
     super.initState();
+    final user = ref.read(authControllerProvider).user;
+    final isDev = user?.role == UserRole.developer;
+    _isSubscribed = isDev || (user?.nachEnabled ?? false);
+
     _razorpay = Razorpay();
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
@@ -76,7 +84,11 @@ class _NachPanelState extends ConsumerState<NachPanel> {
           ? widget.defaultMaxAmount!.ceil().toString()
           : '',
     );
-    _refresh();
+    if (_isSubscribed) {
+      _refresh();
+    } else {
+      _loaded = true;
+    }
   }
 
   @override
@@ -289,17 +301,50 @@ class _NachPanelState extends ConsumerState<NachPanel> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded) return const SizedBox.shrink();
-    final fmt = ref.watch(currencyFmtProvider);
+    super.build(context);
     final user = ref.watch(authControllerProvider).user;
     final isDev = user?.role == UserRole.developer;
-    final isTenantSubscribed = isDev || (user?.nachEnabled ?? false) || _isSubscribed;
+    final isTenantSubscribed =
+        isDev || (user?.nachEnabled ?? false) || _isSubscribed;
+
+    // Requirement: remove e-NACH if not subscribed
+    if (!isTenantSubscribed) return const SizedBox.shrink();
+
+    // Stable loading state when subscribed: avoid collapsing to 0 height
+    if (!_loaded && _mandate == null) {
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+          boxShadow: AppTokens.shadow,
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Row(
+          children: [
+            const Text('🏦', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Text('e-NACH Auto-Debit', style: AppTypography.sectionTitle),
+            const Spacer(),
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final fmt = ref.watch(currencyFmtProvider);
     final style = _mandate != null
         ? _statusStyles[_mandate!.status] ?? _statusStyles['created']!
         : null;
 
     return Container(
-      margin: const EdgeInsets.only(top: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -319,41 +364,28 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                   const Text('🏦', style: TextStyle(fontSize: 20)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('e-NACH Auto-Debit',
-                        style: AppTypography.sectionTitle,),
+                    child: Text(
+                      'e-NACH Auto-Debit',
+                      style: AppTypography.sectionTitle,
+                    ),
                   ),
                   if (_mandate != null && style != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3,),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: style.$1,
                         borderRadius:
                             BorderRadius.circular(AppTokens.radiusBadge),
                       ),
-                      child: Text(style.$3,
-                          style: AppTypography.caption.copyWith(
-                              color: style.$2, fontWeight: FontWeight.w700,),),
-                    )
-                  else if (!isTenantSubscribed)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3,),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusBadge),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.lock_rounded, size: 11, color: AppColors.primary),
-                          const SizedBox(width: 4),
-                          Text('PREMIUM',
-                              style: AppTypography.caption.copyWith(
-                                  color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 10.5,),),
-                        ],
+                      child: Text(
+                        style.$3,
+                        style: AppTypography.caption.copyWith(
+                          color: style.$2,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   const SizedBox(width: 8),
@@ -376,9 +408,11 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                     color: AppColors.dangerBg,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(_error!,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.danger),),
+                  child: Text(
+                    _error!,
+                    style: AppTypography.caption
+                        .copyWith(color: AppColors.danger),
+                  ),
                 ),
               ),
             // Locked for non-subscribed users when no mandate exists
@@ -469,7 +503,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
                 ),
               )
             // No mandate and subscribed — show prompt
-            else if (_mandate == null && !_showForm)
+            if (_mandate == null && !_showForm)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(

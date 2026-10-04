@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:zolofund/core/theme/app_colors.dart';
-import 'package:zolofund/core/theme/app_tokens.dart';
-import 'package:zolofund/core/theme/app_typography.dart';
 
 class FilterPill extends StatelessWidget {
   const FilterPill({
@@ -18,23 +16,52 @@ class FilterPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.primary : AppColors.surface,
-      borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
-            border: selected ? null : Border.all(color: AppColors.border),
-          ),
-          child: Text(
-            label,
-            style: AppTypography.label.copyWith(
-              fontSize: 14 * 0.78,
-              color: selected ? Colors.white : AppColors.textSecondary,
+    const radius = BorderRadius.all(Radius.circular(999));
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 56),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primary : AppColors.surface,
+        borderRadius: radius,
+        border: Border.all(
+          color: selected ? AppColors.primary : AppColors.border,
+          width: 1.2,
+        ),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withAlpha(45),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withAlpha(6),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? AppColors.onPrimary : AppColors.textSecondary,
+                  height: 1.0,
+                ),
+              ),
             ),
           ),
         ),

@@ -183,18 +183,11 @@ class _QuickPutBillCardState extends ConsumerState<QuickPutBillCard> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.primary.withAlpha(35),
-              width: 1.2,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.surface,
-                AppColors.primary.withAlpha(10),
-              ],
+              color: const Color(0xFFE2E8F0),
+              width: 1.0,
             ),
           ),
           child: Padding(

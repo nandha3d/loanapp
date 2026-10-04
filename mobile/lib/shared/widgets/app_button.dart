@@ -36,9 +36,9 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.ghost => Colors.transparent,
     };
     final fg = switch (variant) {
-      AppButtonVariant.primary => Colors.white,
+      AppButtonVariant.primary => AppColors.onPrimary,
       AppButtonVariant.secondary => AppColors.textPrimary,
-      AppButtonVariant.danger => Colors.white,
+      AppButtonVariant.danger => AppColors.onPrimary,
       AppButtonVariant.ghost => AppColors.primaryDark,
     };
     final hasBorder = variant == AppButtonVariant.secondary;

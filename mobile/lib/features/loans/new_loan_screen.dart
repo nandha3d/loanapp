@@ -1179,15 +1179,41 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           children: [
             for (final lt in loanTypes)
               ChoiceChip(
+                selected: _loanType == lt.$1,
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.surface,
+                checkmarkColor: AppColors.onPrimary,
+                side: BorderSide(
+                  color: AppColors.primary,
+                  width: 1.2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(lt.$3, size: 16),
+                    Icon(
+                      lt.$3,
+                      size: 16,
+                      color: _loanType == lt.$1
+                          ? AppColors.onPrimary
+                          : AppColors.primary,
+                    ),
                     const SizedBox(width: 6),
-                    Text(lt.$2),
+                    Text(
+                      lt.$2,
+                      style: TextStyle(
+                        color: _loanType == lt.$1
+                            ? AppColors.onPrimary
+                            : AppColors.primary,
+                        fontWeight: _loanType == lt.$1
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
-                selected: _loanType == lt.$1,
                 onSelected: (_) => setState(() => _loanType = lt.$1),
               ),
           ],
@@ -1476,6 +1502,41 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         Text(tr.x('plan.upfront'), style: AppTypography.label),
         const SizedBox(height: 6),
         SegmentedButton<String>(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+              if (states.contains(WidgetState.selected)) {
+                return AppColors.primary;
+              }
+              return AppColors.surface;
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+              if (states.contains(WidgetState.selected)) {
+                return AppColors.onPrimary;
+              }
+              return AppColors.primary;
+            }),
+            iconColor: WidgetStateProperty.resolveWith<Color>((states) {
+              if (states.contains(WidgetState.selected)) {
+                return AppColors.onPrimary;
+              }
+              return AppColors.primary;
+            }),
+            side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+              return BorderSide(color: AppColors.primary, width: 1.2);
+            }),
+            textStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+              if (states.contains(WidgetState.selected)) {
+                return const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                );
+              }
+              return const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              );
+            }),
+          ),
           segments: [
             ButtonSegment(
               value: 'upfront_fixed',
@@ -1516,8 +1577,28 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   'interest_only',
               ])
                 ChoiceChip(
-                  label: Text(tr.x('plan.$opt')),
+                  label: Text(
+                    tr.x('plan.$opt'),
+                    style: TextStyle(
+                      color: _deductionType == opt
+                          ? AppColors.onPrimary
+                          : AppColors.primary,
+                      fontWeight: _deductionType == opt
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
                   selected: _deductionType == opt,
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.surface,
+                  checkmarkColor: AppColors.onPrimary,
+                  side: BorderSide(
+                    color: AppColors.primary,
+                    width: 1.2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
                   onSelected: (_) {
                     setState(() {
                       _deductionType = opt;
@@ -1534,27 +1615,49 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              // ignore: deprecated_member_use
               Radio<String>(
                 value: 'upfront_fixed',
-                // ignore: deprecated_member_use
+                activeColor: AppColors.primary,
                 groupValue: _deductionType,
-                // ignore: deprecated_member_use
                 onChanged: (v) =>
                     setState(() => _deductionType = v ?? _deductionType),
               ),
-              Text(tr.x('plan.fixed_amount')),
+              GestureDetector(
+                onTap: () => setState(() => _deductionType = 'upfront_fixed'),
+                child: Text(
+                  tr.x('plan.fixed_amount'),
+                  style: TextStyle(
+                    color: _deductionType == 'upfront_fixed'
+                        ? AppColors.primary
+                        : AppColors.textPrimary,
+                    fontWeight: _deductionType == 'upfront_fixed'
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
-              // ignore: deprecated_member_use
               Radio<String>(
                 value: 'upfront_percentage',
-                // ignore: deprecated_member_use
+                activeColor: AppColors.primary,
                 groupValue: _deductionType,
-                // ignore: deprecated_member_use
                 onChanged: (v) =>
                     setState(() => _deductionType = v ?? _deductionType),
               ),
-              Text(tr.x('plan.percentage')),
+              GestureDetector(
+                onTap: () => setState(() => _deductionType = 'upfront_percentage'),
+                child: Text(
+                  tr.x('plan.percentage'),
+                  style: TextStyle(
+                    color: _deductionType == 'upfront_percentage'
+                        ? AppColors.primary
+                        : AppColors.textPrimary,
+                    fontWeight: _deductionType == 'upfront_percentage'
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -1872,13 +1975,53 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             children: [
               for (final g in existing)
                 ChoiceChip(
-                  label: Text('${g.name} (${g.phone})'),
+                  label: Text(
+                    '${g.name} (${g.phone})',
+                    style: TextStyle(
+                      color: _selectedExistingGuarantorId == g.id
+                          ? AppColors.onPrimary
+                          : AppColors.primary,
+                      fontWeight: _selectedExistingGuarantorId == g.id
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
                   selected: _selectedExistingGuarantorId == g.id,
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.surface,
+                  checkmarkColor: AppColors.onPrimary,
+                  side: BorderSide(
+                    color: AppColors.primary,
+                    width: 1.2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
                   onSelected: (_) => _applyExistingGuarantor(g),
                 ),
               ChoiceChip(
-                label: const Text('New guarantor'),
+                label: Text(
+                  'New guarantor',
+                  style: TextStyle(
+                    color: _selectedExistingGuarantorId == null
+                        ? AppColors.onPrimary
+                        : AppColors.primary,
+                    fontWeight: _selectedExistingGuarantorId == null
+                        ? FontWeight.w700
+                        : FontWeight.w600,
+                  ),
+                ),
                 selected: _selectedExistingGuarantorId == null,
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.surface,
+                checkmarkColor: AppColors.onPrimary,
+                side: BorderSide(
+                  color: AppColors.primary,
+                  width: 1.2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
                 onSelected: (_) => _applyExistingGuarantor(null),
               ),
             ],

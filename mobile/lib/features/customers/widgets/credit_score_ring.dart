@@ -22,26 +22,44 @@ class CreditScoreRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = score ?? 0;
-    final color = s >= 70
-        ? AppColors.success
-        : s >= 40
-            ? AppColors.warning
-            : AppColors.danger;
+    final double progress;
+    final Color color;
+    if (score == null || s == 0) {
+      progress = 0.0;
+      color = AppColors.textLight;
+    } else if (s >= 300) {
+      progress = ((s - 300) / (850 - 300)).clamp(0.0, 1.0);
+      color = s >= 750
+          ? AppColors.success
+          : s >= 650
+              ? AppColors.primary
+              : s >= 550
+                  ? AppColors.warning
+                  : AppColors.danger;
+    } else {
+      progress = (s / 100).clamp(0.0, 1.0);
+      color = s >= 70
+          ? AppColors.success
+          : s >= 40
+              ? AppColors.warning
+              : AppColors.danger;
+    }
     return SizedBox(
       width: diameter,
       height: diameter,
       child: CustomPaint(
         painter: _RingPainter(
-          progress: s / 100,
+          progress: progress,
           color: color,
           strokeWidth: strokeWidth,
         ),
         child: Center(
           child: Text(
-            score == null ? '—' : '$s',
+            (score == null || s == 0) ? '—' : '$s',
             style: AppTypography.bodyLarge.copyWith(
               color: textColor ?? AppColors.textPrimary,
               fontSize: diameter * 0.3,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),

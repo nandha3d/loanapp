@@ -17,12 +17,69 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       colorScheme: ColorScheme.light(
         primary: AppColors.primary,
-        onPrimary: Colors.white,
+        onPrimary: AppColors.onPrimary,
         secondary: AppColors.primaryDark,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
         error: AppColors.danger,
-        onError: Colors.white,
+        onError: AppColors.onPrimary,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surface,
+        selectedColor: AppColors.primary,
+        checkmarkColor: AppColors.onPrimary,
+        side: BorderSide(color: AppColors.primary, width: 1.2),
+        labelStyle: TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          color: AppColors.onPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: BorderSide(color: AppColors.primary, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          ),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.primary;
+            }
+            return AppColors.surface;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.onPrimary;
+            }
+            return AppColors.primary;
+          }),
+          iconColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.onPrimary;
+            }
+            return AppColors.primary;
+          }),
+          side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+            return BorderSide(color: AppColors.primary, width: 1.2);
+          }),
+          textStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(fontWeight: FontWeight.w700, fontSize: 13);
+            }
+            return const TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
+          }),
+        ),
       ),
       textTheme: (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'))
           ? base.textTheme.apply(
@@ -92,7 +149,64 @@ class AppTheme {
         surface: AppColors.inkElevated,
         onSurface: AppColors.onInk,
         error: AppColors.danger,
-        onError: Colors.white,
+        onError: AppColors.onPrimary,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.inkElevated,
+        selectedColor: AppColors.primary,
+        checkmarkColor: AppColors.onPrimary,
+        side: BorderSide(color: AppColors.primary, width: 1.2),
+        labelStyle: TextStyle(
+          color: AppColors.onInk,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          color: AppColors.onPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: BorderSide(color: AppColors.primary, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          ),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.primary;
+            }
+            return AppColors.inkElevated;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.onPrimary;
+            }
+            return AppColors.onInk;
+          }),
+          iconColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.onPrimary;
+            }
+            return AppColors.onInk;
+          }),
+          side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+            return BorderSide(color: AppColors.primary, width: 1.2);
+          }),
+          textStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(fontWeight: FontWeight.w700, fontSize: 13);
+            }
+            return const TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
+          }),
+        ),
       ),
       textTheme: Platform.environment.containsKey('FLUTTER_TEST')
           ? base.textTheme.apply(

@@ -32,6 +32,7 @@ import 'package:zolofund/data/services/penalty_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/loans/widgets/loan_heatmap.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
+import 'package:zolofund/features/customers/widgets/credit_score_ring.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -287,10 +288,6 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           const SizedBox(height: 14),
         ],
         _buildSummaryCards(loan, fmt, progress, paid),
-        if (_dueNowForLoan(loan) > 0 && loan.status != 'closed') ...[
-          const SizedBox(height: 14),
-          _buildDueNowBanner(context, loan, fmt),
-        ],
         if (loan.loanType == 'gold' ||
             loan.loanType == 'property' ||
             loan.loanType == 'other') ...[
@@ -315,22 +312,28 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         _OverdueSummaryCard(loan: loan, fmt: fmt),
         const SizedBox(height: 14),
         _PenaltySummaryCard(loan: loan, fmt: fmt),
-        const SizedBox(height: 14),
         Consumer(
           builder: (ctx, ref, _) {
             final user = ref.watch(authControllerProvider).user;
+            final isDev = user?.role == UserRole.developer;
+            final isTenantSubscribed =
+                isDev || (user?.nachEnabled ?? false);
+            if (!isTenantSubscribed) return const SizedBox.shrink();
             final isAdmin = user != null &&
                 (user.role == UserRole.admin ||
                     user.role == UserRole.superadmin ||
                     user.role == UserRole.developer);
-            return NachPanel(
-              loanId: loan.id,
-              customerId: loan.customerId,
-              customerName: loan.customer?.name,
-              customerPhone: loan.customer?.phone,
-              customerEmail: loan.customer?.email,
-              defaultMaxAmount: loan.perInstalment, // LD-04: same default as web
-              isAdmin: isAdmin,
+            return Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: NachPanel(
+                loanId: loan.id,
+                customerId: loan.customerId,
+                customerName: loan.customer?.name,
+                customerPhone: loan.customer?.phone,
+                customerEmail: loan.customer?.email,
+                defaultMaxAmount: loan.perInstalment, // LD-04: same default as web
+                isAdmin: isAdmin,
+              ),
             );
           },
         ),
@@ -1498,29 +1501,34 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
     final photo = loan.customer?.photoUrl;
     final hasPhoto = photo != null && photo.isNotEmpty;
     final cs = loan.customer?.creditScore;
+    final place = (loan.customer?.address != null &&
+            loan.customer!.address!.trim().isNotEmpty)
+        ? loan.customer!.address!.trim()
+        : (loan.customer?.routeName != null &&
+                loan.customer!.routeName!.trim().isNotEmpty)
+            ? loan.customer!.routeName!.trim()
+            : (loan.customer?.aadhaarAddress != null &&
+                    loan.customer!.aadhaarAddress!.trim().isNotEmpty)
+                ? loan.customer!.aadhaarAddress!.trim()
+                : '';
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: AppColors.border),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppTokens.radius),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: AppColors.primary, width: 3.5),
-            ),
-          ),
+        child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Borrower Identity & Quick Contact Header ────────────────────────
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
                     onTap: () => context.push('/customers/${loan.customerId}'),
@@ -1585,6 +1593,32 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                               ),
                             ],
                           ),
+                          if (place.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    place,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 6,
@@ -1655,73 +1689,42 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                                 ),
                               ),
                               AppBadge(label: loan.status, kind: _badge(loan.status)),
-                              // ── Customer Credit Score Pill ──────────────────────
-                              if (cs != null && cs.rated)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _scoreBg(cs.score),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: _scoreColor(cs.score).withValues(alpha: 0.35),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.speed_rounded,
-                                        size: 11,
-                                        color: _scoreColor(cs.score),
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'SCORE ${cs.score}',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: _scoreColor(cs.score),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              else if (cs != null && cs.score > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryLight,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: AppColors.primary.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.speed_rounded,
-                                        size: 11,
-                                        color: AppColors.primary,
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'SCORE ${cs.score}',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                             ],
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // ── Customer Scoring Graphic Ring ─────────────────────────
+                  Tooltip(
+                    triggerMode: TooltipTriggerMode.tap,
+                    message: cs != null && cs.rated
+                        ? 'Credit Score: ${cs.score} (${cs.grade})'
+                        : (cs?.score != null && cs!.score > 0
+                            ? 'Credit Score: ${cs.score}'
+                            : 'Credit Score: Not rated'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CreditScoreRing(
+                          score: cs != null && (cs.rated || cs.score > 0)
+                              ? cs.score
+                              : null,
+                          diameter: 40,
+                          strokeWidth: 4,
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'SCORE',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textLight,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (phone.isNotEmpty) ...[
@@ -1736,16 +1739,16 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                              color: AppColors.success.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                color: AppColors.success.withValues(alpha: 0.3),
                               ),
                             ),
                             child: const Icon(
                               Icons.phone_rounded,
                               size: 18,
-                              color: Color(0xFF10B981),
+                              color: AppColors.success,
                             ),
                           ),
                         ),
@@ -1797,6 +1800,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: _MetricTile(
+                      isPrimary: true,
                       icon: Icons.account_balance_wallet_outlined,
                       iconColor: AppColors.primary,
                       iconBg: AppColors.primaryLight,
@@ -1923,45 +1927,45 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _MetaChip(
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Start Date',
-                      value: DateFormat('dd MMM yyyy').format(loan.startDate),
-                      // When the loan was actually started (disbursed).
-                      subtitle: loan.startedAt == null
-                          ? null
-                          : DateFormat('h:mm a').format(loan.startedAt!),
-                    ),
-                    Container(width: 1, height: 24, color: AppColors.border),
-                    _MetaChip(
-                      icon: Icons.category_outlined,
-                      label: 'Scheme',
-                      value:
-                          '${loan.frequency.toUpperCase()} • ${(loan.loanType ?? 'standard').toUpperCase()}',
-                    ),
-                    Container(width: 1, height: 24, color: AppColors.border),
-                    _MetaChip(
-                      icon: Icons.speed_rounded,
-                      label: 'Cust. Score',
-                      value: cs != null && cs.rated
-                          ? '${cs.score} (${cs.grade})'
-                          : (cs?.score != null && cs!.score > 0 ? '${cs.score}' : '—'),
-                      valueColor: cs != null && cs.rated ? _scoreColor(cs.score) : null,
-                    ),
-                    if (dueNow > 0) ...[
-                      Container(width: 1, height: 24, color: AppColors.border),
-                      _MetaChip(
-                        icon: Icons.alarm_rounded,
-                        label: 'Due Now',
-                        value: fmt.format(dueNow),
-                        valueColor: AppColors.primary,
+                    Expanded(
+                      child: _MetaChip(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Start Date',
+                        value: DateFormat('dd MMM yyyy').format(loan.startDate),
+                        // When the loan was actually started (disbursed).
+                        subtitle: loan.startedAt == null
+                            ? null
+                            : DateFormat('h:mm a').format(loan.startedAt!),
                       ),
-                    ],
+                    ),
+                    Container(width: 1, height: 28, color: AppColors.border),
+                    Expanded(
+                      child: _MetaChip(
+                        icon: Icons.category_outlined,
+                        label: 'Scheme',
+                        value:
+                            '${loan.frequency.toUpperCase()} • ${(loan.loanType ?? 'standard').toUpperCase()}',
+                      ),
+                    ),
+                    Container(width: 1, height: 28, color: AppColors.border),
+                    Expanded(
+                      child: _MetaChip(
+                        icon: dueNow > 0
+                            ? Icons.alarm_rounded
+                            : Icons.event_available_outlined,
+                        label: dueNow > 0 ? 'Due Now' : 'End Date',
+                        value: dueNow > 0
+                            ? fmt.format(dueNow)
+                            : (loan.endDate != null
+                                ? DateFormat('dd MMM yyyy').format(loan.endDate!)
+                                : '—'),
+                        valueColor: dueNow > 0 ? AppColors.primary : null,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1982,6 +1986,7 @@ class _MetricTile extends StatelessWidget {
     required this.value,
     this.valueColor,
     required this.subtitle,
+    this.isPrimary = false,
   });
 
   final IconData icon;
@@ -1991,15 +1996,29 @@ class _MetricTile extends StatelessWidget {
   final String value;
   final Color? valueColor;
   final String subtitle;
+  final bool isPrimary;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: isPrimary ? AppColors.primary : AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.10)),
+        border: Border.all(
+          color: isPrimary
+              ? AppColors.primary
+              : AppColors.primary.withValues(alpha: 0.10),
+        ),
+        boxShadow: isPrimary
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2010,19 +2029,27 @@ class _MetricTile extends StatelessWidget {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: iconBg,
+                  color: isPrimary
+                      ? Colors.white.withValues(alpha: 0.20)
+                      : iconBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 16, color: iconColor),
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: isPrimary ? AppColors.onPrimary : iconColor,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
+                    color: isPrimary
+                        ? Colors.white.withValues(alpha: 0.90)
+                        : AppColors.textSecondary,
                     letterSpacing: 0.5,
                   ),
                   maxLines: 1,
@@ -2040,7 +2067,9 @@ class _MetricTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16.5,
                 fontWeight: FontWeight.w800,
-                color: valueColor ?? AppColors.textPrimary,
+                color: isPrimary
+                    ? AppColors.onPrimary
+                    : (valueColor ?? AppColors.textPrimary),
                 letterSpacing: -0.3,
               ),
             ),
@@ -2048,10 +2077,12 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10.5,
               fontWeight: FontWeight.w500,
-              color: AppColors.textLight,
+              color: isPrimary
+                  ? Colors.white.withValues(alpha: 0.75)
+                  : AppColors.textLight,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -2079,42 +2110,58 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: AppColors.textLight),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textLight,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: valueColor ?? AppColors.textPrimary,
-              ),
-            ),
-            if (subtitle != null)
-              Text(
-                subtitle!,
-                style: const TextStyle(
-                  fontSize: 9,
-                  color: AppColors.textLight,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 14, color: AppColors.textLight),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textLight,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-          ],
-        ),
-      ],
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: valueColor ?? AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textLight,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
