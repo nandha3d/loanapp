@@ -503,7 +503,7 @@ class _NachPanelState extends ConsumerState<NachPanel>
                 ),
               )
             // No mandate and subscribed — show prompt
-            if (_mandate == null && !_showForm)
+            else if (_mandate == null && !_showForm)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(
