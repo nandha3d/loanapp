@@ -315,25 +315,44 @@ export async function collectFromAgent(input: {
   return prisma.$transaction((tx) => collectFromAgentInTx(tx, input));
 }
 
-/** Adds capital to a branch cash pool (so it can fund releases/disbursements). */
-export async function injectBranchCash(input: {
+type InjectBranchInput = {
   tenantId: string;
   appType: string;
   branchId: string;
   amount: number;
   byUserId: string;
   note?: string | null;
-}): Promise<{ branchBalance: number }> {
+};
+
+/** Records incoming capital in both the cash book and the branch pool (ACC-6). */
+export async function injectBranchCashInTx(tx: Tx, input: InjectBranchInput) {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
-  const result = await prisma.$transaction(async (tx) => {
-    const branchBalance = await applyBranch(tx, input.tenantId, input.appType, input.branchId, input.amount, {
-      type: 'inject',
-      refType: 'manual',
-      note: input.note,
-      byUserId: input.byUserId,
-    });
-    return { branchBalance };
+  const branchId = requireBranchId(input.branchId, 'add capital');
+  const entry = await tx.accountEntry.create({
+    data: {
+      tenantId: input.tenantId,
+      appType: input.appType,
+      branchId,
+      entryDate: new Date(),
+      type: 'capital_add',
+      category: 'cash',
+      amount: input.amount,
+      description: input.note || 'Branch cash top-up',
+      createdBy: input.byUserId,
+    },
   });
+  const branchBalance = await applyAccountingCashToBranch(tx, {
+    ...input,
+    branchId,
+    entryType: 'capital_add',
+    accountEntryId: entry.id,
+  });
+  return { branchBalance, entry };
+}
+
+/** Adds capital to a branch cash pool (so it can fund releases/disbursements). */
+export async function injectBranchCash(input: InjectBranchInput): Promise<{ branchBalance: number }> {
+  const { branchBalance, entry } = await prisma.$transaction((tx) => injectBranchCashInTx(tx, input));
 
   // GL: a branch top-up is real cash entering the business → capital injection
   // (Dr Cash on Hand / Cr Owner's Capital). Release-to-agent and agent-deposit
@@ -344,17 +363,17 @@ export async function injectBranchCash(input: {
     autoPostCapitalAdd({
       tenantId: input.tenantId,
       appType: input.appType,
-      entryId: `topup-${input.branchId}-${Date.now()}`,
-      description: input.note || 'Branch cash top-up',
+      entryId: entry.id,
+      description: entry.description || 'Branch cash top-up',
       amount: input.amount,
-      date: new Date(),
+      date: entry.entryDate,
       branchId: input.branchId,
       createdById: input.byUserId,
       category: 'cash',
     }),
   ).catch((e) => console.error('[wallet] capital-add JE failed:', e));
 
-  return result;
+  return { branchBalance };
 }
 
 /**

@@ -457,6 +457,13 @@ cash book and GL but must not touch physical cash-in-hand.
 
 Every wallet mutation happens inside the caller's transaction (`MONEY-18`).
 
+A wallet branch top-up records a cash-book `capital_add` entry and credits the
+branch pool together (`injectBranchCashInTx`, `MONEY-35`). The wallet ledger
+references the cash-book entry; supplemental GL posting uses its persisted id
+and date. Without that entry, float can fund a loan while dashboard/accounting
+capital omits the incoming money and shows a negative balance. Historical manual
+top-ups missing these entries require reconciliation, not a display clamp.
+
 ---
 
 ## 11. Collection policy — `lib/collectionPolicy.ts`

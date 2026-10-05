@@ -5,10 +5,25 @@ import {
   collectFromAgentInTx,
   disburseFromAgent,
   disburseFromBranch,
+  injectBranchCashInTx,
   releaseToAgentInTx,
 } from '../lib/wallet';
+import { summarizeDashboardBookTotals } from '../lib/dashboard/bookTotals';
+import { computeAccountingMetrics } from '../lib/accounting/summary';
 
 type Row = { id: string; balance: number };
+type CapitalEntry = {
+  id: string;
+  tenantId: string;
+  appType: string;
+  branchId: string;
+  entryDate: Date;
+  type: string;
+  category: string;
+  amount: number;
+  description: string;
+  createdBy: string;
+};
 
 /**
  * In-memory stand-in for the Prisma transaction client. It refuses an absolute
@@ -19,6 +34,7 @@ function fakeTx(seed: { agents?: Record<string, number>; branches?: Record<strin
   const agents = new Map<string, Row>();
   const branches = new Map<string, Row>();
   const ledger: Array<Record<string, unknown>> = [];
+  const entries: CapitalEntry[] = [];
   for (const [agentId, balance] of Object.entries(seed.agents ?? {})) agents.set(agentId, { id: `a-${agentId}`, balance });
   for (const [branchId, balance] of Object.entries(seed.branches ?? {})) branches.set(branchId, { id: `b-${branchId}`, balance });
 
@@ -56,13 +72,71 @@ function fakeTx(seed: { agents?: Record<string, number>; branches?: Record<strin
     branchCashAccount: model(branches, (w) => w.tenantId_appType_branchId.branchId, 'b'),
     user: { findUnique: async ({ where }: any) => ({ branchId: seed.agentBranch?.[where.id] ?? null }) },
     walletTransaction: { create: async ({ data }: any) => { ledger.push(data); return data; } },
+    accountEntry: { create: async ({ data }: { data: Omit<CapitalEntry, 'id'> }) => {
+      const entry = { id: `e-${entries.length + 1}`, ...data };
+      entries.push(entry);
+      return entry;
+    } },
   };
-  return { tx: tx as any, agents, branches, ledger };
+  return { tx: tx as any, agents, branches, ledger, entries };
 }
 
 const base = { tenantId: 't1', appType: 'microlending' };
 
 async function main() {
+  // A wallet top-up funds loans AND appears in dashboard/accounting capital.
+  // Previously only float increased: the same funded payout showed -29,750.
+  {
+    const { tx, branches, ledger, entries } = fakeTx();
+    const input = { ...base, branchId: 'br1', amount: 30_000, byUserId: 'u1', note: 'Owner capital' };
+    const result = await injectBranchCashInTx(tx, input);
+    assert.equal(result.branchBalance, 30_000);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].tenantId, base.tenantId);
+    assert.equal(entries[0].appType, base.appType);
+    assert.equal(entries[0].branchId, input.branchId);
+    assert.equal(entries[0].createdBy, input.byUserId);
+    assert.equal(entries[0].type, 'capital_add');
+    assert.equal(entries[0].category, 'cash');
+    assert.equal(entries[0].amount, 30_000);
+    assert.equal(entries[0].description, input.note);
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].refType, 'account_entry');
+    assert.equal(ledger[0].refId, result.entry.id);
+    assert.equal(ledger[0].amount, 30_000);
+    assert.equal(ledger[0].branchId, input.branchId);
+
+    await disburseFromBranch(tx, { ...base, branchId: 'br1', amount: 29_750, loanId: 'L1' });
+    const payout = { type: 'loan_disburse', amount: 29_750, entryDate: result.entry.entryDate };
+    const book = [...entries, payout];
+    const dashboard = summarizeDashboardBookTotals(35_000, book.map((entry) => ({
+      type: entry.type, _sum: { amount: entry.amount },
+    })));
+    assert.equal(dashboard.currentCapital, 250);
+    assert.equal(dashboard.totalDisbursed, 35_000);
+    assert.equal(computeAccountingMetrics({ entries: book, releases: [], loans: [] }).currentCapital, 250);
+    assert.equal(branches.get('br1')!.balance, 250);
+    await assert.rejects(
+      disburseFromBranch(tx, { ...base, branchId: 'br1', amount: 251, loanId: 'L2' }),
+      InsufficientFloatError,
+    );
+  }
+
+  // Invalid capital cannot create a cash-book entry or a wallet movement.
+  {
+    const { tx, ledger, entries } = fakeTx();
+    await assert.rejects(
+      injectBranchCashInTx(tx, { ...base, branchId: 'br1', amount: 0, byUserId: 'u1' }),
+      /amount must be positive/,
+    );
+    await assert.rejects(
+      injectBranchCashInTx(tx, { ...base, branchId: null as never, amount: 100, byUserId: 'u1' }),
+      /branch/i,
+    );
+    assert.equal(entries.length, 0);
+    assert.equal(ledger.length, 0);
+  }
+
   // Disbursement from an agent is a guarded decrement and records balanceAfter.
   {
     const { tx, agents, ledger } = fakeTx({ agents: { ag1: 5_000 }, agentBranch: { ag1: 'br1' } });
