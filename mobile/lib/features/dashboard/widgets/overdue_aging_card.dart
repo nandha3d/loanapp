@@ -52,8 +52,8 @@ class OverdueAgingCard extends StatelessWidget {
       builder: (ctx) {
         return Container(
           padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -65,7 +65,7 @@ class OverdueAgingCard extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -281,7 +281,7 @@ class OverdueAgingCard extends StatelessWidget {
                             Container(
                               height: 16,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: AppColors.rowHover,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),

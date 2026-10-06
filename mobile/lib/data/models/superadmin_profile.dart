@@ -117,6 +117,9 @@ class ProfileSubscription {
     required this.enabledModules,
     required this.addOns,
     required this.pricing,
+    this.billingCycle = 'monthly',
+    this.planPrice = const ProfilePlanPrice(),
+    this.expiry = const ProfileExpiry(),
     this.planDescription,
     this.trialEndsAt,
     this.currentPeriodEnd,
@@ -134,6 +137,12 @@ class ProfileSubscription {
   final List<ProfileKeyLabel> enabledModules;
   final List<ProfileAddon> addOns;
   final ProfilePricing pricing;
+
+  /// Server-computed, rendered as-is: the billed plan price and the date the
+  /// plan ends (trial end or renewal), as on the web My Subscription page.
+  final String billingCycle;
+  final ProfilePlanPrice planPrice;
+  final ProfileExpiry expiry;
 
   factory ProfileSubscription.fromJson(Map<String, dynamic> json) {
     return ProfileSubscription(
@@ -154,6 +163,48 @@ class ProfileSubscription {
           .map((dynamic e) => ProfileAddon.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       pricing: ProfilePricing.fromJson(json['pricing'] as Map<String, dynamic>),
+      billingCycle: (json['billingCycle'] as String?) ?? 'monthly',
+      planPrice: json['planPrice'] is Map<String, dynamic>
+          ? ProfilePlanPrice.fromJson(json['planPrice'] as Map<String, dynamic>)
+          : ProfilePlanPrice(amount: _int(json['pricing']?['totalMonthlyPrice'])),
+      expiry: json['expiry'] is Map<String, dynamic>
+          ? ProfileExpiry.fromJson(json['expiry'] as Map<String, dynamic>)
+          : ProfileExpiry(
+              kind: 'renewal',
+              date: _dateOrNull(json['trialEndsAt']) ??
+                  _dateOrNull(json['currentPeriodEnd']),
+            ),
+    );
+  }
+}
+
+class ProfilePlanPrice {
+  const ProfilePlanPrice({this.amount = 0, this.cycle = 'monthly'});
+
+  final int amount;
+
+  /// 'monthly' | 'yearly'
+  final String cycle;
+
+  factory ProfilePlanPrice.fromJson(Map<String, dynamic> json) {
+    return ProfilePlanPrice(
+      amount: _int(json['amount']),
+      cycle: (json['cycle'] as String?) ?? 'monthly',
+    );
+  }
+}
+
+class ProfileExpiry {
+  const ProfileExpiry({this.kind = 'none', this.date});
+
+  /// 'trial' | 'renewal' | 'none'
+  final String kind;
+  final DateTime? date;
+
+  factory ProfileExpiry.fromJson(Map<String, dynamic> json) {
+    return ProfileExpiry(
+      kind: (json['kind'] as String?) ?? 'none',
+      date: _dateOrNull(json['date']),
     );
   }
 }
@@ -177,17 +228,29 @@ class ProfileAddon {
     required this.key,
     required this.label,
     required this.enabled,
+    this.includedIn,
+    this.featureKey,
   });
 
   final String key;
   final String label;
   final bool enabled;
 
+  /// Cheapest plan that includes this feature (server-computed); null when
+  /// the feature is already on or no plan includes it.
+  final String? includedIn;
+
+  /// Plan-feature key (e.g. 'npa', 'gps_tracking'), used to open the upgrade
+  /// flow for this feature.
+  final String? featureKey;
+
   factory ProfileAddon.fromJson(Map<String, dynamic> json) {
     return ProfileAddon(
       key: json['key'] as String,
       label: json['label'] as String,
       enabled: (json['enabled'] as bool?) ?? false,
+      includedIn: json['includedIn'] as String?,
+      featureKey: json['featureKey'] as String?,
     );
   }
 }

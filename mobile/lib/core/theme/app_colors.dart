@@ -22,21 +22,40 @@ class AppColors {
   static const Color brandPurple = Color(0xFF7D287E);
   static const Color brandPurpleLight = Color(0xFFF6E8F7);
 
+  // ── Brightness-aware neutrals ───────────────────────────────────────
+  // `background`, `surface`, `text*`, `border` and `rowHover` resolve against
+  // [isDark], which App sets from the dark-mode preference before every
+  // build. Screens keep referencing `AppColors.surface` etc. and get the
+  // right palette in both modes. [AppTheme.light] must use the `light*`
+  // constants (not these getters) so the light ThemeData never goes dark.
+  static bool isDark = false;
+
+  static const Color lightBackground = Color(0xFFF4F6F9);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightTextPrimary = Color(0xFF1E293B);
+  static const Color lightTextSecondary = Color(0xFF64748B);
+  static const Color lightTextLight = Color(0xFF94A3B8);
+  static const Color lightBorder = Color(0xFFE2E8F0);
+  static const Color lightRowHover = Color(0xFFFAFBFC);
+
+  static const Color darkTextLight = Color(0xFF7B8696);
+  static const Color darkRowHover = Color(0xFF262B36);
+
   // Surfaces
-  static const Color background = Color(0xFFF4F6F9);
-  static const Color surface = Color(0xFFFFFFFF);
+  static Color get background => isDark ? ink : lightBackground;
+  static Color get surface => isDark ? inkElevated : lightSurface;
 
   // Sidebar / dark surfaces
   static const Color sidebarBg = Color(0xFF1A1D23);
   static const Color sidebarHover = Color(0xFF2A2D35);
 
   // Text
-  static const Color textPrimary = Color(0xFF1E293B);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color textLight = Color(0xFF94A3B8);
+  static Color get textPrimary => isDark ? onInk : lightTextPrimary;
+  static Color get textSecondary => isDark ? onInkMuted : lightTextSecondary;
+  static Color get textLight => isDark ? darkTextLight : lightTextLight;
 
   // Border
-  static const Color border = Color(0xFFE2E8F0);
+  static Color get border => isDark ? inkBorder : lightBorder;
 
   // Semantic
   static const Color success = Color(0xFF27AE60);
@@ -63,7 +82,7 @@ class AppColors {
   static const Color overlay = Color(0x80000000);
 
   // Hover surface
-  static const Color rowHover = Color(0xFFFAFBFC);
+  static Color get rowHover => isDark ? darkRowHover : lightRowHover;
 
   // ── Modern dark "ink" surfaces ──────────────────────────────────────
   // Used to give heavy-touch screens (collection cards) a modern dark look

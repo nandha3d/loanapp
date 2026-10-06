@@ -123,7 +123,7 @@ class _RangePicker extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: AppColors.rowHover,
         borderRadius: BorderRadius.circular(20),
       ),
       padding: const EdgeInsets.all(3),
@@ -260,8 +260,8 @@ class _InteractiveChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => const FlLine(
-            color: Color(0xFFF1F5F9),
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: AppColors.rowHover,
             strokeWidth: 1,
           ),
         ),

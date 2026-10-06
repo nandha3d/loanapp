@@ -343,7 +343,7 @@ class _GroupCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Divider(color: AppColors.border, height: 1),
+                Divider(color: AppColors.border, height: 1),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -377,7 +377,7 @@ class _GroupCard extends ConsumerWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.gavel_rounded,
                         size: 13,
                         color: AppColors.textLight,
@@ -388,7 +388,7 @@ class _GroupCard extends ConsumerWidget {
                         style: AppTypography.caption,
                       ),
                       const Spacer(),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         size: 16,
                         color: AppColors.textLight,
@@ -673,7 +673,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
     return Container(
       height: h,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -702,7 +702,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
               ],
             ),
           ),
-          const Divider(color: AppColors.border, height: 1),
+          Divider(color: AppColors.border, height: 1),
           Expanded(
             child: DefaultTabController(
               length: 2,
@@ -745,7 +745,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             return ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: members.length,
-                              separatorBuilder: (_, __) => const Divider(
+                              separatorBuilder: (_, __) => Divider(
                                 color: AppColors.border,
                                 height: 16,
                               ),
@@ -832,7 +832,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             return ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: auctions.length,
-                              separatorBuilder: (_, __) => const Divider(
+                              separatorBuilder: (_, __) => Divider(
                                 color: AppColors.border,
                                 height: 16,
                               ),
@@ -976,7 +976,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
+            Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
             const SizedBox(height: 12),
             Text(title, style: AppTypography.sectionTitle),
             const SizedBox(height: 6),

@@ -110,7 +110,7 @@ class DividendBreakdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       margin: const EdgeInsets.only(top: 2),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(

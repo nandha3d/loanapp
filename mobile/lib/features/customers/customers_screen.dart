@@ -94,7 +94,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 hintStyle: AppTypography.body.copyWith(
                   color: AppColors.textLight,
                 ),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
                   size: 18,
                   color: AppColors.textLight,

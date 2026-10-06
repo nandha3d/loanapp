@@ -803,7 +803,7 @@ class _GroupsTableCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.people_alt_outlined,
+                              Icon(Icons.people_alt_outlined,
                                   size: 14, color: AppColors.textLight,),
                               const SizedBox(width: 4),
                               Text(
@@ -811,7 +811,7 @@ class _GroupsTableCard extends StatelessWidget {
                                 style: AppTypography.caption,
                               ),
                               const SizedBox(width: 12),
-                              const Icon(Icons.event_repeat_outlined,
+                              Icon(Icons.event_repeat_outlined,
                                   size: 14, color: AppColors.textLight,),
                               const SizedBox(width: 4),
                               Text(

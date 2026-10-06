@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,18 +14,18 @@ class AppTheme {
   static ThemeData light() {
     final base = ThemeData.light(useMaterial3: true);
     return base.copyWith(
-      scaffoldBackgroundColor: AppColors.background,
+      scaffoldBackgroundColor: AppColors.lightBackground,
       colorScheme: ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: AppColors.onPrimary,
         secondary: AppColors.primaryDark,
-        surface: AppColors.surface,
-        onSurface: AppColors.textPrimary,
+        surface: AppColors.lightSurface,
+        onSurface: AppColors.lightTextPrimary,
         error: AppColors.danger,
         onError: AppColors.onPrimary,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.lightSurface,
         selectedColor: AppColors.primary,
         checkmarkColor: AppColors.onPrimary,
         side: BorderSide(color: AppColors.primary, width: 1.2),
@@ -56,7 +56,7 @@ class AppTheme {
             if (states.contains(WidgetState.selected)) {
               return AppColors.primary;
             }
-            return AppColors.surface;
+            return AppColors.lightSurface;
           }),
           foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
             if (states.contains(WidgetState.selected)) {
@@ -83,27 +83,27 @@ class AppTheme {
       ),
       textTheme: (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'))
           ? base.textTheme.apply(
-              bodyColor: AppColors.textPrimary,
-              displayColor: AppColors.textPrimary,
+              bodyColor: AppColors.lightTextPrimary,
+              displayColor: AppColors.lightTextPrimary,
             )
           : GoogleFonts.interTextTheme(base.textTheme).apply(
-              bodyColor: AppColors.textPrimary,
-              displayColor: AppColors.textPrimary,
+              bodyColor: AppColors.lightTextPrimary,
+              displayColor: AppColors.lightTextPrimary,
             ),
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.lightSurface,
+        foregroundColor: AppColors.lightTextPrimary,
         elevation: 0,
         toolbarHeight: AppTokens.topbarHeight,
         scrolledUnderElevation: 0,
         titleTextStyle: AppTypography.sectionTitle,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.lightTextPrimary),
         shape: const Border(
-          bottom: BorderSide(color: AppColors.border, width: 1),
+          bottom: BorderSide(color: AppColors.lightBorder, width: 1),
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: AppColors.lightSurface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -112,16 +112,16 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.lightSurface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: AppColors.lightBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: AppColors.lightBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -130,11 +130,11 @@ class AppTheme {
         labelStyle: AppTypography.label,
       ),
       dividerTheme: const DividerThemeData(
-        color: AppColors.border,
+        color: AppColors.lightBorder,
         thickness: 1,
         space: 1,
       ),
-      iconTheme: const IconThemeData(color: AppColors.textSecondary, size: 20),
+      iconTheme: const IconThemeData(color: AppColors.lightTextSecondary, size: 20),
     );
   }
 

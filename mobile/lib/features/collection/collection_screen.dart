@@ -155,6 +155,64 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
   double? _agentLng;
   bool _locating = false;
   bool _gpsDialogShowing = false;
+  // Worklist filters (client-side view filters; totals still come from the API).
+  String? _routeKey; // routeId (or route name when id missing); null = all
+  String _age = 'all'; // overdue age bucket: all | 1_7 | 8_30 | 30p
+  String _query = '';
+  final _searchCtrl = TextEditingController();
+
+  static String _routeKeyOf(CollectionRow r) => r.routeId ?? r.routeName ?? '';
+
+  List<_RouteOption> _routeOptions(
+    List<CollectionRow> rows,
+    String unassigned,
+  ) {
+    final m = <String, _RouteOption>{};
+    for (final r in rows) {
+      final key = _routeKeyOf(r);
+      final cur = m[key];
+      m[key] = _RouteOption(
+        key,
+        r.routeName ?? unassigned,
+        (cur?.count ?? 0) + 1,
+      );
+    }
+    final list = m.values.toList()
+      ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    return list;
+  }
+
+  List<CollectionRow> _scopeRows(List<CollectionRow> rows, String? routeKey) {
+    if (routeKey == null && _query.isEmpty) return rows;
+    return rows.where((r) {
+      if (routeKey != null && _routeKeyOf(r) != routeKey) return false;
+      if (_query.isEmpty) return true;
+      return r.customerName.toLowerCase().contains(_query) ||
+          r.customerCode.toLowerCase().contains(_query) ||
+          r.customerPhone.toLowerCase().contains(_query) ||
+          r.loanCode.toLowerCase().contains(_query);
+    }).toList();
+  }
+
+  List<_CustomerGroup> _applyAgeFilter(
+    List<_CustomerGroup> groups,
+    String filter,
+  ) {
+    if (filter != 'overdue' || _age == 'all') return groups;
+    return groups.where((g) {
+      final d = g.maxDaysOverdue;
+      switch (_age) {
+        case '1_7':
+          return d >= 1 && d <= 7;
+        case '8_30':
+          return d >= 8 && d <= 30;
+        case '30p':
+          return d > 30;
+        default:
+          return true;
+      }
+    }).toList();
+  }
 
   // GPS-aware sort: km between two coords (haversine), same as web.
   double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
@@ -235,6 +293,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     WidgetsBinding.instance.removeObserver(this);
     ref.read(gpsPingerProvider).stop();
     super.dispose();
@@ -504,9 +563,23 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                 final cadenceRows = isMicrolending && _cadence != 'all'
                     ? rows.where((r) => r.cadence == _cadence).toList()
                     : rows;
+                // Route options come from the cadence-scoped rows so every
+                // route pill shows how many rows it would list.
+                final routeOptions = _routeOptions(
+                  cadenceRows,
+                  t.x('coll.unassigned'),
+                );
+                final activeRoute =
+                    routeOptions.any((o) => o.key == _routeKey)
+                        ? _routeKey
+                        : null;
+                final scopedRows = _scopeRows(cadenceRows, activeRoute);
                 final allGroups =
-                    _groupCollectionRows(cadenceRows, byLoan: isMicrolending);
-                final filteredGroups = _applyGroupFilter(allGroups, filter);
+                    _groupCollectionRows(scopedRows, byLoan: isMicrolending);
+                final filteredGroups = _applyAgeFilter(
+                  _applyGroupFilter(allGroups, filter),
+                  filter,
+                );
                 // Header = server worklist totals, same as web (COL-01).
                 final summary = dash.summary;
 
@@ -561,10 +634,37 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                       ],
                       _FilterPills(
                         current: filter,
-                        rows: cadenceRows,
-                        onTap: (k) =>
-                            ref.read(_filterProvider.notifier).state = k,
+                        rows: scopedRows,
+                        onTap: (k) {
+                          ref.read(_filterProvider.notifier).state = k;
+                          if (k != 'overdue') _age = 'all';
+                        },
                         t: t,
+                      ),
+                      if (filter == 'overdue') ...[
+                        const SizedBox(height: 10),
+                        _AgePills(
+                          current: _age,
+                          onTap: (a) => setState(() => _age = a),
+                          t: t,
+                        ),
+                      ],
+                      if (routeOptions.length > 1) ...[
+                        const SizedBox(height: 10),
+                        _RoutePills(
+                          options: routeOptions,
+                          current: activeRoute,
+                          total: cadenceRows.length,
+                          onTap: (k) => setState(() => _routeKey = k),
+                          t: t,
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      _SearchField(
+                        controller: _searchCtrl,
+                        hint: t.x('coll.search_hint'),
+                        onChanged: (v) =>
+                            setState(() => _query = v.trim().toLowerCase()),
                       ),
                       const SizedBox(height: 12),
                       if (_nearest && _agentLat != null)
@@ -730,7 +830,7 @@ class _SelfPayQueueSheet extends ConsumerWidget {
 
     return Container(
       height: height,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -787,7 +887,7 @@ class _SelfPayQueueSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: AppColors.border),
             Expanded(
               child: async.when(
                 loading: () => ListView.separated(
@@ -1758,6 +1858,146 @@ class _CadenceFilterPills extends StatelessWidget {
   }
 }
 
+class _RouteOption {
+  const _RouteOption(this.key, this.label, this.count);
+  final String key;
+  final String label;
+  final int count;
+}
+
+/// Route switcher: one pill per route in today's worklist plus "All routes".
+class _RoutePills extends StatelessWidget {
+  const _RoutePills({
+    required this.options,
+    required this.current,
+    required this.total,
+    required this.onTap,
+    required this.t,
+  });
+  final List<_RouteOption> options;
+  final String? current;
+  final int total;
+  final ValueChanged<String?> onTap;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _Pill(
+            label: t.x('coll.all_routes'),
+            count: total,
+            active: current == null,
+            onTap: () => onTap(null),
+          ),
+          for (final o in options)
+            _Pill(
+              label: o.label,
+              count: o.count,
+              active: current == o.key,
+              onTap: () => onTap(o.key),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Overdue age buckets, shown only while the Overdue filter is active.
+class _AgePills extends StatelessWidget {
+  const _AgePills({
+    required this.current,
+    required this.onTap,
+    required this.t,
+  });
+  final String current;
+  final ValueChanged<String> onTap;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <(String, String)>[
+      ('all', t.x('coll.filter_all')),
+      ('1_7', t.x('coll.age_1_7')),
+      ('8_30', t.x('coll.age_8_30')),
+      ('30p', t.x('coll.age_30p')),
+    ];
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (final (value, label) in items)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(label),
+                selected: current == value,
+                showCheckmark: false,
+                selectedColor: AppColors.danger,
+                labelStyle: TextStyle(
+                  color: current == value
+                      ? Colors.white
+                      : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+                onSelected: (_) => onTap(value),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: AppColors.textLight, fontSize: 14),
+        isDense: true,
+        prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+      ),
+    );
+  }
+}
+
 class _Pill extends StatelessWidget {
   const _Pill({
     required this.label,
@@ -1847,7 +2087,7 @@ class _RouteHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.route_outlined,
             color: AppColors.textSecondary,
             size: 18,
@@ -2020,7 +2260,7 @@ class _CollectionCard extends ConsumerWidget {
                   shrinkWrap: true,
                   itemCount: overdueList.length,
                   separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: AppColors.border),
+                      Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, idx) {
                     final row = overdueList[idx];
                     return Padding(
@@ -2239,7 +2479,7 @@ class _CollectionCard extends ConsumerWidget {
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: const Color(0xFFE2E8F0),
+                color: AppColors.border,
                 width: 1.0,
               ),
             ),
@@ -2469,7 +2709,7 @@ class _CollectionCard extends ConsumerWidget {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.textPrimary,
-                              side: const BorderSide(color: AppColors.border),
+                              side: BorderSide(color: AppColors.border),
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               visualDensity: VisualDensity.compact,
                               shape: RoundedRectangleBorder(
@@ -2490,7 +2730,7 @@ class _CollectionCard extends ConsumerWidget {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.textPrimary,
-                              side: const BorderSide(color: AppColors.border),
+                              side: BorderSide(color: AppColors.border),
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               visualDensity: VisualDensity.compact,
                               shape: RoundedRectangleBorder(

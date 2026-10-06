@@ -183,14 +183,14 @@ final _allModules = <_ModuleItem>[
     minRole: UserRole.developer,
     category: _ModuleCategory.system,
   ),
-  const _ModuleItem(
+  _ModuleItem(
     icon: Icons.settings_outlined,
     label: 'Settings',
     subtitle: 'Routes, account & app preferences',
     route: '/settings',
     moduleKey: 'settings',
     color: AppColors.textSecondary,
-    bgColor: Color(0xFFF1F5F9),
+    bgColor: AppColors.rowHover,
     category: _ModuleCategory.system,
   ),
 ];
@@ -832,7 +832,7 @@ class _ModuleTile extends StatelessWidget {
                 color: const Color(0xFFF8FAFC),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFE2E8F0),
+                  color: AppColors.border,
                   width: 1,
                 ),
               ),

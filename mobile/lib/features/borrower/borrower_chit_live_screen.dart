@@ -387,7 +387,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
       return _WinnerCard(state: s, onViewSummary: _showSummarySheet);
     }
     if (!s.roomLive) {
-      return const _InfoCard(
+      return _InfoCard(
         icon: Icons.schedule,
         color: AppColors.textSecondary,
         title: 'Room not open yet',
@@ -1019,7 +1019,7 @@ class _TimelineSheetState extends ConsumerState<_TimelineSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
@@ -1135,7 +1135,7 @@ class _SummarySheetState extends ConsumerState<_SummarySheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),

@@ -93,7 +93,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
+                Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
                 const SizedBox(height: 12),
                 Text(t.x('err.failed_to_load'), style: AppTypography.sectionTitle),
                 const SizedBox(height: 6),
@@ -412,7 +412,7 @@ class _ApprovalCard extends ConsumerWidget {
               ),
             ),
           ],
-          if (canReview) const Divider(height: 1, color: AppColors.border),
+          if (canReview) Divider(height: 1, color: AppColors.border),
           if (canReview) Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Row(
@@ -677,7 +677,7 @@ class _ChangesPreview extends StatelessWidget {
                             style: AppTypography.caption.copyWith(color: AppColors.danger, decoration: TextDecoration.lineThrough),
                           ),
                         ),
-                        const Icon(Icons.arrow_right_alt, size: 14, color: AppColors.textLight),
+                        Icon(Icons.arrow_right_alt, size: 14, color: AppColors.textLight),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(

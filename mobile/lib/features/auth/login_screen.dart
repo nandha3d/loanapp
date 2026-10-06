@@ -277,7 +277,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Quick Presets:',
                     style: TextStyle(
                       fontSize: 12,
@@ -317,7 +317,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             applyPreset('https://loan.samuraibuiness.in/api/v1'),
                       ),
                       ActionChip(
-                        avatar: const Icon(
+                        avatar: Icon(
                           Icons.phone_android,
                           size: 16,
                           color: AppColors.textSecondary,
@@ -330,7 +330,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             applyPreset('http://10.0.2.2:3000/api/v1'),
                       ),
                       ActionChip(
-                        avatar: const Icon(
+                        avatar: Icon(
                           Icons.computer,
                           size: 16,
                           color: AppColors.textSecondary,
@@ -808,7 +808,7 @@ class _LoginCard extends ConsumerWidget {
           ],
           const SizedBox(height: 12),
           if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) ...[
-            const Row(
+            Row(
               children: [
                 Expanded(child: Divider(color: AppColors.border)),
                 Padding(
@@ -824,14 +824,14 @@ class _LoginCard extends ConsumerWidget {
             SizedBox(
               height: 48,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.g_mobiledata,
+                icon: Icon(Icons.g_mobiledata,
                     color: AppColors.textPrimary, size: 28),
-                label: const Text('Continue with Google',
+                label: Text('Continue with Google',
                     style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.border),
+                  side: BorderSide(color: AppColors.border),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
@@ -845,7 +845,7 @@ class _LoginCard extends ConsumerWidget {
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text(
+                Text(
                   'New to ZoloFund? ',
                   style:
                       TextStyle(color: AppColors.textSecondary, fontSize: 13),
@@ -942,7 +942,7 @@ class _ErrorBanner extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Target: $serverUrl',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontFamily: 'monospace',
                           color: AppColors.textSecondary,

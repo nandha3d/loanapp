@@ -71,7 +71,7 @@ class AppBottomNav extends ConsumerWidget {
 
     return Container(
       clipBehavior: Clip.none,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [

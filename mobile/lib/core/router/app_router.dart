@@ -234,7 +234,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/microlending/subscription',
-        builder: (_, __) => const TenantBillingScreen(isSubscriptionOnly: true),
+        builder: (_, state) => TenantBillingScreen(
+          isSubscriptionOnly: true,
+          highlightFeature: state.uri.queryParameters['feature'],
+        ),
       ),
       GoRoute(
         path: '/admin/billing/pricing',

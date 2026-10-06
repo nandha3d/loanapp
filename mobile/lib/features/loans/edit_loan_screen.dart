@@ -333,7 +333,7 @@ class _EditLoanScreenState extends ConsumerState<EditLoanScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 20, color: AppColors.textLight),
+                    Icon(Icons.calendar_today, size: 20, color: AppColors.textLight),
                     const SizedBox(width: 8),
                     Text(
                       DateFormat('dd MMM yyyy').format(_startDate),

@@ -917,7 +917,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                   _lat = null;
                                   _lng = null;
                                 }),
-                                child: const Padding(
+                                child: Padding(
                                   padding: EdgeInsets.all(4),
                                   child: Icon(Icons.clear, size: 16, color: AppColors.textLight),
                                 ),
@@ -1164,7 +1164,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
@@ -1465,7 +1465,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                           : null,
                     ),
                     child: _companyLogo == null
-                        ? const Icon(Icons.add_photo_alternate_outlined,
+                        ? Icon(Icons.add_photo_alternate_outlined,
                             color: AppColors.textSecondary,)
                         : null,
                   ),
@@ -1549,11 +1549,11 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: AppColors.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1642,7 +1642,7 @@ class _PhotoAvatar extends ConsumerWidget {
                       : null,
             ),
             child: (photo == null && !hasExisting)
-                ? const Column(
+                ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.add_a_photo_outlined,
@@ -1886,7 +1886,7 @@ class _DocTile extends ConsumerWidget {
                 width: 64,
                 height: 64,
                 color: AppColors.background,
-                child: const Icon(Icons.description_outlined,
+                child: Icon(Icons.description_outlined,
                     color: AppColors.textSecondary,),
               ),
             ),
@@ -1952,11 +1952,11 @@ class _CollectionPointTile extends ConsumerWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -2116,11 +2116,11 @@ class _GuarantorTile extends ConsumerWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),

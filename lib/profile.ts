@@ -4,6 +4,8 @@ import prisma from '@/lib/db';
 import { sendEmail } from '@/lib/notify/channels/email';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { normalizeEnabledModules } from '@/lib/subscription';
+import { cheapestPlanByFeature, PLAN_FEATURES } from '@/lib/planFeatures';
+import { normalizeBillingCycle } from '@/lib/razorpay';
 import { MODULE_LABELS } from '@/types/modules';
 
 const OTP_WINDOW_MS = 10 * 60 * 1000;
@@ -86,9 +88,23 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
   ]);
 
   const plan = subscription?.plan || 'trial';
-  const catalog = await prisma.subscriptionPlanCatalog.findUnique({ where: { plan } }).catch(() => null);
+  const [catalog, activeCatalog] = await Promise.all([
+    prisma.subscriptionPlanCatalog.findUnique({ where: { plan } }).catch(() => null),
+    prisma.subscriptionPlanCatalog
+      .findMany({
+        where: { isActive: true },
+        select: { displayName: true, monthlyPrice: true, includedFeatures: true },
+      })
+      .catch(() => []),
+  ]);
   const enabledModules = normalizeEnabledModules(subscription?.enabledModules);
   const selectedAddons = safeJsonArray(subscription?.selectedAddons);
+  // Same "cheapest plan that includes it" the web subscription page shows.
+  const featurePlans = cheapestPlanByFeature(activeCatalog);
+  const includedIn = (flag: string) => {
+    const key = PLAN_FEATURES.find((f) => f.flag === flag)?.key;
+    return key ? featurePlans[key] : null;
+  };
   const addOns = [
     { key: 'whatsappSmsEnabled', label: 'WhatsApp & SMS', enabled: Boolean(subscription?.whatsappSmsEnabled) },
     { key: 'receiptPdfAllowed', label: 'Receipt PDFs', enabled: Boolean(subscription?.receiptPdfAllowed) },
@@ -99,7 +115,29 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
     { key: 'kycEnabled', label: 'Aadhaar/Video KYC', enabled: Boolean(subscription?.kycEnabled) },
     { key: 'gpsTrackingEnabled', label: 'GPS Tracking', enabled: Boolean(subscription?.gpsTrackingEnabled) },
     { key: 'premiumAccountingEnabled', label: 'Premium Accounting', enabled: Boolean(subscription?.premiumAccountingEnabled) },
-  ];
+  ].map((addOn) => ({
+    ...addOn,
+    featureKey: PLAN_FEATURES.find((f) => f.flag === addOn.key)?.key ?? null,
+    includedIn: addOn.enabled ? null : includedIn(addOn.key),
+  }));
+
+  // What the tenant actually pays and when it ends, worked out exactly as the
+  // web My Subscription page does (the stored `pricing` multiplies the plan
+  // price by the number of verticals, which is not what is billed).
+  const billingCycle = normalizeBillingCycle(subscription?.billingCycle);
+  const yearlyOffered = (catalog?.yearlyPrice ?? 0) > 0;
+  const billedYearly = billingCycle === 'yearly' && yearlyOffered;
+  const planPrice = {
+    amount: billedYearly ? (catalog?.yearlyPrice ?? 0) : (catalog?.monthlyPrice ?? subscription?.basePlanPrice ?? 0),
+    cycle: billedYearly ? 'yearly' : 'monthly',
+  };
+  const expiry = (() => {
+    if (plan === 'trial') {
+      return { kind: 'trial', date: subscription?.trialEndsAt?.toISOString() ?? null };
+    }
+    const end = subscription?.currentPeriodEnd?.toISOString() ?? null;
+    return { kind: end ? 'renewal' : 'none', date: end };
+  })();
 
   return {
     account: {
@@ -144,6 +182,9 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
           })),
           selectedAddons,
           addOns,
+          billingCycle,
+          planPrice,
+          expiry,
           pricing: {
             basePlanPrice: subscription.basePlanPrice,
             modulesPrice: subscription.modulesPrice,

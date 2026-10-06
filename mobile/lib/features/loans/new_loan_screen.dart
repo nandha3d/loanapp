@@ -925,7 +925,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         top: false,
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
@@ -1037,7 +1037,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.person_search,
                           size: 56,
                           color: AppColors.textLight,
@@ -2085,7 +2085,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                           image:
                               authedImage(ref, _existingGuarantorPhotoUrl!),
                           fit: BoxFit.cover,)
-                      : const Icon(
+                      : Icon(
                           Icons.add_a_photo_outlined,
                           color: AppColors.textLight,
                         )),
@@ -2416,7 +2416,7 @@ class _ChequeTile extends ConsumerWidget {
                 clipBehavior: Clip.antiAlias,
                 child: entry.image != null
                     ? Image.file(entry.image!, fit: BoxFit.cover)
-                    : const Icon(
+                    : Icon(
                         Icons.image_outlined,
                         color: AppColors.textLight,
                       ),

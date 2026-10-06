@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:zolofund/core/a11y/ui_prefs.dart';
 import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/router/app_router.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_theme.dart';
 import 'package:zolofund/core/theme/theme_controller.dart';
 
@@ -16,6 +17,8 @@ class App extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final textScale = ref.watch(textScaleProvider);
     final darkMode = ref.watch(darkModeProvider);
+    // Brightness-aware AppColors tokens (surface, text, border, …) read this.
+    AppColors.isDark = darkMode;
     // Bind NotificationActionService to current ref container
     ref.watch(notificationActionServiceProvider);
     // Rebuild the ThemeData when the tenant theme changes (see ThemeController).
@@ -35,9 +38,14 @@ class App extends ConsumerWidget {
             (mq.textScaler.scale(1.0) * textScale).clamp(0.8, 1.6);
         return MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.linear(effective)),
-          child: _BackButtonGuard(
-            router: router,
-            child: child ?? const SizedBox.shrink(),
+          // Keyed on brightness so const subtrees that read AppColors tokens
+          // are rebuilt (and re-resolve them) when dark mode is toggled.
+          child: KeyedSubtree(
+            key: ValueKey<bool>(darkMode),
+            child: _BackButtonGuard(
+              router: router,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },

@@ -121,7 +121,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                                 prefixIcon: const Icon(Icons.search),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppColors.border),
+                                  borderSide: BorderSide(color: AppColors.border),
                                 ),
                                 filled: true,
                                 fillColor: AppColors.surface,

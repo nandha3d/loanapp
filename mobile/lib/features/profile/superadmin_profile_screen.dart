@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/superadmin_profile.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/profile_service.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class SuperadminProfileScreen extends ConsumerStatefulWidget {
@@ -408,13 +415,14 @@ class _PasswordCard extends StatelessWidget {
   }
 }
 
-class _SubscriptionCard extends StatelessWidget {
+class _SubscriptionCard extends ConsumerWidget {
   const _SubscriptionCard({required this.profile});
 
   final SuperadminProfile profile;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final sub = profile.subscription;
     return _Section(
       title: 'Subscription Plan',
@@ -450,12 +458,19 @@ class _SubscriptionCard extends StatelessWidget {
                 _InfoGrid(
                   children: [
                     _InfoItem(
-                      label: 'Monthly',
-                      value: _currency(sub.pricing.totalMonthlyPrice),
+                      label: t.x('sub.plan_price'),
+                      value: sub.planPrice.amount == 0
+                          ? 'Free'
+                          : '${_currency(sub.planPrice.amount)} '
+                              '${t.x(sub.planPrice.cycle == 'yearly' ? 'sub.per_year' : 'sub.per_month')}',
                     ),
                     _InfoItem(
-                      label: 'Trial/Renewal',
-                      value: _date(sub.trialEndsAt ?? sub.currentPeriodEnd),
+                      label: t.x(
+                        sub.expiry.kind == 'trial'
+                            ? 'sub.trial_ends'
+                            : 'sub.renews_on',
+                      ),
+                      value: _date(sub.expiry.date),
                     ),
                     _InfoItem(
                       label: 'Active loans',
@@ -470,8 +485,12 @@ class _SubscriptionCard extends StatelessWidget {
                       value: '${profile.usage.activeBranches}/${profile.usage.limits.branches}',
                     ),
                     _InfoItem(
-                      label: 'Plan code',
-                      value: sub.plan,
+                      label: t.x('sub.billing'),
+                      value: t.x(
+                        sub.billingCycle == 'yearly'
+                            ? 'sub.cycle_yearly'
+                            : 'sub.cycle_monthly',
+                      ),
                     ),
                   ],
                 ),
@@ -498,22 +517,118 @@ class _SubscriptionCard extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     for (final addOn in sub.addOns)
-                      _StatusChip(
-                        label: addOn.label,
-                        color: addOn.enabled
-                            ? AppColors.infoBg
-                            : AppColors.background,
-                        textColor: addOn.enabled
-                            ? AppColors.infoText
-                            : AppColors.textSecondary,
-                        icon: addOn.enabled
-                            ? Icons.check_circle_outline
-                            : Icons.lock_outline,
+                      _FeatureChip(
+                        addOn: addOn,
+                        onLockedTap: addOn.featureKey == null
+                            ? null
+                            : () => showPlanUpgradeSheet(
+                                  context,
+                                  ref,
+                                  featureKey: addOn.featureKey!,
+                                ),
                       ),
                   ],
                 ),
+                if (sub.addOns.any((a) => !a.enabled)) ...[
+                  const SizedBox(height: 8),
+                  Text(t.x('sub.tap_locked'), style: AppTypography.caption),
+                ],
+                const SizedBox(height: 16),
+                _UpgradePanel(t: t),
               ],
             ),
+    );
+  }
+}
+
+/// A plan feature chip. Locked ones show the plan that includes them (server
+/// computed) and open the upgrade sheet when tapped.
+class _FeatureChip extends StatelessWidget {
+  const _FeatureChip({required this.addOn, this.onLockedTap});
+
+  final ProfileAddon addOn;
+  final VoidCallback? onLockedTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = !addOn.enabled;
+    final chip = _StatusChip(
+      label: locked && addOn.includedIn != null
+          ? '${addOn.label} · ${addOn.includedIn}'
+          : addOn.label,
+      color: locked ? AppColors.background : AppColors.infoBg,
+      textColor: locked ? AppColors.textSecondary : AppColors.infoText,
+      icon: locked ? Icons.lock_outline : Icons.check_circle_outline,
+    );
+    if (!locked || onLockedTap == null) return chip;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+      onTap: onLockedTap,
+      child: chip,
+    );
+  }
+}
+
+/// Upgrade entry points: the in-app plans screen and the web subscription page.
+class _UpgradePanel extends ConsumerWidget {
+  const _UpgradePanel({required this.t});
+
+  final T t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final webUri = Uri.parse(
+      '${ref.read(mediaBaseUrlProvider)}'
+      '/${AppType.normalize(user?.appType ?? AppType.microlending)}/subscription',
+    );
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppColors.primary.withAlpha(60)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.workspace_premium_outlined, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  t.x('sub.upgrade_cta'),
+                  style: AppTypography.bodyLarge
+                      .copyWith(color: AppColors.primaryDark),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            t.x('sub.upgrade_hint'),
+            style:
+                AppTypography.caption.copyWith(color: AppColors.primaryDark),
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: t.x('plan.upgrade_view_plans'),
+            leading: const Icon(Icons.list_alt_outlined),
+            onPressed: () => context.push('/microlending/subscription'),
+            expand: true,
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: t.x('plan.upgrade_open_web'),
+            leading: const Icon(Icons.open_in_new),
+            variant: AppButtonVariant.secondary,
+            onPressed: () =>
+                launchUrl(webUri, mode: LaunchMode.externalApplication),
+            expand: true,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -534,7 +649,7 @@ class _InvoiceCard extends StatelessWidget {
                 for (final invoice in invoices) ...[
                   _InvoiceRow(invoice: invoice),
                   if (invoice != invoices.last)
-                    const Divider(height: 18, color: AppColors.border),
+                    Divider(height: 18, color: AppColors.border),
                 ],
               ],
             ),

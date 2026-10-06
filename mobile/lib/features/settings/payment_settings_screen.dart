@@ -11,6 +11,7 @@ import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/data/services/upload_service.dart';
 
@@ -160,11 +161,11 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -245,6 +246,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                   value: _receiptPdfActive,
                   activeThumbColor: AppColors.primary,
                   onChanged: (v) => setState(() => _receiptPdfActive = v),
+                )
+              else
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t.x('set.receipt_pdf'), style: AppTypography.body),
+                  trailing: const PlanLockBadge(),
+                  onTap: () => showPlanUpgradeSheet(context, ref,
+                      featureKey: 'receipt_pdf'),
                 ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,

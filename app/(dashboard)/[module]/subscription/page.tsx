@@ -25,7 +25,13 @@ function parseStringList(value: unknown): string[] {
   }
 }
 
-export default async function MySubscriptionPage() {
+export default async function MySubscriptionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ feature?: string }>;
+}) {
+  // Optional deep link from a locked-feature prompt: highlights that feature's card.
+  const highlightFeature = (await searchParams).feature;
   const session = await auth();
   const user = session?.user as { id?: string; role?: string } | undefined;
   if (user?.role !== 'superadmin' || !user.id) redirect(modulePath(await getUserAppType(), '/dashboard'));
@@ -304,8 +310,12 @@ export default async function MySubscriptionPage() {
           {featureCards.map((addon) => (
             <div
               key={addon.key}
+              id={`feature-${addon.key}`}
               style={{
-                border: `1px solid ${addon.active ? 'var(--success)' : 'var(--border)'}`,
+                scrollMarginTop: '24px',
+                border: addon.key === highlightFeature
+                  ? '2px solid var(--primary, #3b82f6)'
+                  : `1px solid ${addon.active ? 'var(--success)' : 'var(--border)'}`,
                 background: addon.active ? 'rgba(74, 222, 128, 0.04)' : 'var(--bg-light, rgba(255,255,255,0.01))',
                 borderRadius: '12px',
                 padding: '16px',

@@ -722,7 +722,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                           const Spacer(),
                           InkWell(
                             onTap: () => setState(() => _selectedCollection = null),
-                            child: const Icon(Icons.close, size: 14, color: AppColors.textLight),
+                            child: Icon(Icons.close, size: 14, color: AppColors.textLight),
                           ),
                         ],
                       ),
@@ -739,7 +739,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                       const SizedBox(height: 1),
                       Row(
                         children: [
-                          const Icon(Icons.access_time, size: 10, color: AppColors.textLight),
+                          Icon(Icons.access_time, size: 10, color: AppColors.textLight),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
@@ -928,7 +928,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(top: BorderSide(color: AppColors.border)),
                 ),
                 child: Row(
@@ -1003,11 +1003,11 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
       ),
       child: ClipOval(
         child: photo == null || photo.isEmpty
-            ? const Icon(Icons.person, size: 26, color: AppColors.textLight)
+            ? Icon(Icons.person, size: 26, color: AppColors.textLight)
             : Image(
                 image: authedImage(ref, photo),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
+                errorBuilder: (_, __, ___) => Icon(
                   Icons.person,
                   size: 26,
                   color: AppColors.textLight,
@@ -1151,7 +1151,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             border: Border(top: BorderSide(color: AppColors.border)),
                           ),
                           child: Row(
@@ -1228,7 +1228,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                     ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.background,
                       border: Border(top: BorderSide(color: AppColors.border)),
                       borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppTokens.radius)),
@@ -1375,7 +1375,7 @@ class _AgentCard extends StatelessWidget {
                   Text('${agent.todayEntries} ${t.x('admin.entries_today')}', style: AppTypography.extraTiny),
                 ],
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textLight),
+              Icon(Icons.chevron_right, color: AppColors.textLight),
             ],
           ),
         ),

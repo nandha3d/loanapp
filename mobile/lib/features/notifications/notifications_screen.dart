@@ -185,7 +185,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   hintText: '${t.x('notif.action_reply')}...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radius),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   filled: true,
                   fillColor: AppColors.background,
@@ -455,7 +455,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off,
+                Icon(Icons.cloud_off,
                     size: 48, color: AppColors.textLight,),
                 const SizedBox(height: 12),
                 Text(t.x('err.failed_to_load'),
@@ -709,7 +709,7 @@ class _NotificationTile extends ConsumerWidget {
                           bottom: -2,
                           child: Container(
                             padding: const EdgeInsets.all(2.5),
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppColors.surface,
                               shape: BoxShape.circle,
                             ),
@@ -795,7 +795,7 @@ class _NotificationTile extends ConsumerWidget {
                 // WhatsApp-Style Action Bar: Content-Relevant Dynamic Buttons
                 Container(
                   padding: const EdgeInsets.only(top: 8),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(color: AppColors.border, width: 0.8),
                     ),

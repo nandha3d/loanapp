@@ -689,7 +689,7 @@ class _Divider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const Divider(color: AppColors.border, height: 1);
+      Divider(color: AppColors.border, height: 1);
 }
 
 class _Card extends StatelessWidget {

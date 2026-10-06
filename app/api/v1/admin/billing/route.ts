@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { cheapestPlanByFeature } from '@/lib/planFeatures';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -29,7 +30,11 @@ export async function GET(req: NextRequest) {
       where: { tenantId: ctx.tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    return ok({ role: ctx.role, subscription, invoices });
+    const catalog = await prisma.subscriptionPlanCatalog.findMany({
+      where: { isActive: true },
+      select: { displayName: true, monthlyPrice: true, includedFeatures: true },
+    });
+    return ok({ role: ctx.role, subscription, invoices, featurePlans: cheapestPlanByFeature(catalog) });
   } catch (e: any) {
     return fail(e.message, 500);
   }

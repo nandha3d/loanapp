@@ -79,7 +79,7 @@ class _PropertyServicingSheetState extends ConsumerState<PropertyServicingSheet>
       maxChildSize: 0.85,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),

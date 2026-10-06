@@ -55,7 +55,24 @@ export function enabledFeatureKeys(sub: Partial<Record<PlanFeatureFlag, boolean 
   return PLAN_FEATURES.filter((f) => Boolean(sub[f.flag])).map((f) => f.key);
 }
 
-export type FeatureUpdate = PlanFeatureFlags & { grandfatheredFeatures: string | null };
+/**
+ * For every feature key, the display name of the cheapest paid plan that
+ * includes it (null when no paid plan does). Computed here so clients render
+ * the answer instead of deriving it (STABLE-8).
+ */
+export function cheapestPlanByFeature(
+  catalog: readonly { displayName: string; monthlyPrice: number; includedFeatures: string | null }[],
+): Record<PlanFeatureKey, string | null> {
+  const paid = catalog.filter((cp) => cp.monthlyPrice > 0).sort((a, b) => a.monthlyPrice - b.monthlyPrice);
+  return Object.fromEntries(
+    PLAN_FEATURES.map((f) => [
+      f.key,
+      paid.find((cp) => parseFeatureKeys(cp.includedFeatures).includes(f.key))?.displayName ?? null,
+    ]),
+  ) as Record<PlanFeatureKey, string | null>;
+}
+
+export type FeatureUpdate =PlanFeatureFlags & { grandfatheredFeatures: string | null };
 
 /**
  * The flag update to apply when `catalog`'s plan is (re)activated on a tenant.

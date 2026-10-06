@@ -336,7 +336,7 @@ class GpsHeaderBadge extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.gps_fixed_rounded, size: 12, color: AppColors.textLight),
+            Icon(Icons.gps_fixed_rounded, size: 12, color: AppColors.textLight),
             const SizedBox(width: 4),
             Text(
               'GPS',
@@ -647,7 +647,7 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.map_outlined, color: AppColors.textLight, size: 28),
+                      Icon(Icons.map_outlined, color: AppColors.textLight, size: 28),
                       const SizedBox(height: 6),
                       Text('Map unavailable', style: AppTypography.caption),
                     ],
@@ -735,7 +735,7 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: AppTokens.shadow,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.fullscreen_rounded,
                               size: 18,
                               color: AppColors.textPrimary,
@@ -790,7 +790,7 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, size: 16, color: AppColors.textLight),
+                        Icon(Icons.info_outline, size: 16, color: AppColors.textLight),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(

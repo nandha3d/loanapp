@@ -271,7 +271,7 @@ class _ClosedToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_outline,
             size: 18,
             color: AppColors.textSecondary,
@@ -427,7 +427,7 @@ class _LoanTile extends ConsumerWidget {
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: const Color(0xFFE2E8F0),
+                color: AppColors.border,
                 width: 1.0,
               ),
             ),

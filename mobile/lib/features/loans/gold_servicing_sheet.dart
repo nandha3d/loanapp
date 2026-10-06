@@ -104,7 +104,7 @@ class _GoldServicingSheetState extends ConsumerState<GoldServicingSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),

@@ -1976,7 +1976,7 @@ class _UpNextCard extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.access_time_rounded,
                                 size: 11,
                                 color: AppColors.textLight,
@@ -2688,14 +2688,14 @@ class _RecentActivitiesSectionState
                 hintText: t.x('dash.search_activity'),
                 hintStyle:
                     AppTypography.caption.copyWith(color: AppColors.textLight),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
                   size: 20,
                   color: AppColors.textLight,
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.clear,
                           size: 18,
                           color: AppColors.textLight,
@@ -3089,10 +3089,10 @@ class _RecentActivitiesSectionState
     } else {
       final o = item.other!;
       icon = Icons.notifications_active_outlined;
-      iconBg = const Color(0xFFF1F5F9);
+      iconBg = AppColors.rowHover;
       iconColor = const Color(0xFF475569);
       badgeLabel = o.type.replaceAll('_', ' ').toUpperCase();
-      badgeBg = const Color(0xFFF1F5F9);
+      badgeBg = AppColors.rowHover;
       badgeColor = const Color(0xFF475569);
       title = o.title;
       final timeStr = _formatItemTime(o.timestamp);
@@ -3197,7 +3197,7 @@ class _RecentActivitiesSectionState
                   ),
                 ],
                 const SizedBox(width: 4),
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
                   size: 18,
                   color: AppColors.textLight,
@@ -3847,7 +3847,7 @@ class _ErrorState extends ConsumerWidget {
     return ListView(
       children: [
         const SizedBox(height: 80),
-        const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
+        Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
         const SizedBox(height: 12),
         Text(
           t.x('err.could_not_load_dashboard'),

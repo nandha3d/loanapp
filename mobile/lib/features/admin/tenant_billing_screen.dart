@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -10,8 +11,16 @@ import 'package:zolofund/data/services/admin_service.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class TenantBillingScreen extends ConsumerStatefulWidget {
-  const TenantBillingScreen({super.key, this.isSubscriptionOnly = false});
+  const TenantBillingScreen({
+    super.key,
+    this.isSubscriptionOnly = false,
+    this.highlightFeature,
+  });
   final bool isSubscriptionOnly;
+
+  /// Plan-feature key (e.g. `gps_tracking`) to scroll to and highlight, set
+  /// when the user arrives from a locked-feature sheet.
+  final String? highlightFeature;
 
   @override
   ConsumerState<TenantBillingScreen> createState() => _TenantBillingScreenState();
@@ -21,11 +30,25 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
   bool _isLoading = true;
   String _error = '';
   Map<String, dynamic> _billingData = {};
+  final GlobalKey _highlightKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _fetchBilling();
+  }
+
+  void _scrollToHighlight() {
+    if (widget.highlightFeature == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 350),
+        alignment: 0.15,
+      );
+    });
   }
 
   Future<void> _fetchBilling() async {
@@ -39,6 +62,7 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         _billingData = data;
         _isLoading = false;
       });
+      _scrollToHighlight();
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -173,6 +197,8 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
 
     return ListView(
       padding: const EdgeInsets.all(16),
+      // Keep the feature cards built so a highlighted one can be scrolled to.
+      cacheExtent: 4000,
       children: [
         // Plan Overview Card
         Container(
@@ -398,6 +424,7 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
   }
 
   List<Widget> _buildAddonList(User? user, bool isDev) {
+    final t = T.of(ref);
     final addons = [
       _BillingAddonItem(
         key: 'npa',
@@ -441,19 +468,50 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         icon: Icons.chat_bubble_outline_rounded,
         isSubscribed: user?.whatsappSmsEnabled == true || isDev,
       ),
+      _BillingAddonItem(
+        key: 'foreclosure',
+        name: t.x('plan.feature.foreclosure'),
+        desc: '',
+        icon: Icons.lock_open_outlined,
+        isSubscribed: user?.foreclosureEnabled == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'receipt_pdf',
+        name: t.x('plan.feature.receipt_pdf'),
+        desc: '',
+        icon: Icons.picture_as_pdf_outlined,
+        isSubscribed: user?.receiptPdfAllowed == true || isDev,
+      ),
+      _BillingAddonItem(
+        key: 'nach',
+        name: t.x('plan.feature.nach'),
+        desc: '',
+        icon: Icons.account_balance_outlined,
+        isSubscribed: user?.nachEnabled == true || isDev,
+      ),
     ];
 
+    // Server-computed: cheapest paid plan that includes each feature (STABLE-8).
+    final featurePlans =
+        (_billingData['featurePlans'] as Map?)?.cast<String, dynamic>() ?? const {};
+
     return addons.map((addon) {
+      final highlighted = addon.key == widget.highlightFeature;
+      final includedIn = featurePlans[addon.key] as String?;
       return Container(
+        key: highlighted ? _highlightKey : null,
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: addon.isSubscribed
-                ? AppColors.success.withAlpha(80)
-                : AppColors.border,
+            color: highlighted
+                ? AppColors.primary
+                : addon.isSubscribed
+                    ? AppColors.success.withAlpha(80)
+                    : AppColors.border,
+            width: highlighted ? 2 : 1,
           ),
           boxShadow: AppTokens.shadow,
         ),
@@ -508,7 +566,11 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
                       Text(
                         addon.isSubscribed
                             ? 'Active · Included in your plan'
-                            : 'Included in a higher plan · ${addon.desc}',
+                            : includedIn != null
+                                ? t.x('plan.included_in').replaceAll('{plan}', includedIn)
+                                : addon.desc.isEmpty
+                                    ? t.x('plan.upgrade_title')
+                                    : 'Included in a higher plan · ${addon.desc}',
                         style: AppTypography.extraTiny.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -596,7 +658,7 @@ class _InvoiceRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.receipt_outlined, color: AppColors.textSecondary, size: 24),
+          Icon(Icons.receipt_outlined, color: AppColors.textSecondary, size: 24),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

@@ -22,6 +22,7 @@ import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/data/services/kyc_service.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/features/location/location_picker_screen.dart';
 import 'package:zolofund/shared/utils/phone.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
@@ -467,6 +468,24 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               if (ref.watch(authControllerProvider).user?.kycEnabled == true) ...[
                 _KycActions(customer: c, onRefresh: widget.onRefresh),
                 const SizedBox(height: 14),
+              ] else ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppTokens.radius),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: ListTile(
+                    leading: Icon(Icons.verified_user_outlined,
+                        color: AppColors.textSecondary),
+                    title: Text(t.x('plan.feature.kyc'),
+                        style: AppTypography.bodyLarge),
+                    trailing: const PlanLockBadge(),
+                    onTap: () =>
+                        showPlanUpgradeSheet(context, ref, featureKey: 'kyc'),
+                  ),
+                ),
+                const SizedBox(height: 14),
               ],
               if (c.companyName != null && c.companyName!.isNotEmpty) ...[
                 _CompanySection(customer: c),
@@ -492,7 +511,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
           top: false,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surface,
               border: Border(top: BorderSide(color: AppColors.border)),
               boxShadow: AppTokens.shadowLg,
@@ -1136,7 +1155,7 @@ class _ContactBtn extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -1220,7 +1239,7 @@ class _RiskCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     t.x('cust.risk_score'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
@@ -1257,7 +1276,7 @@ class _RiskCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             _explainer(cs),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
               height: 1.4,
@@ -1308,7 +1327,7 @@ class _ScoreMeter extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             grade.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w800,
               fontSize: 13,
@@ -1419,7 +1438,7 @@ class _ScoreMeterPainter extends CustomPainter {
 
     // Texts
     final textPainter300 = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: '300',
         style: TextStyle(
           color: AppColors.textLight,
@@ -1432,7 +1451,7 @@ class _ScoreMeterPainter extends CustomPainter {
     textPainter300.paint(canvas, Offset(4, size.height + 6));
 
     final textPainter850 = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: '850',
         style: TextStyle(
           color: AppColors.textLight,
@@ -1607,7 +1626,7 @@ class _KpiCard extends StatelessWidget {
               if (subtext != null && progress == null)
                 Text(
                   subtext!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textLight,
@@ -1636,7 +1655,7 @@ class _KpiCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     valueUnit!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,
@@ -1649,7 +1668,7 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.textSecondary,
@@ -1709,11 +1728,11 @@ class _LoansSection extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.textLight, size: 20),
+              Icon(Icons.info_outline, color: AppColors.textLight, size: 20),
               const SizedBox(width: 10),
               Text(
                 t.x('cust.no_loans_yet'),
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
             ],
           ),
@@ -1813,7 +1832,7 @@ class _LoanRow extends StatelessWidget {
                     children: [
                       Text(
                         loan.loanCode ?? loan.id.substring(0, 8),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
@@ -1842,7 +1861,7 @@ class _LoanRow extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               '• ${loan.frequency}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textSecondary,
                               ),
@@ -1852,7 +1871,7 @@ class _LoanRow extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               '• ${DateFormat('dd MMM yyyy').format(loan.startDate!)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textSecondary,
                               ),
@@ -1869,7 +1888,7 @@ class _LoanRow extends StatelessWidget {
                   children: [
                     Text(
                       fmt.format(loan.principal),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
@@ -1892,7 +1911,7 @@ class _LoanRow extends StatelessWidget {
                 children: [
                   Text(
                     '${loan.paidCount}/${loan.tenure} instalments paid',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,
@@ -2084,7 +2103,7 @@ class _IdRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
@@ -2490,7 +2509,7 @@ class _KycDocsSection extends ConsumerWidget {
                                 height: 76,
                                 color: AppColors.surface,
                                 alignment: Alignment.center,
-                                child: const Icon(
+                                child: Icon(
                                   Icons.insert_drive_file_outlined,
                                   color: AppColors.textLight,
                                 ),
@@ -2501,7 +2520,7 @@ class _KycDocsSection extends ConsumerWidget {
                               height: 76,
                               color: AppColors.surface,
                               alignment: Alignment.center,
-                              child: const Icon(
+                              child: Icon(
                                 Icons.picture_as_pdf_outlined,
                                 color: AppColors.textLight,
                                 size: 28,
@@ -2551,7 +2570,7 @@ class _Card extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -2602,7 +2621,7 @@ class _ErrorDetail extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
+              Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
               const SizedBox(height: 12),
               Text(t.x('err.could_not_load_customer'),
                   style: AppTypography.sectionTitle,),

@@ -576,7 +576,7 @@ class _NpaLockedView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Center(
+        Center(
           child: Text(
             'NPA Monitoring is Locked',
             style: TextStyle(

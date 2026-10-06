@@ -66,7 +66,7 @@ class LoanHeatmap extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.calendar_view_month_rounded,
                     size: 18,
                     color: AppColors.textSecondary,
@@ -88,7 +88,7 @@ class LoanHeatmap extends ConsumerWidget {
               child: Center(
                 child: Text(
                   t.x('loan.no_instalments'),
-                  style: const TextStyle(color: AppColors.textLight),
+                  style: TextStyle(color: AppColors.textLight),
                 ),
               ),
             )

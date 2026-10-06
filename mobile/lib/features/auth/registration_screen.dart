@@ -355,7 +355,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         children: [
           Text('Business Profile', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
-          const Text('Enter owner credentials and lending business details.', style: TextStyle(color: AppColors.textSecondary)),
+          Text('Enter owner credentials and lending business details.', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 24),
           if (_isGoogleRegister) ...[
             Container(
@@ -437,7 +437,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         children: [
           Text('Select Modules', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
-          const Text('Enable modular lending configurations inside your workspace.', style: TextStyle(color: AppColors.textSecondary)),
+          Text('Enable modular lending configurations inside your workspace.', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 24),
           ..._modules.map((m) {
             final isSelected = _selectedModules.contains(m.module);
@@ -526,7 +526,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               const SizedBox(height: 12),
               Text(
                 p.description ?? '',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const Divider(height: 24, color: Colors.white10),
               Column(
@@ -579,7 +579,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           const SizedBox(height: 8),
           Text(
             included.isEmpty ? t.x('plan.included_none') : t.x('plan.included_desc'),
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
           ...included.map((key) => Container(
@@ -662,7 +662,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         children: [
           SizedBox(
             width: 120,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            child: Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ),
           Expanded(
             child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),

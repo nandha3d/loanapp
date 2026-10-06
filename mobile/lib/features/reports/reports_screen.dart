@@ -430,7 +430,7 @@ class _AgentTable extends ConsumerWidget {
           // Header row
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(AppTokens.radius),
@@ -511,7 +511,7 @@ class _AgentRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
+            : Border(
                 bottom: BorderSide(color: AppColors.border, width: 0.5),
               ),
       ),

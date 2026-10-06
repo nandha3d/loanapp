@@ -46,7 +46,7 @@ class AppTokens {
   static const Curve transitionCurve = Cubic(0.4, 0.0, 0.2, 1.0);
 
   // Border helper
-  static const Border thinBorder = Border.fromBorderSide(
-    BorderSide(color: AppColors.border, width: 1),
-  );
+  static Border get thinBorder => Border.fromBorderSide(
+        BorderSide(color: AppColors.border, width: 1),
+      );
 }

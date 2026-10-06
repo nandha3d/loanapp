@@ -1286,7 +1286,7 @@ class _MemberTile extends StatelessWidget {
             PopupMenuButton<String>(
               enabled: !busy,
               padding: EdgeInsets.zero,
-              icon: const Icon(Icons.more_vert,
+              icon: Icon(Icons.more_vert,
                   size: 18, color: AppColors.textSecondary,),
               onSelected: (v) {
                 if (v == 'sign') onSign();

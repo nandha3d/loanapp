@@ -2201,7 +2201,7 @@ class _StaffTimelineSheetState extends ConsumerState<_StaffTimelineSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
@@ -2317,7 +2317,7 @@ class _StaffSummarySheetState extends ConsumerState<_StaffSummarySheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),

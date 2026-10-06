@@ -454,7 +454,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -948,7 +948,7 @@ class _PadKey extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: isBack
-              ? const Icon(
+              ? Icon(
                   Icons.backspace_outlined,
                   color: AppColors.textSecondary,
                   size: 22,
@@ -1109,7 +1109,7 @@ class _UpiQrSection extends ConsumerWidget {
                   width: 180,
                   height: 180,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  errorBuilder: (_, __, ___) => Icon(
                     Icons.qr_code_2_rounded,
                     size: 80,
                     color: AppColors.textSecondary,

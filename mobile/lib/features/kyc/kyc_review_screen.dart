@@ -372,7 +372,7 @@ class _KycCardState extends ConsumerState<_KycCard> {
                             color: AppColors.background,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text('No recorded video found in session.', style: TextStyle(color: AppColors.textLight)),
                           ),
                         ),

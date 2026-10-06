@@ -75,7 +75,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   onTap: () => _pickLanguage(context, ref, lang),
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 _PrefSwitchRow(
                   icon: Icons.record_voice_over_rounded,
                   iconColor: AppColors.purple,
@@ -86,7 +86,7 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (bool v) =>
                       ref.read(voiceAssistProvider.notifier).setEnabled(v),
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 // Text size (U6) - app-wide scaler, persisted.
                 ListTile(
                   leading: Container(
@@ -126,7 +126,7 @@ class SettingsScreen extends ConsumerWidget {
                     },
                   ),
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 // Simple mode (U4) - reduced More menu for daily field work.
                 Consumer(
                   builder: (context, ref, _) {
@@ -143,7 +143,7 @@ class SettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 Consumer(
                   builder: (context, ref, _) {
                     final darkMode = ref.watch(darkModeProvider);
@@ -159,7 +159,7 @@ class SettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 Consumer(
                   builder: (context, ref, _) {
                     final apiUrl = ref.watch(apiBaseUrlProvider);
@@ -184,7 +184,7 @@ class SettingsScreen extends ConsumerWidget {
                   },
                 ),
                 if (_moduleOptions(user).length > 1) ...[
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   _ModuleSwitcherRow(
                     user: user!,
                     onChanged: (appType) =>
@@ -262,13 +262,13 @@ class SettingsScreen extends ConsumerWidget {
                         'Profile, password, plan, and invoices',
                         style: AppTypography.caption,
                       ),
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right,
                         color: AppColors.textLight,
                       ),
                       onTap: () => context.push('/profile'),
                     ),
-                    const Divider(height: 1, color: AppColors.border),
+                    Divider(height: 1, color: AppColors.border),
                     // SET-05: superadmin entries the web sidebar has (routes already exist).
                     for (final (icon, label, path) in [
                       (Icons.handshake_outlined, t.x('set.affiliate'), '/microlending/affiliate'),
@@ -279,10 +279,10 @@ class SettingsScreen extends ConsumerWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(icon, color: AppColors.primary),
                         title: Text(label, style: AppTypography.bodyLarge),
-                        trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                        trailing: Icon(Icons.chevron_right, color: AppColors.textLight),
                         onTap: () => context.push(path),
                       ),
-                      const Divider(height: 1, color: AppColors.border),
+                      Divider(height: 1, color: AppColors.border),
                     ],
                   ] else ...[
                     ListTile(
@@ -299,13 +299,13 @@ class SettingsScreen extends ConsumerWidget {
                         'Edit details, change password',
                         style: AppTypography.caption,
                       ),
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.chevron_right,
                         color: AppColors.textLight,
                       ),
                       onTap: () => context.push('/profile'),
                     ),
-                    const Divider(height: 1, color: AppColors.border),
+                    Divider(height: 1, color: AppColors.border),
                   ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -321,7 +321,7 @@ class SettingsScreen extends ConsumerWidget {
                       'Create and manage team accounts',
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
@@ -331,7 +331,7 @@ class SettingsScreen extends ConsumerWidget {
                           : '/admin/team',
                     ),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -346,13 +346,13 @@ class SettingsScreen extends ConsumerWidget {
                       t.x('set.penalty_subtitle'),
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/penalty'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -367,13 +367,13 @@ class SettingsScreen extends ConsumerWidget {
                       t.x('set.payment_subtitle'),
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/payment'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -388,7 +388,7 @@ class SettingsScreen extends ConsumerWidget {
                       'Configure NACH, Razorpay, MSG91, SMTP, and KYC',
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
@@ -396,7 +396,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   // NOT-04: hidden without the WhatsApp/SMS add-on, as on web.
                   if (user?.whatsappSmsEnabled ?? false) ...[
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -411,14 +411,37 @@ class SettingsScreen extends ConsumerWidget {
                       t.x('set.notif_subtitle'),
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/notifications'),
                   ),
+                  ] else ...[
+                    Divider(height: 1, color: AppColors.border),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.notifications_active_outlined,
+                        color: AppColors.textSecondary,
+                      ),
+                      title: Text(
+                        t.x('set.notifications'),
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        t.x('set.notif_subtitle'),
+                        style: AppTypography.caption,
+                      ),
+                      trailing: const PlanLockBadge(),
+                      onTap: () => showPlanUpgradeSheet(
+                        context,
+                        ref,
+                        featureKey: 'whatsapp_sms',
+                      ),
+                    ),
                   ],
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -431,14 +454,14 @@ class SettingsScreen extends ConsumerWidget {
                       'Configure product interest rates and terms',
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/packages'),
                   ),
                   if (user?.appType == AppType.microlending) ...[
-                    const Divider(height: 1, color: AppColors.border),
+                    Divider(height: 1, color: AppColors.border),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.upload_file_outlined),
@@ -452,7 +475,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   () {
                     final isBureauSubscribed =
                         user?.isAddonSubscribed('bureau') == true;
@@ -538,7 +561,7 @@ class SettingsScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                          const Icon(
+                          Icon(
                             Icons.chevron_right,
                             color: AppColors.textLight,
                           ),
@@ -553,7 +576,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                     );
                   }(),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   () {
                     final isNpaSubscribed =
                         user?.isAddonSubscribed('npa') == true;
@@ -639,7 +662,7 @@ class SettingsScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                          const Icon(
+                          Icon(
                             Icons.chevron_right,
                             color: AppColors.textLight,
                           ),
@@ -654,7 +677,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                     );
                   }(),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -669,13 +692,13 @@ class SettingsScreen extends ConsumerWidget {
                       'Configure biometric authentication and session timeout',
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/security'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -690,13 +713,13 @@ class SettingsScreen extends ConsumerWidget {
                       'Configure branding, document prefixes, and counters',
                       style: AppTypography.caption,
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/branding'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                 ],
                 if (user?.role == UserRole.developer) ...[
                   ListTile(
@@ -706,13 +729,13 @@ class SettingsScreen extends ConsumerWidget {
                         Text(t.x('sys.title'), style: AppTypography.bodyLarge),
                     subtitle:
                         Text(t.x('sys.subtitle'), style: AppTypography.caption),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       color: AppColors.textLight,
                     ),
                     onTap: () => context.push('/settings/system'),
                   ),
-                  const Divider(height: 1, color: AppColors.border),
+                  Divider(height: 1, color: AppColors.border),
                 ],
                 _ActionRow(
                   icon: Icons.logout_rounded,
@@ -1670,7 +1693,7 @@ class _PrefRow extends StatelessWidget {
               trailing!,
               const SizedBox(width: 6),
             ],
-            const Icon(
+            Icon(
               Icons.chevron_right,
               color: AppColors.textLight,
               size: 20,

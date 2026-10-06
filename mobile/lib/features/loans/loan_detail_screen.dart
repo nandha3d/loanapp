@@ -22,6 +22,7 @@ import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/features/loans/gold_servicing_sheet.dart';
 import 'package:zolofund/features/loans/property_servicing_sheet.dart';
 import 'package:zolofund/features/loans/product_servicing_sheet.dart';
+import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/features/loans/widgets/nach_panel.dart';
 import 'package:zolofund/features/loans/widgets/quick_put_bill_card.dart';
 import 'package:zolofund/core/network/authed_image.dart';
@@ -355,7 +356,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   child: Consumer(
                     builder: (ctx, ref, _) => Text(
                       T.of(ref).x('loan.payment_schedule'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -369,7 +370,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.background,
                     border: Border(
                       bottom: BorderSide(color: AppColors.border),
@@ -1575,7 +1576,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                               Flexible(
                                 child: Text(
                                   name,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16.5,
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.textPrimary,
@@ -1586,7 +1587,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              const Icon(
+                              Icon(
                                 Icons.arrow_forward_ios_rounded,
                                 size: 11,
                                 color: AppColors.textLight,
@@ -1598,7 +1599,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.location_on_outlined,
                                   size: 12,
                                   color: AppColors.textSecondary,
@@ -1607,7 +1608,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                                 Flexible(
                                   child: Text(
                                     place,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11.5,
                                       color: AppColors.textSecondary,
                                       fontWeight: FontWeight.w500,
@@ -1651,7 +1652,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                                       children: [
                                         Text(
                                           code,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 10.5,
                                             fontWeight: FontWeight.w700,
                                             color: AppColors.textSecondary,
@@ -1659,7 +1660,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                                           ),
                                         ),
                                         const SizedBox(width: 3),
-                                        const Icon(
+                                        Icon(
                                           Icons.copy_rounded,
                                           size: 9,
                                           color: AppColors.textLight,
@@ -1715,7 +1716,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                           strokeWidth: 4,
                         ),
                         const SizedBox(height: 2),
-                        const Text(
+                        Text(
                           'SCORE',
                           style: TextStyle(
                             fontSize: 8.5,
@@ -1792,7 +1793,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
               ),
 
               const SizedBox(height: 14),
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 14),
 
               // ── 2x2 Financial Metric Cards ─────────────────────────────────────
@@ -1886,7 +1887,7 @@ class _MasterLoanSummaryCard extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Text(
                               '$dynamicPaidCount / ${loan.instalmentCount} ${_periodUnit(loan, t)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary,
@@ -2128,7 +2129,7 @@ class _MetaChip extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textLight,
@@ -2149,7 +2150,7 @@ class _MetaChip extends StatelessWidget {
                 if (subtitle != null)
                   Text(
                     subtitle!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textLight,
@@ -2369,7 +2370,7 @@ class _InstalmentRow extends ConsumerWidget {
                 : dynStatus == 'missed'
                     ? AppColors.danger.withAlpha(15)
                     : Colors.transparent),
-        border: const Border(
+        border: Border(
           bottom: BorderSide(color: AppColors.border),
         ),
       ),
@@ -2927,7 +2928,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
                 : isDueToday
                     ? AppColors.warning.withAlpha(15)
                     : const Color(0xFFF8FAFC),
-        border: const Border(
+        border: Border(
           bottom: BorderSide(color: AppColors.border),
         ),
       ),
@@ -3011,7 +3012,7 @@ class _ProjectedExtraRow extends ConsumerWidget {
                   )
                 : canEdit
                 ? editButton()
-                : const Center(
+                : Center(
                     child: Text(
                       '—',
                       style: TextStyle(color: AppColors.textLight),
@@ -3275,7 +3276,7 @@ class _LoanPillMore extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right,
+            Icon(Icons.chevron_right,
                 size: 14, color: AppColors.textLight),
           ],
         ),
@@ -3297,7 +3298,7 @@ class _LoanBottomBar extends ConsumerWidget {
       top: false,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface,
           border: Border(top: BorderSide(color: AppColors.border)),
           boxShadow: AppTokens.shadowLg,
@@ -3564,6 +3565,18 @@ class _LoanBottomBar extends ConsumerWidget {
                   onTap: () {
                     Navigator.pop(ctx);
                     _confirmAction(context, ref, 'preclose');
+                  },
+                )
+              else if (loan.deductionType != 'interest_only')
+                ListTile(
+                  leading: Icon(Icons.offline_pin_outlined,
+                      color: AppColors.textSecondary),
+                  title: Text(t.x('loan.preclose')),
+                  trailing: const PlanLockBadge(),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showPlanUpgradeSheet(context, ref,
+                        featureKey: 'foreclosure');
                   },
                 ),
             ],

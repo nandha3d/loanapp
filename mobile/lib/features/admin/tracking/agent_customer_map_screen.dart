@@ -405,7 +405,7 @@ class _AgentCustomerMapScreenState extends ConsumerState<AgentCustomerMapScreen>
         ],
       ),
       body: pinsAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1198,7 +1198,7 @@ class _SelectedCustomerCard extends ConsumerWidget {
                           Container(
                             width: 3,
                             height: 3,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.textLight,
                             ),
@@ -1224,7 +1224,7 @@ class _SelectedCustomerCard extends ConsumerWidget {
 
               // Close button
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   size: 20,
                   color: AppColors.textLight,

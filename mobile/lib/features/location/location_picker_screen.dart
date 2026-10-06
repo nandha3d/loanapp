@@ -226,7 +226,7 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
                       padding: EdgeInsets.zero,
                       itemCount: _results.length,
                       separatorBuilder: (_, __) =>
-                          const Divider(height: 1, color: AppColors.border),
+                          Divider(height: 1, color: AppColors.border),
                       itemBuilder: (_, i) => ListTile(
                         dense: true,
                         leading: Icon(

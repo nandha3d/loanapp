@@ -15,9 +15,10 @@ class AppTypography {
   static TextStyle _inter({
     required double size,
     required FontWeight weight,
-    Color color = AppColors.textPrimary,
+    Color? color,
     double? height,
   }) {
+    color ??= AppColors.textPrimary;
     // Avoid GoogleFonts fetch failures in unit/widget tests
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       return TextStyle(

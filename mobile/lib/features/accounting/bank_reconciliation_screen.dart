@@ -492,7 +492,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
                           Text('No auto-matches.', style: AppTypography.caption),
                           TextButton(
                             onPressed: () => _handleLineAction('ignore', line['id'] as String),
-                            child: const Text('Ignore Line', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            child: Text('Ignore Line', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                           ),
                         ],
                       ),

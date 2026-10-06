@@ -46,9 +46,9 @@ class _SkeletonState extends State<Skeleton>
             gradient: LinearGradient(
               begin: Alignment(-1 + _controller.value * 2, 0),
               end: Alignment(1 + _controller.value * 2, 0),
-              colors: const [
+              colors: [
                 AppColors.border,
-                Color(0xFFF1F5F9),
+                AppColors.rowHover,
                 AppColors.border,
               ],
               stops: const [0.25, 0.5, 0.75],

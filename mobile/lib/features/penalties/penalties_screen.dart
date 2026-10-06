@@ -224,7 +224,7 @@ class _PenaltiesBody extends ConsumerWidget {
                   value: ref.watch(_routeFilter),
                   hint: Text(T.of(ref).x('pen.filter_route')),
                   isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down,
+                  icon: Icon(Icons.keyboard_arrow_down,
                       color: AppColors.textLight,),
                   items: [
                     DropdownMenuItem(
@@ -415,7 +415,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                 if (multi)
                   Row(
                     children: [
-                      const Icon(Icons.swipe,
+                      Icon(Icons.swipe,
                           size: 14, color: AppColors.textLight,),
                       const SizedBox(width: 4),
                       Text(
@@ -427,7 +427,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: AppColors.border),
           SizedBox(
             height: 150,
             child: PageView.builder(
@@ -865,7 +865,7 @@ class _ErrorState extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
+              Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
               const SizedBox(height: 12),
               Text(T.of(ref).x('pen.failed_to_load'),
                   style: AppTypography.sectionTitle,),
