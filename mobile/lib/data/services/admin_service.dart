@@ -88,10 +88,20 @@ class AdminService {
     });
   }
 
+  /// Plan branch limit + the modules the plan allows (server-computed).
+  Future<Map<String, dynamic>> branchCapacity() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.adminBranchCapacity);
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
   Future<void> createBranch({
     required String name,
     required String code,
     String? phone,
+    String? address,
+    List<String>? enabledModules,
     String? superadminId,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
@@ -100,6 +110,8 @@ class AdminService {
         'name': name,
         'code': code,
         if (phone != null) 'phone': phone,
+        if (address != null) 'address': address,
+        if (enabledModules != null) 'enabledModules': enabledModules,
         if (superadminId != null) 'superadminId': superadminId,
       },
     );
@@ -110,6 +122,8 @@ class AdminService {
     required String name,
     required String code,
     String? phone,
+    String? address,
+    List<String>? enabledModules,
     String? status,
     String? superadminId,
   }) async {
@@ -119,6 +133,8 @@ class AdminService {
         'name': name,
         'code': code,
         if (phone != null) 'phone': phone,
+        if (address != null) 'address': address,
+        if (enabledModules != null) 'enabledModules': enabledModules,
         if (status != null) 'status': status,
         if (superadminId != null) 'superadminId': superadminId,
       },

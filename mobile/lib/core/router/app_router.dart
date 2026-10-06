@@ -64,6 +64,7 @@ import 'package:zolofund/features/admin/developer_admin_screen.dart';
 import 'package:zolofund/features/admin/portal_screen.dart';
 import 'package:zolofund/features/admin/team_management_screen.dart';
 import 'package:zolofund/features/admin/branch_management_screen.dart';
+import 'package:zolofund/features/admin/branch_setup_screen.dart';
 import 'package:zolofund/features/admin/tenant_billing_screen.dart';
 import 'package:zolofund/features/admin/pricing_catalog_screen.dart';
 import 'package:zolofund/features/admin/affiliate_admin_screen.dart';
@@ -248,27 +249,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const AffiliateAdminScreen(),
       ),
       GoRoute(
-        path: '/admin/branch-requests',
-        builder: (_, __) => const AdminRequestsScreen(canReview: true),
-      ),
-      GoRoute(
         path: '/admin/module-requests',
-        builder: (_, __) => const AdminRequestsScreen(
-          isModuleOnly: true,
-          canReview: true,
-        ),
+        builder: (_, __) => const AdminRequestsScreen(canReview: true),
       ),
       GoRoute(
         path: '/microlending/affiliate',
         builder: (_, __) => const AffiliateAdminScreen(),
       ),
+      // Superadmin creates branches directly, within the plan's limit. The
+      // retired branch-request path redirects here for old links.
       GoRoute(
-        path: '/microlending/branch-requests',
-        builder: (_, __) => const AdminRequestsScreen(),
+        path: '/microlending/branches',
+        builder: (_, __) => const BranchSetupScreen(),
       ),
       GoRoute(
-        path: '/microlending/module-requests',
-        builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true),
+        path: '/microlending/branch-requests',
+        redirect: (_, __) => '/microlending/branches',
       ),
       GoRoute(
         path: '/customers',
@@ -541,9 +537,8 @@ bool _moduleBlocked(String location, User user) {
     return user.role != UserRole.developer;
   }
 
-  // /admin/branch-requests and /admin/module-requests
-  if (location == '/admin/branch-requests' ||
-      location == '/admin/module-requests') {
+  // /admin/module-requests (developer review)
+  if (location == '/admin/module-requests') {
     return user.role != UserRole.developer;
   }
 
@@ -575,9 +570,9 @@ bool _moduleBlocked(String location, User user) {
     return user.role != UserRole.superadmin;
   }
 
-  // /microlending/branch-requests and /microlending/module-requests
+  // /microlending/branches (and the retired /microlending/branch-requests)
   if (location.startsWith('/microlending/branch-requests') ||
-      location.startsWith('/microlending/module-requests')) {
+      location.startsWith('/microlending/branches')) {
     return user.role != UserRole.superadmin;
   }
 
@@ -657,7 +652,7 @@ String? mobilePathForWebLink(Uri uri) {
     '/microlending/subscription',
     '/microlending/affiliate',
     '/microlending/branch-requests',
-    '/microlending/module-requests',
+    '/microlending/branches',
   ];
   final path = uri.path;
   if (explicitMobile.any((p) => path == p || path.startsWith('$p/'))) return null;

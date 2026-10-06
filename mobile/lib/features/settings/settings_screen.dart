@@ -272,8 +272,7 @@ class SettingsScreen extends ConsumerWidget {
                     // SET-05: superadmin entries the web sidebar has (routes already exist).
                     for (final (icon, label, path) in [
                       (Icons.handshake_outlined, t.x('set.affiliate'), '/microlending/affiliate'),
-                      (Icons.add_business_outlined, t.x('set.branch_requests'), '/microlending/branch-requests'),
-                      (Icons.extension_outlined, t.x('set.module_requests'), '/microlending/module-requests'),
+                      (Icons.add_business_outlined, t.x('br.title'), '/microlending/branches'),
                     ]) ...[
                       ListTile(
                         contentPadding: EdgeInsets.zero,

@@ -182,6 +182,7 @@ class _BranchManagementScreenState extends ConsumerState<BranchManagementScreen>
                           name: branch['name'] as String,
                           code: branch['code'] as String,
                           phone: branch['phone'] as String?,
+                          address: branch['address'] as String?,
                           status: isActive ? 'inactive' : 'active',
                         );
                     await _fetchBranches();

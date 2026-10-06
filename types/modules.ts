@@ -39,7 +39,7 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/affiliate', '/kyc-review', '/module-requests'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',

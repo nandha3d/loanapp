@@ -49,7 +49,7 @@
 | Settings | `/settings` (55 fields) | `settings_screen` + `system/penalty/payment/notification` | 🟡 | **web settings far richer — field-diff needed** |
 | Subscription / billing | `/subscription`, `/admin/billing/*` | — | 🌐 | **web-only** |
 | Affiliate program | `/affiliate`, `/admin/affiliates` | — | 🌐 | **web-only** |
-| Branch / module requests | `/branch-requests`, `/module-requests`, `/admin/*` | — | 🌐 | **web-only** |
+| Module requests | `/module-requests`, `/admin/*` | — | 🌐 | **web-only** |
 | Admin panel (users, team, branches, billing) | `/admin/*` | (partial: tracking) | 🌐 | **web-only** management |
 | Borrower portal | `/borrower/login`, `/borrower/dashboard` | — | 🌐 | **web-only** (separate borrower app) |
 | Marketing / referral | `/`, `/r/[code]`, `/portal` | — | 🌐 | web-only |

@@ -160,7 +160,7 @@ export function getRoleRedirectTarget(
 
   // Superadmin: allow specific /admin paths for user and branch management
   if (role === 'superadmin' && pathname.startsWith('/admin')) {
-    const allowedPaths = ['/admin/users', '/admin/branches', '/admin/branch-requests'];
+    const allowedPaths = ['/admin/users', '/admin/branches'];
     if (allowedPaths.some(p => pathname.startsWith(p))) return null;
     return '/portal';
   }

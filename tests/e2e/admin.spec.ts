@@ -16,9 +16,7 @@ test.describe('SUBSCRIPTION & AFFILIATE (superadmin)', () => {
     await goto(page, '/affiliate');
     await expect(page.locator('body')).toBeVisible();
   });
-  test('branch-requests + module-requests render', async ({ page }) => {
-    await goto(page, '/branch-requests');
-    await expect(page.locator('body')).toBeVisible();
+  test('module-requests renders', async ({ page }) => {
     await goto(page, '/module-requests');
     await expect(page.locator('body')).toBeVisible();
   });

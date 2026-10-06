@@ -8,13 +8,10 @@ import 'package:zolofund/data/services/admin_service.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class AdminRequestsScreen extends ConsumerStatefulWidget {
-  const AdminRequestsScreen({
-    super.key,
-    this.isModuleOnly = false,
-    this.canReview = false,
-  });
+  const AdminRequestsScreen({super.key, this.canReview = false});
 
-  final bool isModuleOnly;
+  /// Module requests only: branches are created directly (PLAN-11), so there
+  /// is no branch-request flow any more.
   final bool canReview;
 
   @override
@@ -40,9 +37,7 @@ class _AdminRequestsScreenState extends ConsumerState<AdminRequestsScreen> {
     });
     try {
       final res = await ref.read(adminServiceProvider).getRequests();
-      final List<dynamic> list = widget.isModuleOnly
-          ? (res['moduleRequests'] as List<dynamic>? ?? [])
-          : (res['branchRequests'] as List<dynamic>? ?? []);
+      final List<dynamic> list = res['moduleRequests'] as List<dynamic>? ?? [];
       setState(() {
         _requests = list
             .map((dynamic e) => Map<String, dynamic>.from(e as Map))
@@ -67,7 +62,7 @@ class _AdminRequestsScreenState extends ConsumerState<AdminRequestsScreen> {
     setState(() => _isLoading = true);
     try {
       await ref.read(adminServiceProvider).reviewRequest(
-            requestType: widget.isModuleOnly ? 'module' : 'branch',
+            requestType: 'module',
             requestId: id,
             decision: decision,
             reviewNote: note ??
@@ -132,11 +127,7 @@ class _AdminRequestsScreenState extends ConsumerState<AdminRequestsScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
-          widget.canReview
-              ? (widget.isModuleOnly
-                  ? 'Review Module Requests'
-                  : 'Review Branch Requests')
-              : (widget.isModuleOnly ? 'Module Requests' : 'Branch Requests'),
+          widget.canReview ? 'Review Module Requests' : 'Module Requests',
         ),
         centerTitle: true,
         actions: [
@@ -180,21 +171,11 @@ class _AdminRequestsScreenState extends ConsumerState<AdminRequestsScreen> {
                               date.isNotEmpty ? date.split('T')[0] : '';
                           final isPending = status == 'pending';
 
-                          String title = '';
-                          String description = '';
-                          if (widget.isModuleOnly) {
-                            final module = req['appType'] as String? ?? 'N/A';
-                            title =
-                                'Module Request: ${module.replaceAll('_', ' ').toUpperCase()}';
-                            description = req['reason'] as String? ??
-                                'No reason provided';
-                          } else {
-                            final branchName =
-                                req['branchName'] as String? ?? 'New Branch';
-                            title = 'Branch Expansion: $branchName';
-                            description =
-                                'Requested modules: ${req['requestedModules']}\nReason: ${req['reason'] ?? 'None'}';
-                          }
+                          final module = req['appType'] as String? ?? 'N/A';
+                          final title =
+                              'Module Request: ${module.replaceAll('_', ' ').toUpperCase()}';
+                          final description =
+                              req['reason'] as String? ?? 'No reason provided';
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),

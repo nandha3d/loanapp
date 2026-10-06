@@ -4,6 +4,39 @@ export type BranchActor = { userId: string; role: string; tenantId: string };
 type BranchResult = { success: boolean; error?: string; branch?: { id: string; name: string } };
 
 /**
+ * What the tenant's plan allows for branches, for the branch-creation form.
+ * Computed here so clients render it (STABLE-8). `canCreate` mirrors the limit
+ * check in {@link createTenantBranchFor} exactly (limit applies when > 0).
+ */
+export async function getBranchCapacity(tenantId: string) {
+  const { normalizeModuleList, MODULE_LABELS } = await import('@/types/modules');
+  const [sub, activeBranches] = await Promise.all([
+    prisma.tenantSubscription.findUnique({
+      where: { tenantId },
+      select: { plan: true, enabledModules: true, maxBranches: true },
+    }),
+    prisma.branch.count({ where: { tenantId, status: 'active' } }),
+  ]);
+  const catalog = sub
+    ? await prisma.subscriptionPlanCatalog.findUnique({ where: { plan: sub.plan } }).catch(() => null)
+    : null;
+  const maxBranches = sub?.maxBranches ?? 0;
+  const limited = maxBranches > 0;
+  return {
+    planLabel: catalog?.displayName ?? sub?.plan ?? null,
+    activeBranches,
+    maxBranches,
+    unlimited: !limited || maxBranches >= 999,
+    remaining: limited ? Math.max(maxBranches - activeBranches, 0) : null,
+    canCreate: !limited || activeBranches < maxBranches,
+    planModules: normalizeModuleList(sub?.enabledModules).map((key) => ({
+      key,
+      label: MODULE_LABELS[key] ?? key,
+    })),
+  };
+}
+
+/**
  * SET-03: create a branch in Settings — shared by the web Settings action and
  * POST /api/v1/admin/branches (bearer token). Superadmin / developer only.
  */

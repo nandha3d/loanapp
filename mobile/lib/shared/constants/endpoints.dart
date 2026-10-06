@@ -216,6 +216,7 @@ class Endpoints {
   static String adminUser(String id) => '/admin/users/$id';
   static const String adminBranches = '/admin/branches';
   static String adminBranch(String id) => '/admin/branches/$id';
+  static const String adminBranchCapacity = '/admin/branches/capacity';
   static const String adminBilling = '/admin/billing';
   static const String adminAffiliates = '/admin/affiliates';
   static const String adminRequests = '/admin/requests';
