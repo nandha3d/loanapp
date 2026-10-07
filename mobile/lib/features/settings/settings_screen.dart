@@ -159,30 +159,34 @@ class SettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
-                Divider(height: 1, color: AppColors.border),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final apiUrl = ref.watch(apiBaseUrlProvider);
-                    return _PrefRow(
-                      icon: Icons.dns_outlined,
-                      iconColor: AppColors.warning,
-                      iconBg: AppColors.warningBg,
-                      label: 'API server',
-                      trailing: Flexible(
-                        child: Text(
-                          apiUrl ?? 'Default',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.primary,
+                // Server endpoint is infrastructure: developer portal only,
+                // never shown to a tenant's users.
+                if (user?.role == UserRole.developer) ...[
+                  Divider(height: 1, color: AppColors.border),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final apiUrl = ref.watch(apiBaseUrlProvider);
+                      return _PrefRow(
+                        icon: Icons.dns_outlined,
+                        iconColor: AppColors.warning,
+                        iconBg: AppColors.warningBg,
+                        label: 'API server',
+                        trailing: Flexible(
+                          child: Text(
+                            apiUrl ?? 'Default',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
                         ),
-                      ),
-                      onTap: () => _editApiBaseUrl(context, ref),
-                    );
-                  },
-                ),
+                        onTap: () => _editApiBaseUrl(context, ref),
+                      );
+                    },
+                  ),
+                ],
                 if (_moduleOptions(user).length > 1) ...[
                   Divider(height: 1, color: AppColors.border),
                   _ModuleSwitcherRow(

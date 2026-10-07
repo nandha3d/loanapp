@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { cheapestPlanByFeature } from '@/lib/planFeatures';
+import { buildPlanCatalogView } from '@/lib/planCatalogView';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -32,9 +33,29 @@ export async function GET(req: NextRequest) {
     });
     const catalog = await prisma.subscriptionPlanCatalog.findMany({
       where: { isActive: true },
-      select: { displayName: true, monthlyPrice: true, includedFeatures: true },
+      select: {
+        plan: true,
+        displayName: true,
+        description: true,
+        monthlyPrice: true,
+        yearlyPrice: true,
+        razorpayYearlyPlanId: true,
+        maxBranches: true,
+        maxAgents: true,
+        maxActiveLoans: true,
+        features: true,
+        includedFeatures: true,
+        sortOrder: true,
+      },
     });
-    return ok({ role: ctx.role, subscription, invoices, featurePlans: cheapestPlanByFeature(catalog) });
+    return ok({
+      role: ctx.role,
+      subscription,
+      invoices,
+      featurePlans: cheapestPlanByFeature(catalog),
+      // Every plan the developer offers, priced from the catalog, for "View plans".
+      plans: buildPlanCatalogView(catalog, subscription?.plan),
+    });
   } catch (e: any) {
     return fail(e.message, 500);
   }

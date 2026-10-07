@@ -624,14 +624,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
                         _DailyHandoverBar(dash: dash, fmt: fmt, t: t),
                       ],
                       const SizedBox(height: 14),
-                      if (isMicrolending) ...[
-                        _CadenceFilterPills(
-                          current: _cadence,
-                          onTap: (c) => setState(() => _cadence = c),
-                          t: t,
-                        ),
-                        const SizedBox(height: 10),
-                      ],
                       _FilterPills(
                         current: filter,
                         rows: scopedRows,
@@ -1791,68 +1783,6 @@ class _FilterPills extends StatelessWidget {
             onTap: () => onTap('all'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CadenceFilterPills extends StatelessWidget {
-  const _CadenceFilterPills({
-    required this.current,
-    required this.onTap,
-    required this.t,
-  });
-  final String current;
-  final ValueChanged<String> onTap;
-  final T t;
-
-  static const _options = ['All', 'Daily', 'Weekly', 'Monthly', 'Custom'];
-  static const _values = ['all', 'daily', 'weekly', 'monthly', 'custom'];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _options.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final isSel = current == _values[i];
-          return GestureDetector(
-            onTap: () => onTap(_values[i]),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSel ? AppColors.primary : AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isSel ? AppColors.primary : AppColors.border,
-                  width: 1,
-                ),
-                boxShadow: isSel
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primary.withAlpha(90),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1.5),
-                        ),
-                      ]
-                    : null,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                _options[i],
-                style: TextStyle(
-                  color: isSel ? Colors.white : AppColors.textSecondary,
-                  fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -398,128 +400,143 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            final media = MediaQuery.of(context);
             return Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+              // Keyboard lifts the sheet; otherwise clear the nav bar / gesture area.
+              padding: EdgeInsets.fromLTRB(
+                  20, 20, 20, math.max(media.viewInsets.bottom, media.viewPadding.bottom) + 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(isEdit ? 'Edit Team Member' : 'Add Team Member', style: AppTypography.sectionTitle),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Phone Number *', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: usernameController,
-                    decoration: const InputDecoration(labelText: 'Username *', border: OutlineInputBorder()),
-                  ),
-                  if (!isEdit) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: passwordController,
-                      obscureText: obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Password *',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          tooltip: obscurePassword ? 'Show password' : 'Hide password',
-                          icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setModalState(() => obscurePassword = !obscurePassword),
+                  // Fields scroll; title above and the action button below stay pinned.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                        TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder()),
                         ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(labelText: 'Phone Number *', border: OutlineInputBorder()),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: usernameController,
+                          decoration: const InputDecoration(labelText: 'Username *', border: OutlineInputBorder()),
+                        ),
+                        if (!isEdit) ...[
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: passwordController,
+                            obscureText: obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Password *',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                                icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                                onPressed: () => setModalState(() => obscurePassword = !obscurePassword),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedRole,
+                          decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+                          items: [
+                            const DropdownMenuItem(value: 'agent', child: Text('Agent')),
+                            const DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                            if (widget.isSuperadmin)
+                              const DropdownMenuItem(value: 'superadmin', child: Text('Superadmin')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() => selectedRole = val);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String?>(
+                          initialValue: selectedBranchId,
+                          decoration: const InputDecoration(labelText: 'Branch', border: OutlineInputBorder()),
+                          items: [
+                            // SET-04 (SCOPE-13): agents always belong to a branch.
+                            if (selectedRole != 'agent')
+                              const DropdownMenuItem(value: null, child: Text('None (Cross-branch)')),
+                            ..._branches.map((b) => DropdownMenuItem(
+                                  value: b['id'] as String,
+                                  child: Text(b['name'] as String),
+                                ),),
+                          ],
+                          onChanged: (val) {
+                            setModalState(() => selectedBranchId = val);
+                          },
+                        ),
+                        if (selectedRole == 'agent') ...[
+                          const SizedBox(height: 12),
+                          TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(labelText: T.of(ref).x('fld.email'), border: const OutlineInputBorder())),
+                          const SizedBox(height: 12),
+                          TextField(controller: aadhaarController, keyboardType: TextInputType.number,
+                              decoration: InputDecoration(labelText: T.of(ref).x('team.aadhaar_number'), border: const OutlineInputBorder())),
+                          const SizedBox(height: 12),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(T.of(ref).x('team.date_of_birth')),
+                            subtitle: Text(dob ?? '—'),
+                            trailing: const Icon(Icons.calendar_today, size: 18),
+                            onTap: () async {
+                              final d = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.tryParse(dob ?? '') ?? DateTime(1995),
+                                firstDate: DateTime(1940),
+                                lastDate: DateTime.now(),
+                              );
+                              if (d != null) {
+                                setModalState(() => dob = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}');
+                              }
+                            },
+                          ),
+                          Row(children: [
+                            Expanded(child: TextField(controller: experienceController,
+                                decoration: InputDecoration(labelText: T.of(ref).x('team.experience'), border: const OutlineInputBorder()))),
+                            const SizedBox(width: 12),
+                            Expanded(child: TextField(controller: ageController, keyboardType: TextInputType.number,
+                                decoration: InputDecoration(labelText: T.of(ref).x('team.age'), border: const OutlineInputBorder()))),
+                          ]),
+                          const SizedBox(height: 12),
+                          Text(T.of(ref).x('team.agent_permissions_title'), style: AppTypography.sectionTitle),
+                          for (final k in flags.keys)
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}')),
+                              subtitle: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}_desc'),
+                                  style: AppTypography.caption),
+                              value: flags[k]!,
+                              onChanged: (v) => setModalState(() => flags[k] = v),
+                            ),
+                        ],
+                        ],
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-                    items: [
-                      const DropdownMenuItem(value: 'agent', child: Text('Agent')),
-                      const DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                      if (widget.isSuperadmin)
-                        const DropdownMenuItem(value: 'superadmin', child: Text('Superadmin')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setModalState(() => selectedRole = val);
-                      }
-                    },
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String?>(
-                    initialValue: selectedBranchId,
-                    decoration: const InputDecoration(labelText: 'Branch', border: OutlineInputBorder()),
-                    items: [
-                      // SET-04 (SCOPE-13): agents always belong to a branch.
-                      if (selectedRole != 'agent')
-                        const DropdownMenuItem(value: null, child: Text('None (Cross-branch)')),
-                      ..._branches.map((b) => DropdownMenuItem(
-                            value: b['id'] as String,
-                            child: Text(b['name'] as String),
-                          ),),
-                    ],
-                    onChanged: (val) {
-                      setModalState(() => selectedBranchId = val);
-                    },
-                  ),
-                  if (selectedRole == 'agent') ...[
-                    const SizedBox(height: 12),
-                    TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(labelText: T.of(ref).x('fld.email'), border: const OutlineInputBorder())),
-                    const SizedBox(height: 12),
-                    TextField(controller: aadhaarController, keyboardType: TextInputType.number,
-                        decoration: InputDecoration(labelText: T.of(ref).x('team.aadhaar_number'), border: const OutlineInputBorder())),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(T.of(ref).x('team.date_of_birth')),
-                      subtitle: Text(dob ?? '—'),
-                      trailing: const Icon(Icons.calendar_today, size: 18),
-                      onTap: () async {
-                        final d = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.tryParse(dob ?? '') ?? DateTime(1995),
-                          firstDate: DateTime(1940),
-                          lastDate: DateTime.now(),
-                        );
-                        if (d != null) {
-                          setModalState(() => dob = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}');
-                        }
-                      },
-                    ),
-                    Row(children: [
-                      Expanded(child: TextField(controller: experienceController,
-                          decoration: InputDecoration(labelText: T.of(ref).x('team.experience'), border: const OutlineInputBorder()))),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextField(controller: ageController, keyboardType: TextInputType.number,
-                          decoration: InputDecoration(labelText: T.of(ref).x('team.age'), border: const OutlineInputBorder()))),
-                    ]),
-                    const SizedBox(height: 12),
-                    Text(T.of(ref).x('team.agent_permissions_title'), style: AppTypography.sectionTitle),
-                    for (final k in flags.keys)
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}')),
-                        subtitle: Text(T.of(ref).x('team.${k.replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')}_desc'),
-                            style: AppTypography.caption),
-                        value: flags[k]!,
-                        onChanged: (v) => setModalState(() => flags[k] = v),
-                      ),
-                  ],
                   const SizedBox(height: 16),
                   AppButton(
                     label: isEdit ? 'Save Changes' : 'Create Member',

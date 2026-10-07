@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/lib/rateLimit';
 import { normalizeEnabledModules } from '@/lib/subscription';
 import { cheapestPlanByFeature, PLAN_FEATURES } from '@/lib/planFeatures';
 import { normalizeBillingCycle } from '@/lib/razorpay';
+import { UNLIMITED_BRANCHES_AGENTS, UNLIMITED_LOANS } from '@/lib/planCatalogView';
 import { MODULE_LABELS } from '@/types/modules';
 
 const OTP_WINDOW_MS = 10 * 60 * 1000;
@@ -56,6 +57,10 @@ function limitText(value: number | null | undefined, unlimitedValue: number) {
   return value >= unlimitedValue ? 'Unlimited' : value.toLocaleString('en-IN');
 }
 
+function limitInfo(value: number | null | undefined, unlimitedValue: number) {
+  return { max: value ?? null, unlimited: value != null && value >= unlimitedValue };
+}
+
 async function readSuperadminUser(userId: string, tenantId: string) {
   const user = await prisma.user.findFirst({
     where: { id: userId, tenantId, role: 'superadmin', deletedAt: null },
@@ -81,7 +86,9 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
       take: 8,
     }),
     Promise.all([
-      prisma.loan.count({ where: { tenantId, status: 'active', deletedAt: null } }),
+      // Open loans: the penalty cron flips a loan with missed instalments to
+      // 'overdue', and it is still a live loan (same set the dashboard/accounting use).
+      prisma.loan.count({ where: { tenantId, status: { in: ['active', 'overdue'] }, deletedAt: null } }),
       prisma.user.count({ where: { tenantId, role: 'agent', status: 'active', deletedAt: null } }),
       prisma.branch.count({ where: { tenantId, status: 'active', deletedAt: null } }),
     ]),
@@ -105,21 +112,18 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
     const key = PLAN_FEATURES.find((f) => f.flag === flag)?.key;
     return key ? featurePlans[key] : null;
   };
-  const addOns = [
-    { key: 'whatsappSmsEnabled', label: 'WhatsApp & SMS', enabled: Boolean(subscription?.whatsappSmsEnabled) },
-    { key: 'receiptPdfAllowed', label: 'Receipt PDFs', enabled: Boolean(subscription?.receiptPdfAllowed) },
-    { key: 'bureauEnabled', label: 'Credit Bureau', enabled: Boolean(subscription?.bureauEnabled) },
-    { key: 'npaEnabled', label: 'NPA Engine', enabled: Boolean(subscription?.npaEnabled) },
-    { key: 'foreclosureEnabled', label: 'Preclose & Early Settlement', enabled: Boolean(subscription?.foreclosureEnabled) },
-    { key: 'nachEnabled', label: 'eNACH Mandates', enabled: Boolean(subscription?.nachEnabled) },
-    { key: 'kycEnabled', label: 'Aadhaar/Video KYC', enabled: Boolean(subscription?.kycEnabled) },
-    { key: 'gpsTrackingEnabled', label: 'GPS Tracking', enabled: Boolean(subscription?.gpsTrackingEnabled) },
-    { key: 'premiumAccountingEnabled', label: 'Premium Accounting', enabled: Boolean(subscription?.premiumAccountingEnabled) },
-  ].map((addOn) => ({
-    ...addOn,
-    featureKey: PLAN_FEATURES.find((f) => f.flag === addOn.key)?.key ?? null,
-    includedIn: addOn.enabled ? null : includedIn(addOn.key),
-  }));
+  // One entry per plan-bundled feature, straight from PLAN_FEATURES: a feature
+  // added there shows up here without touching this list.
+  const addOns = PLAN_FEATURES.map((f) => {
+    const enabled = Boolean(subscription?.[f.flag]);
+    return {
+      key: f.flag,
+      label: f.label,
+      enabled,
+      featureKey: f.key,
+      includedIn: enabled ? null : includedIn(f.flag),
+    };
+  });
 
   // What the tenant actually pays and when it ends, worked out exactly as the
   // web My Subscription page does (the stored `pricing` multiplies the plan
@@ -198,9 +202,16 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
       activeAgents: usage[1],
       activeBranches: usage[2],
       limits: {
-        activeLoans: limitText(subscription?.maxActiveLoans, 999999),
-        agents: limitText(subscription?.maxAgents, 999),
-        branches: limitText(subscription?.maxBranches, 999),
+        activeLoans: limitText(subscription?.maxActiveLoans, UNLIMITED_LOANS),
+        agents: limitText(subscription?.maxAgents, UNLIMITED_BRANCHES_AGENTS),
+        branches: limitText(subscription?.maxBranches, UNLIMITED_BRANCHES_AGENTS),
+      },
+      // Language-neutral twin of `limits` (whose strings are English): the cap and
+      // whether it means "no cap", so clients localise it themselves.
+      limitInfo: {
+        activeLoans: limitInfo(subscription?.maxActiveLoans, UNLIMITED_LOANS),
+        agents: limitInfo(subscription?.maxAgents, UNLIMITED_BRANCHES_AGENTS),
+        branches: limitInfo(subscription?.maxBranches, UNLIMITED_BRANCHES_AGENTS),
       },
     },
     invoices: invoices.map((invoice) => ({

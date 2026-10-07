@@ -424,10 +424,17 @@ class _SubscriptionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final sub = profile.subscription;
+    // A cap as the server decided it; the English string only serves old servers.
+    String cap(ProfileLimit? info, String fallback) => info == null
+        ? fallback
+        : info.unlimited
+            ? t.x('sub.unlimited')
+            : '${info.max ?? '—'}';
+    final limits = profile.usage.limits;
     return _Section(
-      title: 'Subscription Plan',
+      title: t.x('sub.profile_title'),
       child: sub == null
-          ? Text('No subscription found.', style: AppTypography.caption)
+          ? Text(t.x('sub.none_found'), style: AppTypography.caption)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -460,7 +467,7 @@ class _SubscriptionCard extends ConsumerWidget {
                     _InfoItem(
                       label: t.x('sub.plan_price'),
                       value: sub.planPrice.amount == 0
-                          ? 'Free'
+                          ? t.x('sub.free')
                           : '${_currency(sub.planPrice.amount)} '
                               '${t.x(sub.planPrice.cycle == 'yearly' ? 'sub.per_year' : 'sub.per_month')}',
                     ),
@@ -473,16 +480,16 @@ class _SubscriptionCard extends ConsumerWidget {
                       value: _date(sub.expiry.date),
                     ),
                     _InfoItem(
-                      label: 'Active loans',
-                      value: '${profile.usage.activeLoans}/${profile.usage.limits.activeLoans}',
+                      label: t.x('dash.active_loans'),
+                      value: '${profile.usage.activeLoans}/${cap(limits.activeLoansInfo, limits.activeLoans)}',
                     ),
                     _InfoItem(
-                      label: 'Agents',
-                      value: '${profile.usage.activeAgents}/${profile.usage.limits.agents}',
+                      label: t.x('dash.agents'),
+                      value: '${profile.usage.activeAgents}/${cap(limits.agentsInfo, limits.agents)}',
                     ),
                     _InfoItem(
-                      label: 'Branches',
-                      value: '${profile.usage.activeBranches}/${profile.usage.limits.branches}',
+                      label: t.x('br.title'),
+                      value: '${profile.usage.activeBranches}/${cap(limits.branchesInfo, limits.branches)}',
                     ),
                     _InfoItem(
                       label: t.x('sub.billing'),
@@ -495,7 +502,7 @@ class _SubscriptionCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Enabled Modules', style: AppTypography.bodyLarge),
+                Text(t.x('sub.enabled_modules'), style: AppTypography.bodyLarge),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -510,7 +517,7 @@ class _SubscriptionCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Plan features', style: AppTypography.bodyLarge),
+                Text(t.x('sub.plan_features'), style: AppTypography.bodyLarge),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -519,6 +526,11 @@ class _SubscriptionCard extends ConsumerWidget {
                     for (final addOn in sub.addOns)
                       _FeatureChip(
                         addOn: addOn,
+                        // Feature names are translated per key; the server's
+                        // English label is only the fallback.
+                        label: addOn.featureKey == null
+                            ? addOn.label
+                            : t.x('plan.feature.${addOn.featureKey}'),
                         onLockedTap: addOn.featureKey == null
                             ? null
                             : () => showPlanUpgradeSheet(
@@ -544,9 +556,10 @@ class _SubscriptionCard extends ConsumerWidget {
 /// A plan feature chip. Locked ones show the plan that includes them (server
 /// computed) and open the upgrade sheet when tapped.
 class _FeatureChip extends StatelessWidget {
-  const _FeatureChip({required this.addOn, this.onLockedTap});
+  const _FeatureChip({required this.addOn, required this.label, this.onLockedTap});
 
   final ProfileAddon addOn;
+  final String label;
   final VoidCallback? onLockedTap;
 
   @override
@@ -554,8 +567,8 @@ class _FeatureChip extends StatelessWidget {
     final locked = !addOn.enabled;
     final chip = _StatusChip(
       label: locked && addOn.includedIn != null
-          ? '${addOn.label} · ${addOn.includedIn}'
-          : addOn.label,
+          ? '$label · ${addOn.includedIn}'
+          : label,
       color: locked ? AppColors.background : AppColors.infoBg,
       textColor: locked ? AppColors.textSecondary : AppColors.infoText,
       icon: locked ? Icons.lock_outline : Icons.check_circle_outline,
@@ -902,14 +915,14 @@ String _initials(String name) {
 }
 
 String _date(DateTime? value) {
-  if (value == null) return 'N/A';
+  if (value == null) return '—';
   return DateFormat('dd MMM yyyy').format(value);
 }
 
 String _currency(num value) {
   return NumberFormat.currency(
     locale: 'en_IN',
-    symbol: 'INR ',
+    symbol: '₹',
     decimalDigits: 0,
   ).format(value);
 }

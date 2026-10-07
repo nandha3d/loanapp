@@ -296,7 +296,10 @@ class ProfileUsage {
       activeLoans: _int(json['activeLoans']),
       activeAgents: _int(json['activeAgents']),
       activeBranches: _int(json['activeBranches']),
-      limits: ProfileLimits.fromJson(json['limits'] as Map<String, dynamic>),
+      limits: ProfileLimits.fromJson(
+        json['limits'] as Map<String, dynamic>,
+        json['limitInfo'] as Map<String, dynamic>?,
+      ),
     );
   }
 }
@@ -306,17 +309,50 @@ class ProfileLimits {
     required this.activeLoans,
     required this.agents,
     required this.branches,
+    this.activeLoansInfo,
+    this.agentsInfo,
+    this.branchesInfo,
   });
 
+  /// English display strings from the server (kept for older servers).
   final String activeLoans;
   final String agents;
   final String branches;
 
-  factory ProfileLimits.fromJson(Map<String, dynamic> json) {
+  /// Language-neutral caps (`usage.limitInfo`); null when the server predates it.
+  final ProfileLimit? activeLoansInfo;
+  final ProfileLimit? agentsInfo;
+  final ProfileLimit? branchesInfo;
+
+  factory ProfileLimits.fromJson(
+    Map<String, dynamic> json, [
+    Map<String, dynamic>? info,
+  ]) {
+    ProfileLimit? limit(String key) => info?[key] is Map<String, dynamic>
+        ? ProfileLimit.fromJson(info![key] as Map<String, dynamic>)
+        : null;
     return ProfileLimits(
       activeLoans: json['activeLoans'] as String,
       agents: json['agents'] as String,
       branches: json['branches'] as String,
+      activeLoansInfo: limit('activeLoans'),
+      agentsInfo: limit('agents'),
+      branchesInfo: limit('branches'),
+    );
+  }
+}
+
+/// A plan cap as the server decided it: the number, or "no cap".
+class ProfileLimit {
+  const ProfileLimit({this.max, this.unlimited = false});
+
+  final int? max;
+  final bool unlimited;
+
+  factory ProfileLimit.fromJson(Map<String, dynamic> json) {
+    return ProfileLimit(
+      max: (json['max'] as num?)?.toInt(),
+      unlimited: json['unlimited'] == true,
     );
   }
 }

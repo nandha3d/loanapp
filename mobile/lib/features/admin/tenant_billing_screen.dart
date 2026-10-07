@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -30,6 +33,7 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
   bool _isLoading = true;
   String _error = '';
   Map<String, dynamic> _billingData = {};
+  bool _yearlyView = false;
   final GlobalKey _highlightKey = GlobalKey();
 
   @override
@@ -253,6 +257,9 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         ),
         const SizedBox(height: 24),
 
+        // Every plan the developer offers (prices/limits/features from the catalog).
+        ..._buildPlansSection(user),
+
         // Plan features (bundled into plans; no separate purchase)
         Text('Plan Features', style: AppTypography.sectionTitle),
         const SizedBox(height: 12),
@@ -421,6 +428,61 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
         );
       },
     );
+  }
+
+  /// "Available plans": one card per catalog plan. Prices, limits, savings and
+  /// the unlimited flags are all server values (STABLE-8); the only local choice
+  /// is which billing cycle the viewer is looking at.
+  List<Widget> _buildPlansSection(User? user) {
+    final raw = _billingData['plans'];
+    // Older servers do not send the list: show nothing rather than an empty state.
+    if (raw is! List) return const [];
+    final t = T.of(ref);
+    final plans = [
+      for (final e in raw) Map<String, dynamic>.from(e as Map),
+    ];
+    final yearlyOffered = plans.any((p) => p['yearlyPrice'] != null);
+    final isOwner = user?.role == UserRole.superadmin;
+    final webUri = Uri.parse(
+      '${ref.read(mediaBaseUrlProvider)}'
+      '/${AppType.normalize(user?.appType ?? AppType.microlending)}/subscription',
+    );
+
+    return [
+      Text(t.x('sub.available_plans'), style: AppTypography.sectionTitle),
+      const SizedBox(height: 4),
+      Text(t.x('sub.available_plans_desc'), style: AppTypography.caption),
+      const SizedBox(height: 12),
+      if (yearlyOffered) ...[
+        SegmentedButton<bool>(
+          segments: [
+            ButtonSegment(value: false, label: Text(t.x('sub.cycle_monthly'))),
+            ButtonSegment(value: true, label: Text(t.x('sub.cycle_yearly'))),
+          ],
+          selected: {_yearlyView},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => setState(() => _yearlyView = s.first),
+        ),
+        const SizedBox(height: 12),
+      ],
+      if (plans.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: Text(t.x('sub.no_plans'), style: AppTypography.caption)),
+        )
+      else
+        for (final p in plans) ...[
+          _PlanCard(
+            plan: p,
+            yearlyView: _yearlyView,
+            isOwner: isOwner,
+            t: t,
+            onUpgrade: () => launchUrl(webUri, mode: LaunchMode.externalApplication),
+          ),
+          const SizedBox(height: 12),
+        ],
+      const SizedBox(height: 12),
+    ];
   }
 
   List<Widget> _buildAddonList(User? user, bool isDev) {
@@ -615,6 +677,201 @@ class _TenantBillingScreenState extends ConsumerState<TenantBillingScreen> {
       );
     }).toList();
   }
+}
+
+/// One catalog plan. Pure rendering of the server's plan object.
+class _PlanCard extends StatelessWidget {
+  const _PlanCard({
+    required this.plan,
+    required this.yearlyView,
+    required this.isOwner,
+    required this.t,
+    required this.onUpgrade,
+  });
+
+  final Map<String, dynamic> plan;
+  final bool yearlyView;
+  final bool isOwner;
+  final T t;
+  final VoidCallback onUpgrade;
+
+  static final _money = NumberFormat.currency(
+    locale: 'en_IN',
+    symbol: '₹',
+    decimalDigits: 0,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final name = plan['displayName'] as String? ?? '';
+    final description = (plan['description'] as String?)?.trim() ?? '';
+    final isCurrent = plan['isCurrent'] == true;
+    final monthly = (plan['monthlyPrice'] as num?) ?? 0;
+    final yearly = plan['yearlyPrice'] as num?;
+    // A plan with no yearly option stays monthly even in the yearly view.
+    final showYearly = yearlyView && yearly != null;
+    final price = showYearly ? yearly : monthly;
+    final isFree = monthly == 0;
+    final savings = (plan['yearlySavingsPercent'] as num?)?.toInt() ?? 0;
+    final includesPlan = plan['includesPlan'] as String?;
+    final unlimited = (plan['unlimited'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final featureKeys = (plan['includedFeatures'] as List<dynamic>? ?? const <dynamic>[])
+        .map((dynamic e) => '$e')
+        .toList();
+    final bullets = (plan['features'] as List<dynamic>? ?? const <dynamic>[])
+        .map((dynamic e) => '$e')
+        .where((e) => e.trim().isNotEmpty)
+        .toList();
+
+    String limit(String key, String raw) =>
+        unlimited[key] == true ? t.x('sub.unlimited') : '${plan[raw]}';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+        border: Border.all(
+          color: isCurrent ? AppColors.primary : AppColors.border,
+          width: isCurrent ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(name, style: AppTypography.nameLg)),
+              if (isCurrent)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+                  ),
+                  child: Text(
+                    t.x('sub.current_plan_badge'),
+                    style: AppTypography.tiny.copyWith(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(description, style: AppTypography.caption),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.end,
+            spacing: 6,
+            children: [
+              Text(
+                isFree ? t.x('sub.free') : _money.format(price),
+                style: AppTypography.nameLg.copyWith(fontSize: 24),
+              ),
+              if (!isFree)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    t.x(showYearly ? 'sub.per_year' : 'sub.per_month'),
+                    style: AppTypography.caption,
+                  ),
+                ),
+              if (showYearly && savings > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.successBg,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+                    ),
+                    child: Text(
+                      t.x('sub.save_percent').replaceAll('{percent}', '$savings'),
+                      style: AppTypography.tiny.copyWith(
+                        color: AppColors.successText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (yearlyView && !isFree && !showYearly) ...[
+            const SizedBox(height: 2),
+            Text(t.x('sub.monthly_only'), style: AppTypography.caption),
+          ],
+          const SizedBox(height: 12),
+          _limitRow(Icons.storefront_outlined, t.x('br.title'), limit('branches', 'maxBranches')),
+          _limitRow(Icons.badge_outlined, t.x('dash.agents'), limit('agents', 'maxAgents')),
+          _limitRow(Icons.payments_outlined, t.x('dash.active_loans'), limit('activeLoans', 'maxActiveLoans')),
+          if (includesPlan != null || featureKeys.isNotEmpty || bullets.isNotEmpty) ...[
+            const Divider(height: 24),
+            Text(
+              t.x('sub.included_features'),
+              style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w700),
+            ),
+            if (includesPlan != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                t.x('sub.includes_all_in').replaceAll('{plan}', includesPlan),
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            for (final b in bullets) _featureRow(b),
+            for (final k in featureKeys) _featureRow(t.x('plan.feature.$k')),
+          ],
+          if (!isCurrent) ...[
+            const SizedBox(height: 14),
+            if (isOwner)
+              AppButton(
+                label: t.x('sub.upgrade_to').replaceAll('{plan}', name),
+                leading: const Icon(Icons.open_in_new),
+                onPressed: onUpgrade,
+                expand: true,
+              )
+            else
+              Text(t.x('plan.upgrade_body_staff'), style: AppTypography.caption),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _limitRow(IconData icon, String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: AppTypography.caption)),
+            Text(value, style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
+
+  Widget _featureRow(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(Icons.check_circle, size: 16, color: AppColors.success),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text, style: AppTypography.bodySmall)),
+          ],
+        ),
+      );
 }
 
 class _BillingAddonItem {
