@@ -87,6 +87,20 @@ export type IntegrationSettings = {
   };
 };
 
+/**
+ * One broken section (an undecryptable stored secret, a table the database has
+ * not got yet) must not take the whole Integrations screen down with a 500: the
+ * section falls back to "not configured" and the real cause is logged.
+ */
+async function tolerate<T>(section: string, load: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await load();
+  } catch (e) {
+    console.error(`[INTEGRATIONS_${section.toUpperCase()}_LOAD_FAILED]`, e);
+    return fallback;
+  }
+}
+
 export async function getIntegrationSettingsMasked(tenantId: string): Promise<IntegrationSettings> {
   const [
     razorpay,
@@ -113,7 +127,12 @@ export async function getIntegrationSettingsMasked(tenantId: string): Promise<In
     kycClientSecretSet,
     kycWebhookSecretSet,
   ] = await Promise.all([
-    getTenantRazorpayConfigMasked(tenantId),
+    tolerate('razorpay', () => getTenantRazorpayConfigMasked(tenantId), {
+      enabled: false,
+      keyId: '',
+      keySecretSet: false,
+      webhookSecretSet: false,
+    }),
     getNachConfig(tenantId),
     getSetting(tenantId, 'nach_enabled', 'false'),
     getSetting(tenantId, 'nach_default_max_amount', '0'),
@@ -131,7 +150,7 @@ export async function getIntegrationSettingsMasked(tenantId: string): Promise<In
     getSetting(tenantId, 'kyc_digio_enabled', 'false'),
     getSetting(tenantId, 'kyc_digio_environment', 'sandbox'),
     getSetting(tenantId, 'kyc_digio_client_id', ''),
-    prisma.bureauCredential.findUnique({ where: { tenantId } }),
+    tolerate('bureau', () => prisma.bureauCredential.findUnique({ where: { tenantId } }), null),
     getSecretSet(tenantId, 'msg91_auth_key'),
     getSecretSet(tenantId, 'smtp_pass'),
     getSecretSet(tenantId, 'kyc_digio_client_secret'),

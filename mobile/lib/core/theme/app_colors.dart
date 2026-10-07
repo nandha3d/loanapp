@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Color tokens — verbatim from design.md.
-/// DO NOT modify; these must match the web app's globals.css.
+/// Shared brand tokens and brightness-aware mobile presentation colours.
 class AppColors {
   AppColors._();
 
@@ -17,7 +16,7 @@ class AppColors {
   static Color primaryLight = defaultPrimaryLight;
 
   // Brand accents from ZoloFund logo
-  static const Color brandYellow = Color(0xFFFCF6AB);      // Logo '₹und' pill accent
+  static const Color brandYellow = Color(0xFFFCF6AB); // Logo '₹und' pill accent
   static const Color brandYellowDark = Color(0xFFE8DE70);
   static const Color brandPurple = Color(0xFF7D287E);
   static const Color brandPurpleLight = Color(0xFFF6E8F7);
@@ -38,7 +37,7 @@ class AppColors {
   static const Color lightBorder = Color(0xFFE2E8F0);
   static const Color lightRowHover = Color(0xFFFAFBFC);
 
-  static const Color darkTextLight = Color(0xFF7B8696);
+  static const Color darkTextLight = Color(0xFFADB8C8);
   static const Color darkRowHover = Color(0xFF262B36);
 
   // Surfaces
@@ -53,6 +52,33 @@ class AppColors {
   static Color get textPrimary => isDark ? onInk : lightTextPrimary;
   static Color get textSecondary => isDark ? onInkMuted : lightTextSecondary;
   static Color get textLight => isDark ? darkTextLight : lightTextLight;
+
+  /// Foreground accent on neutral surfaces. Keep the tenant's original
+  /// primary for filled controls; a dark brand colour is not readable text.
+  static Color get accent => isDark ? readableOnDark(primary) : primary;
+  static Color get accentSoft => isDark
+      ? Color.alphaBlend(accent.withAlpha(30), inkElevated)
+      : primaryLight;
+
+  static Color readableOnDark(Color color) {
+    final backgroundLuminance = darkRowHover.computeLuminance();
+    for (var step = 0; step <= 100; step++) {
+      final candidate = Color.lerp(color, onInk, step / 100)!;
+      final ratio =
+          (candidate.computeLuminance() + 0.05) / (backgroundLuminance + 0.05);
+      if (ratio >= 4.5) return candidate;
+    }
+    return onInk;
+  }
+
+  static Color get chartExpected => isDark ? onInkMuted : lightTextLight;
+  static Color get chartCollected =>
+      isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED);
+  static Color get chartSuccess =>
+      isDark ? const Color(0xFF34D399) : const Color(0xFF10B981);
+  static Color get chartOverdue =>
+      isDark ? const Color(0xFFFB7185) : const Color(0xFFEF4444);
+  static Color get chartGrid => isDark ? const Color(0xFF465166) : lightBorder;
 
   // Border
   static Color get border => isDark ? inkBorder : lightBorder;
@@ -89,12 +115,14 @@ class AppColors {
   // paired with the amber `primary` accent. These are app-local (NOT mirrored
   // from the web globals.css) and are reusable anywhere a dark surface is
   // wanted. Do not hardcode these hex values in widgets — reference the token.
-  static const Color ink = Color(0xFF15171E);          // near-black card base
-  static const Color inkElevated = Color(0xFF20242E);  // raised block on ink
-  static const Color inkBorder = Color(0x1FFFFFFF);    // hairline divider on ink (white 12%)
-  static const Color onInk = Color(0xFFF8FAFC);        // primary text/icon on ink
-  static const Color onInkMuted = Color(0xFF9AA4B2);   // secondary text on ink
-  static const Color onPrimary = Color(0xFFFFFFFF);    // text/icon on purple primary
+  static const Color ink = Color(0xFF15171E); // near-black card base
+  static const Color inkElevated = Color(0xFF20242E); // raised block on ink
+  static const Color inkBorder =
+      Color(0x1FFFFFFF); // hairline divider on ink (white 12%)
+  static const Color onInk = Color(0xFFF8FAFC); // primary text/icon on ink
+  static const Color onInkMuted = Color(0xFFC0CAD8); // secondary text on ink
+  static const Color onPrimary =
+      Color(0xFFFFFFFF); // text/icon on purple primary
 
   // Theme hero-card gradient — rich ZoloFund brand purple gradient matching the official theme
   static const Color heroDarkFrom = Color(0xFF4A134B);

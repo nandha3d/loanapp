@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,52 +34,54 @@ class CollectionTrendCard extends ConsumerWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.border.withAlpha(80)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 'Collection Trend',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
+                  color: AppColors.textPrimary,
                 ),
               ),
-              _RangePicker(),
+              const _RangePicker(),
             ],
           ),
           const SizedBox(height: 12),
           // Legend row with Expected, Collected, Overdue
-          const Row(
+          Wrap(
+            spacing: 14,
+            runSpacing: 8,
             children: [
               _LineLegend(
-                color: Color(0xFF94A3B8),
+                color: AppColors.chartExpected,
                 label: 'Expected',
                 isDashed: true,
               ),
-              SizedBox(width: 14),
               _LineLegend(
-                color: Color(0xFF7C3AED),
+                color: AppColors.chartCollected,
                 label: 'Collected',
               ),
-              SizedBox(width: 14),
               _LineLegend(
-                color: Color(0xFFEF4444),
+                color: AppColors.chartOverdue,
                 label: 'Overdue',
               ),
             ],
           ),
           const SizedBox(height: 18),
           SizedBox(
-            height: 190,
+            height: 220,
             child: asyncPoints.when(
               loading: () =>
-                  const Skeleton(height: 190, borderRadius: AppTokens.radius),
+                  const Skeleton(height: 220, borderRadius: AppTokens.radius),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -91,10 +94,15 @@ class CollectionTrendCard extends ConsumerWidget {
                     const SizedBox(height: 6),
                     TextButton.icon(
                       onPressed: () => ref.invalidate(_trendProvider),
-                      icon: Icon(Icons.refresh,
-                          size: 16, color: AppColors.primary),
-                      label: Text('Retry',
-                          style: TextStyle(color: AppColors.primary)),
+                      icon: Icon(
+                        Icons.refresh,
+                        size: 16,
+                          color: AppColors.accent,
+                      ),
+                      label: Text(
+                        'Retry',
+                        style: TextStyle(color: AppColors.accent),
+                      ),
                     ),
                   ],
                 ),
@@ -134,28 +142,39 @@ class _RangePicker extends ConsumerWidget {
           return GestureDetector(
             onTap: () =>
                 ref.read(trendRangeProvider.notifier).state = opt.value,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF7C3AED) : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFF7C3AED).withAlpha(80),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Text(
-                opt.label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF64748B),
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  fontSize: 11.5,
+            child: Semantics(
+              button: true,
+              selected: isSelected,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                alignment: Alignment.center,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.chartCollected
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.chartCollected.withAlpha(80),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  opt.label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? (AppColors.isDark ? AppColors.ink : Colors.white)
+                        : AppColors.textSecondary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 11.5,
+                  ),
                 ),
               ),
             ),
@@ -193,10 +212,10 @@ class _LineLegend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF475569),
+            color: AppColors.textSecondary,
           ),
         ),
       ],
@@ -249,198 +268,209 @@ class _InteractiveChart extends StatelessWidget {
 
     final interval = points.length > 90
         ? (points.length / 6).ceil().toDouble()
-        : (points.length > 30
-            ? 7.0
-            : (points.length > 7 ? 3.0 : 1.0));
+        : (points.length > 30 ? 7.0 : (points.length > 7 ? 3.0 : 1.0));
 
-    return LineChart(
-      LineChartData(
-        maxY: maxY,
-        minY: 0,
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => FlLine(
-            color: AppColors.rowHover,
-            strokeWidth: 1,
+    return LayoutBuilder(builder: (context, constraints) {
+      final scale = MediaQuery.textScalerOf(context).scale(1);
+      final labelCount = ((constraints.maxWidth - 48 * scale) / (36 * scale))
+          .floor()
+          .clamp(1, 6);
+      final titleInterval =
+          math.max(interval, ((points.length - 1) / labelCount).ceilToDouble());
+      return LineChart(
+        LineChartData(
+          clipData: const FlClipData.all(),
+          maxY: maxY,
+          minY: 0,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (_) => FlLine(
+              color: AppColors.chartGrid,
+              strokeWidth: 1,
+            ),
           ),
-        ),
-        borderData: FlBorderData(show: false),
-        lineTouchData: LineTouchData(
-          handleBuiltInTouches: true,
-          touchTooltipData: LineTouchTooltipData(
-            tooltipRoundedRadius: 8,
-            getTooltipColor: (_) => const Color(0xFF0F172A),
-            getTooltipItems: (touchedSpots) {
-              return touchedSpots.map((spot) {
-                final idx = spot.barIndex;
-                final name = idx == 0
-                    ? 'Expected'
-                    : (idx == 1 ? 'Collected' : 'Overdue');
-                final col = idx == 0
-                    ? const Color(0xFF94A3B8)
-                    : (idx == 1
-                        ? const Color(0xFFA78BFA)
-                        : const Color(0xFFF87171));
-                return LineTooltipItem(
-                  '$name: ₹${_fmtVal(spot.y)}',
-                  TextStyle(
-                    color: col,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
+          borderData: FlBorderData(show: false),
+          lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchTooltipData: LineTouchTooltipData(
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
+              tooltipRoundedRadius: 8,
+              getTooltipColor: (_) => AppColors.ink,
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((spot) {
+                  final idx = spot.barIndex;
+                  final name = idx == 0
+                      ? 'Expected'
+                      : (idx == 1 ? 'Collected' : 'Overdue');
+                  final col = idx == 0
+                      ? AppColors.chartExpected
+                      : (idx == 1
+                          ? const Color(0xFFA78BFA)
+                          : const Color(0xFFF87171));
+                  return LineTooltipItem(
+                    '$name: ₹${_fmtVal(spot.y)}',
+                    TextStyle(
+                      color: col,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  );
+                }).toList();
+              },
+            ),
+            getTouchedSpotIndicator: (data, spots) => spots.map((_) {
+              return TouchedSpotIndicatorData(
+                const FlLine(
+                  color: Color(0xFFCBD5E1),
+                  strokeWidth: 1.5,
+                  dashArray: [4, 4],
+                ),
+                FlDotData(
+                  show: true,
+                  getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                    radius: 4.5,
+                    color: bar.color ?? AppColors.chartCollected,
+                    strokeWidth: 2,
+                    strokeColor: Colors.white,
                   ),
-                );
-              }).toList();
-            },
+                ),
+              );
+            }).toList(),
           ),
-          getTouchedSpotIndicator: (data, spots) => spots.map((_) {
-            return TouchedSpotIndicatorData(
-              const FlLine(
-                color: Color(0xFFCBD5E1),
-                strokeWidth: 1.5,
-                dashArray: [4, 4],
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 48 * MediaQuery.textScalerOf(context).scale(1),
+                interval: maxY > 0 ? (maxY / 4) : 20,
+                getTitlesWidget: (value, meta) {
+                  if (value == 0) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Text(
+                      _fmtVal(value),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.chartExpected,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  );
+                },
               ),
-              FlDotData(
-                show: true,
-                getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
-                  radius: 4.5,
-                  color: bar.color ?? const Color(0xFF7C3AED),
-                  strokeWidth: 2,
+            ),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: titleInterval,
+                reservedSize: 32 * MediaQuery.textScalerOf(context).scale(1),
+                getTitlesWidget: (value, _) {
+                  final idx = value.toInt();
+                  if (idx < 0 || idx >= labels.length) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      labels[idx],
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          lineBarsData: [
+            // 0. Expected Line (Dashed)
+            LineChartBarData(
+              spots: expectedSpots,
+              isCurved: true,
+              curveSmoothness: 0.35,
+              preventCurveOverShooting: true,
+              color: AppColors.chartExpected,
+              barWidth: 2,
+              dotData: FlDotData(
+                show: points.length <= 15,
+                getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                  radius: 2.5,
+                  color: AppColors.chartExpected,
+                  strokeWidth: 0,
+                ),
+              ),
+              dashArray: [5, 4],
+            ),
+            // 1. Collected Line (Solid brand purple + gradient fill)
+            LineChartBarData(
+              spots: collectedSpots,
+              isCurved: true,
+              curveSmoothness: 0.35,
+              preventCurveOverShooting: true,
+              color: AppColors.chartCollected,
+              barWidth: 2.8,
+              dotData: FlDotData(
+                show: points.length <= 15,
+                getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                  radius: 3,
+                  color: AppColors.chartCollected,
+                  strokeWidth: 1.5,
                   strokeColor: Colors.white,
                 ),
               ),
-            );
-          }).toList(),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.chartCollected.withAlpha(55),
+                    AppColors.chartCollected.withAlpha(3),
+                  ],
+                ),
+              ),
+            ),
+            // 2. Overdue Line (Solid red + soft gradient fill)
+            LineChartBarData(
+              spots: overdueSpots,
+              isCurved: true,
+              curveSmoothness: 0.35,
+              preventCurveOverShooting: true,
+              color: AppColors.chartOverdue,
+              barWidth: 2.2,
+              dotData: FlDotData(
+                show: points.length <= 15,
+                getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                  radius: 2.5,
+                  color: AppColors.chartOverdue,
+                  strokeWidth: 1.5,
+                  strokeColor: Colors.white,
+                ),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.chartOverdue.withAlpha(35),
+                    AppColors.chartOverdue.withAlpha(0),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 34,
-              interval: maxY > 0 ? (maxY / 4) : 20,
-              getTitlesWidget: (value, meta) {
-                if (value == 0) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Text(
-                    _fmtVal(value),
-                    style: const TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF94A3B8),
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                );
-              },
-            ),
-          ),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              interval: interval,
-              reservedSize: 22,
-              getTitlesWidget: (value, _) {
-                final idx = value.toInt();
-                if (idx < 0 || idx >= labels.length) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    labels[idx],
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        lineBarsData: [
-          // 0. Expected Line (Dashed)
-          LineChartBarData(
-            spots: expectedSpots,
-            isCurved: true,
-            curveSmoothness: 0.35,
-            preventCurveOverShooting: true,
-            color: const Color(0xFF94A3B8),
-            barWidth: 2,
-            dotData: FlDotData(
-              show: points.length <= 15,
-              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                radius: 2.5,
-                color: const Color(0xFF94A3B8),
-                strokeWidth: 0,
-              ),
-            ),
-            dashArray: [5, 4],
-          ),
-          // 1. Collected Line (Solid brand purple + gradient fill)
-          LineChartBarData(
-            spots: collectedSpots,
-            isCurved: true,
-            curveSmoothness: 0.35,
-            preventCurveOverShooting: true,
-            color: const Color(0xFF7C3AED),
-            barWidth: 2.8,
-            dotData: FlDotData(
-              show: points.length <= 15,
-              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                radius: 3,
-                color: const Color(0xFF7C3AED),
-                strokeWidth: 1.5,
-                strokeColor: Colors.white,
-              ),
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xFF7C3AED).withAlpha(55),
-                  const Color(0xFF7C3AED).withAlpha(3),
-                ],
-              ),
-            ),
-          ),
-          // 2. Overdue Line (Solid red + soft gradient fill)
-          LineChartBarData(
-            spots: overdueSpots,
-            isCurved: true,
-            curveSmoothness: 0.35,
-            preventCurveOverShooting: true,
-            color: const Color(0xFFEF4444),
-            barWidth: 2.2,
-            dotData: FlDotData(
-              show: points.length <= 15,
-              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                radius: 2.5,
-                color: const Color(0xFFEF4444),
-                strokeWidth: 1.5,
-                strokeColor: Colors.white,
-              ),
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xFFEF4444).withAlpha(35),
-                  const Color(0xFFEF4444).withAlpha(0),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+    });
   }
 }

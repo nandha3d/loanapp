@@ -29,7 +29,9 @@ import 'package:zolofund/features/collection/collection_screen.dart';
 import 'package:zolofund/features/collection/collection_runs_screen.dart';
 import 'package:zolofund/features/collection/run_sheet_screen.dart';
 import 'package:zolofund/features/settings/payment_gateway_screen.dart';
+import 'package:zolofund/features/settings/branding_settings_screen.dart';
 import 'package:zolofund/features/settings/integrations_settings_screen.dart';
+import 'package:zolofund/features/settings/security_settings_screen.dart';
 import 'package:zolofund/features/settings/settings_detail_screen.dart';
 import 'package:zolofund/features/customers/customer_detail_screen.dart';
 import 'package:zolofund/features/customers/customers_screen.dart';
@@ -68,6 +70,7 @@ import 'package:zolofund/features/admin/branch_setup_screen.dart';
 import 'package:zolofund/features/admin/tenant_billing_screen.dart';
 import 'package:zolofund/features/admin/pricing_catalog_screen.dart';
 import 'package:zolofund/features/admin/affiliate_admin_screen.dart';
+import 'package:zolofund/features/admin/affiliate_partner_screen.dart';
 import 'package:zolofund/features/admin/admin_requests_screen.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
@@ -254,7 +257,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/microlending/affiliate',
-        builder: (_, __) => const AffiliateAdminScreen(),
+        builder: (_, __) => const AffiliatePartnerScreen(),
       ),
       // Superadmin creates branches directly, within the plan's limit. The
       // retired branch-request path redirects here for old links.
@@ -450,17 +453,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'security',
-            builder: (_, __) => const SettingsDetailScreen(
-              title: 'Security & Locks',
-              type: 'security',
-            ),
+            builder: (_, __) => const SecuritySettingsScreen(),
           ),
           GoRoute(
             path: 'branding',
-            builder: (_, __) => const SettingsDetailScreen(
-              title: 'Branding & Documents',
-              type: 'branding',
-            ),
+            builder: (_, __) => const BrandingSettingsScreen(),
           ),
         ],
       ),
@@ -585,6 +582,11 @@ bool _moduleBlocked(String location, User user) {
   // /settings/system mirrors the developer-only web system tab.
   if (location == '/settings/system') {
     return user.role != UserRole.developer;
+  }
+
+  // Branding & documents is the business owner's call, not an admin's.
+  if (location == '/settings/branding') {
+    return user.role != UserRole.superadmin && user.role != UserRole.developer;
   }
 
   // Privileged roles always have full access to business modules.

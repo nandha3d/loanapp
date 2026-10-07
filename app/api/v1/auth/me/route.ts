@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { getSetting } from '@/lib/tenant';
+import { getAppLockPolicy } from '@/lib/appLock';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -37,13 +38,14 @@ export async function GET(req: NextRequest) {
 
   // Tenant security policy: the mobile app only shows the biometric lock
   // screen when this is explicitly enabled (Settings → Security).
-  const biometricLockRequired =
-    (await getSetting(user.tenantId, 'biometric_lock_required', 'false')) === 'true';
+  const { biometricLockRequired, timeoutMinutes: appLockTimeoutMinutes } = await getAppLockPolicy(user.tenantId);
   const kycMethod = await getSetting(user.tenantId, 'kyc_method', 'manual_upload');
 
   return ok({
     verticals,
     biometricLockRequired,
+    // Minutes the app may be backgrounded/idle before it asks to unlock (0 = every time).
+    appLockTimeoutMinutes,
     gpsTrackingEnabled: Boolean(subscription?.gpsTrackingEnabled),
     npaEnabled: Boolean(subscription?.npaEnabled),
     kycEnabled: Boolean(subscription?.kycEnabled),

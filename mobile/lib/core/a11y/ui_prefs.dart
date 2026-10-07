@@ -72,13 +72,16 @@ class DarkModeController extends StateNotifier<bool> {
     _hydrate();
   }
 
+  bool _hasExplicitChoice = false;
+
   Future<void> _hydrate() async {
     final box = await _openBox();
-    if (!mounted) return;
+    if (!mounted || _hasExplicitChoice) return;
     state = (box.get(_kDarkModeKey) as bool?) ?? false;
   }
 
   Future<void> set(bool v) async {
+    _hasExplicitChoice = true;
     state = v;
     final box = await _openBox();
     await box.put(_kDarkModeKey, v);

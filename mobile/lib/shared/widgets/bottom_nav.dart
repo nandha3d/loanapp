@@ -132,7 +132,7 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.primary : AppColors.textLight;
+    final color = active ? AppColors.accent : AppColors.textLight;
     return Expanded(
       child: InkWell(
         onTap: () => context.go(item.route),

@@ -159,6 +159,13 @@ class AdminService {
 
 
   // --- Affiliates ---
+  /// The caller's own referral dashboard (superadmin); [getAffiliates] is the
+  /// developer's all-partners view.
+  Future<Map<String, dynamic>> getMyAffiliate() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.affiliateMe);
+    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
   Future<Map<String, dynamic>> getAffiliates() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.adminAffiliates);
     return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));

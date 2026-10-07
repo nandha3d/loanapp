@@ -165,6 +165,8 @@ class Endpoints {
   static const String settings = '/settings';
   static const String importCustomers = '/import/customers';
   static const String integrations = '/settings/integrations';
+  // Tenant app-lock policy (biometric / screen-lock unlock + timeout)
+  static const String settingsSecurity = '/settings/security';
   // Tenant colour theme (readable by every role, unlike /settings)
   static const String theme = '/theme';
   static const String routes = '/routes';
@@ -219,6 +221,8 @@ class Endpoints {
   static const String adminBranchCapacity = '/admin/branches/capacity';
   static const String adminBilling = '/admin/billing';
   static const String adminAffiliates = '/admin/affiliates';
+  /// The signed-in owner's own referral dashboard (adminAffiliates is developer-only).
+  static const String affiliateMe = '/affiliate/me';
   static const String adminRequests = '/admin/requests';
 
   // Premium Accounting

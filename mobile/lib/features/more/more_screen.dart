@@ -51,7 +51,7 @@ class _ModuleItem {
 }
 
 // Unified with brand theme color: single primary color palette across features.
-final _allModules = <_ModuleItem>[
+List<_ModuleItem> get _allModules => <_ModuleItem>[
   _ModuleItem(
     icon: Icons.people_outline,
     label: 'Customers',
@@ -409,8 +409,8 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            style: TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.9,
@@ -649,8 +649,13 @@ class _ModuleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = isLocked ? AppColors.warning : item.color;
-    final effectiveBg = isLocked ? AppColors.warningBg : item.bgColor;
+    final baseColor = isLocked ? AppColors.warning : item.color;
+    final effectiveColor = AppColors.isDark
+        ? AppColors.readableOnDark(baseColor)
+        : baseColor;
+    final effectiveBg = AppColors.isDark
+        ? Color.alphaBlend(effectiveColor.withAlpha(30), AppColors.surface)
+        : (isLocked ? AppColors.warningBg : item.bgColor);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 10),
@@ -719,10 +724,10 @@ class _ModuleTile extends StatelessWidget {
                     Flexible(
                       child: Text(
                         item.label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
+                          color: AppColors.textPrimary,
                           letterSpacing: -0.2,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -770,10 +775,10 @@ class _ModuleTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   item.subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w400,
-                    color: Color(0xFF64748B),
+                    color: AppColors.textSecondary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -829,16 +834,16 @@ class _ModuleTile extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: AppColors.rowHover,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: AppColors.border,
                   width: 1,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.chevron_right_rounded,
-                color: Color(0xFF94A3B8),
+                color: AppColors.textSecondary,
                 size: 18,
               ),
             ),

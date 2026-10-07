@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/auth/app_lock_observer.dart';
 import 'package:zolofund/core/notifications/notification_action_service.dart';
 import 'package:zolofund/core/router/app_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -42,9 +43,11 @@ class App extends ConsumerWidget {
           // are rebuilt (and re-resolve them) when dark mode is toggled.
           child: KeyedSubtree(
             key: ValueKey<bool>(darkMode),
-            child: _BackButtonGuard(
-              router: router,
-              child: child ?? const SizedBox.shrink(),
+            child: AppLockObserver(
+              child: _BackButtonGuard(
+                router: router,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

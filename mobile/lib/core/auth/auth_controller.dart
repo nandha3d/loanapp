@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -92,14 +93,20 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  /// True when the phone can show an unlock prompt: a fingerprint/face, or at
+  /// least a screen lock (PIN / pattern / password), which the prompt falls back
+  /// to. Requiring enrolled *biometrics* made the lock silently never apply on
+  /// phones that only have a screen lock.
   Future<bool> _canUseBiometrics() async {
     try {
-      return await _localAuth.isDeviceSupported() &&
-          await _localAuth.canCheckBiometrics;
+      return await _localAuth.isDeviceSupported();
     } on Object {
       return false;
     }
   }
+
+  /// For the Security settings screen: can this phone enforce the app lock?
+  Future<bool> canUseDeviceLock() => _canUseBiometrics();
 
   Future<void> login(String username, String password) async {
     state = state.copyWith(clearError: true);
@@ -291,7 +298,7 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<bool> unlockWithBiometrics() async {
     try {
-      final available = await _localAuth.canCheckBiometrics;
+      final available = await _canUseBiometrics();
       if (!available) {
         state = state.copyWith(stage: AuthStage.authenticated);
         return true;
@@ -304,6 +311,16 @@ class AuthController extends StateNotifier<AuthState> {
         state = state.copyWith(stage: AuthStage.authenticated);
       }
       return ok;
+    } on PlatformException catch (e) {
+      // The phone cannot show a prompt at all (screen lock removed since the
+      // lock was switched on): do not trap the user outside their own session.
+      if (const {'NotAvailable', 'NotEnrolled', 'PasscodeNotSet'}
+          .contains(e.code)) {
+        state = state.copyWith(stage: AuthStage.authenticated);
+        return true;
+      }
+      state = state.copyWith(error: _readable(e));
+      return false;
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
       return false;

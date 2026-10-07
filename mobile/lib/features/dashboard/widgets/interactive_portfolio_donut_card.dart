@@ -56,7 +56,8 @@ class _InteractivePortfolioDonutCardState
     final withOverdue = s.portfolioHealth.withOverdue;
     final totalHealthLoans = s.portfolioHealth.total;
 
-    final isWide = MediaQuery.sizeOf(context).width >= 620;
+    final isWide = MediaQuery.sizeOf(context).width >= 900 &&
+        MediaQuery.textScalerOf(context).scale(1) <= 1.2;
 
     final repaymentCard = _buildRepaymentStatusCard(
       paid: paid,
@@ -122,37 +123,37 @@ class _InteractivePortfolioDonutCardState
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.border.withAlpha(80)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Portfolio by Repayment Status',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
           if (total <= 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
                 child: Column(
                   children: [
                     Icon(
                       Icons.pie_chart_outline_rounded,
                       size: 36,
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.chartExpected,
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'No dues today',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -161,19 +162,23 @@ class _InteractivePortfolioDonutCardState
               ),
             )
           else
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Interactive Donut Chart with Center Text
                 SizedBox(
-                  width: 130,
-                  height: 130,
+                  width: 160,
+                  height: 160,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       PieChart(
                         PieChartData(
                           pieTouchData: PieTouchData(
-                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                            touchCallback:
+                                (FlTouchEvent event, pieTouchResponse) {
                               setState(() {
                                 if (!event.isInterestedForInteractions ||
                                     pieTouchResponse == null ||
@@ -187,12 +192,12 @@ class _InteractivePortfolioDonutCardState
                             },
                           ),
                           sectionsSpace: 3,
-                          centerSpaceRadius: 36,
+                          centerSpaceRadius: 46,
                           startDegreeOffset: -90,
                           sections: [
                             PieChartSectionData(
                               value: paid > 0 ? paid : 0.001,
-                              color: const Color(0xFF10B981),
+                              color: AppColors.chartSuccess,
                               radius: _touchedRepaymentIndex == 0 ? 25 : 18,
                               showTitle: false,
                             ),
@@ -204,48 +209,54 @@ class _InteractivePortfolioDonutCardState
                             ),
                             PieChartSectionData(
                               value: overdue > 0 ? overdue : 0.001,
-                              color: const Color(0xFFEF4444),
+                              color: AppColors.chartOverdue,
                               radius: _touchedRepaymentIndex == 2 ? 25 : 18,
                               showTitle: false,
                             ),
                           ],
                         ),
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            centerTop,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              height: 1.1,
-                            ),
+                      SizedBox(
+                        width: 88,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                centerTop,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                centerSub,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            centerSub,
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
                 // Right-side Legend
-                Expanded(
+                SizedBox(
+                  width: 260,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _LegendRow(
-                        color: const Color(0xFF10B981),
+                        color: AppColors.chartSuccess,
                         label: 'Paid',
                         value: _formatShort(paid),
                         percent: '$paidPct%',
@@ -261,7 +272,7 @@ class _InteractivePortfolioDonutCardState
                       ),
                       const SizedBox(height: 10),
                       _LegendRow(
-                        color: const Color(0xFFEF4444),
+                        color: AppColors.chartOverdue,
                         label: 'Overdue',
                         value: _formatShort(overdue),
                         percent: '$overduePct%',
@@ -303,12 +314,12 @@ class _InteractivePortfolioDonutCardState
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.border.withAlpha(80)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -316,38 +327,38 @@ class _InteractivePortfolioDonutCardState
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
+                  color: AppColors.textPrimary,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
                 'By loan status',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           if (total <= 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
                 child: Column(
                   children: [
                     Icon(
                       Icons.donut_large_rounded,
                       size: 36,
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.chartExpected,
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'No loans in portfolio',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -356,19 +367,23 @@ class _InteractivePortfolioDonutCardState
               ),
             )
           else
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Interactive Donut Chart with Center Text
                 SizedBox(
-                  width: 130,
-                  height: 130,
+                  width: 160,
+                  height: 160,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       PieChart(
                         PieChartData(
                           pieTouchData: PieTouchData(
-                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                            touchCallback:
+                                (FlTouchEvent event, pieTouchResponse) {
                               setState(() {
                                 if (!event.isInterestedForInteractions ||
                                     pieTouchResponse == null ||
@@ -382,12 +397,12 @@ class _InteractivePortfolioDonutCardState
                             },
                           ),
                           sectionsSpace: 3,
-                          centerSpaceRadius: 36,
+                          centerSpaceRadius: 46,
                           startDegreeOffset: -90,
                           sections: [
                             PieChartSectionData(
                               value: onTrack > 0 ? onTrack.toDouble() : 0.001,
-                              color: const Color(0xFF10B981),
+                              color: AppColors.chartSuccess,
                               radius: _touchedLoanIndex == 0 ? 25 : 18,
                               showTitle: false,
                             ),
@@ -395,48 +410,54 @@ class _InteractivePortfolioDonutCardState
                               value: withOverdue > 0
                                   ? withOverdue.toDouble()
                                   : 0.001,
-                              color: const Color(0xFFEF4444),
+                              color: AppColors.chartOverdue,
                               radius: _touchedLoanIndex == 1 ? 25 : 18,
                               showTitle: false,
                             ),
                           ],
                         ),
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            centerTop,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              height: 1.1,
-                            ),
+                      SizedBox(
+                        width: 88,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                centerTop,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                centerSub,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            centerSub,
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
                 // Right-side Legend
-                Expanded(
+                SizedBox(
+                  width: 260,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _LegendRow(
-                        color: const Color(0xFF10B981),
+                        color: AppColors.chartSuccess,
                         label: 'On Track',
                         value: '$onTrack',
                         percent: '$onTrackPct%',
@@ -444,7 +465,7 @@ class _InteractivePortfolioDonutCardState
                       ),
                       const SizedBox(height: 10),
                       _LegendRow(
-                        color: const Color(0xFFEF4444),
+                        color: AppColors.chartOverdue,
                         label: 'With Overdue',
                         value: '$withOverdue',
                         percent: '$withOverduePct%',
@@ -505,16 +526,19 @@ class _LegendRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
-                color: const Color(0xFF334155),
+                color: AppColors.textPrimary,
               ),
             ),
           ),
-          Text(
-            '$value ($percent)',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
+          Flexible(
+            child: Text(
+              '$value ($percent)',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],

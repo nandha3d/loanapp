@@ -14,14 +14,14 @@ class OverdueAgingCard extends StatelessWidget {
   final DashboardSummary summary;
   final NumberFormat fmt;
 
-  static const _bucketColors = [
-    Color(0xFF10B981),
-    Color(0xFFF59E0B),
-    Color(0xFFF97316),
-    Color(0xFFEF4444),
-    Color(0xFF991B1B),
-    Color(0xFF7F1D1D),
-  ];
+  static List<Color> get _bucketColors => [
+        AppColors.chartSuccess,
+        const Color(0xFFF59E0B),
+        const Color(0xFFF97316),
+        AppColors.chartOverdue,
+        AppColors.isDark ? const Color(0xFFFDA4AF) : const Color(0xFF991B1B),
+        AppColors.isDark ? const Color(0xFFC4B5FD) : const Color(0xFF7F1D1D),
+      ];
 
   List<({String label, double amount, Color color, int count})> _getBuckets() {
     if (summary.overdueAgeing.isEmpty) return const [];
@@ -54,7 +54,7 @@ class OverdueAgingCard extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -82,12 +82,14 @@ class OverdueAgingCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    'Overdue Aging: ${bucket.label}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
+                  Expanded(
+                    child: Text(
+                      'Overdue Aging: ${bucket.label}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -100,18 +102,19 @@ class OverdueAgingCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: bucket.color.withAlpha(60)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Wrap(
+                  spacing: 20,
+                  runSpacing: 16,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Delinquent Amount',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -128,21 +131,21 @@ class OverdueAgingCard extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text(
+                        Text(
                           'Total Share',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '$pct%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ],
@@ -153,18 +156,18 @@ class OverdueAgingCard extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline_rounded,
                     size: 16,
-                    color: Color(0xFF64748B),
+                    color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Impacts ${bucket.count} active accounts. Regular collection and reminder calls recommended.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -176,7 +179,7 @@ class OverdueAgingCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -211,36 +214,36 @@ class OverdueAgingCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
-        border: Border.all(color: AppColors.border.withAlpha(80)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Overdue Aging',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 18),
           if (buckets.isEmpty || totalOverdue <= 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.check_circle_outline_rounded,
                       size: 36,
                       color: AppColors.success,
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'No overdue instalments',
                       style: TextStyle(
-                        color: Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -251,73 +254,61 @@ class OverdueAgingCard extends StatelessWidget {
             )
           else
             ...buckets.map((b) {
-            final fillRatio = (b.amount / maxAmount).clamp(0.08, 1.0);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _showBucketDetail(context, b, totalOverdue),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      // Label (e.g. "0 – 7 days")
-                      SizedBox(
-                        width: 82,
-                        child: Text(
-                          b.label,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Progress bar meter
-                      Expanded(
-                        child: Stack(
+              final fillRatio = (b.amount / maxAmount).clamp(0.08, 1.0);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _showBucketDetail(context, b, totalOverdue),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Container(
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: AppColors.rowHover,
-                                borderRadius: BorderRadius.circular(4),
+                            // Label (e.g. "0 – 7 days")
+                            Expanded(
+                              child: Text(
+                                b.label,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ),
-                            FractionallySizedBox(
-                              widthFactor: fillRatio,
-                              child: Container(
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: b.color,
-                                  borderRadius: BorderRadius.circular(4),
+                            const SizedBox(width: 8),
+                            // Amount
+                            Flexible(
+                              child: Text(
+                                fmt.format(b.amount),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
                                 ),
+                                textAlign: TextAlign.right,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      // Amount
-                      SizedBox(
-                        width: 78,
-                        child: Text(
-                          fmt.format(b.amount),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: fillRatio,
+                            minHeight: 16,
+                            color: b.color,
+                            backgroundColor: AppColors.chartGrid,
                           ),
-                          textAlign: TextAlign.right,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
         ],
       ),
     );

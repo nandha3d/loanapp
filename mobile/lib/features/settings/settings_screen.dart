@@ -15,7 +15,6 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/route_model.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
-import 'package:zolofund/features/settings/customer_import_screen.dart';
 import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/shared/widgets/app_card.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
@@ -175,7 +174,7 @@ class SettingsScreen extends ConsumerWidget {
                           child: Text(
                             apiUrl ?? 'Default',
                             style: AppTypography.caption.copyWith(
-                              color: AppColors.primary,
+                              color: AppColors.accent,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -445,40 +444,6 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                   Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.folder_open_outlined,
-                      color: AppColors.primary,
-                    ),
-                    title:
-                        Text('Loan Packages', style: AppTypography.bodyLarge),
-                    subtitle: Text(
-                      'Configure product interest rates and terms',
-                      style: AppTypography.caption,
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/packages'),
-                  ),
-                  if (user?.appType == AppType.microlending) ...[
-                    Divider(height: 1, color: AppColors.border),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.upload_file_outlined),
-                      title: Text(t.x('set.import_customers')),
-                      subtitle: Text(t.x('set.import_instructions')),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const CustomerImportScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
-                  Divider(height: 1, color: AppColors.border),
                   () {
                     final isBureauSubscribed =
                         user?.isAddonSubscribed('bureau') == true;
@@ -688,11 +653,11 @@ class SettingsScreen extends ConsumerWidget {
                       color: AppColors.primary,
                     ),
                     title: Text(
-                      'Security & Inactivity Locks',
+                      t.x('sec.title'),
                       style: AppTypography.bodyLarge,
                     ),
                     subtitle: Text(
-                      'Configure biometric authentication and session timeout',
+                      t.x('sec.subtitle'),
                       style: AppTypography.caption,
                     ),
                     trailing: Icon(
@@ -702,27 +667,31 @@ class SettingsScreen extends ConsumerWidget {
                     onTap: () => context.push('/settings/security'),
                   ),
                   Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.branding_watermark_outlined,
-                      color: AppColors.primary,
+                  // The business owner's call (colour, receipt PDFs), not an admin's.
+                  if (user?.role == UserRole.superadmin ||
+                      user?.role == UserRole.developer) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.palette_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        t.x('brand.title'),
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        t.x('brand.subtitle'),
+                        style: AppTypography.caption,
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/settings/branding'),
                     ),
-                    title: Text(
-                      'Branding & Doc Configuration',
-                      style: AppTypography.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      'Configure branding, document prefixes, and counters',
-                      style: AppTypography.caption,
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/branding'),
-                  ),
-                  Divider(height: 1, color: AppColors.border),
+                    Divider(height: 1, color: AppColors.border),
+                  ],
                 ],
                 if (user?.role == UserRole.developer) ...[
                   ListTile(
@@ -1755,8 +1724,6 @@ class _PrefSwitchRow extends StatelessWidget {
             ),
             Switch.adaptive(
               value: value,
-              // ignore: deprecated_member_use
-              activeColor: AppColors.primary,
               onChanged: onChanged,
             ),
           ],
@@ -1779,7 +1746,7 @@ class _LangTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.primaryLight : AppColors.surface,
+      color: selected ? AppColors.accentSoft : AppColors.surface,
       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1790,7 +1757,7 @@ class _LangTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppTokens.radiusSm),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.border,
+              color: selected ? AppColors.accent : AppColors.border,
             ),
           ),
           child: Row(
@@ -1817,7 +1784,7 @@ class _LangTile extends StatelessWidget {
               if (selected)
                 Icon(
                   Icons.check_circle_rounded,
-                  color: AppColors.primary,
+                  color: AppColors.accent,
                   size: 20,
                 ),
             ],

@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -96,7 +96,8 @@ class AppTheme {
         elevation: 0,
         toolbarHeight: AppTokens.topbarHeight,
         scrolledUnderElevation: 0,
-        titleTextStyle: AppTypography.sectionTitle,
+        titleTextStyle: AppTypography.sectionTitle
+            .copyWith(color: AppColors.lightTextPrimary),
         iconTheme: const IconThemeData(color: AppColors.lightTextPrimary),
         shape: const Border(
           bottom: BorderSide(color: AppColors.lightBorder, width: 1),
@@ -127,36 +128,51 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
           borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
-        labelStyle: AppTypography.label,
+        labelStyle:
+            AppTypography.label.copyWith(color: AppColors.lightTextPrimary),
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.lightBorder,
         thickness: 1,
         space: 1,
       ),
-      iconTheme: const IconThemeData(color: AppColors.lightTextSecondary, size: 20),
+      iconTheme:
+          const IconThemeData(color: AppColors.lightTextSecondary, size: 20),
     );
   }
 
   static ThemeData dark() {
     final base = ThemeData.dark(useMaterial3: true);
+    final accent = AppColors.readableOnDark(AppColors.primary);
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.ink,
       colorScheme: ColorScheme.dark(
-        primary: AppColors.primary,
-        onPrimary: AppColors.onPrimary,
-        secondary: AppColors.primaryDark,
+        primary: accent,
+        onPrimary: AppColors.ink,
+        secondary: accent,
+        onSecondary: AppColors.ink,
+        primaryContainer:
+            Color.alphaBlend(accent.withAlpha(30), AppColors.inkElevated),
+        onPrimaryContainer: accent,
         surface: AppColors.inkElevated,
         onSurface: AppColors.onInk,
-        error: AppColors.danger,
-        onError: AppColors.onPrimary,
+        onSurfaceVariant: AppColors.onInkMuted,
+        surfaceContainerLowest: AppColors.ink,
+        surfaceContainerLow: AppColors.inkElevated,
+        surfaceContainer: AppColors.darkRowHover,
+        surfaceContainerHigh: AppColors.darkRowHover,
+        surfaceContainerHighest: const Color(0xFF343D4D),
+        outline: AppColors.darkTextLight,
+        outlineVariant: AppColors.chartGrid,
+        error: const Color(0xFFFFB4AB),
+        onError: AppColors.ink,
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.inkElevated,
         selectedColor: AppColors.primary,
         checkmarkColor: AppColors.onPrimary,
-        side: BorderSide(color: AppColors.primary, width: 1.2),
-        labelStyle: TextStyle(
+        side: BorderSide(color: accent, width: 1.2),
+        labelStyle: const TextStyle(
           color: AppColors.onInk,
           fontWeight: FontWeight.w600,
         ),
@@ -170,8 +186,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: BorderSide(color: AppColors.primary, width: 1.2),
+          foregroundColor: accent,
+          side: BorderSide(color: accent, width: 1.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTokens.radiusSm),
           ),
@@ -198,7 +214,7 @@ class AppTheme {
             return AppColors.onInk;
           }),
           side: WidgetStateProperty.resolveWith<BorderSide>((states) {
-            return BorderSide(color: AppColors.primary, width: 1.2);
+            return BorderSide(color: accent, width: 1.2);
           }),
           textStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
             if (states.contains(WidgetState.selected)) {
@@ -208,7 +224,7 @@ class AppTheme {
           }),
         ),
       ),
-      textTheme: Platform.environment.containsKey('FLUTTER_TEST')
+      textTheme: (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'))
           ? base.textTheme.apply(
               bodyColor: AppColors.onInk,
               displayColor: AppColors.onInk,
@@ -254,9 +270,18 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: accent, width: 1.5),
         ),
         labelStyle: AppTypography.label.copyWith(color: AppColors.onInkMuted),
+        hintStyle: const TextStyle(color: AppColors.darkTextLight),
+        helperStyle: const TextStyle(color: AppColors.onInkMuted),
+        prefixIconColor: AppColors.onInkMuted,
+        suffixIconColor: AppColors.onInkMuted,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: accent,
+        selectionColor: accent.withAlpha(70),
+        selectionHandleColor: accent,
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.inkBorder,

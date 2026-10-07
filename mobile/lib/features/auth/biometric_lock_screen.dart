@@ -8,7 +8,11 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 
 class BiometricLockScreen extends ConsumerStatefulWidget {
-  const BiometricLockScreen({super.key});
+  const BiometricLockScreen({super.key, this.onUnlocked});
+
+  /// Called after a successful unlock. Set when the screen is shown as an
+  /// in-session overlay (see AppLockObserver) rather than as the /lock route.
+  final VoidCallback? onUnlocked;
 
   @override
   ConsumerState<BiometricLockScreen> createState() =>
@@ -23,7 +27,9 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
   }
 
   Future<void> _tryUnlock() async {
-    await ref.read(authControllerProvider.notifier).unlockWithBiometrics();
+    final ok =
+        await ref.read(authControllerProvider.notifier).unlockWithBiometrics();
+    if (ok && mounted) widget.onUnlocked?.call();
   }
 
   @override

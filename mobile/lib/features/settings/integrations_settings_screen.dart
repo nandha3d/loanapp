@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/settings_service.dart';
@@ -121,7 +122,7 @@ class _IntegrationsSettingsScreenState
       _digioSecretSet = kyc['clientSecretSet'] == true;
       _digioWebhookSet = kyc['webhookSecretSet'] == true;
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.message : e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -147,7 +148,7 @@ class _IntegrationsSettingsScreenState
       await _load();
       _snack('Integration settings saved');
     } catch (e) {
-      _snack(e.toString(), error: true);
+      _snack(e is ApiException ? e.message : e.toString(), error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }

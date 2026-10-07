@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/data/models/analytics.dart';
 import 'package:zolofund/data/services/analytics_service.dart';
 
@@ -55,7 +56,8 @@ class _DailyCollectionHeatMapCardState
     } else if (expected <= 0 && collected <= 0) {
       statusColor = const Color(0xFF64748B);
       statusTitle = 'No Collections Recorded';
-      statusDesc = 'No collection schedule or transactions recorded for this day.';
+      statusDesc =
+          'No collection schedule or transactions recorded for this day.';
     } else if (pct >= 80) {
       statusColor = const Color(0xFF22C55E);
       statusTitle = 'High Collection Day';
@@ -152,15 +154,13 @@ class _DailyCollectionHeatMapCardState
                           const Text(
                             'Target Expected',
                             style: TextStyle(
-                              color: Color(0xFF71717A),
+                              color: AppColors.onInkMuted,
                               fontSize: 11,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            expected <= 0
-                                ? '₹0'
-                                : fmt.format(expected),
+                            expected <= 0 ? '₹0' : fmt.format(expected),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -175,7 +175,7 @@ class _DailyCollectionHeatMapCardState
                           const Text(
                             'Collection Rate',
                             style: TextStyle(
-                              color: Color(0xFF71717A),
+                              color: AppColors.onInkMuted,
                               fontSize: 11,
                             ),
                           ),
@@ -272,13 +272,22 @@ class _DailyCollectionHeatMapCardState
             const SizedBox(height: 18),
             Text(
               'Collection heat map temporarily unavailable',
-              style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 13),
+              style:
+                  TextStyle(color: Colors.white.withAlpha(160), fontSize: 13),
             ),
             const SizedBox(height: 10),
             TextButton.icon(
-              onPressed: () => ref.invalidate(dailyCollectionHeatMapPointsProvider),
-              icon: const Icon(Icons.refresh, size: 16, color: Color(0xFFA855F7)),
-              label: const Text('Retry', style: TextStyle(color: Color(0xFFA855F7))),
+              onPressed: () =>
+                  ref.invalidate(dailyCollectionHeatMapPointsProvider),
+              icon: const Icon(
+                Icons.refresh,
+                size: 16,
+                color: Color(0xFFA855F7),
+              ),
+              label: const Text(
+                'Retry',
+                style: TextStyle(color: Color(0xFFA855F7)),
+              ),
             ),
           ],
         ),
@@ -322,8 +331,10 @@ class _DailyCollectionHeatMapCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Text(
                 'Overall Collection Heat Map',
@@ -379,7 +390,7 @@ class _DailyCollectionHeatMapCardState
             'Tap any day tile to view exact collection breakdown',
             style: TextStyle(
               fontSize: 11,
-              color: Color(0xFF71717A),
+              color: AppColors.onInkMuted,
             ),
           ),
           const SizedBox(height: 18),
@@ -396,7 +407,9 @@ class _DailyCollectionHeatMapCardState
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFFDE047), // Vibrant yellow from image
+                        color: Color(
+                          0xFFFDE047,
+                        ), // Vibrant yellow from image
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -481,6 +494,7 @@ class _DailyCollectionHeatMapCardState
                     return Expanded(
                       child: Center(
                         child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () {
                             _showDayPopup(
                               context: context,
@@ -495,8 +509,8 @@ class _DailyCollectionHeatMapCardState
                           },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
-                            width: 22,
-                            height: 22,
+                            width: 28,
+                            height: 40,
                             decoration: BoxDecoration(
                               color: boxColor,
                               borderRadius: BorderRadius.circular(4),
@@ -511,16 +525,17 @@ class _DailyCollectionHeatMapCardState
                                   : null,
                             ),
                             alignment: Alignment.center,
-                            child: isSunday || isFuture || (exp <= 0 && col <= 0)
-                                ? const Text(
-                                    '-',
-                                    style: TextStyle(
-                                      color: Color(0xFF71717A),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  )
-                                : null,
+                            child:
+                                isSunday || isFuture || (exp <= 0 && col <= 0)
+                                    ? const Text(
+                                        '-',
+                                        style: TextStyle(
+                                          color: AppColors.onInkMuted,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      )
+                                    : null,
                           ),
                         ),
                       ),
@@ -533,12 +548,13 @@ class _DailyCollectionHeatMapCardState
 
           const SizedBox(height: 8),
           // Heat Map Scale Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            alignment: WrapAlignment.end,
+            runSpacing: 8,
             children: [
               const Text(
                 'Low',
-                style: TextStyle(fontSize: 10, color: Color(0xFF71717A)),
+                style: TextStyle(fontSize: 10, color: AppColors.onInkMuted),
               ),
               const SizedBox(width: 5),
               _scaleDot(const Color(0xFFF43F5E)),
@@ -549,12 +565,12 @@ class _DailyCollectionHeatMapCardState
               const SizedBox(width: 5),
               const Text(
                 'High',
-                style: TextStyle(fontSize: 10, color: Color(0xFF71717A)),
+                style: TextStyle(fontSize: 10, color: AppColors.onInkMuted),
               ),
               const SizedBox(width: 12),
               const Text(
                 '- Off',
-                style: TextStyle(fontSize: 10, color: Color(0xFF71717A)),
+                style: TextStyle(fontSize: 10, color: AppColors.onInkMuted),
               ),
             ],
           ),

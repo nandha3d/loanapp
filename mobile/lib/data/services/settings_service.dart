@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/analytics.dart';
 import 'package:zolofund/data/models/route_model.dart';
@@ -224,19 +225,79 @@ class SettingsService {
     unwrapEnvelope(res, (_) => null);
   }
 
+  /// Tenant app-lock policy: `{ biometricLockRequired, timeoutMinutes,
+  /// timeoutOptions, canEdit }`. Only the account owner may save it.
+  Future<Map<String, dynamic>> security() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.settingsSecurity);
+      return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> saveSecurity({
+    bool? biometricLockRequired,
+    int? timeoutMinutes,
+  }) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        Endpoints.settingsSecurity,
+        data: {
+          if (biometricLockRequired != null)
+            'biometricLockRequired': biometricLockRequired,
+          if (timeoutMinutes != null) 'timeoutMinutes': timeoutMinutes,
+        },
+      );
+      return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Tenant colour theme plus the presets the owner can choose from.
+  Future<Map<String, dynamic>> theme() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.theme);
+      return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  Future<void> applyTheme(String preset) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        Endpoints.theme,
+        data: {'preset': preset},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   Future<Map<String, dynamic>> integrations() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.integrations);
-    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.integrations);
+      return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      // The server's own message, not Dio's "validateStatus" paragraph.
+      throw ApiException.fromDio(e);
+    }
   }
 
   Future<Map<String, dynamic>> saveIntegrations(
     Map<String, dynamic> patch,
   ) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.integrations,
-      data: patch,
-    );
-    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        Endpoints.integrations,
+        data: patch,
+      );
+      return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
   }
 }
 

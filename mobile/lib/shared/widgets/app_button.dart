@@ -39,7 +39,7 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.primary => AppColors.onPrimary,
       AppButtonVariant.secondary => AppColors.textPrimary,
       AppButtonVariant.danger => AppColors.onPrimary,
-      AppButtonVariant.ghost => AppColors.primaryDark,
+      AppButtonVariant.ghost => AppColors.accent,
     };
     final hasBorder = variant == AppButtonVariant.secondary;
     final padding = size == AppButtonSize.small

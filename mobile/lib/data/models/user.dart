@@ -94,6 +94,7 @@ class User {
     this.branchId,
     this.tenantSlug,
     this.biometricLockRequired = false,
+    this.appLockTimeoutMinutes = 1,
     this.gpsTrackingEnabled = false,
     this.npaEnabled = false,
     this.kycEnabled = false,
@@ -140,6 +141,10 @@ class User {
   /// Tenant security policy (Settings → Security): only when true does the
   /// app gate a stored session behind the biometric lock screen.
   final bool biometricLockRequired;
+
+  /// Minutes the app may be backgrounded/idle before it asks to unlock again
+  /// (server decides; 0 = every time the app is left).
+  final int appLockTimeoutMinutes;
 
   /// Whether the tenant subscribed to GPS tracking add-on.
   final bool gpsTrackingEnabled;
@@ -207,6 +212,7 @@ class User {
     List<String>? enabledModules,
     String? tenantSlug,
     bool? biometricLockRequired,
+    int? appLockTimeoutMinutes,
     bool? gpsTrackingEnabled,
     bool? npaEnabled,
     bool? kycEnabled,
@@ -239,6 +245,8 @@ class User {
       tenantSlug: tenantSlug ?? this.tenantSlug,
       biometricLockRequired:
           biometricLockRequired ?? this.biometricLockRequired,
+      appLockTimeoutMinutes:
+          appLockTimeoutMinutes ?? this.appLockTimeoutMinutes,
       gpsTrackingEnabled: gpsTrackingEnabled ?? this.gpsTrackingEnabled,
       npaEnabled: npaEnabled ?? this.npaEnabled,
       kycEnabled: kycEnabled ?? this.kycEnabled,
@@ -279,6 +287,7 @@ class User {
               .toList(growable: false),
       tenantSlug: json['tenantSlug'] as String?,
       biometricLockRequired: (json['biometricLockRequired'] as bool?) ?? false,
+      appLockTimeoutMinutes: (json['appLockTimeoutMinutes'] as num?)?.toInt() ?? 1,
       gpsTrackingEnabled: (json['gpsTrackingEnabled'] as bool?) ?? false,
       npaEnabled: (json['npaEnabled'] as bool?) ?? false,
       kycEnabled: (json['kycEnabled'] as bool?) ?? false,
@@ -313,6 +322,7 @@ class User {
         'verticals': verticals,
         'tenantSlug': tenantSlug,
         'biometricLockRequired': biometricLockRequired,
+        'appLockTimeoutMinutes': appLockTimeoutMinutes,
         'gpsTrackingEnabled': gpsTrackingEnabled,
         'npaEnabled': npaEnabled,
         'kycEnabled': kycEnabled,
