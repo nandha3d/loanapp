@@ -3,12 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { ShieldCheck, Mail, Phone, LogIn, UserPlus } from 'lucide-react';
+import { usePortalUrls } from '@/lib/portalUrl';
 
 interface FooterProps {
   onOpenDemo: () => void;
 }
 
 export default function Footer({ onOpenDemo }: FooterProps) {
+  const portalUrls = usePortalUrls();
   return (
     <footer
       style={{
@@ -85,11 +87,11 @@ export default function Footer({ onOpenDemo }: FooterProps) {
               PORTAL ACCESS
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
-              <Link href="/login" style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
+              <Link href={portalUrls.login} style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
                 <LogIn size={14} />
                 <span>Login to Staff Portal</span>
               </Link>
-              <Link href="/register" style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
+              <Link href={portalUrls.register} style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
                 <UserPlus size={14} />
                 <span>Register New Company</span>
               </Link>
@@ -168,8 +170,8 @@ export default function Footer({ onOpenDemo }: FooterProps) {
             © {new Date().getFullYear()} Zolo Funds (India) Technologies Private Limited. All rights reserved.
           </div>
           <div style={{ display: 'flex', gap: '18px' }}>
-            <Link href="/login" style={{ color: 'inherit' }}>Portal Login</Link>
-            <Link href="/register" style={{ color: 'inherit' }}>Sign Up</Link>
+            <Link href={portalUrls.login} style={{ color: 'inherit' }}>Portal Login</Link>
+            <Link href={portalUrls.register} style={{ color: 'inherit' }}>Sign Up</Link>
             <a href="#pricing" style={{ color: 'inherit' }}>Pricing</a>
             <a href="#faq" style={{ color: 'inherit' }}>RBI Guidelines</a>
           </div>

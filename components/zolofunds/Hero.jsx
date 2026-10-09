@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck, MapPin, CheckCircle2, TrendingUp, Smartphone, Users, Zap, Wifi, Bell, BarChart3, LogIn, UserPlus } from 'lucide-react';
+import { usePortalUrls } from '@/lib/portalUrl';
 
 /* ─── Animated Counter Hook ─── */
 function useCounter(target, duration = 2000, startOnView = true) {
@@ -40,6 +41,7 @@ function useCounter(target, duration = 2000, startOnView = true) {
 }
 
 export default function Hero({ onOpenDemo }) {
+  const portalUrls = usePortalUrls();
   const [visibleCards, setVisibleCards] = useState([]);
   const [gpsPulse, setGpsPulse] = useState(false);
   const heroRef = useRef(null);
@@ -163,7 +165,7 @@ export default function Hero({ onOpenDemo }) {
               </button>
 
               <Link
-                href="/register"
+                href={portalUrls.register}
                 className="btn btn-accent"
                 style={{ padding: '14px 26px', fontSize: '1rem', gap: '8px' }}
               >
@@ -172,7 +174,7 @@ export default function Hero({ onOpenDemo }) {
               </Link>
 
               <Link
-                href="/login"
+                href={portalUrls.login}
                 className="btn btn-secondary"
                 style={{ padding: '14px 22px', fontSize: '1rem', gap: '8px' }}
               >

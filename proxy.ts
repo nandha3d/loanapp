@@ -292,7 +292,39 @@ function nextWithTenantHeaders(
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const tenantSlug = extractTenantSlugFromHost(request.headers.get('host'));
+  const host =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host ||
+    '';
+  const hostname = normalizeHost(host) || '';
+  const tenantSlug = extractTenantSlugFromHost(host);
+
+  // Marketing domain routing: zolofunds.com / www.zolofunds.com
+  const isMarketingDomain = hostname === 'zolofunds.com' || hostname === 'www.zolofunds.com';
+  if (isMarketingDomain) {
+    if (pathname === '/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/zolofunds';
+      return NextResponse.rewrite(url, {
+        request: { headers: request.headers }
+      });
+    }
+    if (pathname === '/login') {
+      const target = new URL('https://app.zolofunds.com/login');
+      const callbackUrl = request.nextUrl.searchParams.get('callbackUrl');
+      if (callbackUrl) target.searchParams.set('callbackUrl', callbackUrl);
+      return NextResponse.redirect(target);
+    }
+    if (pathname === '/register') {
+      const target = new URL('https://app.zolofunds.com/register');
+      request.nextUrl.searchParams.forEach((val, key) => target.searchParams.set(key, val));
+      return NextResponse.redirect(target);
+    }
+    if (pathname === '/portal') {
+      return NextResponse.redirect(new URL('https://app.zolofunds.com/portal'));
+    }
+  }
 
   // 0. CORS for the mobile API (/api/v1/*). Cross-origin browsers (e.g.
   //    `flutter run -d chrome`) need these headers + a preflight responder;

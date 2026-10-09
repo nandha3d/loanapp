@@ -50,4 +50,24 @@ assert.equal(
   '/portal?x=1',
 );
 
-console.log('proxy public path tests passed');
+async function runAsyncTests() {
+  const { NextRequest } = await import('next/server');
+  const { proxy } = await import('../proxy');
+
+  const zoloLoginReq = new NextRequest('http://zolofunds.com/login');
+  const zoloLoginRes = await proxy(zoloLoginReq);
+  assert.equal(zoloLoginRes.status, 307);
+  assert.equal(zoloLoginRes.headers.get('location'), 'https://app.zolofunds.com/login');
+
+  const zoloRegisterReq = new NextRequest('http://zolofunds.com/register');
+  const zoloRegisterRes = await proxy(zoloRegisterReq);
+  assert.equal(zoloRegisterRes.status, 307);
+  assert.equal(zoloRegisterRes.headers.get('location'), 'https://app.zolofunds.com/register');
+
+  console.log('proxy public path tests passed');
+}
+
+runAsyncTests().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

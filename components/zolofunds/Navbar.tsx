@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, ArrowRight, LogIn, UserPlus } from 'lucide-react';
+import { usePortalUrls } from '@/lib/portalUrl';
 
 interface NavbarProps {
   onOpenDemo: () => void;
@@ -11,6 +12,7 @@ interface NavbarProps {
 export default function Navbar({ onOpenDemo }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const portalUrls = usePortalUrls();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -67,7 +69,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Login to Portal Button */}
           <Link
-            href="/login"
+            href={portalUrls.login}
             className="btn btn-secondary"
             id="nav-login-btn"
             style={{
@@ -85,7 +87,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
 
           {/* Register New Account Button */}
           <Link
-            href="/register"
+            href={portalUrls.register}
             className="btn btn-accent"
             id="nav-register-btn"
             style={{
@@ -162,7 +164,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
           {/* Mobile Portal Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
             <Link
-              href="/login"
+              href={portalUrls.login}
               onClick={() => setMobileMenuOpen(false)}
               className="btn btn-secondary"
               id="mobile-nav-login-btn"
@@ -173,7 +175,7 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
             </Link>
 
             <Link
-              href="/register"
+              href={portalUrls.register}
               onClick={() => setMobileMenuOpen(false)}
               className="btn btn-accent"
               id="mobile-nav-register-btn"

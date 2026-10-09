@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import { Coins, Menu, Close, Arrow } from './icons';
+import { usePortalUrls } from '@/lib/portalUrl';
 
 const NAV = [
   { href: '/home', label: 'Home' },
@@ -18,6 +19,7 @@ const NAV = [
 export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const portalUrls = usePortalUrls();
 
   return (
     <header className="mk-nav">
@@ -40,7 +42,7 @@ export default function Navbar() {
         </nav>
 
         <div className="mk-nav__cta">
-          <Link href="/login" className="mk-btn mk-btn--ghost">Sign In</Link>
+          <Link href={portalUrls.login} className="mk-btn mk-btn--ghost">Sign In</Link>
           <Link href="/contact" className="mk-btn mk-btn--primary">
             Request a Demo <Arrow />
           </Link>
