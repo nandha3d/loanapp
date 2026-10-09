@@ -115,22 +115,11 @@ jobs:
             done
 
             # Ensure SMTP credentials in .env are set for official MilesWeb mailer
-            if [ -f "$APP_DIR/.env" ] && ! grep -q "noreply@zolofunds.com" "$APP_DIR/.env"; then
-              echo "Configuring MilesWeb SMTP in $APP_DIR/.env..."
-              sed -i '/^SMTP_/d' "$APP_DIR/.env"
-              cat << 'EOF' >> "$APP_DIR/.env"
-
-# Official Zolo Funds Mailbox (MilesWeb). Port 465 = implicit SSL/TLS.
-SMTP_HOST="mail.zolofunds.com"
-SMTP_PORT="465"
-SMTP_USER="noreply@zolofunds.com"
-SMTP_PASS="Animazon@Erode11"
-SMTP_FROM="noreply@zolofunds.com"
-SMTP_FROM_NAME="Zolo Funds"
-SMTP_SECURE="true"
-SMTP_TLS_REJECT_UNAUTHORIZED="false"
-EOF
-              echo "VPS .env updated with MilesWeb SMTP credentials."
+            if [ -f \$APP_DIR/.env ] && ! grep -q 'noreply@zolofunds.com' \$APP_DIR/.env; then
+              echo 'Configuring MilesWeb SMTP in .env...'
+              sed -i '/^SMTP_/d' \$APP_DIR/.env
+              printf '%s\n' 'SMTP_HOST="mail.zolofunds.com"' 'SMTP_PORT="465"' 'SMTP_USER="noreply@zolofunds.com"' 'SMTP_PASS="Animazon@Erode11"' 'SMTP_FROM="noreply@zolofunds.com"' 'SMTP_FROM_NAME="Zolo Funds"' 'SMTP_SECURE="true"' 'SMTP_TLS_REJECT_UNAUTHORIZED="false"' >> \$APP_DIR/.env
+              echo 'VPS .env updated with MilesWeb SMTP credentials.'
             fi
 
             rm -f /tmp/deploy.log /tmp/deploy.status

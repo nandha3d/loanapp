@@ -61,18 +61,15 @@ jobs:
             sed -i '/^SMTP_/d' .env
 
             # Append the official MilesWeb SMTP settings
-            cat << 'EOF' >> .env
-
-# Official Zolo Funds Mailbox (MilesWeb). Port 465 = implicit SSL/TLS.
-SMTP_HOST="mail.zolofunds.com"
-SMTP_PORT="465"
-SMTP_USER="noreply@zolofunds.com"
-SMTP_PASS="Animazon@Erode11"
-SMTP_FROM="noreply@zolofunds.com"
-SMTP_FROM_NAME="Zolo Funds"
-SMTP_SECURE="true"
-SMTP_TLS_REJECT_UNAUTHORIZED="false"
-EOF
+            printf '%s\n' \
+              'SMTP_HOST="mail.zolofunds.com"' \
+              'SMTP_PORT="465"' \
+              'SMTP_USER="noreply@zolofunds.com"' \
+              'SMTP_PASS="Animazon@Erode11"' \
+              'SMTP_FROM="noreply@zolofunds.com"' \
+              'SMTP_FROM_NAME="Zolo Funds"' \
+              'SMTP_SECURE="true"' \
+              'SMTP_TLS_REJECT_UNAUTHORIZED="false"' >> .env
 
             echo "Verified updated SMTP entries in .env:"
             grep '^SMTP_' .env | sed 's/SMTP_PASS=.*/SMTP_PASS=******/'
