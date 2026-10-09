@@ -1,3 +1,6 @@
+/**
+ * Announcement Service - Handles global ticker, 75% popup modals, full-page takeovers, and targeted broadcasts.
+ */
 import prisma from '@/lib/db';
 import { notifyUser } from '@/lib/notify/userNotify';
 
