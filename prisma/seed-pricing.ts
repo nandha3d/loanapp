@@ -16,99 +16,94 @@ async function main() {
     {
       plan: 'free',
       displayName: 'Free',
-      description: 'Test out ZoloFund features for free',
+      description: 'Test out LoanTrack features for free',
       monthlyPrice: 0,
+      yearlyPrice: null,
       maxBranches: 1,
       maxAgents: 1,
       maxActiveLoans: 25,
+      trialDays: 0,
       features: JSON.stringify([
         'Single branch',
         '1 agent',
         '25 active loans',
-        'Basic reporting'
+        'Basic reporting & collection tracking',
+        'Mobile app access'
       ]),
+      includedFeatures: JSON.stringify([]),
       sortOrder: 0
-    },
-    {
-      // Collector — answers Vasool's ₹699 flat / unlimited-staff offer. Same
-      // headline price, unlimited agents, single vertical. Our free tier sits
-      // above it and voice/offline/bureau add-ons sit below.
-      plan: 'collector',
-      displayName: 'Collector',
-      description: 'Unlimited field agents for a single-product collection business',
-      monthlyPrice: 699,
-      maxBranches: 1,
-      maxAgents: 999,
-      maxActiveLoans: 500,
-      features: JSON.stringify([
-        'Unlimited agents',
-        'Single branch',
-        '500 active loans',
-        'Any one lending vertical',
-        'Voice entry & offline collection',
-        'GPS collection & receipts'
-      ]),
-      sortOrder: 1
     },
     {
       plan: 'basic',
       displayName: 'Basic',
       description: 'Essential tools for small lending businesses',
-      monthlyPrice: 999,
+      monthlyPrice: 799,
+      yearlyPrice: 7689,
       maxBranches: 2,
-      maxAgents: 15,
-      maxActiveLoans: 500,
+      maxAgents: 5,
+      maxActiveLoans: 200,
+      trialDays: 15,
       features: JSON.stringify([
         'Up to 2 branches',
-        'Up to 15 agents',
-        '500 active loans',
-        'Two lending verticals',
-        'Standard reporting',
-        'WhatsApp notifications',
-        'Basic accounting'
+        'Up to 5 agents',
+        'Up to 200 active loans',
+        '15-day free trial included',
+        'Aadhaar eKYC & Video KYC',
+        'Preclose & Early Settlement',
+        'Receipt PDF downloads & thermal printing',
+        'Standard collection reporting'
       ]),
-      sortOrder: 2
+      includedFeatures: JSON.stringify(['kyc', 'foreclosure', 'receipt_pdf']),
+      sortOrder: 1
     },
     {
       plan: 'business',
       displayName: 'Business',
       description: 'Advanced capabilities for growing operations',
-      monthlyPrice: 2999,
-      maxBranches: 6,
-      maxAgents: 60,
-      maxActiveLoans: 1500,
+      monthlyPrice: 1499,
+      yearlyPrice: 16489,
+      maxBranches: 5,
+      maxAgents: 25,
+      maxActiveLoans: 1000,
+      trialDays: 15,
       features: JSON.stringify([
-        'Up to 6 branches',
-        'Up to 60 agents',
-        '1500 active loans',
-        'All lending verticals',
-        'Premium accounting & KYC',
-        'Advanced reporting',
-        'Priority support',
-        'Custom branding'
+        'Up to 5 branches',
+        'Up to 25 agents',
+        'Up to 1,000 active loans',
+        '15-day free trial included',
+        'Everything in Basic, plus:',
+        'WhatsApp & SMS alerts',
+        'GPS collection & route tracking',
+        'Multi-branch consolidation & analytics',
+        'Priority support'
       ]),
-      sortOrder: 3
+      includedFeatures: JSON.stringify(['kyc', 'foreclosure', 'receipt_pdf', 'whatsapp_sms', 'gps_tracking']),
+      sortOrder: 2
     },
     {
       plan: 'enterprise',
       displayName: 'Enterprise',
       description: 'Unlimited access for large-scale financial institutions',
-      monthlyPrice: 7999,
-      trialDays: 15,
+      monthlyPrice: 2999,
+      yearlyPrice: 32989,
       maxBranches: 999,
-      maxAgents: 999,
+      maxAgents: 9999,
       maxActiveLoans: 999999,
+      trialDays: 15,
       features: JSON.stringify([
         'Unlimited branches',
-        'Unlimited agents',
-        'Unlimited loans',
-        'Credit bureau & NPA engine',
-        '24/7 Dedicated Support',
-        'Custom integrations',
-        'MFA enforcement',
-        'Dedicated server options'
+        'Up to 9,999 agents',
+        'Unlimited active loans',
+        '15-day free trial included',
+        'Everything in Business, plus:',
+        'Credit bureau integration (CIBIL / CRIF)',
+        'eNACH automated mandate collection',
+        'Premium double-entry accounting & GST',
+        'NPA classification engine',
+        'Dedicated 24/7 SLA support'
       ]),
-      sortOrder: 4
+      includedFeatures: JSON.stringify(['kyc', 'foreclosure', 'receipt_pdf', 'whatsapp_sms', 'gps_tracking', 'bureau', 'nach', 'premium_accounting', 'npa']),
+      sortOrder: 3
     }
   ];
 

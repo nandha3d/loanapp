@@ -1,83 +1,65 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Check, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { Check, ArrowRight, Sparkles } from 'lucide-react';
 import { useScrollAnimation } from './hooks/useScrollAnimation';
 
 export default function Pricing({ onOpenDemo }) {
   const sectionRef = useScrollAnimation();
+  const [isYearly, setIsYearly] = useState(false);
+
   /**
    * ─── AUTHORITATIVE PRICING CATALOG ──────────────────────────────────────────
-   * Source: loanapp/prisma/seed-pricing.ts + lib/plans.ts + subscription page
+   * Source of Truth: Developer Portal (`/admin/billing/pricing`)
+   * Table: SubscriptionPlanCatalog (Prisma)
    *
-   * Pricing model: Per-vertical subscription.
-   * - Customer picks ONE plan (Free → Enterprise).
-   * - Plan price applies per VERTICAL (lending module).
-   * - Each additional vertical costs the same plan price again.
-   * - Add-ons are billed separately on top.
-   * - Enterprise plan includes all add-ons free.
+   * 4 Customer Plans: Free, Basic, Business (Most Popular), Enterprise
+   * Add-ons are bundled into plans (lib/planFeatures.ts) with zero per-feature fees.
    * ─────────────────────────────────────────────────────────────────────────────
    */
-  const plans = [
+  const DEFAULT_PLANS = [
     {
       id: 'free',
       plan: 'free',
       name: 'Free',
-      price: '₹0',
-      period: 'forever',
-      description: 'Perfect for individuals — always free, no credit card required',
-      branches: '1 branch',
-      agents: '1 agent',
-      loans: '25 active loans',
+      monthlyPrice: 0,
+      yearlyPrice: null,
+      description: 'Test out LoanTrack features for free',
+      branchesVal: '1',
+      agentsVal: '1',
+      loansVal: '25',
+      trial: null,
       features: [
         'Single branch',
-        '1 agent',
+        '1 collection agent',
         '25 active loans',
-        'Basic reporting'
+        'Basic reporting & collection tracking',
+        'Field agent mobile app access'
       ],
       cta: 'Start Free',
-      popular: false
-    },
-    {
-      id: 'collector',
-      plan: 'collector',
-      name: 'Collector',
-      price: '₹699',
-      period: '/mo + GST',
-      description: 'Unlimited field agents for a single-product collection business',
-      branches: 'Single branch',
-      agents: 'Unlimited agents',
-      loans: '500 active loans',
-      features: [
-        'Unlimited agents',
-        'Single branch',
-        '500 active loans',
-        'Any one lending vertical',
-        'Voice entry & offline collection',
-        'GPS collection & receipts'
-      ],
-      cta: 'Choose Collector',
       popular: false
     },
     {
       id: 'basic',
       plan: 'basic',
       name: 'Basic',
-      price: '₹999',
-      period: '/mo + GST',
-      description: 'Small NBFC or personal lender — essential tools to get started',
-      branches: 'Up to 2 branches',
-      agents: 'Up to 15 agents',
-      loans: '500 active loans',
+      monthlyPrice: 799,
+      yearlyPrice: 7689,
+      description: 'Essential tools for small lending businesses',
+      branchesVal: '2',
+      agentsVal: '5',
+      loansVal: '200',
+      trial: '15-Day Free Trial',
       features: [
         'Up to 2 branches',
-        'Up to 15 agents',
-        '500 active loans',
-        'Two lending verticals',
-        'Standard reporting',
-        'WhatsApp notifications',
-        'Basic accounting'
+        'Up to 5 collection agents',
+        'Up to 200 active loans',
+        '15-day free trial included',
+        'Aadhaar eKYC & Video KYC',
+        'Preclose & Early Settlement',
+        'Receipt PDF downloads & thermal printing',
+        'Standard collection reporting'
       ],
       cta: 'Choose Basic',
       popular: false
@@ -86,21 +68,23 @@ export default function Pricing({ onOpenDemo }) {
       id: 'business',
       plan: 'business',
       name: 'Business',
-      price: '₹2,999',
-      period: '/mo + GST',
-      description: 'Growing microfinance operation with advanced capabilities',
-      branches: 'Up to 6 branches',
-      agents: 'Up to 60 agents',
-      loans: '1,500 active loans',
+      monthlyPrice: 1499,
+      yearlyPrice: 16489,
+      description: 'Advanced capabilities for growing operations',
+      branchesVal: '5',
+      agentsVal: '25',
+      loansVal: '1,000',
+      trial: '15-Day Free Trial',
       features: [
-        'Up to 6 branches',
-        'Up to 60 agents',
-        '1500 active loans',
-        'All lending verticals',
-        'Premium accounting & KYC',
-        'Advanced reporting',
-        'Priority support',
-        'Custom branding'
+        'Up to 5 branches',
+        'Up to 25 collection agents',
+        'Up to 1,000 active loans',
+        '15-day free trial included',
+        'Everything in Basic, plus:',
+        'WhatsApp & SMS alerts',
+        'GPS collection & route tracking',
+        'Multi-branch consolidation & analytics',
+        'Priority email & chat support'
       ],
       cta: 'Choose Business',
       popular: true
@@ -109,34 +93,69 @@ export default function Pricing({ onOpenDemo }) {
       id: 'enterprise',
       plan: 'enterprise',
       name: 'Enterprise',
-      price: '₹7,999',
-      period: '/mo + GST',
-      description: 'Unlimited scale for large-scale financial institutions & NBFCs',
-      branches: 'Unlimited branches',
-      agents: 'Unlimited agents',
-      loans: 'Unlimited loans',
+      monthlyPrice: 2999,
+      yearlyPrice: 32989,
+      description: 'Unlimited access for large-scale financial institutions',
+      branchesVal: 'Unlimited',
+      agentsVal: '9,999',
+      loansVal: 'Unlimited',
+      trial: '15-Day Free Trial',
       features: [
         'Unlimited branches',
-        'Unlimited agents',
-        'Unlimited loans',
-        'Credit bureau & NPA engine',
-        '24/7 Dedicated Support',
-        'Custom integrations',
-        'MFA enforcement',
-        'Dedicated server options'
+        'Up to 9,999 collection agents',
+        'Unlimited active loans',
+        '15-day free trial included',
+        'Everything in Business, plus:',
+        'Credit bureau integration (CIBIL / CRIF)',
+        'eNACH automated mandate collection',
+        'Premium double-entry accounting & GST',
+        'NPA classification engine',
+        'Dedicated 24/7 SLA support'
       ],
       cta: 'Talk to Sales',
-      popular: false,
-      trial: '15-Day Free Trial'
+      popular: false
     }
   ];
+
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
+
+  // Sync dynamically with Developer Portal live catalog
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/pricing', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted || !data?.success || !Array.isArray(data.plans) || data.plans.length === 0) return;
+        const catalogPlans = data.plans;
+        setPlans(
+          DEFAULT_PLANS.map((dp) => {
+            const found = catalogPlans.find((cp) => cp.plan === dp.plan);
+            if (!found) return dp;
+            return {
+              ...dp,
+              name: found.displayName || dp.name,
+              description: found.description || dp.description,
+              monthlyPrice: typeof found.monthlyPrice === 'number' ? found.monthlyPrice : dp.monthlyPrice,
+              yearlyPrice: typeof found.yearlyPrice === 'number' ? found.yearlyPrice : dp.yearlyPrice,
+              branchesVal: found.maxBranches === 999 ? 'Unlimited' : String(found.maxBranches),
+              agentsVal: found.maxAgents === 9999 || found.maxAgents === 999 ? 'Unlimited' : String(found.maxAgents),
+              loansVal: found.maxActiveLoans >= 999999 ? 'Unlimited' : found.maxActiveLoans.toLocaleString('en-IN'),
+              trial: found.trialDays > 0 ? `${found.trialDays}-Day Free Trial` : null,
+              features: Array.isArray(found.features) && found.features.length > 0 ? found.features : dp.features
+            };
+          })
+        );
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   /**
    * ─── VERTICAL MODULES ──────────────────────────────────────────────────────
    * Source: loanapp/lib/pricing.ts STANDARD_VERTICAL_BASES + seed-pricing.ts
-   *
-   * Verticals are NOT add-ons — they are the lending modules the customer
-   * picks. Plan price × number of verticals = vertical subscription cost.
+   * Verticals are lending modules. Plan price applies per enabled vertical.
    * ─────────────────────────────────────────────────────────────────────────────
    */
   const verticalModules = [
@@ -149,56 +168,61 @@ export default function Pricing({ onOpenDemo }) {
   ];
 
   /**
-   * ─── PREMIUM ADD-ONS ───────────────────────────────────────────────────────
-   * Source: loanapp/prisma/seed-pricing.ts (5 priced add-ons) +
-   *         loanapp/app/(dashboard)/[module]/subscription/page.tsx (8 total)
-   *
-   * The subscription dashboard shows 8 add-on capabilities. The 5 in the
-   * seed catalog have explicit monthly pricing. The remaining 3 (Receipt PDF,
-   * NPA Engine, Foreclosure) are toggled by the developer without separate
-   * monthly billing. All add-ons are included free on Enterprise plan.
+   * ─── BUNDLED PLATFORM CAPABILITIES ──────────────────────────────────────────
+   * Source: lib/planFeatures.ts + Developer Portal
+   * All capabilities are bundled into subscription tiers — zero hidden per-feature fees.
    * ─────────────────────────────────────────────────────────────────────────────
    */
-  const premiumAddons = [
-    {
-      name: 'WhatsApp & SMS Alerts',
-      price: '₹299/mo',
-      desc: 'Automated payment reminders, OTPs, and customer alerts via MSG91'
-    },
+  const platformFeatures = [
     {
       name: 'Digital Aadhaar & Video KYC',
-      price: '₹399/mo',
-      desc: 'Instant verification of customer identity with photo matching and OTP'
-    },
-    {
-      name: 'Agent Route GPS Tracking',
-      price: '₹199/mo',
-      desc: 'Real-time GPS coordinates verification for collection entries'
-    },
-    {
-      name: 'Premium Accounting & GST',
-      price: '₹599/mo',
-      desc: 'Full double-entry general ledger, P&L, Balance Sheet, GST summaries, and budget tracking'
-    },
-    {
-      name: 'Credit Bureau Integration',
-      price: '₹199/mo',
-      desc: 'Query CRIF/CIBIL credit history directly for applicants before disbursement'
-    },
-    {
-      name: 'NPA Classification Engine',
-      price: 'Included',
-      desc: 'Automated NPA classification, provisioning tracking, and regulatory compliance'
-    },
-    {
-      name: 'Receipt PDF Downloads',
-      price: 'Included',
-      desc: 'Export and print professional collection receipts, loan statements, and summaries'
+      tier: 'Included in Basic+',
+      desc: 'Instant verification of customer identity with OTP matching and live selfie checks'
     },
     {
       name: 'Preclose & Early Settlement',
-      price: 'Included',
-      desc: 'Calculate precise early closing amounts, apply discretionary waivers, and generate settlement PDFs'
+      tier: 'Included in Basic+',
+      desc: 'Calculate precise early payoff amounts, discretionary waivers, and instant closing receipts'
+    },
+    {
+      name: 'Receipt PDF & Thermal Printing',
+      tier: 'Included in Basic+',
+      desc: 'Issue digital collection receipts via PDF, Bluetooth thermal print, and download statements'
+    },
+    {
+      name: 'WhatsApp & SMS Alerts',
+      tier: 'Included in Business+',
+      desc: 'Automated payment reminders, due-date alerts, OTPs, and collection SMS via MSG91'
+    },
+    {
+      name: 'Agent Route GPS Tracking',
+      tier: 'Included in Business+',
+      desc: 'Real-time geo-stamp verification for field visits and automated route audits'
+    },
+    {
+      name: 'Multi-Branch Consolidation',
+      tier: 'Included in Business+',
+      desc: 'Aggregate portfolio metrics across all branches with role-based access'
+    },
+    {
+      name: 'Credit Bureau Integration',
+      tier: 'Included in Enterprise',
+      desc: 'Query CRIF / CIBIL / Equifax credit history directly for applicants before loan sanction'
+    },
+    {
+      name: 'eNACH Automated Mandates',
+      tier: 'Included in Enterprise',
+      desc: 'Auto-debit recurring instalments straight from customer bank accounts via NPCI'
+    },
+    {
+      name: 'Premium Double-Entry Accounting & GST',
+      tier: 'Included in Enterprise',
+      desc: 'Comprehensive General Ledger, Balance Sheet, P&L, GST summaries, and bank reconciliation'
+    },
+    {
+      name: 'NPA Classification Engine',
+      tier: 'Included in Enterprise',
+      desc: 'Automated 90+ DPD overdue tagging, SMA buckets, regulatory provisioning, and recovery workflow'
     }
   ];
 
@@ -211,148 +235,286 @@ export default function Pricing({ onOpenDemo }) {
             Simple, Transparent <span className="gradient-text">Pricing for Lenders</span>
           </h2>
           <p className="section-subtitle">
-            Start free and upgrade only when you need to. No setup fees, no lock-in — just transparent monthly plans. Price applies per lending vertical you enable.
+            Start free and upgrade only when you need to. No setup fees, no lock-in — just transparent plans. All premium features are bundled with zero hidden add-on costs.
           </p>
+
+          {/* Monthly / Yearly Billing Toggle */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#FFFFFF',
+              border: '2px solid var(--brand-purple-border)',
+              borderRadius: '9999px',
+              padding: '4px',
+              marginTop: '18px',
+              boxShadow: '0 2px 8px rgba(107, 70, 193, 0.08)'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsYearly(false)}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '9999px',
+                border: 'none',
+                background: !isYearly ? 'var(--brand-purple)' : 'transparent',
+                color: !isYearly ? '#FFFFFF' : 'var(--text-muted)',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Monthly Billing
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsYearly(true)}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '9999px',
+                border: 'none',
+                background: isYearly ? 'var(--brand-purple)' : 'transparent',
+                color: isYearly ? '#FFFFFF' : 'var(--text-muted)',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <span>Yearly Billing</span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: isYearly ? '#FEF08A' : 'var(--brand-purple-tint)',
+                  color: isYearly ? '#854D0E' : 'var(--brand-purple)'
+                }}
+              >
+                Save up to 20%
+              </span>
+            </button>
+          </div>
         </div>
 
-        {/* 5 Plans Grid */}
+        {/* 4 Authoritative Plans Grid */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '20px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '24px',
             alignItems: 'stretch',
-            marginBottom: '36px'
+            marginBottom: '40px'
           }}
         >
-          {plans.map((p, pi) => (
-            <div
-              key={p.id}
-              className={`glass-card animate-on-scroll delay-${pi + 1}`}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                padding: '30px 22px',
-                border: p.popular
-                  ? '3px solid var(--brand-purple)'
-                  : '1.5px solid var(--border-color)',
-                position: 'relative',
-                background: '#FFFFFF',
-                boxShadow: p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = 'var(--shadow-purple)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)'; }}
-            >
-              {p.popular && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '14px',
-                    padding: '3px 10px',
-                    borderRadius: '10px',
-                    background: 'var(--brand-purple)',
-                    color: '#FFFFFF',
-                    fontSize: '0.7rem',
-                    fontWeight: 900,
-                    letterSpacing: '0.04em'
-                  }}
-                >
-                  MOST POPULAR
-                </div>
-              )}
+          {plans.map((p, pi) => {
+            const isFree = p.monthlyPrice === 0;
+            const displayPrice = isYearly && p.yearlyPrice
+              ? `₹${p.yearlyPrice.toLocaleString('en-IN')}`
+              : isFree
+              ? '₹0'
+              : `₹${p.monthlyPrice.toLocaleString('en-IN')}`;
 
-              {p.trial && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '14px',
-                    padding: '3px 10px',
-                    borderRadius: '10px',
-                    background: 'var(--brand-gold)',
-                    color: 'var(--brand-gold-text)',
-                    fontSize: '0.7rem',
-                    fontWeight: 900
-                  }}
-                >
-                  {p.trial}
-                </div>
-              )}
+            const periodLabel = isFree
+              ? 'forever'
+              : isYearly && p.yearlyPrice
+              ? '/yr + GST'
+              : '/mo + GST';
 
-              <div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--brand-purple)', marginBottom: '4px' }}>
-                  {p.name}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', minHeight: '36px', lineHeight: 1.35, marginBottom: '16px' }}>
-                  {p.description}
-                </div>
+            const effectiveMonthly = isYearly && p.yearlyPrice
+              ? `₹${Math.round(p.yearlyPrice / 12).toLocaleString('en-IN')}/mo billed annually`
+              : null;
 
-                {/* Exact Price */}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '18px' }}>
-                  <span style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--text-title)', lineHeight: 1 }}>
-                    {p.price}
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-                    {p.period}
-                  </span>
-                </div>
+            return (
+              <div
+                key={p.id}
+                className={`glass-card animate-on-scroll delay-${pi + 1}`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  padding: '32px 24px',
+                  borderRadius: '22px',
+                  border: p.popular
+                    ? '3px solid var(--brand-purple)'
+                    : '1.5px solid var(--border-color)',
+                  position: 'relative',
+                  background: '#FFFFFF',
+                  boxShadow: p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-6px)';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-purple)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)';
+                }}
+              >
+                {/* Most Popular Badge */}
+                {p.popular && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '14px',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      background: 'var(--brand-purple)',
+                      color: '#FFFFFF',
+                      fontSize: '0.7rem',
+                      fontWeight: 900,
+                      letterSpacing: '0.04em'
+                    }}
+                  >
+                    MOST POPULAR
+                  </div>
+                )}
 
-                <div style={{ height: '1.5px', background: 'var(--border-subtle)', marginBottom: '18px' }} />
+                {/* Free Trial Badge (if not already popular) */}
+                {!p.popular && p.trial && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '14px',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      background: '#FEF08A',
+                      color: '#854D0E',
+                      fontSize: '0.7rem',
+                      fontWeight: 800
+                    }}
+                  >
+                    {p.trial}
+                  </div>
+                )}
 
-                {/* Features List */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
-                  {p.features.map((feat, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <div
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          background: 'var(--brand-purple-tint)',
-                          color: 'var(--brand-purple)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.65rem',
-                          fontWeight: 800,
-                          flexShrink: 0,
-                          marginTop: '2px'
-                        }}
-                      >
-                        <Check size={11} />
-                      </div>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-body)', lineHeight: 1.4, fontWeight: 500 }}>
-                        {feat}
-                      </span>
+                <div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--brand-purple)', marginBottom: '4px' }}>
+                    {p.name}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', minHeight: '38px', lineHeight: 1.4, marginBottom: '16px' }}>
+                    {p.description}
+                  </div>
+
+                  {/* Price */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: effectiveMonthly ? '4px' : '18px' }}>
+                    <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-title)', lineHeight: 1 }}>
+                      {displayPrice}
+                    </span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                      {periodLabel}
+                    </span>
+                  </div>
+
+                  {effectiveMonthly && (
+                    <div style={{ fontSize: '0.76rem', color: 'var(--brand-purple)', fontWeight: 700, marginBottom: '16px' }}>
+                      ⚡ {effectiveMonthly}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )}
 
-              {p.id === 'enterprise' ? (
-                <button
-                  onClick={onOpenDemo}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '11px', fontSize: '0.88rem' }}
-                >
-                  <span>{p.cta}</span>
-                  <ArrowRight size={14} />
-                </button>
-              ) : (
-                <Link
-                  href={`/register?plan=${p.plan}`}
-                  className={p.popular ? 'btn btn-primary' : 'btn btn-secondary'}
-                  style={{ width: '100%', padding: '11px', fontSize: '0.88rem', justifyContent: 'center' }}
-                >
-                  <span>{p.cta}</span>
-                  <ArrowRight size={14} />
-                </Link>
-              )}
-            </div>
-          ))}
+                  {/* Resource Capacities from Developer Portal */}
+                  <div
+                    style={{
+                      background: 'var(--bg-subtle)',
+                      borderRadius: '12px',
+                      padding: '10px 12px',
+                      marginBottom: '18px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '4px',
+                      textAlign: 'center',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
+                        Branches
+                      </div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
+                        {p.branchesVal}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
+                        Agents
+                      </div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
+                        {p.agentsVal}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
+                        Loans
+                      </div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
+                        {p.loansVal}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ height: '1.5px', background: 'var(--border-subtle)', marginBottom: '18px' }} />
+
+                  {/* Features List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                    {p.features.map((feat, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            background: 'var(--brand-purple-tint)',
+                            color: 'var(--brand-purple)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            flexShrink: 0,
+                            marginTop: '2px'
+                          }}
+                        >
+                          <Check size={11} />
+                        </div>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-body)', lineHeight: 1.45, fontWeight: 500 }}>
+                          {feat}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {p.id === 'enterprise' ? (
+                  <button
+                    onClick={onOpenDemo}
+                    className="btn btn-primary"
+                    style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                  >
+                    <span>{p.cta}</span>
+                    <ArrowRight size={15} />
+                  </button>
+                ) : (
+                  <Link
+                    href={`/register?plan=${p.plan}`}
+                    className={p.popular ? 'btn btn-primary' : 'btn btn-secondary'}
+                    style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                  >
+                    <span>{p.cta}</span>
+                    <ArrowRight size={15} />
+                  </Link>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Pricing Model Explainer */}
@@ -366,17 +528,17 @@ export default function Pricing({ onOpenDemo }) {
             textAlign: 'center'
           }}
         >
-          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--brand-purple)', marginBottom: '6px' }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--brand-purple)', marginBottom: '6px' }}>
             📐 Per-Vertical Pricing Model
           </div>
-          <p style={{ fontSize: '0.88rem', color: 'var(--text-body)', lineHeight: 1.6, maxWidth: '780px', margin: '0 auto' }}>
-            Your subscription plan price applies <strong>per lending vertical</strong> you enable. For example, if you choose the Business plan (₹2,999/mo) and enable both Micro Lending and Auto Finance, your vertical subscription is ₹2,999 × 2 = ₹5,998/mo. Add-ons are billed separately on top.
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-body)', lineHeight: 1.6, maxWidth: '800px', margin: '0 auto' }}>
+            Your subscription plan price applies <strong>per lending vertical</strong> you enable. For example, if you choose the Business plan (₹1,499/mo) and enable both Micro Lending and Auto Finance, your vertical subscription is ₹1,499 × 2 = ₹2,998/mo. All premium capabilities are bundled with zero add-on charges.
           </p>
         </div>
 
         {/* GST Transparency Banner */}
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '44px' }}>
-          All paid plans billed in INR + 18% GST. Billing is monthly via Razorpay. Cancel anytime.
+          All paid plans billed in INR + 18% GST. Billing is available monthly or annually via Razorpay. Cancel anytime.
         </p>
 
         {/* 6 Lending Verticals Section */}
@@ -397,7 +559,7 @@ export default function Pricing({ onOpenDemo }) {
             Choose Your Lending Modules
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '24px' }}>
-            Each vertical is included under your chosen subscription plan. Enable or disable modules per branch at any time as your business changes.
+            Each vertical operates under your chosen subscription tier. Enable or disable modules per branch at any time as your business expands.
           </p>
 
           <div
@@ -450,7 +612,7 @@ export default function Pricing({ onOpenDemo }) {
           </div>
         </div>
 
-        {/* Premium Add-ons Section */}
+        {/* Bundled Capabilities Section */}
         <div
           className="glass-card"
           style={{
@@ -461,24 +623,24 @@ export default function Pricing({ onOpenDemo }) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span className="zolo-pill-badge">Premium Add-ons & Integrations</span>
+            <span className="zolo-pill-badge">Bundled Platform Capabilities</span>
             <Sparkles size={16} color="var(--brand-purple)" />
           </div>
           <h3 style={{ fontSize: '1.45rem', marginBottom: '6px', color: 'var(--text-title)' }}>
-            Unlock Advanced Lending Capabilities
+            All-Inclusive Feature Bundles
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '24px' }}>
-            Enable or disable add-ons as your finance business grows. All premium add-ons are included free on the Enterprise plan.
+            Advanced lending features are included directly inside your plan tier with zero hidden per-feature fees.
           </p>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
               gap: '16px'
             }}
           >
-            {premiumAddons.map((addon, idx) => (
+            {platformFeatures.map((feat, idx) => (
               <div
                 key={idx}
                 style={{
@@ -492,29 +654,27 @@ export default function Pricing({ onOpenDemo }) {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
                     <div style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-title)' }}>
-                      {addon.name}
+                      {feat.name}
                     </div>
                     <span
                       style={{
-                        fontSize: '0.78rem',
-                        fontWeight: 900,
-                        color: addon.price === 'Included' ? '#059669' : 'var(--brand-purple)',
-                        background: addon.price === 'Included' ? 'var(--success-bg)' : '#FFFFFF',
-                        padding: '2px 8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        color: 'var(--brand-purple)',
+                        background: 'var(--brand-purple-light)',
+                        padding: '3px 8px',
                         borderRadius: '6px',
-                        border: addon.price === 'Included'
-                          ? '1px solid #D1FAE5'
-                          : '1px solid var(--brand-purple-border)',
+                        border: '1px solid var(--brand-purple-border)',
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {addon.price}
+                      {feat.tier}
                     </span>
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                    {addon.desc}
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
+                    {feat.desc}
                   </p>
                 </div>
               </div>

@@ -18,11 +18,13 @@ export type PublicPlan = {
   displayName: string;
   description: string | null;
   monthlyPrice: number;
+  yearlyPrice: number | null;
   maxBranches: number;
   maxAgents: number;
   maxActiveLoans: number;
   trialDays: number;
   features: string[];
+  includedFeatures: string[];
   sortOrder: number;
 };
 
@@ -42,7 +44,7 @@ export type PublicPricing = {
 
 // Plans surfaced on the public pricing page. Internal states (`trial`,
 // `lifetime`) are intentionally excluded — they are never catalog rows.
-const PUBLIC_PLAN_ORDER = ['free', 'collector', 'basic', 'business', 'enterprise'];
+const PUBLIC_PLAN_ORDER = ['free', 'basic', 'business', 'enterprise'];
 
 /** Fallback built from lib/plans.ts when the catalog cannot be read. */
 function fallbackPricing(): PublicPricing {
@@ -55,11 +57,13 @@ function fallbackPricing(): PublicPricing {
       displayName: PLAN_LABELS[plan] ?? plan,
       description: PLAN_DESCRIPTIONS[plan] ?? null,
       monthlyPrice: p?.amount ?? 0,
+      yearlyPrice: null,
       maxBranches: f.branches,
       maxAgents: f.agents,
       maxActiveLoans: f.loans,
       trialDays: f.trialDays,
       features: [],
+      includedFeatures: [],
       sortOrder: i,
     };
   }).filter(Boolean) as PublicPlan[];
@@ -91,16 +95,25 @@ export const getPublicPricing = cache(async (): Promise<PublicPricing> => {
       } catch {
         features = [];
       }
+      let includedFeatures: string[] = [];
+      try {
+        const parsedInc = p.includedFeatures ? JSON.parse(p.includedFeatures) : [];
+        if (Array.isArray(parsedInc)) includedFeatures = parsedInc.map((x) => String(x));
+      } catch {
+        includedFeatures = [];
+      }
       return {
         plan: p.plan,
         displayName: p.displayName,
         description: p.description,
         monthlyPrice: p.monthlyPrice,
+        yearlyPrice: p.yearlyPrice ?? null,
         maxBranches: p.maxBranches,
         maxAgents: p.maxAgents,
         maxActiveLoans: p.maxActiveLoans,
         trialDays: p.trialDays,
         features,
+        includedFeatures,
         sortOrder: p.sortOrder,
       };
     });

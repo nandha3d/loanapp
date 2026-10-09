@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = buildMetadata({
   title: 'Pricing — Loan Management Software Plans from ₹0',
   description:
-    'Simple, transparent pricing for ZoloFund loan management software. Start free, then scale to Collector, Basic, Business or Enterprise. No setup fees, no lock-in.',
+    'Simple, transparent pricing for ZoloFund loan management software. Start free, then scale to Basic, Business or Enterprise. No setup fees, no lock-in.',
   path: '/pricing',
   keywords: ['loan management software pricing', 'affordable loan software', 'microfinance software price', 'loan software cost India'],
 });
@@ -27,21 +27,25 @@ function toCard(p: PublicPlan) {
   const priceLabel = isFree ? '₹0' : `₹${p.monthlyPrice.toLocaleString('en-IN')}`;
   const period = isFree ? 'forever' : '/mo + GST';
   const cta = p.plan === 'free' ? 'Start Free' : isEnterprise ? 'Talk to Sales' : `Choose ${p.displayName}`;
+  const href = isEnterprise ? '/contact' : `/register?plan=${p.plan}`;
   return {
     name: p.displayName,
     price: priceLabel,
+    yearlyPrice: p.yearlyPrice ? `₹${p.yearlyPrice.toLocaleString('en-IN')}/yr` : null,
     period,
     desc: p.description ?? '',
     feats: p.features,
+    trial: p.trialDays > 0 ? `${p.trialDays}-Day Free Trial` : null,
     cta,
+    href,
     feat: p.plan === FEATURED_PLAN,
   };
 }
 
 const FAQ = [
   { q: 'Is there a free plan?', a: 'Yes — the Free plan is free forever, with no card required. Upgrade only when you grow.' },
-  { q: 'What are premium add-ons?', a: 'Optional modules like double-entry accounting, Aadhaar eKYC, credit-bureau pulls, GPS tracking and the foreclosure calculator. They are included on Enterprise.' },
-  { q: 'Do prices include GST?', a: 'Paid plans are billed in INR plus 18% GST. Billing is monthly via Razorpay with a plan-dependent grace period.' },
+  { q: 'What are premium add-ons?', a: 'All advanced modules like double-entry accounting, Aadhaar eKYC, credit-bureau pulls, GPS tracking and the foreclosure calculator are bundled directly into plans with zero extra fees.' },
+  { q: 'Do prices include GST?', a: 'Paid plans are billed in INR plus 18% GST. Billing is available monthly or yearly via Razorpay.' },
   { q: 'Can I switch modules later?', a: 'Absolutely. Enable or disable lending modules per branch at any time as your business changes.' },
 ];
 
@@ -69,8 +73,33 @@ export default async function PricingPage() {
           <div className="mk-price-grid">
             {cards.map((p) => (
               <div className={`mk-price${p.feat ? ' mk-price--feat' : ''}`} key={p.name}>
+                {p.trial && (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      alignSelf: 'flex-start',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      background: '#FEF08A',
+                      color: '#854D0E',
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {p.trial}
+                  </span>
+                )}
                 <h3 className="mk-h3">{p.name}</h3>
-                <div className="mk-price__amt"><b>{p.price}</b><span>{p.period}</span></div>
+                <div className="mk-price__amt">
+                  <b>{p.price}</b>
+                  <span>{p.period}</span>
+                </div>
+                {p.yearlyPrice && (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--brand-purple, #6B46C1)', fontWeight: 600, marginTop: '-4px', marginBottom: '8px' }}>
+                    or {p.yearlyPrice}
+                  </div>
+                )}
                 <p className="mk-price__desc">{p.desc}</p>
                 <ul className="mk-price__feats">
                   {p.feats.map((f) => (
@@ -78,7 +107,7 @@ export default async function PricingPage() {
                   ))}
                 </ul>
                 <Link
-                  href="/contact"
+                  href={p.href}
                   className={`mk-btn ${p.feat ? 'mk-btn--primary' : 'mk-btn--ghost'}`}
                   style={{ width: '100%' }}
                 >

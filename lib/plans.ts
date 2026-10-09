@@ -41,22 +41,19 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
     gracePeriodDays: 7, trialDays: 0,
   },
   basic: {
-    loans: 500, agents: 15, branches: 2,
+    loans: 200, agents: 5, branches: 2,
     modules: ['microlending', 'autofinance'],
-    gracePeriodDays: 7, trialDays: 0,
+    gracePeriodDays: 7, trialDays: 15,
   },
   business: {
-    loans: 1500, agents: 60, branches: 6,
+    loans: 1000, agents: 25, branches: 5,
     modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
-    gracePeriodDays: 14, trialDays: 0,
+    gracePeriodDays: 14, trialDays: 15,
   },
   enterprise: {
-    loans: 999999, agents: 999, branches: 999,
+    loans: 999999, agents: 9999, branches: 999,
     modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 30,
-    // 15-day full-feature trial. During this window the tenant has enterprise
-    // limits but no payment is collected. After 15 days they must subscribe
-    // or the plan reverts to free.
     trialDays: 15,
   },
 };
@@ -65,10 +62,9 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
 export const PLAN_PRICING: Record<string, { amount: number; tax: number; total: number }> = {
   trial:      { amount: 0,    tax: 0,    total: 0 },
   free:       { amount: 0,    tax: 0,    total: 0 },
-  collector:  { amount: 699,  tax: 126,  total: 825 },
-  basic:      { amount: 999,  tax: 180,  total: 1179 },
-  business:   { amount: 2999, tax: 540,  total: 3539 },
-  enterprise: { amount: 7999, tax: 1440, total: 9439 },
+  basic:      { amount: 799,  tax: 144,  total: 943 },
+  business:   { amount: 1499, tax: 270,  total: 1769 },
+  enterprise: { amount: 2999, tax: 540,  total: 3539 },
 };
 
 export const PLAN_LABELS: Record<string, string> = {
