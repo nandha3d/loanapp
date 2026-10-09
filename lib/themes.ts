@@ -19,6 +19,8 @@ export const THEME_SETTING_KEY = 'theme_preset';
 
 // Grouped in 3 colour families (warm / cool / deep) — 20 variants total.
 export const THEME_PRESETS: ThemePreset[] = [
+  // ── Brand ─────────────────────────────────────────────────────────────
+  { key: 'zolofunds', name: 'ZoloFunds Purple', primary: '#7D287E', primaryDark: '#5A195B', primaryLight: '#F9F1FA', accent: '#FCF6AB' },
   // ── Warm ──────────────────────────────────────────────────────────────
   { key: 'amber',    name: 'Amber',    primary: '#F5A623', primaryDark: '#E8930C', primaryLight: '#FFF3E0', accent: '#FFC107' },
   { key: 'orange',   name: 'Orange',   primary: '#E67E22', primaryDark: '#D35400', primaryLight: '#FFF3E6', accent: '#F39C12' },

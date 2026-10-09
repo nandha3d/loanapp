@@ -13,7 +13,7 @@ import 'package:zolofund/core/network/api_exception.dart';
 
 /// Base URL — override via --dart-define=API_BASE_URL=...
 /// Release builds default to production; debug builds use local development.
-const kProductionApiBaseUrl = 'https://app.animazon.in/api/v1';
+const kProductionApiBaseUrl = 'https://app.zolofunds.com/api/v1';
 
 String resolveApiBaseUrl({
   required String configuredUrl,

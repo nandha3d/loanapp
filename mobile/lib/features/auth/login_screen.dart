@@ -297,11 +297,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           color: AppColors.primary,
                         ),
                         label: const Text(
-                          'Animazon Live',
+                          'ZoloFunds Live',
                           style: TextStyle(fontSize: 12),
                         ),
                         onPressed: () =>
-                            applyPreset('https://app.animazon.in/api/v1'),
+                            applyPreset('https://app.zolofunds.com/api/v1'),
                       ),
                       ActionChip(
                         avatar: Icon(

@@ -43,6 +43,12 @@ async function runTests() {
   const isSaaS = await isSamuraiExcludedDomain({ host: 'app.animazon.in', tenantSlug: 'default' });
   assert.equal(isSaaS, false, 'app.animazon.in must not be excluded');
 
+  const isZolo = await isSamuraiExcludedDomain({ host: 'zolofunds.com', tenantSlug: 'default' });
+  assert.equal(isZolo, false, 'zolofunds.com must not be excluded');
+
+  const isZoloApp = await isSamuraiExcludedDomain({ host: 'app.zolofunds.com', tenantSlug: 'default' });
+  assert.equal(isZoloApp, false, 'app.zolofunds.com must not be excluded');
+
   // Attempting to send OTP to loan.samuraibuiness.in must be rejected
   const blockedSend = await sendWhatsAppAuthOtp({
     phone: '9876543210',

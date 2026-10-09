@@ -550,7 +550,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                     </div>
                     <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', fontWeight: 600 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F5A623' }}></span>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)' }}></span>
                         <span>{b.scheduledTarget}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

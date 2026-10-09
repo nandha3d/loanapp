@@ -23,10 +23,10 @@ export const APP_CONFIGS: Record<AppType, AppConfig> = {
     shortName: 'ML',
     icon: 'account_balance',
     description: 'Manage micro-loans, collections, penalties, and customer portfolios.',
-    primaryColor: '#E67E22',
-    primaryDark: '#D35400',
-    primaryLight: '#FFF3E6',
-    accentColor: '#F39C12',
+    primaryColor: '#7D287E',
+    primaryDark: '#5A195B',
+    primaryLight: '#F9F1FA',
+    accentColor: '#FCF6AB',
     logoText: ['Zolo', 'Fund'],
   },
   autofinance: {
@@ -91,8 +91,24 @@ export const APP_CONFIGS: Record<AppType, AppConfig> = {
   },
 };
 
-export function getAppConfig(appType: string): AppConfig {
-  return APP_CONFIGS[appType as AppType] || APP_CONFIGS.microlending;
+export const SAMURAI_MICROLENDING_CONFIG: AppConfig = {
+  id: 'microlending',
+  name: 'Micro Lending',
+  shortName: 'ML',
+  icon: 'account_balance',
+  description: 'Manage micro-loans, collections, penalties, and customer portfolios.',
+  primaryColor: '#E67E22',
+  primaryDark: '#D35400',
+  primaryLight: '#FFF3E6',
+  accentColor: '#F39C12',
+  logoText: ['Zolo', 'Fund'],
+};
+
+export function getAppConfig(appType: string, isSamurai: boolean = false): AppConfig {
+  if (isSamurai && appType === 'microlending') {
+    return SAMURAI_MICROLENDING_CONFIG;
+  }
+  return APP_CONFIGS[appType as AppType] || (isSamurai ? SAMURAI_MICROLENDING_CONFIG : APP_CONFIGS.microlending);
 }
 
 // Generate CSS custom properties for a given app theme

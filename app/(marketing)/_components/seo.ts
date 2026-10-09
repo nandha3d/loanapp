@@ -11,7 +11,7 @@ export const siteConfig = {
   url: (
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    'https://app.animazon.in'
+    'https://zolofunds.com'
   ).replace(/\/$/, ''),
   tagline: 'Loan Tracking & Field Collection Software',
   description:

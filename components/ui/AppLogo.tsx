@@ -23,15 +23,28 @@ export default function AppLogo({
   width,
   alt = 'ZoloFund',
   style,
-  className,
+  className = '',
   ...props
 }: AppLogoProps) {
-  const darkSrc = withBasePath(
+  // Official ZoloFunds brand purple logos
+  const zoloDarkSrc = withBasePath(
+    variant === 'square'
+      ? '/assets/logo-square-dark.png'
+      : '/assets/logo-horizontal-for-dark-bg.png'
+  );
+  const zoloLightSrc = withBasePath(
+    variant === 'square'
+      ? '/assets/logo-square-light.png'
+      : '/assets/logo-horizontal-for-light-bg.png'
+  );
+
+  // Fallback Samurai brand amber logos
+  const samuraiDarkSrc = withBasePath(
     variant === 'square'
       ? '/assets/logo-square-dark.png'
       : '/assets/logo-horizontal-dark.png'
   );
-  const lightSrc = withBasePath(
+  const samuraiLightSrc = withBasePath(
     variant === 'square'
       ? '/assets/logo-square-light.png'
       : '/assets/logo-horizontal-light.png'
@@ -48,41 +61,51 @@ export default function AppLogo({
     ...style,
   };
 
-  if (theme === 'dark') {
-    return (
-      <img
-        src={darkSrc}
-        alt={alt}
-        className={className}
-        style={imgStyle}
-        {...props}
-      />
-    );
-  }
+  const renderVariant = (darkSrc: string, lightSrc: string, brandClass: string) => {
+    const combinedClass = [className, brandClass].filter(Boolean).join(' ');
 
-  if (theme === 'light') {
-    return (
-      <img
-        src={lightSrc}
-        alt={alt}
-        className={className}
-        style={imgStyle}
-        {...props}
-      />
-    );
-  }
+    if (theme === 'dark') {
+      return (
+        <img
+          src={darkSrc}
+          alt={alt}
+          className={combinedClass}
+          style={imgStyle}
+          {...props}
+        />
+      );
+    }
 
-  // Auto theme: uses standard <picture> to adapt to browser / OS color scheme
+    if (theme === 'light') {
+      return (
+        <img
+          src={lightSrc}
+          alt={alt}
+          className={combinedClass}
+          style={imgStyle}
+          {...props}
+        />
+      );
+    }
+
+    return (
+      <picture className={combinedClass} style={{ display: 'inline-flex', alignItems: 'center' }}>
+        <source media="(prefers-color-scheme: dark)" srcSet={darkSrc} />
+        <source media="(prefers-color-scheme: light)" srcSet={lightSrc} />
+        <img
+          src={lightSrc}
+          alt={alt}
+          style={imgStyle}
+          {...props}
+        />
+      </picture>
+    );
+  };
+
   return (
-    <picture className={className} style={{ display: 'inline-flex', alignItems: 'center' }}>
-      <source media="(prefers-color-scheme: dark)" srcSet={darkSrc} />
-      <source media="(prefers-color-scheme: light)" srcSet={lightSrc} />
-      <img
-        src={lightSrc}
-        alt={alt}
-        style={imgStyle}
-        {...props}
-      />
-    </picture>
+    <>
+      {renderVariant(zoloDarkSrc, zoloLightSrc, 'logo-zolofunds')}
+      {renderVariant(samuraiDarkSrc, samuraiLightSrc, 'logo-samurai')}
+    </>
   );
 }

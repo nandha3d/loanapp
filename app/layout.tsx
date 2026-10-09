@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { headers } from 'next/headers';
 import MonitorBanner from '@/components/MonitorBanner';
 import { withBasePath } from '@/lib/public-path';
 import './globals.css';
@@ -27,14 +28,30 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let theme = 'zolofunds';
+  try {
+    const headerList = await headers();
+    const host = headerList.get('x-zolofund-host') || headerList.get('host') || '';
+    if (host.toLowerCase().includes('samuraibuiness.in') || host.toLowerCase().includes('samurai')) {
+      theme = 'samurai';
+    }
+  } catch {
+    // fallback at build time
+  }
+
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} data-theme={theme} suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var h=window.location.host.toLowerCase();var isS=h.indexOf('samuraibuiness.in')!==-1||h.indexOf('samurai')!==-1;document.documentElement.setAttribute('data-theme',isS?'samurai':'zolofunds');}catch(e){}})();`,
+          }}
+        />
         <link rel="icon" href={withBasePath('/assets/logo-square-dark.png')} media="(prefers-color-scheme: dark)" />
         <link rel="icon" href={withBasePath('/assets/logo-square-light.png')} media="(prefers-color-scheme: light)" />
         <link rel="icon" href={withBasePath('/assets/logo.svg')} type="image/svg+xml" />

@@ -61,7 +61,10 @@ export default async function DashboardLayout({
       ? `/portal/billing?reason=${encodeURIComponent(access.reason || 'payment_required')}`
       : '/portal?billing=required');
   }
-  const appConfig = getAppConfig(requestedModule);
+  const headerStore = await headers();
+  const host = headerStore.get('x-zolofund-host') || headerStore.get('host') || '';
+  const isSamurai = host.toLowerCase().includes('samuraibuiness.in') || host.toLowerCase().includes('samurai');
+  const appConfig = getAppConfig(requestedModule, isSamurai);
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
 
@@ -83,7 +86,6 @@ export default async function DashboardLayout({
     enabledModules = await getActiveModules();
   }
 
-  const headerStore = await headers();
   const pathname = headerStore.get('x-zolofund-path') || '';
   const pagePath = pathname ? parseModulePath(pathname).page : '';
   const isSharedProfileRoute = pagePath === '/profile';

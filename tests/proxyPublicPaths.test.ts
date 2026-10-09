@@ -10,6 +10,7 @@ assert.equal(isPublicPath('/assets/logo-square-dark.png'), true);
 assert.equal(isPublicPath('/assets/logo-square-light.png'), true);
 assert.equal(isPublicPath('/logo.png'), true);
 assert.equal(isPublicPath('/apple-touch-icon.png'), true);
+assert.equal(isPublicPath('/zolofunds'), true);
 assert.equal(isPublicPath('/dashboard'), false);
 
 assert.equal(getRoleRedirectTarget('/loans', 'agent'), null);
@@ -32,6 +33,14 @@ const samuraiRequest = new Request('http://localhost:3000/portal', {
   },
 }) as any;
 assert.equal(getPublicOrigin(samuraiRequest), 'https://loan.samuraibuiness.in');
+assert.equal(
+  normalizeLocalCallbackUrl('https://app.zolofunds.com/portal'),
+  '/portal',
+);
+assert.equal(
+  normalizeLocalCallbackUrl('https://zolofunds.com/portal'),
+  '/portal',
+);
 assert.equal(
   normalizeLocalCallbackUrl('https://app.animazon.in/portal'),
   '/portal',

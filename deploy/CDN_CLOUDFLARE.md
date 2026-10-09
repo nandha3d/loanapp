@@ -29,7 +29,7 @@ user data.
 4. **SSL/TLS → Full (strict)** (the VPS already has a Let's Encrypt cert).
 5. **Speed → Optimization**: enable Brotli (on by default), HTTP/3.
 6. Done — no app changes needed. Verify with:
-   `curl -sI https://app.animazon.in/_next/static/... | grep -i cf-cache-status`
+   `curl -sI https://zolofunds.com/_next/static/... | grep -i cf-cache-status`
    (want `HIT` on second request; `DYNAMIC` for pages/API is correct).
 
 ## Rules that must stay true

@@ -222,7 +222,7 @@ export default function AppSelectorClient({
               onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
               onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
             >
-              <span className="material-icons-outlined" style={{ color: '#F5A623' }}>account_balance_wallet</span>
+              <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>account_balance_wallet</span>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: 600 }}>My Loans</div>
                 <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View loan details</div>
@@ -268,7 +268,7 @@ export default function AppSelectorClient({
                 onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
                 onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
               >
-                <span className="material-icons-outlined" style={{ color: '#F5A623' }}>people</span>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>people</span>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontWeight: 600 }}>User Management</div>
                   <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage agents for your branch</div>
@@ -288,7 +288,7 @@ export default function AppSelectorClient({
                 onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
                 onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
               >
-                <span className="material-icons-outlined" style={{ color: '#F5A623' }}>admin_panel_settings</span>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>admin_panel_settings</span>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontWeight: 600 }}>Master User Management</div>
                   <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage roles across all apps</div>

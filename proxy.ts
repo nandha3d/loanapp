@@ -45,6 +45,7 @@ const PUBLIC_PREFIXES = [
 // Public marketing site (app/(marketing) route group). These pages live outside
 // the authenticated app and must be reachable by anonymous visitors.
 const MARKETING_PATHS = [
+  '/zolofunds',
   '/home',
   '/products',
   '/solutions',

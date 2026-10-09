@@ -1,0 +1,434 @@
+/* ==========================================================================
+   ZOLO FUNDS DESIGN SYSTEM — VIBRANT LIGHT THEME
+   Primary Purple: #7D287E | Accent Warm Gold: #FCF6AB | Vibrant Gold: #F59E0B
+   ========================================================================== */
+
+:root {
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Official Brand Colors */
+  --brand-purple: #7D287E;
+  --brand-purple-dark: #5A195B;
+  --brand-purple-deep: #3A0C3B;
+  --brand-purple-hover: #661D67;
+  --brand-purple-light: #F9F1FA;
+  --brand-purple-tint: #F3E4F5;
+  --brand-purple-border: #E8D3EB;
+  --brand-purple-glow: rgba(125, 40, 126, 0.28);
+  --brand-purple-glow-sm: rgba(125, 40, 126, 0.14);
+
+  --brand-gold: #FCF6AB;
+  --brand-gold-text: #4D164E;
+  --accent-gold-vibrant: #F59E0B;
+  --accent-gold-glow: rgba(245, 158, 11, 0.22);
+
+  /* Light Theme Surfaces & Backgrounds */
+  --bg-main: #FCF9FD;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FAF3FB;
+  --bg-subtle: #F6EAF7;
+  --bg-glass: rgba(255, 255, 255, 0.92);
+  --bg-glass-border: rgba(125, 40, 126, 0.16);
+
+  --border-color: #EBD8EE;
+  --border-subtle: #F3E6F5;
+  --border-hover: #7D287E;
+
+  /* High-Contrast Crisp Typography for Light Theme */
+  --text-title: #1F0724;
+  --text-body: #48314B;
+  --text-muted: #6B516F;
+  --text-dim: #8E7392;
+
+  --success: #059669;
+  --success-bg: #ECFDF5;
+  --warning: #D97706;
+  --warning-bg: #FFFBEB;
+  --danger: #DC2626;
+  --danger-bg: #FEF2F2;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 2px 6px rgba(125, 40, 126, 0.05);
+  --shadow-md: 0 8px 24px rgba(125, 40, 126, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 16px 40px rgba(125, 40, 126, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-purple: 0 10px 30px rgba(125, 40, 126, 0.22);
+
+  --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base Styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  scroll-behavior: smooth;
+  scroll-padding-top: 85px;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-main);
+  color: var(--text-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-title);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all var(--transition-fast);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Containers */
+.container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section {
+  padding: 88px 0;
+  position: relative;
+}
+
+.section-alt {
+  background-color: var(--bg-surface-elevated);
+}
+
+/* Headers */
+.section-header {
+  text-align: center;
+  max-width: 760px;
+  margin: 0 auto 52px auto;
+}
+
+.section-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: var(--radius-full);
+  background: var(--brand-purple-tint);
+  border: 1.5px solid var(--brand-purple-border);
+  color: var(--brand-purple);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: clamp(2rem, 3.4vw, 2.75rem);
+  font-weight: 800;
+  margin-bottom: 16px;
+  color: var(--text-title);
+}
+
+.section-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--brand-purple) 0%, #A232A4 60%, #E66EE9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 26px;
+  border-radius: var(--radius-full);
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--brand-purple) 0%, #942E96 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 18px var(--brand-purple-glow);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--brand-purple-hover) 0%, #7D287E 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(125, 40, 126, 0.4);
+}
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--brand-purple);
+  border: 1.5px solid var(--brand-purple-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background: var(--brand-purple-light);
+  border-color: var(--brand-purple);
+  transform: translateY(-2px);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #FCF6AB 0%, #F5E570 100%);
+  color: var(--brand-gold-text);
+  font-weight: 800;
+  border: 1px solid rgba(125, 40, 126, 0.25);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, #F5E570 0%, #F59E0B 100%);
+  color: #1F0724;
+  transform: translateY(-2px);
+}
+
+/* Card Styling */
+.glass-card {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card:hover {
+  border-color: var(--brand-purple);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), 0 0 20px rgba(125, 40, 126, 0.1);
+}
+
+.icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-purple-tint);
+  color: var(--brand-purple);
+  border: 1px solid var(--brand-purple-border);
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.glass-card:hover .icon-box {
+  background: var(--brand-purple);
+  color: #FFFFFF;
+  transform: scale(1.06);
+}
+
+/* Pill Badge in the Logo style: ₹Fund style */
+.zolo-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: var(--brand-gold);
+  color: var(--brand-gold-text);
+  border: 1px solid rgba(125, 40, 126, 0.22);
+  box-shadow: 0 2px 6px rgba(125, 40, 126, 0.08);
+}
+
+/* Vector Illustration Frames */
+.vector-illustration-frame {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--border-color);
+  background: #FFFFFF;
+  transition: all var(--transition-normal);
+}
+
+.vector-illustration-frame:hover {
+  box-shadow: var(--shadow-purple), 0 0 0 2px var(--brand-purple);
+  transform: translateY(-3px);
+}
+
+/* Responsive utilities */
+@media (max-width: 992px) {
+  .section {
+    padding: 68px 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 50px 0;
+  }
+  .container {
+    padding: 0 16px;
+  }
+  .btn {
+    padding: 11px 20px;
+    font-size: 0.9rem;
+  }
+}
+
+/* ==========================================================================
+   SCROLL-TRIGGERED ANIMATION SYSTEM
+   ========================================================================== */
+
+/* ── Keyframes ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-32px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(32px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(48px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(125, 40, 126, 0.25); }
+  50% { box-shadow: 0 0 0 12px rgba(125, 40, 126, 0); }
+}
+
+/* ── Base Scroll Animation Class ── */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.animate-on-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Animation Variants ── */
+.animate-on-scroll.fade-left {
+  transform: translateX(-32px);
+}
+.animate-on-scroll.fade-left.visible {
+  transform: translateX(0);
+}
+
+.animate-on-scroll.fade-right {
+  transform: translateX(32px);
+}
+.animate-on-scroll.fade-right.visible {
+  transform: translateX(0);
+}
+
+.animate-on-scroll.scale-in {
+  transform: scale(0.88);
+}
+.animate-on-scroll.scale-in.visible {
+  transform: scale(1);
+}
+
+.animate-on-scroll.slide-up {
+  transform: translateY(48px) scale(0.96);
+}
+.animate-on-scroll.slide-up.visible {
+  transform: translateY(0) scale(1);
+}
+
+/* ── Stagger Delay Utilities ── */
+.delay-1 { transition-delay: 0.08s; }
+.delay-2 { transition-delay: 0.16s; }
+.delay-3 { transition-delay: 0.24s; }
+.delay-4 { transition-delay: 0.32s; }
+.delay-5 { transition-delay: 0.40s; }
+.delay-6 { transition-delay: 0.48s; }
+.delay-7 { transition-delay: 0.56s; }
+.delay-8 { transition-delay: 0.64s; }
+
+/* ── Shimmer Effect Utility ── */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--brand-purple) 0%,
+    #E66EE9 40%,
+    var(--brand-purple) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-on-scroll {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .shimmer-text {
+    animation: none;
+  }
+}

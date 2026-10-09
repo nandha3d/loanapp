@@ -23,7 +23,7 @@ void main() {
           isWeb: false,
           isAndroid: true,
         ),
-        'https://app.animazon.in/api/v1',
+        'https://app.zolofunds.com/api/v1',
       );
     });
 

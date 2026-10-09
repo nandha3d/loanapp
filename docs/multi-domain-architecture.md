@@ -5,10 +5,10 @@
 >
 > | | Host | Model | Registration |
 > |---|---|---|---|
-> | **Our SaaS** | `app.animazon.in` | Multi-tenant, paid subscription | Full 5-step, anyone |
+> | **Our SaaS** | `zolofunds.com` | Multi-tenant, paid subscription | Full 5-step, anyone |
 > | **Client standalone** | `loan.samuraibuiness.in` | Single tenant, **lifetime** (no billing) | Details-only, **first signup claims + locks** |
 >
-> Mobile API for both is served over HTTP on the IP `187.127.177.121` (JWT carries the tenant).
+> Mobile API for both is served over HTTP/HTTPS (JWT carries the tenant).
 
 ---
 
@@ -17,7 +17,7 @@
 ```mermaid
 flowchart TB
     subgraph Clients
-      A1[Browser → app.animazon.in]
+      A1[Browser → zolofunds.com]
       A2[Browser → loan.samuraibuiness.in]
       A3[Mobile app → 187.127.177.121/api/v1]
     end
