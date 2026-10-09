@@ -272,27 +272,26 @@ export default function Pricing({ onOpenDemo }) {
               display: 'inline-flex',
               alignItems: 'center',
               background: '#FFFFFF',
-              border: isYearly ? '2px solid #10B981' : '2px solid var(--brand-purple-border)',
+              border: '1.5px solid var(--border-color)',
               borderRadius: '9999px',
-              padding: '4px',
-              marginTop: '18px',
-              boxShadow: isYearly ? '0 0 20px rgba(16, 185, 129, 0.2)' : '0 2px 8px rgba(107, 70, 193, 0.08)',
-              transition: 'all 0.3s ease'
+              padding: '5px',
+              marginTop: '24px',
+              boxShadow: 'var(--shadow-sm)'
             }}
           >
             <button
               type="button"
               onClick={() => setIsYearly(false)}
               style={{
-                padding: '8px 20px',
+                padding: '9px 22px',
                 borderRadius: '9999px',
                 border: 'none',
-                background: !isYearly ? 'var(--brand-purple)' : 'transparent',
+                backgroundColor: !isYearly ? 'var(--brand-purple)' : 'transparent',
                 color: !isYearly ? '#FFFFFF' : 'var(--text-muted)',
                 fontWeight: 700,
-                fontSize: '0.88rem',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                transition: 'all var(--transition-fast)'
               }}
             >
               Monthly Billing
@@ -301,32 +300,35 @@ export default function Pricing({ onOpenDemo }) {
               type="button"
               onClick={() => setIsYearly(true)}
               style={{
-                padding: '8px 20px',
+                padding: '9px 22px',
                 borderRadius: '9999px',
                 border: 'none',
-                background: isYearly ? '#059669' : 'transparent',
+                backgroundColor: isYearly ? 'var(--brand-purple)' : 'transparent',
                 color: isYearly ? '#FFFFFF' : 'var(--text-muted)',
                 fontWeight: 700,
-                fontSize: '0.88rem',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                transition: 'all 0.2s ease'
+                transition: 'all var(--transition-fast)'
               }}
             >
-              <span>Yearly Billing</span>
+              <span>Annual Billing</span>
               <span
                 style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 900,
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  background: isYearly ? '#FEF08A' : 'var(--brand-purple-tint)',
-                  color: isYearly ? '#854D0E' : 'var(--brand-purple)'
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FCF6AB',
+                  color: '#4D164E',
+                  border: '1px solid rgba(125, 40, 126, 0.25)',
+                  boxShadow: '0 2px 6px rgba(125, 40, 126, 0.1)',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                {isYearly ? '🔥 Save up to 20%' : 'Save up to 20%'}
+                Save 20%
               </span>
             </button>
           </div>
@@ -341,31 +343,32 @@ export default function Pricing({ onOpenDemo }) {
                 gap: '10px',
                 flexWrap: 'wrap',
                 margin: '20px auto 0 auto',
-                padding: '10px 22px',
+                padding: '11px 24px',
                 borderRadius: '9999px',
-                background: 'linear-gradient(135deg, rgba(236, 253, 245, 0.98) 0%, rgba(254, 243, 199, 0.95) 100%)',
-                border: '1.5px solid #6EE7B7',
-                boxShadow: '0 4px 18px rgba(5, 150, 105, 0.14)',
+                backgroundColor: 'var(--brand-purple-light)',
+                border: '1.5px solid var(--brand-purple-border)',
+                boxShadow: 'var(--shadow-sm)',
                 maxWidth: '780px'
               }}
             >
-              <span style={{ fontSize: '1.15rem' }}>🎁</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#065F46' }}>
+              <Sparkles size={16} style={{ color: 'var(--brand-purple)' }} />
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--brand-purple)' }}>
                 ANNUAL BILLING OFFER:
               </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#047857' }}>
-                Pay for 10 Months, Get 2 Full Months FREE + Free VIP Onboarding & Assisted Data Migration
+              <span style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-body)' }}>
+                Pay for 10 Months, Get 2 Full Months FREE + Assisted Onboarding & Data Migration
               </span>
               <span
                 style={{
-                  backgroundColor: '#059669',
-                  color: '#FFFFFF',
+                  backgroundColor: 'var(--brand-purple)',
+                  color: '#FCF6AB',
                   fontSize: '0.72rem',
-                  fontWeight: 900,
-                  padding: '2px 8px',
+                  fontWeight: 800,
+                  padding: '2px 9px',
                   borderRadius: '9999px',
                   letterSpacing: '0.04em',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 Limited Offer
@@ -395,24 +398,10 @@ export default function Pricing({ onOpenDemo }) {
             const periodLabel = isFree
               ? 'forever'
               : isYearly && p.yearlyPrice
-              ? '/yr + GST'
-              : '/mo + GST';
+              ? '/year + GST'
+              : '/month + GST';
 
             const ctaText = isYearly ? (p.yearlyCta || p.cta) : p.cta;
-
-            const cardBorder = isYearly && p.popular
-              ? '3px solid #F59E0B'
-              : p.popular
-              ? '3px solid var(--brand-purple)'
-              : isYearly && !isFree
-              ? '1.5px solid #A7F3D0'
-              : '1.5px solid var(--border-color)';
-
-            const cardShadow = isYearly && p.popular
-              ? '0 16px 40px rgba(245, 158, 11, 0.22), 0 4px 16px rgba(125, 40, 126, 0.16)'
-              : p.popular
-              ? 'var(--shadow-purple)'
-              : 'var(--shadow-sm)';
 
             return (
               <div
@@ -422,105 +411,74 @@ export default function Pricing({ onOpenDemo }) {
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  padding: '32px 24px',
+                  padding: '34px 24px 28px 24px',
                   borderRadius: '22px',
-                  border: cardBorder,
+                  border: p.popular ? '2.5px solid var(--brand-purple)' : '1.5px solid var(--border-color)',
                   position: 'relative',
                   background: '#FFFFFF',
-                  boxShadow: cardShadow,
-                  transition: 'transform 0.3s ease, box-shadow 0.3s ease, border 0.3s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-6px)';
-                  e.currentTarget.style.boxShadow = isYearly && p.popular ? '0 20px 48px rgba(245, 158, 11, 0.3)' : 'var(--shadow-purple)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = cardShadow;
+                  boxShadow: p.popular ? 'var(--shadow-purple)' : 'var(--shadow-md)',
+                  transition: 'transform var(--transition-normal), box-shadow var(--transition-normal)'
                 }}
               >
-                {/* Most Popular Badge */}
+                {/* Single Clean Popular / Annual Badge */}
                 {p.popular && (
                   <div
                     style={{
                       position: 'absolute',
-                      top: '12px',
-                      right: '14px',
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      background: isYearly ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' : 'var(--brand-purple)',
-                      color: '#FFFFFF',
-                      fontSize: '0.7rem',
-                      fontWeight: 900,
-                      letterSpacing: '0.04em'
+                      top: '-14px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'linear-gradient(135deg, var(--brand-purple) 0%, #942E96 100%)',
+                      color: '#FCF6AB',
+                      fontSize: '0.74rem',
+                      fontWeight: 800,
+                      padding: '5px 16px',
+                      borderRadius: '9999px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 4px 14px rgba(125, 40, 126, 0.3)',
+                      zIndex: 10
                     }}
                   >
-                    {isYearly ? '🔥 BEST ANNUAL DEAL' : 'MOST POPULAR'}
-                  </div>
-                )}
-
-                {/* Free Trial Badge (if not already popular) */}
-                {!p.popular && p.trial && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '14px',
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      background: '#FEF08A',
-                      color: '#854D0E',
-                      fontSize: '0.7rem',
-                      fontWeight: 800
-                    }}
-                  >
-                    {p.trial}
+                    <Sparkles size={12} style={{ color: '#FCF6AB' }} />
+                    <span>{isYearly ? 'Annual Best Value' : 'Most Popular'}</span>
                   </div>
                 )}
 
                 <div>
-                  {/* Offer Pill (Visible in Yearly mode) */}
-                  {isYearly && p.offerBadge && (
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        padding: '4px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: isFree
-                          ? 'var(--bg-main)'
-                          : p.popular
-                          ? '#FEF3C7'
-                          : '#ECFDF5',
-                        color: isFree
-                          ? 'var(--text-muted)'
-                          : p.popular
-                          ? '#92400E'
-                          : '#065F46',
-                        border: isFree
-                          ? '1px solid var(--border-subtle)'
-                          : p.popular
-                          ? '1px solid #FCD34D'
-                          : '1px solid #A7F3D0',
-                        marginBottom: '10px'
-                      }}
-                    >
-                      <span>{p.offerBadge}</span>
+                  {/* Plan Name & Trial Pill */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-title)' }}>
+                      {p.name}
                     </div>
-                  )}
-
-                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--brand-purple)', marginBottom: '4px' }}>
-                    {p.name}
+                    {p.trial && (
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: '9999px',
+                          backgroundColor: 'var(--brand-purple-light)',
+                          color: 'var(--brand-purple)',
+                          border: '1px solid var(--brand-purple-border)',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {p.trial}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', minHeight: '38px', lineHeight: 1.4, marginBottom: '16px' }}>
+
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', minHeight: '38px', lineHeight: 1.4, marginBottom: '18px' }}>
                     {p.description}
-                  </div>
+                  </p>
 
-                  {/* Price */}
-                  <div style={{ marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  {/* Price Section */}
+                  <div style={{ marginBottom: '22px', paddingBottom: '18px', borderBottom: '1px solid var(--border-subtle)' }}>
                     {/* Strikethrough row when yearly is active */}
                     {isYearly && p.yearlyOriginal && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -533,40 +491,41 @@ export default function Pricing({ onOpenDemo }) {
                             fontWeight: 800,
                             padding: '2px 8px',
                             borderRadius: '9999px',
-                            backgroundColor: '#ECFDF5',
-                            color: '#059669',
-                            border: '1px solid #A7F3D0'
+                            backgroundColor: 'var(--brand-purple-light)',
+                            color: 'var(--brand-purple)',
+                            border: '1px solid var(--brand-purple-border)',
+                            whiteSpace: 'nowrap'
                           }}
                         >
-                          SAVE ₹{p.yearlySavings.toLocaleString('en-IN')} ({p.savingsPct})
+                          Save ₹{p.yearlySavings?.toLocaleString('en-IN')} ({p.savingsPct})
                         </span>
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-                      <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-title)', lineHeight: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                      <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-title)', letterSpacing: '-0.03em' }}>
                         {displayPrice}
                       </span>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                         {periodLabel}
                       </span>
                     </div>
 
-                    {/* Effective Monthly Price Breakdown */}
+                    {/* Effective Monthly Price Breakdown in Brand Purple */}
                     {isYearly && !isFree && p.effectiveMonthly && (
                       <div
                         style={{
                           marginTop: '6px',
-                          fontSize: '0.78rem',
+                          fontSize: '0.82rem',
                           fontWeight: 700,
-                          color: '#059669',
+                          color: 'var(--brand-purple)',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '5px'
                         }}
                       >
-                        <Zap size={13} fill="#059669" />
-                        <span>Effectively ₹{p.effectiveMonthly.toLocaleString('en-IN')}/mo (Save ₹{p.yearlySavings.toLocaleString('en-IN')})</span>
+                        <Zap size={13} style={{ color: 'var(--brand-purple)' }} />
+                        <span>Effectively ₹{p.effectiveMonthly.toLocaleString('en-IN')}/mo (billed annually)</span>
                       </div>
                     )}
                   </div>
@@ -574,47 +533,38 @@ export default function Pricing({ onOpenDemo }) {
                   {/* Resource Capacities from Developer Portal */}
                   <div
                     style={{
-                      background: 'var(--bg-subtle)',
-                      borderRadius: '12px',
-                      padding: '10px 12px',
-                      marginBottom: '18px',
+                      backgroundColor: 'var(--bg-main)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '12px 14px',
+                      marginBottom: '20px',
+                      fontSize: '0.82rem',
                       display: 'grid',
                       gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: '4px',
+                      gap: '6px',
                       textAlign: 'center',
-                      border: '1px solid var(--border-color)'
+                      border: '1px solid var(--border-subtle)'
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
-                        Branches
-                      </div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
-                        {p.branchesVal}
-                      </div>
+                      <div style={{ fontWeight: 800, color: 'var(--brand-purple)' }}>{p.branchesVal}</div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '0.74rem' }}>Branches</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
-                        Agents
-                      </div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
-                        {p.agentsVal}
-                      </div>
+                      <div style={{ fontWeight: 800, color: 'var(--brand-purple)' }}>{p.agentsVal}</div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '0.74rem' }}>Agents</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.62rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.03em' }}>
-                        Loans
-                      </div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 900, color: 'var(--text-title)', marginTop: '2px' }}>
-                        {p.loansVal}
-                      </div>
+                      <div style={{ fontWeight: 800, color: 'var(--brand-purple)' }}>{p.loansVal}</div>
+                      <div style={{ color: 'var(--text-dim)', fontSize: '0.74rem' }}>Loans</div>
                     </div>
                   </div>
 
-                  <div style={{ height: '1.5px', background: 'var(--border-subtle)', marginBottom: '18px' }} />
-
                   {/* Features List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: '12px' }}>
+                      Included Features
+                    </div>
+
                     {/* Annual Exclusive Perk Highlight */}
                     {isYearly && p.annualBonus && (
                       <div
@@ -624,44 +574,42 @@ export default function Pricing({ onOpenDemo }) {
                           gap: '8px',
                           padding: '8px 10px',
                           borderRadius: '8px',
-                          backgroundColor: '#ECFDF5',
-                          border: '1px dashed #6EE7B7',
-                          marginBottom: '4px',
-                          fontSize: '0.8rem',
+                          backgroundColor: 'var(--brand-purple-light)',
+                          border: '1px dashed var(--brand-purple-border)',
+                          marginBottom: '10px',
+                          fontSize: '0.82rem',
                           fontWeight: 700,
-                          color: '#065F46'
+                          color: 'var(--brand-purple-dark)'
                         }}
                       >
-                        <Gift size={14} style={{ flexShrink: 0, marginTop: '2px', color: '#059669' }} />
+                        <Gift size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--brand-purple)' }} />
                         <span>Annual Perk: {p.annualBonus}</span>
                       </div>
                     )}
 
-                    {p.features.map((feat, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <div
-                          style={{
-                            width: '16px',
-                            height: '16px',
-                            borderRadius: '50%',
-                            background: 'var(--brand-purple-tint)',
-                            color: 'var(--brand-purple)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.65rem',
-                            fontWeight: 800,
-                            flexShrink: 0,
-                            marginTop: '2px'
-                          }}
-                        >
-                          <Check size={11} />
-                        </div>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--text-body)', lineHeight: 1.45, fontWeight: 500 }}>
-                          {feat}
-                        </span>
-                      </div>
-                    ))}
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {p.features.map((feat, idx) => (
+                        <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.88rem', color: 'var(--text-body)' }}>
+                          <div
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '50%',
+                              backgroundColor: p.popular ? 'var(--brand-purple)' : 'var(--brand-purple-tint)',
+                              color: p.popular ? '#FFFFFF' : 'var(--brand-purple)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              marginTop: '2px'
+                            }}
+                          >
+                            <Check size={12} strokeWidth={3} />
+                          </div>
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
 
@@ -670,8 +618,14 @@ export default function Pricing({ onOpenDemo }) {
                   {p.id === 'enterprise' ? (
                     <button
                       onClick={onOpenDemo}
-                      className="btn btn-primary"
-                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                      className="btn btn-secondary"
+                      style={{
+                        width: '100%',
+                        justifyContent: 'center',
+                        padding: '13px 20px',
+                        fontSize: '0.92rem',
+                        fontWeight: 800
+                      }}
                     >
                       <span>{ctaText}</span>
                       <ArrowRight size={15} />
@@ -680,7 +634,14 @@ export default function Pricing({ onOpenDemo }) {
                     <Link
                       href={`/register?plan=${p.plan}`}
                       className={p.popular ? 'btn btn-primary' : 'btn btn-secondary'}
-                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                      style={{
+                        width: '100%',
+                        justifyContent: 'center',
+                        padding: '13px 20px',
+                        fontSize: '0.92rem',
+                        fontWeight: 800,
+                        textDecoration: 'none'
+                      }}
                     >
                       <span>{ctaText}</span>
                       <ArrowRight size={15} />
@@ -694,13 +655,13 @@ export default function Pricing({ onOpenDemo }) {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '5px',
-                      fontSize: '0.72rem',
+                      fontSize: '0.74rem',
                       color: 'var(--text-muted)',
                       marginTop: '8px',
                       fontWeight: 600
                     }}
                   >
-                    <ShieldCheck size={13} style={{ color: '#059669' }} />
+                    <ShieldCheck size={13} style={{ color: 'var(--brand-purple)' }} />
                     <span>{isFree ? 'No credit card required' : isYearly ? 'Risk-free 15-day trial • Cancel anytime' : '15-day trial • Instant access'}</span>
                   </div>
                 </div>
