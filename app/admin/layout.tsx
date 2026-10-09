@@ -82,6 +82,13 @@ export default async function AdminLayout({
             )}
 
             {userRole === 'developer' && (
+              <Link href="/admin/announcements">
+                <span className="material-icons-outlined">campaign</span>
+                Announcements
+              </Link>
+            )}
+
+            {userRole === 'developer' && (
               <Link href="/admin/module-requests">
                 <span className="material-icons-outlined">extension</span>
                 Module Requests

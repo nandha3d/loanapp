@@ -217,6 +217,7 @@ model User {
   accountingAuditLog     AccountingAuditLog[] @relation("AccountingAuditUser")
   nachMandatesCreated    NachMandate[]        @relation("NachCreator")
   nachMandatesCancelled  NachMandate[]        @relation("NachCanceller")
+  announcementRecipients AnnouncementRecipient[]
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
@@ -3235,3 +3236,59 @@ model NachPresentation {
   @@index([razorpayOrderId])
   @@map("nach_presentations")
 }
+
+model Announcement {
+  id             String                  @id @default(cuid())
+  title          String
+  message        String                  @db.Text
+  type           String                  @default("info") // info | update | warning | critical | celebration
+  priority       String                  @default("normal") // low | normal | high | urgent
+  targetScope    String                  @default("all") // all | role | selected | single | subscription | geo | branch
+  targetRole     String?                 @map("target_role")
+  targetSubscription String?             @map("target_subscription") // free | basic | business | enterprise | yearly | monthly
+  targetGeo      String?                 @map("target_geo") // state or city name
+  targetTenantId String?                 @map("target_tenant_id")
+  targetBranchId String?                 @map("target_branch_id")
+  displayType    String                  @default("all") // all | scrolling_bar | popup | notification
+  isScrollingBar Boolean                 @default(true) @map("is_scrolling_bar")
+  isPopup        Boolean                 @default(true) @map("is_popup")
+  actionLabel    String?                 @map("action_label")
+  actionUrl      String?                 @map("action_url")
+  status         String                  @default("published") // draft | scheduled | published | archived
+  scheduledAt    DateTime?               @map("scheduled_at")
+  expiresAt      DateTime?               @map("expires_at")
+  authorId       String?                 @map("author_id")
+  authorName     String?                 @map("author_name")
+  totalTargeted  Int                     @default(0) @map("total_targeted")
+  totalRead      Int                     @default(0) @map("total_read")
+  totalDismissed Int                     @default(0) @map("total_dismissed")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  recipients     AnnouncementRecipient[]
+
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@map("announcements")
+}
+
+model AnnouncementRecipient {
+  id             String       @id @default(cuid())
+  announcementId String       @map("announcement_id")
+  userId         String       @map("user_id")
+  tenantId       String?      @map("tenant_id")
+  isRead         Boolean      @default(false) @map("is_read")
+  readAt         DateTime?    @map("read_at")
+  isDismissed    Boolean      @default(false) @map("is_dismissed")
+  dismissedAt    DateTime?    @map("dismissed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, isRead])
+  @@index([userId, isDismissed])
+  @@map("announcement_recipients")
+}
+

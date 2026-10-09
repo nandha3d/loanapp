@@ -40,9 +40,13 @@ import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/dashboard/widgets/dashboard_gps_widget.dart';
 import 'package:zolofund/data/services/notifications_service.dart';
+import 'package:zolofund/features/announcements/announcements_provider.dart';
+import 'package:zolofund/features/announcements/announcement_popup_dialog.dart';
+import 'package:zolofund/features/announcements/scrolling_announcement_bar.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
+bool _announcementPopupShown = false;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -72,6 +76,23 @@ class DashboardScreen extends ConsumerWidget {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final chitSummary = isChit ? ref.watch(chitDashboardSummaryProvider) : null;
+
+    final announcementsAsync = ref.watch(activeAnnouncementsProvider);
+    final scrollingList = announcementsAsync.asData?.value.scrolling ?? const [];
+    final popupList = announcementsAsync.asData?.value.popups ?? const [];
+
+    if (popupList.isNotEmpty && !_announcementPopupShown) {
+      _announcementPopupShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          AnnouncementPopupDialog.show(
+            context,
+            popupList.first,
+            onDismissed: () => ref.invalidate(activeAnnouncementsProvider),
+          );
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -104,7 +125,15 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 4),
         ],
       ),
-      body: RefreshIndicator(
+      body: Column(
+        children: [
+          if (scrollingList.isNotEmpty)
+            ScrollingAnnouncementBar(
+              announcements: scrollingList,
+              onDismissed: () => ref.invalidate(activeAnnouncementsProvider),
+            ),
+          Expanded(
+            child: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
           ref.invalidate(dailyCollectionHeatMapPointsProvider);
@@ -191,6 +220,9 @@ class DashboardScreen extends ConsumerWidget {
                   responsive: user?.appType == AppType.microlending,
                 ),
               ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/dashboard'),
     );

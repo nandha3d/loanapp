@@ -199,6 +199,11 @@ class Endpoints {
   static const String twoFactorSetup = '/settings/2fa/setup';
   static const String twoFactorVerify = '/settings/2fa/verify';
 
+  // Announcements
+  static const String announcementsActive = '/announcements/active';
+  static String announcementDismiss(String id) => '/announcements/$id/dismiss';
+  static String announcementRead(String id) => '/announcements/$id/read';
+
   // Vehicles
   static const String vehicles = '/vehicles';
   static String vehicle(String id) => '/vehicles/$id';

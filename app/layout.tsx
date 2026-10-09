@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import MonitorBanner from '@/components/MonitorBanner';
+import AnnouncementProvider from '@/components/announcements/AnnouncementProvider';
 import { withBasePath } from '@/lib/public-path';
 import './globals.css';
 
@@ -66,6 +67,7 @@ export default async function RootLayout({
       </head>
       <body suppressHydrationWarning>
         <MonitorBanner />
+        <AnnouncementProvider />
         {children}
         <div id="toast-container" className="toast-container"></div>
       </body>
