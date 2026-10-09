@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Check, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, ArrowRight, Sparkles, Gift, Zap, ShieldCheck } from 'lucide-react';
 import { useScrollAnimation } from './hooks/useScrollAnimation';
 
 export default function Pricing({ onOpenDemo }) {
@@ -25,11 +25,17 @@ export default function Pricing({ onOpenDemo }) {
       name: 'Free',
       monthlyPrice: 0,
       yearlyPrice: null,
+      yearlyOriginal: null,
+      yearlySavings: null,
+      savingsPct: null,
+      effectiveMonthly: 0,
       description: 'Test out LoanTrack features for free',
       branchesVal: '1',
       agentsVal: '1',
       loansVal: '25',
       trial: null,
+      offerBadge: '🌟 Free Forever',
+      annualBonus: null,
       features: [
         'Single branch',
         '1 collection agent',
@@ -38,6 +44,7 @@ export default function Pricing({ onOpenDemo }) {
         'Field agent mobile app access'
       ],
       cta: 'Start Free',
+      yearlyCta: 'Start Free Forever',
       popular: false
     },
     {
@@ -46,11 +53,17 @@ export default function Pricing({ onOpenDemo }) {
       name: 'Basic',
       monthlyPrice: 799,
       yearlyPrice: 7689,
+      yearlyOriginal: 9588,
+      yearlySavings: 1899,
+      savingsPct: '20% OFF',
+      effectiveMonthly: 640,
       description: 'Essential tools for small lending businesses',
       branchesVal: '2',
       agentsVal: '5',
       loansVal: '200',
       trial: '15-Day Free Trial',
+      offerBadge: '⚡ SAVE ₹1,899 / YEAR (20% OFF)',
+      annualBonus: 'Free Thermal Receipt Templates & Branding',
       features: [
         'Up to 2 branches',
         'Up to 5 collection agents',
@@ -62,6 +75,7 @@ export default function Pricing({ onOpenDemo }) {
         'Standard collection reporting'
       ],
       cta: 'Choose Basic',
+      yearlyCta: 'Claim 20% Discount (Save ₹1,899)',
       popular: false
     },
     {
@@ -70,23 +84,31 @@ export default function Pricing({ onOpenDemo }) {
       name: 'Business',
       monthlyPrice: 1499,
       yearlyPrice: 16489,
+      yearlyOriginal: 17988,
+      yearlySavings: 1499,
+      savingsPct: '1 Month Free',
+      effectiveMonthly: 1374,
       description: 'Advanced capabilities for growing operations',
       branchesVal: '5',
       agentsVal: '25',
       loansVal: '1,000',
       trial: '15-Day Free Trial',
+      offerBadge: '🔥 BEST VALUE • SAVE ₹1,499 / YR',
+      annualBonus: 'Free Assisted Customer & Loan Data Migration',
       features: [
         'Up to 5 branches',
         'Up to 25 collection agents',
         'Up to 1,000 active loans',
         '15-day free trial included',
-        'Everything in Basic, plus:',
-        'WhatsApp & SMS alerts',
-        'GPS collection & route tracking',
-        'Multi-branch consolidation & analytics',
-        'Priority email & chat support'
+        'All 5 lending verticals',
+        'Live Agent GPS Route Tracking',
+        'Evening Cash Handover & Audit Lock',
+        'WhatsApp collection receipts',
+        'Multi-level maker-checker approval queue',
+        'Dedicated Account Manager'
       ],
-      cta: 'Choose Business',
+      cta: 'Start Business Trial',
+      yearlyCta: 'Claim Annual Deal & 15-Day Trial',
       popular: true
     },
     {
@@ -95,24 +117,30 @@ export default function Pricing({ onOpenDemo }) {
       name: 'Enterprise',
       monthlyPrice: 2999,
       yearlyPrice: 32989,
+      yearlyOriginal: 35988,
+      yearlySavings: 2999,
+      savingsPct: '1 Month Free',
+      effectiveMonthly: 2749,
       description: 'Unlimited access for large-scale financial institutions',
       branchesVal: 'Unlimited',
       agentsVal: '9,999',
       loansVal: 'Unlimited',
-      trial: '15-Day Free Trial',
+      trial: '30-Day Free Trial',
+      offerBadge: '👑 VIP ANNUAL • SAVE ₹2,999 / YR',
+      annualBonus: 'Dedicated Technical Account Manager & Custom ERP Sync',
       features: [
         'Unlimited branches',
         'Up to 9,999 collection agents',
         'Unlimited active loans',
-        '15-day free trial included',
-        'Everything in Business, plus:',
-        'Credit bureau integration (CIBIL / CRIF)',
-        'eNACH automated mandate collection',
-        'Premium double-entry accounting & GST',
-        'NPA classification engine',
-        'Dedicated 24/7 SLA support'
+        '30-day free trial included',
+        'Custom multi-branch hierarchies',
+        'Priority 24/7 SLA & dedicated engineer',
+        'Unlimited cloud storage & ledger archiving',
+        'Custom ERP integrations & data export',
+        'Dedicated Technical Account Manager'
       ],
-      cta: 'Talk to Sales',
+      cta: 'Contact Enterprise',
+      yearlyCta: 'Claim VIP Enterprise Deal',
       popular: false
     }
   ];
@@ -244,11 +272,12 @@ export default function Pricing({ onOpenDemo }) {
               display: 'inline-flex',
               alignItems: 'center',
               background: '#FFFFFF',
-              border: '2px solid var(--brand-purple-border)',
+              border: isYearly ? '2px solid #10B981' : '2px solid var(--brand-purple-border)',
               borderRadius: '9999px',
               padding: '4px',
               marginTop: '18px',
-              boxShadow: '0 2px 8px rgba(107, 70, 193, 0.08)'
+              boxShadow: isYearly ? '0 0 20px rgba(16, 185, 129, 0.2)' : '0 2px 8px rgba(107, 70, 193, 0.08)',
+              transition: 'all 0.3s ease'
             }}
           >
             <button
@@ -275,7 +304,7 @@ export default function Pricing({ onOpenDemo }) {
                 padding: '8px 20px',
                 borderRadius: '9999px',
                 border: 'none',
-                background: isYearly ? 'var(--brand-purple)' : 'transparent',
+                background: isYearly ? '#059669' : 'transparent',
                 color: isYearly ? '#FFFFFF' : 'var(--text-muted)',
                 fontWeight: 700,
                 fontSize: '0.88rem',
@@ -290,17 +319,59 @@ export default function Pricing({ onOpenDemo }) {
               <span
                 style={{
                   fontSize: '0.72rem',
-                  fontWeight: 800,
+                  fontWeight: 900,
                   padding: '2px 8px',
                   borderRadius: '12px',
                   background: isYearly ? '#FEF08A' : 'var(--brand-purple-tint)',
                   color: isYearly ? '#854D0E' : 'var(--brand-purple)'
                 }}
               >
-                Save up to 20%
+                {isYearly ? '🔥 Save up to 20%' : 'Save up to 20%'}
               </span>
             </button>
           </div>
+
+          {/* Celebratory Offer Banner When Yearly Active */}
+          {isYearly && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+                margin: '20px auto 0 auto',
+                padding: '10px 22px',
+                borderRadius: '9999px',
+                background: 'linear-gradient(135deg, rgba(236, 253, 245, 0.98) 0%, rgba(254, 243, 199, 0.95) 100%)',
+                border: '1.5px solid #6EE7B7',
+                boxShadow: '0 4px 18px rgba(5, 150, 105, 0.14)',
+                maxWidth: '780px'
+              }}
+            >
+              <span style={{ fontSize: '1.15rem' }}>🎁</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#065F46' }}>
+                ANNUAL BILLING OFFER:
+              </span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#047857' }}>
+                Pay for 10 Months, Get 2 Full Months FREE + Free VIP Onboarding & Assisted Data Migration
+              </span>
+              <span
+                style={{
+                  backgroundColor: '#059669',
+                  color: '#FFFFFF',
+                  fontSize: '0.72rem',
+                  fontWeight: 900,
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase'
+                }}
+              >
+                Limited Offer
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 4 Authoritative Plans Grid */}
@@ -327,9 +398,21 @@ export default function Pricing({ onOpenDemo }) {
               ? '/yr + GST'
               : '/mo + GST';
 
-            const effectiveMonthly = isYearly && p.yearlyPrice
-              ? `₹${Math.round(p.yearlyPrice / 12).toLocaleString('en-IN')}/mo billed annually`
-              : null;
+            const ctaText = isYearly ? (p.yearlyCta || p.cta) : p.cta;
+
+            const cardBorder = isYearly && p.popular
+              ? '3px solid #F59E0B'
+              : p.popular
+              ? '3px solid var(--brand-purple)'
+              : isYearly && !isFree
+              ? '1.5px solid #A7F3D0'
+              : '1.5px solid var(--border-color)';
+
+            const cardShadow = isYearly && p.popular
+              ? '0 16px 40px rgba(245, 158, 11, 0.22), 0 4px 16px rgba(125, 40, 126, 0.16)'
+              : p.popular
+              ? 'var(--shadow-purple)'
+              : 'var(--shadow-sm)';
 
             return (
               <div
@@ -341,21 +424,19 @@ export default function Pricing({ onOpenDemo }) {
                   justifyContent: 'space-between',
                   padding: '32px 24px',
                   borderRadius: '22px',
-                  border: p.popular
-                    ? '3px solid var(--brand-purple)'
-                    : '1.5px solid var(--border-color)',
+                  border: cardBorder,
                   position: 'relative',
                   background: '#FFFFFF',
-                  boxShadow: p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)',
-                  transition: 'transform 0.3s ease, box-shadow 0.3s ease'
+                  boxShadow: cardShadow,
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease, border 0.3s ease'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-6px)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-purple)';
+                  e.currentTarget.style.boxShadow = isYearly && p.popular ? '0 20px 48px rgba(245, 158, 11, 0.3)' : 'var(--shadow-purple)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = p.popular ? 'var(--shadow-purple)' : 'var(--shadow-sm)';
+                  e.currentTarget.style.boxShadow = cardShadow;
                 }}
               >
                 {/* Most Popular Badge */}
@@ -367,14 +448,14 @@ export default function Pricing({ onOpenDemo }) {
                       right: '14px',
                       padding: '4px 12px',
                       borderRadius: '12px',
-                      background: 'var(--brand-purple)',
+                      background: isYearly ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' : 'var(--brand-purple)',
                       color: '#FFFFFF',
                       fontSize: '0.7rem',
                       fontWeight: 900,
                       letterSpacing: '0.04em'
                     }}
                   >
-                    MOST POPULAR
+                    {isYearly ? '🔥 BEST ANNUAL DEAL' : 'MOST POPULAR'}
                   </div>
                 )}
 
@@ -398,6 +479,39 @@ export default function Pricing({ onOpenDemo }) {
                 )}
 
                 <div>
+                  {/* Offer Pill (Visible in Yearly mode) */}
+                  {isYearly && p.offerBadge && (
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: '9999px',
+                        backgroundColor: isFree
+                          ? 'var(--bg-main)'
+                          : p.popular
+                          ? '#FEF3C7'
+                          : '#ECFDF5',
+                        color: isFree
+                          ? 'var(--text-muted)'
+                          : p.popular
+                          ? '#92400E'
+                          : '#065F46',
+                        border: isFree
+                          ? '1px solid var(--border-subtle)'
+                          : p.popular
+                          ? '1px solid #FCD34D'
+                          : '1px solid #A7F3D0',
+                        marginBottom: '10px'
+                      }}
+                    >
+                      <span>{p.offerBadge}</span>
+                    </div>
+                  )}
+
                   <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--brand-purple)', marginBottom: '4px' }}>
                     {p.name}
                   </div>
@@ -406,20 +520,56 @@ export default function Pricing({ onOpenDemo }) {
                   </div>
 
                   {/* Price */}
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: effectiveMonthly ? '4px' : '18px' }}>
-                    <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-title)', lineHeight: 1 }}>
-                      {displayPrice}
-                    </span>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-                      {periodLabel}
-                    </span>
-                  </div>
+                  <div style={{ marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    {/* Strikethrough row when yearly is active */}
+                    {isYearly && p.yearlyOriginal && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '1.05rem', fontWeight: 700 }}>
+                          ₹{p.yearlyOriginal.toLocaleString('en-IN')}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: '#ECFDF5',
+                            color: '#059669',
+                            border: '1px solid #A7F3D0'
+                          }}
+                        >
+                          SAVE ₹{p.yearlySavings.toLocaleString('en-IN')} ({p.savingsPct})
+                        </span>
+                      </div>
+                    )}
 
-                  {effectiveMonthly && (
-                    <div style={{ fontSize: '0.76rem', color: 'var(--brand-purple)', fontWeight: 700, marginBottom: '16px' }}>
-                      ⚡ {effectiveMonthly}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                      <span style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-title)', lineHeight: 1 }}>
+                        {displayPrice}
+                      </span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                        {periodLabel}
+                      </span>
                     </div>
-                  )}
+
+                    {/* Effective Monthly Price Breakdown */}
+                    {isYearly && !isFree && p.effectiveMonthly && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          color: '#059669',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}
+                      >
+                        <Zap size={13} fill="#059669" />
+                        <span>Effectively ₹{p.effectiveMonthly.toLocaleString('en-IN')}/mo (Save ₹{p.yearlySavings.toLocaleString('en-IN')})</span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Resource Capacities from Developer Portal */}
                   <div
@@ -465,6 +615,28 @@ export default function Pricing({ onOpenDemo }) {
 
                   {/* Features List */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+                    {/* Annual Exclusive Perk Highlight */}
+                    {isYearly && p.annualBonus && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: '#ECFDF5',
+                          border: '1px dashed #6EE7B7',
+                          marginBottom: '4px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          color: '#065F46'
+                        }}
+                      >
+                        <Gift size={14} style={{ flexShrink: 0, marginTop: '2px', color: '#059669' }} />
+                        <span>Annual Perk: {p.annualBonus}</span>
+                      </div>
+                    )}
+
                     {p.features.map((feat, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                         <div
@@ -493,25 +665,45 @@ export default function Pricing({ onOpenDemo }) {
                   </div>
                 </div>
 
-                {p.id === 'enterprise' ? (
-                  <button
-                    onClick={onOpenDemo}
-                    className="btn btn-primary"
-                    style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                {/* CTA Action */}
+                <div>
+                  {p.id === 'enterprise' ? (
+                    <button
+                      onClick={onOpenDemo}
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                    >
+                      <span>{ctaText}</span>
+                      <ArrowRight size={15} />
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/register?plan=${p.plan}`}
+                      className={p.popular ? 'btn btn-primary' : 'btn btn-secondary'}
+                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
+                    >
+                      <span>{ctaText}</span>
+                      <ArrowRight size={15} />
+                    </Link>
+                  )}
+
+                  {/* Trust Micro-Badge */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-muted)',
+                      marginTop: '8px',
+                      fontWeight: 600
+                    }}
                   >
-                    <span>{p.cta}</span>
-                    <ArrowRight size={15} />
-                  </button>
-                ) : (
-                  <Link
-                    href={`/register?plan=${p.plan}`}
-                    className={p.popular ? 'btn btn-primary' : 'btn btn-secondary'}
-                    style={{ width: '100%', padding: '12px', fontSize: '0.9rem', justifyContent: 'center' }}
-                  >
-                    <span>{p.cta}</span>
-                    <ArrowRight size={15} />
-                  </Link>
-                )}
+                    <ShieldCheck size={13} style={{ color: '#059669' }} />
+                    <span>{isFree ? 'No credit card required' : isYearly ? 'Risk-free 15-day trial • Cancel anytime' : '15-day trial • Instant access'}</span>
+                  </div>
+                </div>
               </div>
             );
           })}
