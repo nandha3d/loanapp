@@ -10,6 +10,11 @@ export interface AnnouncementItem {
   priority: string;
   isScrollingBar: boolean;
   isPopup: boolean;
+  popupStyle?: 'box_75' | 'full_page' | 'standard' | string;
+  contentType?: 'standard' | 'template' | 'custom_html' | 'embed_url' | string;
+  templateId?: string | null;
+  customHtml?: string | null;
+  embedUrl?: string | null;
   actionLabel?: string | null;
   actionUrl?: string | null;
   createdAt: string;

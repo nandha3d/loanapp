@@ -3252,6 +3252,11 @@ model Announcement {
   displayType    String                  @default("all") // all | scrolling_bar | popup | notification
   isScrollingBar Boolean                 @default(true) @map("is_scrolling_bar")
   isPopup        Boolean                 @default(true) @map("is_popup")
+  popupStyle     String                  @default("box_75") @map("popup_style") // box_75 | full_page | standard
+  contentType    String                  @default("standard") @map("content_type") // standard | template | custom_html | embed_url
+  templateId     String?                 @map("template_id") // festival_offer | feature_showcase | compliance_notice | maintenance_notice
+  customHtml     String?                 @db.Text @map("custom_html")
+  embedUrl       String?                 @map("embed_url")
   actionLabel    String?                 @map("action_label")
   actionUrl      String?                 @map("action_url")
   status         String                  @default("published") // draft | scheduled | published | archived

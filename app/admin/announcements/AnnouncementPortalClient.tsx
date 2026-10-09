@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   createAnnouncementAction,
   archiveAnnouncementAction,
@@ -8,6 +9,14 @@ import {
   resendAnnouncementAction,
   getAnnouncementRecipientsList,
 } from './actions';
+import {
+  ANNOUNCEMENT_TEMPLATES,
+  FestivalOfferPage,
+  FeatureShowcasePage,
+  ComplianceNoticePage,
+  MaintenanceDowntimePage,
+  CustomEmbedPage,
+} from '@/components/announcements/pages';
 
 interface AnnouncementPortalClientProps {
   initialAnnouncements: any[];
@@ -52,6 +61,13 @@ export default function AnnouncementPortalClient({
   const [actionLabel, setActionLabel] = useState('');
   const [actionUrl, setActionUrl] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+
+  // Custom Styled Page & Popup Options
+  const [popupStyle, setPopupStyle] = useState<'standard' | 'box_75' | 'full_page'>('box_75');
+  const [contentType, setContentType] = useState<'standard' | 'template' | 'custom_html' | 'embed_url'>('standard');
+  const [templateId, setTemplateId] = useState<string>('festival');
+  const [customHtml, setCustomHtml] = useState<string>('');
+  const [embedUrl, setEmbedUrl] = useState<string>('');
 
   // Audience Targeting State
   const [targetScope, setTargetScope] = useState<'all' | 'role' | 'subscription' | 'geo' | 'selected' | 'single'>('all');
@@ -129,6 +145,11 @@ export default function AnnouncementPortalClient({
     setActionLabel('');
     setActionUrl('');
     setExpiresAt('');
+    setPopupStyle('box_75');
+    setContentType('standard');
+    setTemplateId('festival');
+    setCustomHtml('');
+    setEmbedUrl('');
     setTargetScope('all');
     setSelectedUserIds([]);
     setSingleUserId('');
@@ -139,6 +160,14 @@ export default function AnnouncementPortalClient({
   const handleSubmitAnnouncement = async (status: 'published' | 'draft') => {
     if (!title.trim() || !message.trim()) {
       alert('Please provide both Title and Message.');
+      return;
+    }
+    if (contentType === 'custom_html' && !customHtml.trim()) {
+      alert('Please provide the Custom HTML code for the announcement page.');
+      return;
+    }
+    if (contentType === 'embed_url' && !embedUrl.trim()) {
+      alert('Please provide the URL to embed for the announcement page.');
       return;
     }
     if (targetScope === 'selected' && selectedUserIds.length === 0) {
@@ -164,6 +193,11 @@ export default function AnnouncementPortalClient({
         targetUserIds: targetScope === 'selected' ? selectedUserIds : targetScope === 'single' ? [singleUserId] : [],
         isScrollingBar,
         isPopup,
+        popupStyle,
+        contentType,
+        templateId: contentType === 'template' ? templateId : null,
+        customHtml: contentType === 'custom_html' ? customHtml : null,
+        embedUrl: contentType === 'embed_url' ? embedUrl : null,
         actionLabel: actionLabel.trim() || null,
         actionUrl: actionUrl.trim() || null,
         expiresAt: expiresAt || null,
@@ -182,6 +216,11 @@ export default function AnnouncementPortalClient({
           targetScope,
           isScrollingBar,
           isPopup,
+          popupStyle,
+          contentType,
+          templateId: contentType === 'template' ? templateId : null,
+          customHtml: contentType === 'custom_html' ? customHtml : null,
+          embedUrl: contentType === 'embed_url' ? embedUrl : null,
           actionLabel,
           actionUrl,
           status,
@@ -726,6 +765,28 @@ export default function AnnouncementPortalClient({
                       {/* Actions */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <Link
+                            href={`/announcements/${a.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open Direct Styled Page"
+                            style={{
+                              padding: '6px',
+                              borderRadius: '8px',
+                              border: '1px solid #D1D5DB',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                              color: '#3B82F6',
+                              display: 'flex',
+                              alignItems: 'center',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>
+                              open_in_new
+                            </span>
+                          </Link>
+
                           <button
                             type="button"
                             onClick={() => handleOpenRecipients(a)}
@@ -1004,10 +1065,190 @@ export default function AnnouncementPortalClient({
                           onChange={(e) => setIsPopup(e.target.checked)}
                           style={{ width: '16px', height: '16px', accentColor: 'var(--brand-purple, #7D287E)' }}
                         />
-                        <span>Dedicated Popup Modal (Appears on login until acknowledged)</span>
+                        <span>Dedicated Popup Modal / Styled Page</span>
                       </label>
                     </div>
                   </div>
+
+                  {/* Popup Presentation Style & Content Mode */}
+                  {isPopup && (
+                    <div style={{ backgroundColor: '#F9FAFB', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#374151', marginBottom: '6px' }}>
+                          Popup Presentation Layout:
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                          {[
+                            { id: 'box_75', label: '75% Box Popup', sub: 'Floating 75vw Card', icon: 'aspect_ratio' },
+                            { id: 'full_page', label: 'Full Page Takeover', sub: '100% Immersive View', icon: 'fullscreen' },
+                            { id: 'standard', label: 'Standard Dialog', sub: 'Compact Dialog Box', icon: 'picture_in_picture' },
+                          ].map((style) => (
+                            <button
+                              key={style.id}
+                              type="button"
+                              onClick={() => setPopupStyle(style.id as any)}
+                              style={{
+                                padding: '10px 8px',
+                                borderRadius: '10px',
+                                border: popupStyle === style.id ? '2px solid var(--brand-purple, #7D287E)' : '1px solid #D1D5DB',
+                                backgroundColor: popupStyle === style.id ? '#F9F1FA' : '#FFFFFF',
+                                color: popupStyle === style.id ? 'var(--brand-purple, #7D287E)' : '#374151',
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>{style.icon}</span>
+                              <span style={{ fontSize: '0.76rem', fontWeight: 800 }}>{style.label}</span>
+                              <span style={{ fontSize: '0.68rem', color: '#6B7280' }}>{style.sub}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Content Mode */}
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#374151', marginBottom: '6px' }}>
+                          Page Design & Content Mode:
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                          {[
+                            { id: 'standard', label: 'Standard', icon: 'chat' },
+                            { id: 'template', label: 'Templates', icon: 'auto_awesome' },
+                            { id: 'custom_html', label: 'HTML Page', icon: 'code' },
+                            { id: 'embed_url', label: 'Embed URL', icon: 'link' },
+                          ].map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setContentType(c.id as any)}
+                              style={{
+                                padding: '8px 6px',
+                                borderRadius: '8px',
+                                border: contentType === c.id ? '2px solid var(--brand-purple, #7D287E)' : '1px solid #D1D5DB',
+                                backgroundColor: contentType === c.id ? '#F9F1FA' : '#FFFFFF',
+                                color: contentType === c.id ? 'var(--brand-purple, #7D287E)' : '#4B5563',
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '2px',
+                              }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '17px' }}>{c.icon}</span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 800 }}>{c.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Template Selector */}
+                      {contentType === 'template' && (
+                        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '12px' }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#374151', marginBottom: '8px' }}>
+                            Choose Designed Template:
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            {ANNOUNCEMENT_TEMPLATES.map((tmpl) => (
+                              <button
+                                key={tmpl.id}
+                                type="button"
+                                onClick={() => setTemplateId(tmpl.id)}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '10px',
+                                  border: templateId === tmpl.id ? '2px solid var(--brand-purple, #7D287E)' : '1px solid #E5E7EB',
+                                  backgroundColor: templateId === tmpl.id ? '#FAF5FF' : '#FFFFFF',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '2px',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span className="material-icons-outlined" style={{ fontSize: '16px', color: 'var(--brand-purple, #7D287E)' }}>
+                                    {tmpl.icon}
+                                  </span>
+                                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#111827' }}>{tmpl.name}</span>
+                                </div>
+                                <span style={{ fontSize: '0.70rem', color: '#6B7280', lineHeight: 1.2 }}>{tmpl.description}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom HTML Editor */}
+                      {contentType === 'custom_html' && (
+                        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#374151' }}>
+                              Custom HTML Markup:
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomHtml(`<div style="background: linear-gradient(135deg, #7D287E, #4A154B); color: #FFFFFF; padding: 48px; border-radius: 20px; text-align: center; font-family: sans-serif;">
+  <span style="font-size: 48px;">✨</span>
+  <h1 style="font-size: 2rem; margin: 16px 0 8px 0; color: #FCF6AB;">Special Milestone Celebration</h1>
+  <p style="font-size: 1.05rem; opacity: 0.9; max-width: 500px; margin: 0 auto 24px auto;">
+    We have just crossed 100,000 active loans disbursed across 24 branches. Thank you for your partnership!
+  </p>
+  <div style="display: inline-block; background: #FCF6AB; color: #7D287E; font-weight: 800; padding: 12px 28px; border-radius: 9999px; text-decoration: none;">
+    Claim Partner Reward
+  </div>
+</div>`);
+                              }}
+                              style={{ background: 'none', border: 'none', color: 'var(--brand-purple, #7D287E)', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              Load Sample Template
+                            </button>
+                          </div>
+                          <textarea
+                            rows={6}
+                            placeholder="<div>Your styled HTML announcement page...</div>"
+                            value={customHtml}
+                            onChange={(e) => setCustomHtml(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: '1.5px solid #D1D5DB',
+                              fontFamily: 'monospace',
+                              fontSize: '0.8rem',
+                              lineHeight: 1.4,
+                              backgroundColor: '#1E1B2E',
+                              color: '#A7F3D0',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Embed URL Input */}
+                      {contentType === 'embed_url' && (
+                        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '12px' }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#374151', marginBottom: '4px' }}>
+                            Page / Embed URL (Internal or External):
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. https://zolofunds.com/#pricing or /pricing"
+                            value={embedUrl}
+                            onChange={(e) => setEmbedUrl(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #D1D5DB', fontSize: '0.86rem' }}
+                          />
+                          <p style={{ fontSize: '0.72rem', color: '#6B7280', margin: '4px 0 0 0' }}>
+                            Embedded directly inside the announcement modal / page with responsive viewport and open-in-tab fallback.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Action Link & Expiry */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1344,41 +1585,69 @@ export default function AnnouncementPortalClient({
                           </span>
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            width: '100%',
-                            maxWidth: '320px',
-                            backgroundColor: '#FFFFFF',
-                            borderRadius: '12px',
-                            overflow: 'hidden',
-                            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              background: 'var(--brand-purple, #7D287E)',
-                              color: '#FFFFFF',
-                              padding: '10px 14px',
-                              fontWeight: 800,
-                              fontSize: '0.85rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
-                              campaign
-                            </span>
-                            <span>{title || 'Announcement Title'}</span>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ fontSize: '0.70rem', color: '#9CA3AF', fontWeight: 700, alignSelf: 'flex-start' }}>
+                            Previewing layout: <span style={{ color: '#FCF6AB' }}>{popupStyle === 'box_75' ? '75% Screen Box Popup' : popupStyle === 'full_page' ? 'Full Page Takeover' : 'Standard Dialog'}</span>
                           </div>
-                          <div style={{ padding: '12px', fontSize: '0.78rem', color: '#4B5563', lineHeight: 1.4 }}>
-                            {message || 'Announcement message preview...'}
-                          </div>
-                          <div style={{ padding: '8px 12px', backgroundColor: '#F9FAFB', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'flex-end' }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--brand-purple, #7D287E)' }}>
-                              [Acknowledge Button]
-                            </span>
-                          </div>
+                          {contentType === 'template' ? (
+                            <div style={{ width: '100%', maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                              {templateId === 'festival' && <FestivalOfferPage announcement={{ title: title || 'Festival Mega Offer', message: message || 'Special interest rate rebate on festival loans.', type, priority, actionLabel, actionUrl } as any} />}
+                              {templateId === 'showcase' && <FeatureShowcasePage announcement={{ title: title || 'What’s New in Zolo Funds', message: message || 'Explore newly shipped workflow automations.', type, priority, actionLabel, actionUrl } as any} />}
+                              {templateId === 'compliance' && <ComplianceNoticePage announcement={{ title: title || 'Regulatory Compliance Notice', message: message || 'Updated RBI KYC and lending disclosures.', type, priority, actionLabel, actionUrl } as any} />}
+                              {templateId === 'maintenance' && <MaintenanceDowntimePage announcement={{ title: title || 'Scheduled Platform Maintenance', message: message || 'Database upgrade window tonight.', type, priority, actionLabel, actionUrl } as any} />}
+                            </div>
+                          ) : contentType === 'custom_html' || contentType === 'embed_url' ? (
+                            <div style={{ width: '100%', maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                              <CustomEmbedPage announcement={{ title, message, customHtml, embedUrl, contentType, type, priority, actionLabel, actionUrl } as any} />
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                maxWidth: '340px',
+                                backgroundColor: '#FFFFFF',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  background: 'var(--brand-purple, #7D287E)',
+                                  color: '#FFFFFF',
+                                  padding: '10px 14px',
+                                  fontWeight: 800,
+                                  fontSize: '0.85rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
+                                    campaign
+                                  </span>
+                                  <span>{title || 'Announcement Title'}</span>
+                                </div>
+                                <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(255,255,255,0.25)', padding: '2px 6px', borderRadius: '4px' }}>
+                                  {popupStyle === 'box_75' ? '75% Box' : popupStyle === 'full_page' ? 'Full Page' : 'Dialog'}
+                                </span>
+                              </div>
+                              <div style={{ padding: '12px', fontSize: '0.78rem', color: '#4B5563', lineHeight: 1.4 }}>
+                                {message || 'Announcement message preview...'}
+                              </div>
+                              <div style={{ padding: '8px 12px', backgroundColor: '#F9FAFB', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                {actionLabel && (
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#2563EB' }}>
+                                    [{actionLabel}]
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--brand-purple, #7D287E)' }}>
+                                  [Acknowledge Button]
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

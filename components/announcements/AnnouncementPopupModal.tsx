@@ -2,6 +2,14 @@
 
 import React, { useState } from 'react';
 import { AnnouncementItem } from './ScrollingAnnouncementBar';
+import {
+  FestivalOfferPage,
+  FeatureShowcasePage,
+  ComplianceNoticePage,
+  MaintenanceDowntimePage,
+  CustomEmbedPage,
+} from './pages';
+import { Sparkles, X, Check, ArrowRight, ExternalLink } from 'lucide-react';
 
 interface AnnouncementPopupModalProps {
   announcement: AnnouncementItem | null;
@@ -19,52 +27,9 @@ export default function AnnouncementPopupModal({
 
   if (!announcement) return null;
 
-  const getTypeTheme = (type: string) => {
-    switch (type) {
-      case 'critical':
-        return {
-          icon: 'error',
-          headerBg: 'linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)',
-          iconColor: '#FEF2F2',
-          badgeText: 'CRITICAL ANNOUNCEMENT',
-          borderColor: '#F87171',
-        };
-      case 'warning':
-        return {
-          icon: 'warning',
-          headerBg: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-          iconColor: '#FFFBEB',
-          badgeText: 'SYSTEM ADVISORY',
-          borderColor: '#FBBF24',
-        };
-      case 'update':
-        return {
-          icon: 'rocket_launch',
-          headerBg: 'linear-gradient(135deg, #6366F1 0%, #4338CA 100%)',
-          iconColor: '#EEF2FF',
-          badgeText: 'FEATURE & PLATFORM UPDATE',
-          borderColor: '#818CF8',
-        };
-      case 'celebration':
-        return {
-          icon: 'celebration',
-          headerBg: 'linear-gradient(135deg, #A21CAF 0%, #701A75 100%)',
-          iconColor: '#FDF4FF',
-          badgeText: 'SPECIAL CELEBRATION',
-          borderColor: '#E879F9',
-        };
-      default:
-        return {
-          icon: 'campaign',
-          headerBg: 'linear-gradient(135deg, #7D287E 0%, #5A195B 100%)',
-          iconColor: '#FDF2F8',
-          badgeText: 'OFFICIAL ANNOUNCEMENT',
-          borderColor: '#C084FC',
-        };
-    }
-  };
-
-  const theme = getTypeTheme(announcement.type);
+  const popupStyle = announcement.popupStyle || 'box_75';
+  const contentType = announcement.contentType || 'standard';
+  const templateId = announcement.templateId;
 
   const handleAcknowledge = async () => {
     setSubmitting(true);
@@ -81,244 +46,234 @@ export default function AnnouncementPopupModal({
     }
   };
 
+  const handleAction = () => {
+    if (announcement.actionUrl) {
+      if (announcement.actionUrl.startsWith('http')) {
+        window.open(announcement.actionUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = announcement.actionUrl;
+      }
+    }
+    handleAcknowledge();
+  };
+
+  // Render Template Body if selected
+  const renderContentBody = () => {
+    if (templateId === 'festival_offer') {
+      return (
+        <FestivalOfferPage
+          title={announcement.title}
+          message={announcement.message}
+          actionLabel={announcement.actionLabel || 'Claim Festive Offer'}
+          actionUrl={announcement.actionUrl || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    if (templateId === 'feature_showcase') {
+      return (
+        <FeatureShowcasePage
+          title={announcement.title}
+          message={announcement.message}
+          actionLabel={announcement.actionLabel || 'Explore Features'}
+          actionUrl={announcement.actionUrl || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    if (templateId === 'compliance_notice') {
+      return (
+        <ComplianceNoticePage
+          title={announcement.title}
+          message={announcement.message}
+          actionLabel={announcement.actionLabel || 'Acknowledge Guidelines'}
+          actionUrl={announcement.actionUrl || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    if (templateId === 'maintenance_downtime') {
+      return (
+        <MaintenanceDowntimePage
+          title={announcement.title}
+          message={announcement.message}
+          actionLabel={announcement.actionLabel || 'System Health Status'}
+          actionUrl={announcement.actionUrl || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    if (contentType === 'custom_html' && announcement.customHtml) {
+      return (
+        <CustomEmbedPage
+          title={announcement.title}
+          customHtml={announcement.customHtml}
+          actionLabel={announcement.actionLabel || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    if (contentType === 'embed_url' && announcement.embedUrl) {
+      return (
+        <CustomEmbedPage
+          title={announcement.title}
+          embedUrl={announcement.embedUrl}
+          actionLabel={announcement.actionLabel || undefined}
+          onAction={handleAction}
+        />
+      );
+    }
+
+    // Default Standard Layout
+    return (
+      <div className="p-6 sm:p-8 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-purple-100 text-[#7D287E] dark:bg-purple-950/80 dark:text-purple-300">
+            {announcement.type}
+          </span>
+          <span className="text-xs text-slate-400">Official Announcement</span>
+        </div>
+
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">
+          {announcement.title}
+        </h2>
+
+        <div className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+          {announcement.message}
+        </div>
+
+        {announcement.actionLabel && (
+          <div className="pt-4 flex justify-end">
+            <button
+              onClick={handleAction}
+              className="px-6 py-2.5 rounded-xl bg-[#7D287E] hover:bg-[#6A206B] text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-purple-900/20 transition-all"
+            >
+              <span>{announcement.actionLabel}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Full Page Takeover Style
+  if (popupStyle === 'full_page') {
+    return (
+      <div className="fixed inset-0 z-[99999] bg-slate-950/95 backdrop-blur-xl overflow-y-auto flex flex-col">
+        {/* Sticky Control Topbar */}
+        <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#7D287E] flex items-center justify-center text-white">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-400 block">Zolo Funds Platform Notice</span>
+              <span className="text-sm font-semibold text-white truncate max-w-md block">{announcement.title}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <label className="hidden sm:flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dontShowAgain}
+                onChange={(e) => setDontShowAgain(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-600 text-purple-600"
+              />
+              <span>Don&apos;t show again</span>
+            </label>
+
+            <button
+              onClick={handleAcknowledge}
+              disabled={submitting}
+              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-all"
+            >
+              <span>Done</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Content Viewport */}
+        <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 md:p-12">
+          {renderContentBody()}
+        </main>
+      </div>
+    );
+  }
+
+  // 75% Box Popup (or Standard) Modal
+  const isBox75 = popupStyle === 'box_75';
+  const containerClasses = isBox75
+    ? 'w-[94vw] sm:w-[85vw] lg:w-[75vw] max-w-6xl h-[90vh] sm:h-[82vh] lg:h-[75vh] max-h-[88vh] rounded-3xl'
+    : 'w-full max-w-xl max-h-[85vh] rounded-2xl';
+
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(15, 15, 26, 0.75)',
-        backdropFilter: 'blur(5px)',
-        padding: '20px',
-      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        style={{
-          width: '100%',
-          maxWidth: '560px',
-          backgroundColor: '#FFFFFF',
-          borderRadius: '20px',
-          overflow: 'hidden',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'popupFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
+        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden relative ${containerClasses}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div
-          style={{
-            background: theme.headerBg,
-            padding: '24px 28px 20px 28px',
-            color: '#FFFFFF',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '16px',
-          }}
+        {/* Floating Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-md transition-all border border-white/20 shadow-md"
+          title="Close announcement"
         >
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '14px',
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            <span className="material-icons-outlined" style={{ fontSize: '28px', color: theme.iconColor }}>
-              {theme.icon}
-            </span>
-          </div>
+          <X className="w-4 h-4" />
+        </button>
 
-          <div style={{ flex: 1, paddingRight: '24px' }}>
-            <span
-              style={{
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                opacity: 0.9,
-                display: 'block',
-                marginBottom: '4px',
-              }}
-            >
-              {theme.badgeText}
-            </span>
-            <h3
-              style={{
-                fontSize: '1.35rem',
-                fontWeight: 800,
-                margin: 0,
-                lineHeight: 1.3,
-                color: '#FFFFFF',
-              }}
-            >
-              {announcement.title}
-            </h3>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              background: 'rgba(255,255,255,0.18)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              cursor: 'pointer',
-              transition: 'background 0.2s',
-            }}
-            title="Close popup"
-          >
-            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>
-              close
-            </span>
-          </button>
+        {/* Scrollable Canvas */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+          {renderContentBody()}
         </div>
 
-        {/* Modal Body */}
-        <div style={{ padding: '26px 28px', flex: 1 }}>
-          <div
-            style={{
-              fontSize: '0.94rem',
-              color: '#374151',
-              lineHeight: 1.65,
-              whiteSpace: 'pre-wrap',
-              maxHeight: '320px',
-              overflowY: 'auto',
-              paddingRight: '6px',
-            }}
-          >
-            {announcement.message}
-          </div>
-
-          {/* Action Link button if configured */}
-          {announcement.actionLabel && announcement.actionUrl && (
-            <div style={{ marginTop: '20px' }}>
-              <a
-                href={announcement.actionUrl}
-                target={announcement.actionUrl.startsWith('http') ? '_blank' : '_self'}
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--brand-purple, #7D287E)',
-                  color: '#FFFFFF',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 12px rgba(125, 40, 126, 0.25)',
-                }}
-              >
-                <span>{announcement.actionLabel}</span>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
-                  arrow_forward
-                </span>
-              </a>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div
-          style={{
-            padding: '16px 28px 20px 28px',
-            backgroundColor: '#F9FAFB',
-            borderTop: '1px solid #E5E7EB',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '14px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.82rem',
-              color: '#6B7280',
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-          >
+        {/* Bottom Persistent Dismiss Bar */}
+        <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-950/90 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <label className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              style={{
-                width: '16px',
-                height: '16px',
-                accentColor: 'var(--brand-purple, #7D287E)',
-                cursor: 'pointer',
-              }}
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-[#7D287E] focus:ring-purple-500"
             />
-            <span>Don&apos;t show this popup again</span>
+            <span className="font-medium">Do not display this announcement popup again</span>
           </label>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
             <button
-              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-semibold transition-colors"
+            >
+              Remind Later
+            </button>
+            <button
               onClick={handleAcknowledge}
               disabled={submitting}
-              style={{
-                padding: '10px 22px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: 'var(--brand-purple, #7D287E)',
-                color: '#FFFFFF',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'opacity 0.2s',
-              }}
+              className="px-5 py-2 rounded-xl bg-[#7D287E] hover:bg-[#681E69] text-white font-bold shadow-md transition-all flex items-center gap-1.5"
             >
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
-                check_circle
-              </span>
+              <Check className="w-4 h-4" />
               <span>{submitting ? 'Acknowledging...' : 'Acknowledge & Close'}</span>
             </button>
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes popupFadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }

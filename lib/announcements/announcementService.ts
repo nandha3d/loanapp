@@ -19,6 +19,11 @@ export interface CreateAnnouncementInput {
   targetUserIds?: string[];
   isScrollingBar?: boolean;
   isPopup?: boolean;
+  popupStyle?: 'box_75' | 'full_page' | 'standard' | string;
+  contentType?: 'standard' | 'template' | 'custom_html' | 'embed_url' | string;
+  templateId?: string | null;
+  customHtml?: string | null;
+  embedUrl?: string | null;
   actionLabel?: string | null;
   actionUrl?: string | null;
   expiresAt?: string | null;
@@ -192,6 +197,11 @@ export async function createAnnouncement(
       displayType: input.isScrollingBar && input.isPopup ? 'all' : input.isScrollingBar ? 'scrolling_bar' : input.isPopup ? 'popup' : 'notification',
       isScrollingBar: input.isScrollingBar ?? true,
       isPopup: input.isPopup ?? true,
+      popupStyle: input.popupStyle || 'box_75',
+      contentType: input.contentType || 'standard',
+      templateId: input.templateId || null,
+      customHtml: input.customHtml || null,
+      embedUrl: input.embedUrl || null,
       actionLabel: input.actionLabel || null,
       actionUrl: input.actionUrl || null,
       status: input.status || 'published',
@@ -282,6 +292,11 @@ export async function getActiveUserAnnouncements(userId: string) {
       priority: a.priority,
       isScrollingBar: a.isScrollingBar,
       isPopup: a.isPopup,
+      popupStyle: a.popupStyle || 'box_75',
+      contentType: a.contentType || 'standard',
+      templateId: a.templateId,
+      customHtml: a.customHtml,
+      embedUrl: a.embedUrl,
       actionLabel: a.actionLabel,
       actionUrl: a.actionUrl,
       isRead: entry.isRead,
