@@ -65,7 +65,7 @@ export default function AnnouncementPortalClient({
   // Custom Styled Page & Popup Options
   const [popupStyle, setPopupStyle] = useState<'standard' | 'box_75' | 'full_page'>('box_75');
   const [contentType, setContentType] = useState<'standard' | 'template' | 'custom_html' | 'embed_url'>('standard');
-  const [templateId, setTemplateId] = useState<string>('festival');
+  const [templateId, setTemplateId] = useState<string>('festival_offer');
   const [customHtml, setCustomHtml] = useState<string>('');
   const [embedUrl, setEmbedUrl] = useState<string>('');
 
@@ -147,7 +147,7 @@ export default function AnnouncementPortalClient({
     setExpiresAt('');
     setPopupStyle('box_75');
     setContentType('standard');
-    setTemplateId('festival');
+    setTemplateId('festival_offer');
     setCustomHtml('');
     setEmbedUrl('');
     setTargetScope('all');
@@ -1591,14 +1591,48 @@ export default function AnnouncementPortalClient({
                           </div>
                           {contentType === 'template' ? (
                             <div style={{ width: '100%', maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
-                              {templateId === 'festival' && <FestivalOfferPage announcement={{ title: title || 'Festival Mega Offer', message: message || 'Special interest rate rebate on festival loans.', type, priority, actionLabel, actionUrl } as any} />}
-                              {templateId === 'showcase' && <FeatureShowcasePage announcement={{ title: title || 'What’s New in Zolo Funds', message: message || 'Explore newly shipped workflow automations.', type, priority, actionLabel, actionUrl } as any} />}
-                              {templateId === 'compliance' && <ComplianceNoticePage announcement={{ title: title || 'Regulatory Compliance Notice', message: message || 'Updated RBI KYC and lending disclosures.', type, priority, actionLabel, actionUrl } as any} />}
-                              {templateId === 'maintenance' && <MaintenanceDowntimePage announcement={{ title: title || 'Scheduled Platform Maintenance', message: message || 'Database upgrade window tonight.', type, priority, actionLabel, actionUrl } as any} />}
+                              {templateId === 'festival_offer' && (
+                                <FestivalOfferPage
+                                  title={title || 'Festival Mega Offer'}
+                                  message={message || 'Special interest rate rebate on festival loans.'}
+                                  actionLabel={actionLabel || undefined}
+                                  actionUrl={actionUrl || undefined}
+                                />
+                              )}
+                              {templateId === 'feature_showcase' && (
+                                <FeatureShowcasePage
+                                  title={title || 'What’s New in Zolo Funds'}
+                                  message={message || 'Explore newly shipped workflow automations.'}
+                                  actionLabel={actionLabel || undefined}
+                                  actionUrl={actionUrl || undefined}
+                                />
+                              )}
+                              {templateId === 'compliance_notice' && (
+                                <ComplianceNoticePage
+                                  title={title || 'Regulatory Compliance Notice'}
+                                  message={message || 'Updated RBI KYC and lending disclosures.'}
+                                  actionLabel={actionLabel || undefined}
+                                  actionUrl={actionUrl || undefined}
+                                />
+                              )}
+                              {templateId === 'maintenance_downtime' && (
+                                <MaintenanceDowntimePage
+                                  title={title || 'Scheduled Platform Maintenance'}
+                                  message={message || 'Database upgrade window tonight.'}
+                                  actionLabel={actionLabel || undefined}
+                                  actionUrl={actionUrl || undefined}
+                                />
+                              )}
                             </div>
                           ) : contentType === 'custom_html' || contentType === 'embed_url' ? (
                             <div style={{ width: '100%', maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
-                              <CustomEmbedPage announcement={{ title, message, customHtml, embedUrl, contentType, type, priority, actionLabel, actionUrl } as any} />
+                              <CustomEmbedPage
+                                title={title || undefined}
+                                customHtml={customHtml || undefined}
+                                embedUrl={embedUrl || undefined}
+                                actionLabel={actionLabel || undefined}
+                                actionUrl={actionUrl || undefined}
+                              />
                             </div>
                           ) : (
                             <div

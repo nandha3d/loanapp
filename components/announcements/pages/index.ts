@@ -10,6 +10,7 @@ export interface AnnouncementTemplateMeta {
   category: string;
   description: string;
   previewColor: string;
+  icon: string;
 }
 
 export const ANNOUNCEMENT_TEMPLATES: AnnouncementTemplateMeta[] = [
@@ -18,27 +19,31 @@ export const ANNOUNCEMENT_TEMPLATES: AnnouncementTemplateMeta[] = [
     name: 'Festival Celebration & Offers',
     category: 'Commercial',
     description: 'Gold & Purple celebration theme with coupon codes, bonus limits, and festive countdown badges.',
-    previewColor: '#7D287E'
+    previewColor: '#7D287E',
+    icon: 'celebration',
   },
   {
     id: 'feature_showcase',
     name: 'Major Product Update Showcase',
     category: 'Product',
     description: 'Dark-mode feature grid showcasing new releases, badges, and version highlights.',
-    previewColor: '#4F46E5'
+    previewColor: '#4F46E5',
+    icon: 'rocket_launch',
   },
   {
     id: 'compliance_notice',
     name: 'Statutory & RBI Compliance Notice',
     category: 'Regulatory',
     description: 'Formal advisory layout with circular reference, mandatory operational checklist, and digital signature acknowledgment.',
-    previewColor: '#D97706'
+    previewColor: '#D97706',
+    icon: 'verified',
   },
   {
     id: 'maintenance_downtime',
     name: 'Scheduled Maintenance Downtime',
     category: 'System',
     description: 'Maintenance alert with countdown time window, services status table, and support helpline.',
-    previewColor: '#DC2626'
+    previewColor: '#DC2626',
+    icon: 'build',
   }
 ];
