@@ -72,6 +72,7 @@ jobs:
           # in a status file that the poll loop below reads back.
           ssh "${SSH_OPTS[@]}" "$REMOTE" "
             set -euo pipefail
+            APP_DIR=/home/loantrack/app
             echo \"connected: \$(hostname) as \$(whoami)\"
             test -d $APP_DIR || { echo 'missing $APP_DIR'; exit 20; }
             test -f $APP_DIR/deploy.sh || { echo 'missing $APP_DIR/deploy.sh'; exit 21; }
@@ -114,10 +115,10 @@ jobs:
             done
 
             # Ensure SMTP credentials in .env are set for official MilesWeb mailer
-            if [ -f \$APP_DIR/.env ] && ! grep -q 'noreply@zolofunds.com' \$APP_DIR/.env; then
+            if [ -f "$APP_DIR/.env" ] && ! grep -q 'noreply@zolofunds.com' "$APP_DIR/.env"; then
               echo 'Configuring MilesWeb SMTP in .env...'
-              sed -i '/^SMTP_/d' \$APP_DIR/.env
-              printf '%s\n' 'SMTP_HOST="mail.zolofunds.com"' 'SMTP_PORT="465"' 'SMTP_USER="noreply@zolofunds.com"' 'SMTP_PASS="Animazon@Erode11"' 'SMTP_FROM="noreply@zolofunds.com"' 'SMTP_FROM_NAME="Zolo Funds"' 'SMTP_SECURE="true"' 'SMTP_TLS_REJECT_UNAUTHORIZED="false"' >> \$APP_DIR/.env
+              sed -i '/^SMTP_/d' "$APP_DIR/.env"
+              printf '%s\n' 'SMTP_HOST="mail.zolofunds.com"' 'SMTP_PORT="465"' 'SMTP_USER="noreply@zolofunds.com"' 'SMTP_PASS="Animazon@Erode11"' 'SMTP_FROM="noreply@zolofunds.com"' 'SMTP_FROM_NAME="Zolo Funds"' 'SMTP_SECURE="true"' 'SMTP_TLS_REJECT_UNAUTHORIZED="false"' >> "$APP_DIR/.env"
               echo 'VPS .env updated with MilesWeb SMTP credentials.'
             fi
 
