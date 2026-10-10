@@ -34,29 +34,45 @@ export interface EnquiryRecord {
 const REMOTE_API_URL = 'https://zolofunds.com/api/demo_request.php';
 const REMOTE_API_KEY = 'ZoloAdminLeadsKey_2026';
 
+export function parseSafeDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  const parsed = new Date(val);
+  if (!isNaN(parsed.getTime())) return parsed;
+  if (typeof val === 'string') {
+    const iso = new Date(val.replace(' ', 'T'));
+    if (!isNaN(iso.getTime())) return iso;
+  }
+  return new Date();
+}
+
 /**
  * Ensures the enquiries table exists in MySQL without needing manual migrations.
  */
 export async function ensureEnquiriesTable(): Promise<void> {
-  await prisma.$queryRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS enquiries (
-      id VARCHAR(191) PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      phone VARCHAR(50) NOT NULL,
-      email VARCHAR(255) NULL,
-      company VARCHAR(255) NULL,
-      vertical VARCHAR(100) NULL DEFAULT 'microlending',
-      loan_capacity VARCHAR(100) NULL,
-      agent_count VARCHAR(100) NULL,
-      city VARCHAR(100) NULL,
-      source VARCHAR(50) NOT NULL DEFAULT 'chat_assistant',
-      message TEXT NULL,
-      status VARCHAR(50) NOT NULL DEFAULT 'new',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_status_created (status, created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  `);
+  try {
+    await prisma.$queryRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS enquiries (
+        id VARCHAR(191) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        email VARCHAR(255) NULL,
+        company VARCHAR(255) NULL,
+        vertical VARCHAR(100) NULL DEFAULT 'microlending',
+        loan_capacity VARCHAR(100) NULL,
+        agent_count VARCHAR(100) NULL,
+        city VARCHAR(100) NULL,
+        source VARCHAR(50) NOT NULL DEFAULT 'chat_assistant',
+        message TEXT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'new',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_status_created (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  } catch (err: any) {
+    console.warn('[ensureEnquiriesTable warning]', err?.message || err);
+  }
 }
 
 /**
@@ -129,8 +145,8 @@ async function fetchRemoteLeads(): Promise<EnquiryRecord[]> {
       source: 'zolofunds.com (Live Chat)',
       message: `Lead captured from zolofunds.com live chat walkthrough`,
       status: l.status || 'new',
-      created_at: new Date(l.created_at || Date.now()),
-      updated_at: new Date(l.created_at || Date.now()),
+      created_at: parseSafeDate(l.created_at),
+      updated_at: parseSafeDate(l.created_at),
     }));
   } catch {
     return [];
@@ -158,6 +174,7 @@ export async function getEnquiries(statusFilter?: string): Promise<EnquiryRecord
     }
   } catch (err) {
     console.error('[getEnquiries local error]', err);
+    localRows = [];
   }
 
   // Fetch remote leads from live marketing site
@@ -170,14 +187,19 @@ export async function getEnquiries(statusFilter?: string): Promise<EnquiryRecord
       continue;
     }
     // Prevent duplicate phone if present in local
-    const exists = all.some(x => x.phone === r.phone && Math.abs(new Date(x.created_at).getTime() - new Date(r.created_at).getTime()) < 60000);
+    const exists = all.some((x) => {
+      if (!x.phone || !r.phone || x.phone !== r.phone) return false;
+      const t1 = parseSafeDate(x.created_at).getTime();
+      const t2 = parseSafeDate(r.created_at).getTime();
+      return Math.abs(t1 - t2) < 60000;
+    });
     if (!exists) {
       all.push(r);
     }
   }
 
   // Sort descending by created_at
-  all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  all.sort((a, b) => parseSafeDate(b.created_at).getTime() - parseSafeDate(a.created_at).getTime());
 
   return all;
 }
