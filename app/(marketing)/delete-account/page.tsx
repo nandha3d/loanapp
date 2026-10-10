@@ -181,7 +181,7 @@ export default function DeleteAccountPage() {
                       id="phone"
                       type="tel"
                       required
-                      placeholder="e.g. +91 98400 12345"
+                      placeholder="e.g. +91 80894 05950"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
@@ -246,9 +246,10 @@ export default function DeleteAccountPage() {
               </p>
               <div className="mk-legal-callout">
                 <b>Data Protection &amp; Compliance Desk:</b> Zolo Funds (India) Technologies Private Limited<br />
-                <b>Corporate Office:</b> Anna Salai, Chennai, Tamil Nadu 600002, India<br />
+                <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
                 <b>Grievance Email:</b> <a href="mailto:grievance@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>grievance@zolofunds.com</a><br />
                 <b>Helpdesk:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
+                <b>Helpline:</b> +91 80894 05950<br />
                 <b>Statutory Response Window:</b> Within twenty-four (24) hours of receipt.
               </div>
             </div>

@@ -27,9 +27,18 @@ export function SiteJsonLd() {
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'sales',
-      email: 'hello@zolofund.in',
+      telephone: '+91-80894-05950',
+      email: 'support@zolofunds.com',
       areaServed: 'IN',
       availableLanguage: ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Malayalam'],
+    },
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '155, Animazon, Narayana Valasu, Nasiyanur Road',
+      addressLocality: 'Erode',
+      addressRegion: 'Tamil Nadu',
+      postalCode: '638011',
+      addressCountry: 'IN',
     },
   };
 

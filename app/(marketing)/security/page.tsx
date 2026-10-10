@@ -223,7 +223,9 @@ export default function SecurityOverviewPage() {
             <div className="mk-legal-callout">
               <b>Security &amp; Vulnerability Response Desk:</b> Zolo Funds Security Team<br />
               <b>Entity:</b> Zolo Funds (India) Technologies Private Limited<br />
+              <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
               <b>Dedicated Email:</b> <a href="mailto:security@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>security@zolofunds.com</a><br />
+              <b>Security Helpline:</b> +91 80894 05950<br />
               <b>PGP Key Fingerprint:</b> Available upon request for encrypted communications<br />
               <b>Acknowledgment:</b> Within 24 hours of receipt<br />
               <b>Commitment:</b> We do not initiate legal action against ethical researchers who discover issues in good faith without exfiltrating or modifying customer data.

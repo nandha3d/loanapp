@@ -298,11 +298,11 @@ export default function PrivacyPolicyPage() {
             <div className="mk-legal-callout">
               <b>Grievance Officer:</b> S. G. Nandhakumar, Data Protection &amp; Compliance Officer<br />
               <b>Entity:</b> Zolo Funds (India) Technologies Private Limited<br />
-              <b>Corporate Office:</b> Anna Salai, Chennai, Tamil Nadu 600002, India<br />
+              <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
               <b>CIN:</b> U72900TN2026PTC158920<br />
               <b>Dedicated Email:</b> <a href="mailto:grievance@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>grievance@zolofunds.com</a><br />
               <b>Support Email:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
-              <b>Helpline:</b> +91 98400 12345 (Mon–Sat, 09:30 AM to 06:30 PM IST)<br />
+              <b>Helpline:</b> +91 80894 05950 (Mon–Sat, 09:30 AM to 06:30 PM IST)<br />
               <b>Acknowledgment:</b> Within twenty-four (24) hours of receipt.<br />
               <b>Resolution SLA:</b> Within fifteen (15) business days.
             </div>

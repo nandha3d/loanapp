@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ShieldCheck, Mail, Phone, LogIn, UserPlus } from 'lucide-react';
+import { ShieldCheck, Mail, Phone, MapPin, LogIn, UserPlus } from 'lucide-react';
 import { usePortalUrls } from '@/lib/portalUrl';
 
 interface FooterProps {
@@ -123,11 +123,17 @@ export default function Footer({ onOpenDemo }: FooterProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.84rem', color: 'var(--text-body)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Phone size={15} color="var(--brand-purple)" />
-                <span style={{ fontWeight: 600 }}>+91 98400 12345 (Sales & Demo)</span>
+                <span style={{ fontWeight: 600 }}>+91 80894 05950 (Sales & Demo)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Mail size={15} color="var(--brand-purple)" />
                 <span style={{ fontWeight: 600 }}>support@zolofunds.com</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '4px' }}>
+                <MapPin size={15} color="var(--brand-purple)" style={{ flexShrink: 0, marginTop: '3px' }} />
+                <span style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu
+                </span>
               </div>
               <div style={{ marginTop: '8px' }}>
                 <Link

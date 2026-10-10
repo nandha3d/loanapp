@@ -65,7 +65,7 @@ export default function TermsOfServicePage() {
             <h2>Article 1: Preamble, Acceptance of Terms & Corporate Representations</h2>
             <p>
               This Master Software-as-a-Service Agreement (&quot;Agreement&quot; or &quot;Terms&quot;) is a legally binding contract entered into between
-              <strong> Zolo Funds (India) Technologies Private Limited</strong>, a company incorporated under the Companies Act, 2013 having its corporate office at Anna Salai, Chennai, Tamil Nadu 600002
+              <strong> Zolo Funds (India) Technologies Private Limited</strong>, a company incorporated under the Companies Act, 2013 having its corporate office at 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India
               (&quot;Zolo Funds&quot;, &quot;Licensor&quot;, &quot;we&quot;, &quot;us&quot;, &quot;our&quot;) and the legal entity, sole proprietorship, partnership firm, company,
               or cooperative institution subscribing to, accessing, or utilizing the software services (&quot;Customer&quot;, &quot;Tenant&quot;, &quot;Subscriber&quot;, or &quot;you&quot;).
             </p>
@@ -159,7 +159,7 @@ export default function TermsOfServicePage() {
               <li><strong>Technical Support Desk:</strong> Multi-lingual technical assistance (English, Tamil, Hindi, Telugu, Kannada, Malayalam) is available Monday through Saturday, 09:00 AM to 07:00 PM IST via:
                 <ul>
                   <li>Email: <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)' }}>support@zolofunds.com</a></li>
-                  <li>Helpline: +91 98400 12345</li>
+                  <li>Helpline: +91 80894 05950</li>
                   <li>In-Portal Help Desk Ticketing</li>
                 </ul>
               </li>
@@ -236,11 +236,11 @@ export default function TermsOfServicePage() {
               <p>All formal legal notices, contractual amendments, or arbitration filings must be addressed to:</p>
               <div className="mk-legal-callout">
                 <b>Legal &amp; Compliance Directorate:</b> Zolo Funds (India) Technologies Private Limited<br />
-                <b>Corporate Office:</b> Anna Salai, Chennai, Tamil Nadu 600002, India<br />
+                <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
                 <b>CIN:</b> U72900TN2026PTC158920<br />
                 <b>Official Legal Email:</b> <a href="mailto:legal@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>legal@zolofunds.com</a><br />
                 <b>General Inquiries:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
-                <b>Corporate Phone:</b> +91 98400 12345
+                <b>Corporate Phone:</b> +91 80894 05950
               </div>
             </div>
           </article>

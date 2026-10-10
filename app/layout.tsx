@@ -156,10 +156,18 @@ export default async function RootLayout({
       logo: 'https://zolofunds.com/assets/logo-horizontal-for-light-bg.png',
       contactPoint: {
         '@type': 'ContactPoint',
-        telephone: '+91-98427-88899',
+        telephone: '+91-80894-05950',
         contactType: 'Customer Support',
         areaServed: 'IN',
         availableLanguage: ['English', 'Tamil', 'Hindi', 'Telugu', 'Kannada', 'Malayalam'],
+      },
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '155, Animazon, Narayana Valasu, Nasiyanur Road',
+        addressLocality: 'Erode',
+        addressRegion: 'Tamil Nadu',
+        postalCode: '638011',
+        addressCountry: 'IN',
       },
     },
     {
