@@ -65,10 +65,13 @@ export default function Footer() {
         </div>
 
         <div className="mk-footer__bottom">
-          <span>© {new Date().getFullYear()} ZoloFund. All rights reserved.</span>
-          <span style={{ display: 'flex', gap: 20 }}>
-            <Link href="/contact">Privacy Policy</Link>
-            <Link href="/contact">Terms of Use</Link>
+          <span>© {new Date().getFullYear()} Zolo Funds (India) Technologies Private Limited. All rights reserved.</span>
+          <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/terms">Terms of Service</Link>
+            <Link href="/refund">Refund Policy</Link>
+            <Link href="/security">Security</Link>
+            <Link href="/delete-account">Data Deletion</Link>
           </span>
         </div>
       </div>

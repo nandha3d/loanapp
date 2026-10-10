@@ -384,3 +384,116 @@ html { scroll-padding-top: 88px; scroll-behavior: smooth; }
   .mk-footer__top { grid-template-columns: 1fr; }
   .mk-hero__actions .mk-btn { width: 100%; }
 }
+
+/* ---- Legal & Policy Document Styles ---------------------------------------- */
+.mk-legal {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid var(--mk-border);
+  border-radius: var(--mk-radius-lg);
+  padding: 48px;
+  box-shadow: var(--mk-shadow-sm);
+  font-size: 0.98rem;
+  line-height: 1.75;
+  color: var(--mk-text);
+}
+
+.mk-legal h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--mk-ink);
+  margin: 36px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--mk-primary-light);
+}
+
+.mk-legal h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--mk-primary-dark);
+  margin: 24px 0 12px;
+}
+
+.mk-legal p {
+  margin-bottom: 16px;
+  color: #334155;
+}
+
+.mk-legal ul, .mk-legal ol {
+  margin: 0 0 20px 24px;
+  padding: 0;
+  color: #334155;
+}
+
+.mk-legal li {
+  margin-bottom: 8px;
+}
+
+.mk-legal-badge {
+  display: inline-block;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  color: #1D4ED8;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.mk-legal-callout {
+  background: #F8FAFC;
+  border-left: 4px solid var(--mk-primary);
+  border-radius: 0 10px 10px 0;
+  padding: 20px 24px;
+  margin: 24px 0;
+  font-size: 0.95rem;
+}
+
+.mk-legal-callout--alert {
+  background: #FFFBEB;
+  border-left: 4px solid #F59E0B;
+}
+
+.mk-legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0 28px;
+  font-size: 0.9rem;
+}
+
+.mk-legal-table th, .mk-legal-table td {
+  padding: 12px 14px;
+  border: 1px solid var(--mk-border);
+  text-align: left;
+}
+
+.mk-legal-table th {
+  background: var(--mk-bg-soft);
+  font-weight: 700;
+  color: var(--mk-ink);
+}
+
+.mk-legal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--mk-bg-soft);
+  border-radius: var(--mk-radius-sm);
+  margin-bottom: 32px;
+  font-size: 0.88rem;
+  color: var(--mk-text-soft);
+}
+
+.mk-legal-meta b {
+  color: var(--mk-ink);
+}
+
+@media (max-width: 620px) {
+  .mk-legal {
+    padding: 28px 20px;
+    border-radius: var(--mk-radius-sm);
+  }
+}

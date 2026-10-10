@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -879,6 +880,54 @@ class _LoginCard extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+          Center(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'By signing in, you agree to our ',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                ),
+                GestureDetector(
+                  onTap: () => launchUrl(
+                    Uri.parse('https://zolofunds.com/terms'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: Text(
+                    'Terms of Service',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                Text(
+                  ' & ',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                ),
+                GestureDetector(
+                  onTap: () => launchUrl(
+                    Uri.parse('https://zolofunds.com/privacy'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );

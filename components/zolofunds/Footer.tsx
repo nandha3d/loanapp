@@ -169,11 +169,13 @@ export default function Footer({ onOpenDemo }: FooterProps) {
           <div>
             © {new Date().getFullYear()} Zolo Funds (India) Technologies Private Limited. All rights reserved.
           </div>
-          <div style={{ display: 'flex', gap: '18px' }}>
-            <Link href={portalUrls.login} style={{ color: 'inherit' }}>Portal Login</Link>
-            <Link href={portalUrls.register} style={{ color: 'inherit' }}>Sign Up</Link>
-            <a href="#pricing" style={{ color: 'inherit' }}>Pricing</a>
-            <a href="#faq" style={{ color: 'inherit' }}>RBI Guidelines</a>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <Link href="/privacy" style={{ color: 'inherit' }}>Privacy Policy</Link>
+            <Link href="/terms" style={{ color: 'inherit' }}>Terms of Service</Link>
+            <Link href="/refund" style={{ color: 'inherit' }}>Refund Policy</Link>
+            <Link href="/security" style={{ color: 'inherit' }}>Security</Link>
+            <Link href="/delete-account" style={{ color: 'inherit' }}>Data Deletion</Link>
+            <Link href={portalUrls.login} style={{ color: 'inherit' }}>Staff Login</Link>
           </div>
         </div>
       </div>

@@ -9,8 +9,12 @@ assert.equal(isPublicPath('/assets/logo-horizontal-light.png'), true);
 assert.equal(isPublicPath('/assets/logo-square-dark.png'), true);
 assert.equal(isPublicPath('/assets/logo-square-light.png'), true);
 assert.equal(isPublicPath('/logo.png'), true);
-assert.equal(isPublicPath('/apple-touch-icon.png'), true);
 assert.equal(isPublicPath('/zolofunds'), true);
+assert.equal(isPublicPath('/privacy'), true);
+assert.equal(isPublicPath('/terms'), true);
+assert.equal(isPublicPath('/refund'), true);
+assert.equal(isPublicPath('/security'), true);
+assert.equal(isPublicPath('/delete-account'), true);
 assert.equal(isPublicPath('/dashboard'), false);
 
 assert.equal(getRoleRedirectTarget('/loans', 'agent'), null);

@@ -52,6 +52,11 @@ const MARKETING_PATHS = [
   '/pricing',
   '/about-us',
   '/contact',
+  '/privacy',
+  '/terms',
+  '/refund',
+  '/security',
+  '/delete-account',
 ];
 
 function normalizeBasePath(value: string | undefined): string {

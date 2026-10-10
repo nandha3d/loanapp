@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:go_router/go_router.dart';
 
@@ -709,6 +710,56 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   Divider(height: 1, color: AppColors.border),
                 ],
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.policy_outlined,
+                    color: AppColors.primary,
+                  ),
+                  title: const Text(
+                    'Privacy Policy & Terms',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    'Data protection, Play Store safety & SaaS terms',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  trailing: Icon(
+                    Icons.open_in_new,
+                    size: 18,
+                    color: AppColors.textLight,
+                  ),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://zolofunds.com/privacy'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                Divider(height: 1, color: AppColors.border),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.danger,
+                  ),
+                  title: const Text(
+                    'Request Account Deletion',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    'Submit data & profile purge request',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  trailing: Icon(
+                    Icons.open_in_new,
+                    size: 18,
+                    color: AppColors.textLight,
+                  ),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://zolofunds.com/delete-account'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                Divider(height: 1, color: AppColors.border),
                 _ActionRow(
                   icon: Icons.logout_rounded,
                   label: t.x('set.logout'),
