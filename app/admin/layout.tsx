@@ -31,10 +31,17 @@ export default async function AdminLayout({
   const userName = session?.user?.name || (userRole === 'developer' ? 'Developer' : userRole === 'superadmin' ? 'Super Admin' : 'Branch Admin');
   const avatarInitials = userRole === 'developer' ? 'DEV' : userRole === 'superadmin' ? 'SA' : 'BA';
 
-  // Fix 21: Fetch pending notification count for developer
+  // Fetch counts for developer
   let pendingModuleRequestCount = 0;
+  let pendingEnquiryCount = 0;
   if (userRole === 'developer') {
     pendingModuleRequestCount = await prisma.moduleRequest.count({ where: { status: 'pending' } });
+    try {
+      const res: any = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as c FROM enquiries WHERE status = 'new'`);
+      pendingEnquiryCount = Number(res[0]?.c || 0);
+    } catch {
+      pendingEnquiryCount = 0;
+    }
   }
 
   return (
@@ -105,6 +112,28 @@ export default async function AdminLayout({
                     textAlign: 'center',
                   }}>
                     {pendingModuleRequestCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            {userRole === 'developer' && (
+              <Link href="/admin/enquiries">
+                <span className="material-icons-outlined">contact_phone</span>
+                Enquiries
+                {pendingEnquiryCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    minWidth: '20px',
+                    textAlign: 'center',
+                  }}>
+                    {pendingEnquiryCount}
                   </span>
                 )}
               </Link>

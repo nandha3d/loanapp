@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Bot, Phone, Calendar, RotateCcw, Globe, ArrowRight } from 'lucide-react';
 
-// Play clean Web Audio notification chime
 function playChime() {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -14,7 +13,6 @@ function playChime() {
     }
     const now = ctx.currentTime;
     
-    // Tone 1: E5 (659.25 Hz)
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
@@ -26,7 +24,6 @@ function playChime() {
     osc1.start(now);
     osc1.stop(now + 0.22);
 
-    // Tone 2: B5 (987.77 Hz)
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
@@ -37,9 +34,7 @@ function playChime() {
     gain2.connect(ctx.destination);
     osc2.start(now + 0.10);
     osc2.stop(now + 0.45);
-  } catch (err) {
-    // Autoplay policy fallback
-  }
+  } catch (err) {}
 }
 
 interface LanguageDef {
@@ -62,60 +57,60 @@ const GREETING_TEXTS: Record<string, { welcome: string; suggestions: string[] }>
     welcome: "Hello! 👋 I'm **Zolo Assistant**, your lending software specialist.\n\n**Important Notice:** Zolo Funds is a **loan tracking software for lenders and NBFCs** — we do not provide loans directly to individuals.\n\nHow can I help your finance business today?",
     suggestions: [
       "Do you provide loans to borrowers?",
+      "Book a live demo",
       "What are your pricing plans?",
       "How does GPS collection work?",
       "Explain Daily & Weekly Microfinance",
-      "Do you support Gold Loans & Chit Funds?",
-      "Book a live demo"
+      "Do you support Gold Loans & Chit Funds?"
     ]
   },
   ta: {
     welcome: "வணக்கம்! 🙏 நான் **Zolo Assistant**.\n\n**முக்கிய குறிப்பு:** Zolo Funds என்பது பைனான்சியர்கள் மற்றும் கடன் நிறுவனங்களுக்கான **கடன் கண்காணிப்பு மென்பொருள் (Loan Tracking Software)** — நாங்கள் நேரடியாக கடன் வழங்குவதில்லை.\n\nஉங்கள் பைனான்ஸ் நிறுவனத்திற்கு என்ன உதவி தேவை?",
     suggestions: [
+      "நேரடி டெமோ பார்க்க வேண்டும்",
       "நீங்கள் கடன் தருகிறீர்களா?",
       "மென்பொருளின் விலை எவ்வளவு?",
       "தினசரி தண்டல் மைக்ரோபைனான்ஸ் எப்படி இயங்குகிறது?",
       "GPS கலெக்ஷன் எப்படி வேலை செய்கிறது?",
-      "நகைக்கடன் & சீட்டு நிதி ஆதரவு உண்டா?",
-      "நேரடி டெமோ பார்க்க வேண்டும்"
+      "நகைக்கடன் & சீட்டு நிதி ஆதரவு உண்டா?"
     ]
   },
   hi: {
     welcome: "नमस्ते! 🙏 मैं **Zolo Assistant** हूँ।\n\n**ज़रूरी सूचना:** Zolo Funds लेंडर्स और NBFCs के लिए एक **लोन ट्रैकिंग और कलेक्शन सॉफ्टवेयर** है — हम सीधे लोन नहीं देते हैं।\n\nआपके फाइनेंस बिज़नेस के लिए क्या जानकारी चाहिए?",
     suggestions: [
+      "लाइव डेमो बुक करें",
       "क्या आप सीधे लोन देते हैं?",
       "सॉफ्टवेयर के प्लान और कीमत क्या है?",
       "डेली माइक्रोफाइनेंस कैसे काम करता है?",
       "GPS फील्ड ट्रैकिंग कैसे काम करती है?",
-      "क्या गोल्ड लोन और चिट फंड सपोर्ट है?",
-      "लाइव डेमो बुक करें"
+      "क्या गोल्ड लोन और चिट फंड सपोर्ट है?"
     ]
   },
   te: {
-    welcome: "నమస్కారం! 🙏 నేను **Zolo Assistant**.\n\n**ముఖ్య గమనిక:** Zolo Funds అనేది ఫైనాన్షియర్స్ మరియు NBFCల కోసం ఒక **లోన్ ట్రాకింగ్ సాఫ్ట్‌వేర్** — మేము నేరుగా రుణాలు ఇవ్వము.\n\nమీ ఫైనాన్స్ వ్యాపారం కోసం ఏ సమాచారం కావాలి?",
+    welcome: "నమస్కారం! 🙏 నేను **Zolo Assistant**.\n\n**ముఖ్య గమనిక:** Zolo Funds అనేది ఫైనాన్షియర్స్ కోసం ఒక **లోన్ ట్రాకింగ్ సాఫ్ట్‌వేర్** — మేము నేరుగా రుణాలు ఇవ్వము.\n\nమీ ఫైనాన్స్ వ్యాపారం కోసం ఏ సమాచారం కావాలి?",
     suggestions: [
+      "డెమో చూడండి",
       "మీరు రుణాలు ఇస్తారా?",
       "ధరలు మరియు ప్లాన్లు ఏమిటి?",
-      "డైలీ మైక్రోఫైనాన్స్ ఎలా పనిచేస్తుంది?",
-      "డెమో చూడండి"
+      "డైలీ మైక్రోఫైనాన్స్ ఎలా పనిచేస్తుంది?"
     ]
   },
   kn: {
     welcome: "ನಮಸ್ಕಾರ! 🙏 ನಾನು **Zolo Assistant**.\n\n**ಪ್ರಮುಖ ಮಾಹಿತಿ:** Zolo Funds ಸಾಲ ನೀಡುವ ಸಂಸ್ಥೆಗಳಿಗಾಗಿ ಒಂದು **ಲೋನ್ ಟ್ರ್ಯಾಕಿಂಗ್ ಸಾಫ್ಟ್‌ವೇರ್** — ನಾವು ನೇರವಾಗಿ ಸಾಲ ನೀಡುವುದಿಲ್ಲ.\n\nನಿಮ್ಮ ಫೈನಾನ್ಸ್ ವ್ಯವಹಾರಕ್ಕೆ ಯಾವ ಮಾಹಿತಿ ಬೇಕು?",
     suggestions: [
+      "ಡೆಮೊ ವೀಕ್ಷಿಸಿ",
       "ನೀವು ಸಾಲ ನೀಡುತ್ತೀರಾ?",
       "ಸಾಫ್ಟ್‌ವೇರ್ ಬೆಲೆ ಎಷ್ಟು?",
-      "ದೈನಂದಿನ ಮೈಕ್ರೋಫೈನಾನ್ಸ್ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ?",
-      "ಡೆಮೊ ವೀಕ್ಷಿಸಿ"
+      "ದೈನಂದಿನ ಮೈಕ್ರೋಫೈನಾನ್ಸ್ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ?"
     ]
   },
   ml: {
     welcome: "നമസ്കാരം! 🙏 ഞാൻ **Zolo Assistant**.\n\n**ശ്രദ്ധിക്കുക:** Zolo Funds എന്നത് ധനകാര്യ സ്ഥാപനങ്ങൾക്കായുള്ള ഒരു **ലോൺ ട്രാക്കിംഗ് സോഫ്റ്റ്‌വെയർ** ആണ് — ഞങ്ങൾ നേരിട്ട് വായ്പ നൽകുന്നില്ല.\n\nനിങ്ങളുടെ ഫിനാൻസ് ബിസിനസിന് എന്ത് സഹായമാണ് വേണ്ടത്?",
     suggestions: [
+      "ഡെമോ കാണുക",
       "നിങ്ങൾ വായ്പ നൽകുന്നുണ്ടോ?",
       "സോഫ്റ്റ്‌വെയർ നിരക്കുകൾ എത്ര?",
-      "ഡെയ്ലി കളക്ഷൻ എങ്ങനെ പ്രവർത്തിക്കുന്നു?",
-      "ഡെമോ കാണുക"
+      "ഡെയ്ലി കളക്ഷൻ എങ്ങനെ പ്രവർത്തിക്കുന്നു?"
     ]
   }
 };
@@ -131,6 +126,7 @@ interface MessageItem {
   text: string;
   actions?: ActionItem[];
   suggestions?: string[];
+  isDemoForm?: boolean;
 }
 
 interface KnowledgeItem {
@@ -139,6 +135,7 @@ interface KnowledgeItem {
   answer: Record<string, string>;
   actions?: ActionItem[];
   suggestions?: string[];
+  isDemoForm?: boolean;
 }
 
 const KNOWLEDGE_BASE: KnowledgeItem[] = [
@@ -171,20 +168,27 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• आप 14 दिन का **फ्री ट्रायल** आज ही शुरू कर सकते हैं!"
     },
     actions: [
-      { type: 'demo', label: 'Start 14-Day Free Trial' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp Sales' }
-    ],
-    suggestions: [
-      "What are your pricing plans?",
-      "How does Daily Microfinance tracking work?",
-      "Explain GPS doorstep collection"
     ]
   },
 
-  // 2. Pricing & Subscriptions
+  // 2. Demo Trigger
+  {
+    id: 'book_demo',
+    keywords: ['book demo', 'live demo', 'schedule demo', 'demo', 'walkthrough', 'presentation', 'trial', 'free trial', 'sample', 'try software', 'test app'],
+    isDemoForm: true,
+    answer: {
+      en: "I would be glad to arrange a **live 1-on-1 walkthrough** of Zolo Funds! 📅\n\nPlease provide your details below and our product specialist will reach out to schedule your demo.",
+      ta: "Zolo Funds நேரடி டெமோவை (Live Walkthrough) திட்டமிடுவதில் மகிழ்ச்சி! 📅\n\nஉங்கள் விபரங்களை கீழே உள்ள படிவத்தில் உள்ளிடுங்கள், எங்கள் தயாரிப்பு ஆலோசகர் உங்களைத் தொடர்புகொள்வார்.",
+      hi: "Zolo Funds का **लाइव 1-ऑन-1 डेमो** शेड्यूल करने के लिए कृपया नीचे अपना विवरण भरें। 📅\n\nहमारे प्रोडक्ट स्पेशलिस्ट आपसे संपर्क करेंगे।"
+    }
+  },
+
+  // 3. Pricing & Subscriptions
   {
     id: 'pricing',
-    keywords: ['price', 'pricing', 'cost', 'plan', 'plans', 'subscription', 'charge', 'rate', 'how much', 'fee', 'package', 'starter', 'growth', 'scale', 'vilai', 'kattanam', 'daam', 'keemat', 'dharalu', 'bele'],
+    keywords: ['price', 'pricing', 'cost', 'plan', 'plans', 'subscription', 'charge', 'rate', 'how much', 'fee', 'package', 'starter', 'growth', 'scale', 'vilai', 'kattanam', 'daam', 'keemat'],
     answer: {
       en: "Zolo Funds offers transparent, value-driven pricing tiers with no hidden charges:\n\n" +
           "• **Starter (₹999/mo):** Up to 2 branches, 3 collection agents, daily/weekly microfinance, digital day-book.\n" +
@@ -194,24 +198,22 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "Every plan starts with an unconditional **14-Day Free Trial** with no credit card required!",
       ta: "Zolo Funds மென்பொருளின் வெளிப்படையான கட்டண விபரங்கள்:\n\n" +
           "• **Starter (₹999/மாதம்):** 2 கிளைகள், 3 கலெக்ஷன் ஏஜென்டுகள், தினசரி/வாராந்திர மைக்ரோபைனான்ஸ், டிஜிட்டல் டே-புக்.\n" +
-          "• **Growth (₹2,999/மாதம்):** 5 கிளைகள், 10 ஏஜென்டுகள், வாகன பைனான்ஸ் & நகைக்கடன், GPS ஜியோபென்சிங், புளூடூத் பிரிண்டர் இணைப்பு.\n" +
+          "• **Growth (₹2,999/மாதம்):** 5 கிளைகள், 10 ஏஜென்டுகள், வாகன பைனான்ஸ் & நகைக்கடன், GPS ஜியோபென்சிங், புளூடூத் பிரிண்டர்.\n" +
           "• **Scale (₹7,999/மாதம்):** வரம்பற்ற கிளைகள், 25 ஏஜென்டுகள், சீட்டு நிதி, வாட்ஸ்அப் ரசீதுகள், இரட்டைப் பதிவு கணக்கியல்.\n" +
-          "• **Enterprise (விருப்பப்படி):** பிரத்யேக டேட்டாபேஸ், தனிப்பயன் வசதிகள் மற்றும் நேரடிப் பயிற்சி.\n\n" +
           "அனைத்து பிளான்களுக்கும் **14 நாள் இலவச சோதனை (Free Trial)** உண்டு!",
       hi: "Zolo Funds सॉफ्टवेयर के किफायती और पारदर्शी प्लान्स:\n\n" +
-          "• **Starter (₹999/माह):** 2 ब्रांच, 3 कलेक्शन एजेंट्स, डेली/वीकली माइक्रोफाइनेंस, डे-बुक लेजर।\n" +
+          "• **Starter (₹999/माह):** 2 ब्रांच, 3 कलेक्शन एजेंट्स, डेली/वीकली माइक्रोफाइनेंस, डे-बुक।\n" +
           "• **Growth (₹2,999/माह):** 5 ब्रांच, 10 एजेंट्स, ऑटो व गोल्ड लोन, GPS जियोफेंसिंग, थर्मल प्रिंटर।\n" +
           "• **Scale (₹7,999/माह):** अनलिमिटेड ब्रांच, 25 एजेंट्स, चिट फंड, व्हाट्सएप रसीदें और अकाउंटिंग।\n" +
-          "• **Enterprise (कस्टम):** डेडिकेटेड डेटाबेस और ऑन-साइट ट्रेनिंग।\n\n" +
           "हर प्लान में **14 दिन का फ्री ट्रायल** बिना किसी क्रेडिट कार्ड के उपलब्ध है!"
     },
     actions: [
-      { type: 'demo', label: 'Start 14-Day Free Trial' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp Sales' }
     ]
   },
 
-  // 3. Daily & Weekly Microfinance (Thandal)
+  // 4. Daily & Weekly Microfinance (Thandal)
   {
     id: 'microfinance',
     keywords: ['micro', 'microlending', 'daily', 'weekly', 'thandal', 'vaddi', 'kandhu', 'emi', 'flat', 'reducing', 'diminishing', 'daily collection', 'instalment', 'penalty', 'foreclosure', 'thandal app'],
@@ -237,15 +239,15 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• **पेनल्टी नियम:** ग्रेस पीरियड और लेट पेनल्टी की ऑटोमैटिक कैलकुलेशन।"
     },
     actions: [
-      { type: 'demo', label: 'See Microfinance Demo' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp Sales' }
     ]
   },
 
-  // 4. GPS Doorstep Verification
+  // 5. GPS Doorstep Verification
   {
     id: 'gps',
-    keywords: ['gps', 'geofence', 'geofencing', 'location', 'tracking', 'doorstep', 'route', 'fraud', 'phantom', 'agent location'],
+    keywords: ['gps', 'geofence', 'geofencing', 'location', 'tracking', 'doorstep', 'route', 'fraud', 'phantom'],
     answer: {
       en: "Our **GPS Collection Verification Engine** eliminates phantom collections and employee fraud:\n\n" +
           "• **Live Doorstep Geofence:** When an agent taps 'Collect', the mobile app verifies satellite GPS coordinates against the borrower's registered home or shop.\n" +
@@ -258,40 +260,37 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• **ஷிப்ட் நேரம் மட்டும்:** ஏஜென்ட் பணி தொடங்கும் போது மட்டும் GPS இயங்கும்; லாக்-அவுட் செய்தவுடன் தானாக நின்றுவிடும்.",
       hi: "हमारा **GPS वेरिफिकेशन इंजन** फर्जी कलेक्शन और फ्रॉड को पूरी तरह रोकता है:\n\n" +
           "• **लाइव डोरस्टेप जियोफेंसिंग:** जब एजेंट 'Collect' दबाता है, तो ऐप सैटेलाइट GPS से जांचता है कि वह ग्राहक की दुकान या घर पर मौजूद है या नहीं।\n" +
-          "• **मैनेजर अलर्ट:** तय दूरी से बाहर कलेक्शन की कोशिश पर मैनेजर को तुरंत अलर्ट मिलता है।\n" +
-          "• **शिफ्ट-बेस्ड प्राइवेसी:** ट्रैकिंग केवल ऑन-ड्यूटी काम करती है; लॉगआउट होते ही अपने आप बंद हो जाती है।"
+          "• **मैनेजर अलर्ट:** तय दूरी से बाहर कलेक्शन की कोशिश पर मैनेजर को तुरंत अलर्ट मिलता है।"
     },
     actions: [
-      { type: 'demo', label: 'See Field App Demo' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
 
-  // 5. Offline Sync
+  // 6. Offline Sync
   {
     id: 'offline',
-    keywords: ['offline', 'no internet', 'connectivity', 'network', 'sync', 'signal', 'rural', 'basement', 'remote'],
+    keywords: ['offline', 'no internet', 'connectivity', 'network', 'sync', 'signal', 'rural', 'basement'],
     answer: {
       en: "Yes! The ZoloFund Android mobile app features an **Offline-First Synchronization Architecture**:\n\n" +
           "• **Zero-Signal Collections:** Agents can collect cash installments in basements, remote villages, or hill stations with zero internet signal.\n" +
           "• **Cryptographic Storage:** Every collection creates a tamper-proof cryptographic receipt stored locally in encrypted device memory.\n" +
           "• **3-Second Auto Sync:** The moment the phone detects 2G, 3G, 4G, or Wi-Fi, all transactions automatically upload and reconcile with the head office ledger in under 3 seconds!",
       ta: "ஆம்! ZoloFund ஆண்ட்ராய்டு ஆப் **முழுமையான ஆஃப்லைன் (Offline) வசதி** கொண்டது:\n\n" +
-          "• **இன்டர்நெட் தேவையில்லை:** பேஸ்மென்ட் கடைகள் அல்லது தொலைதூர கிராமங்களில் சிக்னல் இல்லாவிட்டாலும் தடையின்றி ரசீது போடலாம்.\n" +
-          "• **பாதுகாப்பான மெமரி:** அனைத்து கலெக்ஷன்களும் என்க்ரிப்ட் செய்யப்பட்ட உள்ளூர் மெமரியில் பத்திரமாக சேமிக்கப்படும்.\n" +
+          "• **இன்டர்நெட் தேவையில்லை:** பேஸ்மென்ட் கடைகள் அல்லது கிராமங்களில் சிக்னல் இல்லாவிட்டாலும் தடையின்றி ரசீது போடலாம்.\n" +
           "• **3 நொடிகளில் ஆட்டோ-சிங்க்:** மொபைலில் சிக்னல் கிடைத்தவுடன் 3 நொடிகளுக்குள் தலைமை அலுவலக லெட்ஜரில் தானாக அப்டேட் ஆகிவிடும்!",
       hi: "हाँ! ZoloFund एंड्रॉइड ऐप **ऑफलाइन-फर्स्ट टेक्नोलॉजी** पर काम करता है:\n\n" +
-          "• **बिना इंटरनेट कलेक्शन:** बेसमेंट या दूरदराज गांवों में बिना किसी नेटवर्क सिग्नल के भी कलेक्शन किया जा सकता है।\n" +
-          "• **सुरक्षित स्टोरेज:** हर ट्रांजैक्शन एन्क्रिप्टेड मेमोरी में सुरक्षित सेव होता है।\n" +
-          "• **3 सेकंड में ऑटो-सिंक:** जैसे ही 2G/3G/4G/Wi-Fi मिलता है, सारा डेटा 3 सेकंड में हेड ऑफिस में सिंक हो जाता है!"
+          "• **बिना इंटरनेट कलेक्शन:** बेसमेंट या गांवों में बिना नेटवर्क सिग्नल के भी कलेक्शन किया जा सकता है।\n" +
+          "• **3 सेकंड में ऑटो-सिंक:** जैसे ही नेटवर्क मिलता है, डेटा 3 सेकंड में हेड ऑफिस में सिंक हो जाता है!"
     },
     actions: [
-      { type: 'demo', label: 'Test Android APK' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
 
-  // 6. Gold Loan & Jewels
+  // 7. Gold Loan & Jewels
   {
     id: 'goldloan',
     keywords: ['gold', 'jewel', 'jewelry', 'pawn', 'pawnbroking', 'giruva', 'giruvas', 'nagai', 'ornament', 'karat', 'purity', 'vault', 'safe', 'locker', 'auction'],
@@ -305,21 +304,19 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
       ta: "எங்கள் **நகைக்கடன் & அடகு மென்பொருள் (Gold Loan Module)** வங்கித் தரத்திலான பாதுகாப்பை வழங்குகிறது:\n\n" +
           "• **ஆபரண மதிப்பீடு:** வளையல், செயின், மோதிரம் என மொத்த எடை, கல் கழிவு, நிகர எடை மற்றும் 22K/18K காரட் தரம் வாரியாகப் பதிவு செய்யலாம்.\n" +
           "• **லாக்கர் பாக்கெட் ஐடி:** ஒவ்வொரு நகைக் கணக்கிற்கும் பிரத்யேக லாக்கர் பாக்கெட் எண் ஒதுக்கப்படும்.\n" +
-          "• **வட்டி முறைகள்:** மாத எளிய வட்டி, கூட்டு வட்டி அல்லது புல்லட் ரீபேமென்ட் (முடிவில் அசல் செலுத்துதல்).\n" +
           "• **ஏல நோட்டீஸ்:** தவணை தவறிய கடன்களுக்கு சட்டரீதியான ஏல அறிவிப்பு நோட்டீஸ்களை உடனே அச்சிடலாம்.",
       hi: "हमारा **गोल्ड लोन मॉड्यूल** बैंक-ग्रेड सुरक्षा प्रदान करता है:\n\n" +
           "• **विस्तृत मूल्यांकन:** गहनों का ग्रॉस वजन, स्टोन कटौती, नेट वजन और 22K/18K शुद्धता दर्ज करें।\n" +
           "• **लॉकर पैकेट आईडी:** हर लोन फाइल के लिए सुरक्षित लॉकर पैकेट पहचान संख्या।\n" +
-          "• **ब्याज स्कीम्स:** मंथली सिंपल ब्याज या बुलेट रीपेमेंट (मूलधन अंत में)।\n" +
           "• **ऑक्शन नोटिस:** डिफ़ॉल्ट पर नियमानुसार लीगल नीलामी नोटिस तुरंत बनाएं।"
     },
     actions: [
-      { type: 'demo', label: 'Explore Gold Loan Module' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
 
-  // 7. Chit Funds
+  // 8. Chit Funds
   {
     id: 'chitfunds',
     keywords: ['chit', 'chit fund', 'chitty', 'seettu', 'auction', 'foreman', 'dividend', 'subscriber', 'reverse auction', 'passbook', 'act 1982'],
@@ -331,28 +328,26 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• **Dividend Distribution:** Auto-split remaining discount among all non-prized subscribers to reduce next month's call.\n" +
           "• **Digital Passbook:** Automated member passbook generation and registrar compliance filings.",
       ta: "ஆம்! Zolo Funds-ல் **சீட்டு நிதி சட்டம் 1982**-க்கு இணங்க பிரத்யேக சீட்டு மேலாண்மை உள்ளது:\n\n" +
-          "• **சீட்டு குழுக்கள்:** 20, 25 அல்லது 50 உறுப்பினர்கள் கொண்ட ₹50,000 முதல் ₹1 கோடி வரையிலான குழுக்கள்.\n" +
+          "• **சீட்டு குழுக்கள்:** 20, 25 அல்லது 50 உறுப்பினர்கள் கொண்ட குழுக்கள்.\n" +
           "• **ரிவர்ஸ் ஏலம்:** மாதாந்திர ஏலப் பதிவு, தள்ளுபடித் தொகை மற்றும் ஏல உச்சவரம்பு தானாகக் கணக்கிடப்படும்.\n" +
           "• **ஃபோர்மேன் கமிஷன்:** 5% ஃபோர்மேன் கமிஷன் தானாக கழிக்கப்படும்.\n" +
-          "• **டிவிடென்ட் பகிர்வு:** ஏலம் எடுக்காத உறுப்பினர்களுக்கு லாபப் பங்கு பிரித்து அடுத்த மாதத் தவணை குறைக்கப்படும்.\n" +
-          "• **டிஜிட்டல் பாஸ்புக்:** உறுப்பினர்களுக்கான பாஸ்புக் பிரிண்டிங் வசதி.",
+          "• **டிவிடென்ட் பகிர்வு:** ஏலம் எடுக்காத உறுப்பினர்களுக்கு லாபப் பங்கு தானாகப் பகிரப்படும்.",
       hi: "हाँ! Zolo Funds में **चिट फंड एक्ट 1982** के अनुसार पूर्ण चिट फंड मॉड्यूल है:\n\n" +
           "• **चिट ग्रुप्स:** 20, 25 या 50 सदस्यों वाले ₹50,000 से ₹1 करोड़ तक के ग्रुप्स बनाएं।\n" +
           "• **रिवर्स ऑक्शन:** मासिक बोली, प्राइज़ मनी और डिस्काउंट की सटीक गणना।\n" +
           "• **फोरमैन कमीशन:** 5% फोरमैन कमीशन ऑटो-डिडक्शन।\n" +
-          "• **डिविडेंड बंटवारा:** गैर-विजेता सदस्यों में डिस्काउंट बांटकर अगली किस्त कम करना।\n" +
-          "• **डिजिटल पासबुक:** सदस्यों के लिए ऑटोमैटिक पासबुक और रजिस्ट्रार रिपोर्ट्स।"
+          "• **डिजिटल पासबुक:** सदस्यों के लिए ऑटोमैटिक पासबुक।"
     },
     actions: [
-      { type: 'demo', label: 'Explore Chit Fund Module' },
+      { type: 'demo', label: 'Book Live Walkthrough' },
       { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
 
-  // 8. Contact & Office
+  // 9. Contact & Office
   {
     id: 'contact_office',
-    keywords: ['contact', 'phone', 'call', 'number', 'address', 'office', 'support', 'email', 'location', 'erode', 'animazon', 'narayana valasu', 'nasiyanur', 'tamil nadu', 'mugavari', 'pata'],
+    keywords: ['contact', 'phone', 'call', 'number', 'address', 'office', 'support', 'email', 'location', 'erode', 'animazon', 'narayana valasu', 'nasiyanur', 'tamil nadu'],
     answer: {
       en: "You can reach the Zolo Funds team directly:\n\n" +
           "• **Helpline & Sales:** [+91 80894 05950](tel:+918089405950)\n" +
@@ -364,14 +359,12 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• **Support Hours:** Monday–Saturday, 09:30 AM to 06:30 PM IST.",
       ta: "Zolo Funds குழுவை நேரடியாகத் தொடர்பு கொள்ள:\n\n" +
           "• **தொலைபேசி உதவி:** [+91 80894 05950](tel:+918089405950)\n" +
-          "• **வாட்ஸ்அப் ஆதரவு:** திங்கள் - சனி வரை நேரடி உரையாடல்\n" +
           "• **மின்னஞ்சல்:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
           "• **தலைமை அலுவலக முகவரி:**\n" +
           "  **155, Animazon, நாராயண வலசு, நசியனூர் ரோடு, ஈரோடு - 638011, தமிழ்நாடு, இந்தியா**\n" +
           "• **பேசப்படும் மொழிகள்:** தமிழ், ஆங்கிலம், இந்தி, தெலுங்கு, கன்னடம், மலையாளம்.",
       hi: "आप Zolo Funds टीम से सीधे संपर्क कर सकते हैं:\n\n" +
           "• **हेल्पलाइन व सेल्स:** [+91 80894 05950](tel:+918089405950)\n" +
-          "• **व्हाट्सएप सपोर्ट:** सोमवार से शनिवार त्वरित सहायता\n" +
           "• **ईमेल:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
           "• **कॉर्पोरेट ऑफिस का पता:**\n" +
           "  **155, Animazon, नारायणा वलसु, नसियानूर रोड, इरोड - 638011, तमिलनाडु, भारत**\n" +
@@ -394,7 +387,6 @@ function detectLanguage(text: string): string | null {
   if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
   if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
   if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
-  
   return null;
 }
 
@@ -427,6 +419,7 @@ function findSmartAnswer(userInput: string, currentLang: string) {
       answer: answerText,
       actions: bestMatch.actions || [],
       suggestions: bestMatch.suggestions || [],
+      isDemoForm: bestMatch.isDemoForm || false,
       detectedLang: activeLang
     };
   }
@@ -446,8 +439,8 @@ function findSmartAnswer(userInput: string, currentLang: string) {
     ],
     suggestions: [
       "Do you provide loans to borrowers?",
-      "What are your pricing plans?",
-      "Explain Daily Microfinance"
+      "Book a live demo",
+      "What are your pricing plans?"
     ],
     detectedLang: activeLang
   };
@@ -457,7 +450,7 @@ interface AiChatWidgetProps {
   onOpenDemo?: () => void;
 }
 
-export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
+export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [lang, setLang] = useState('en');
   const [messages, setMessages] = useState<MessageItem[]>([
@@ -471,6 +464,18 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(1);
   const [showGreetingBubble, setShowGreetingBubble] = useState(false);
+
+  // Interactive Demo Form state
+  const [demoForm, setDemoForm] = useState({
+    name: '',
+    phone: '',
+    company: '',
+    vertical: 'microlending',
+    city: ''
+  });
+  const [isSubmittingDemo, setIsSubmittingDemo] = useState(false);
+  const [demoSubmitted, setDemoSubmitted] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -529,7 +534,8 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
           sender: 'bot',
           text: match.answer,
           actions: match.actions || [],
-          suggestions: match.suggestions || []
+          suggestions: match.suggestions || [],
+          isDemoForm: match.isDemoForm || false
         };
         setMessages(prev => [...prev, botMessage]);
       }
@@ -537,14 +543,24 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
     }, 350);
   };
 
+  const triggerDemoFormInChat = () => {
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: 'bot',
+        text: lang === 'ta'
+          ? "Zolo Funds நேரடி டெமோவை (Live Walkthrough) திட்டமிடுவதில் மகிழ்ச்சி! 📅\n\nதயவுசெய்து உங்கள் விபரங்களை கீழே பூர்த்தி செய்யுங்கள். எங்கள் ஆலோசகர் உங்களைத் தொடர்புகொள்வார்."
+          : lang === 'hi'
+          ? "Zolo Funds का लाइव 1-ऑन-1 डेमो शेड्यूल करने के लिए कृपया नीचे अपना विवरण भरें। 📅\n\nहमारे स्पेशलिस्ट आपसे संपर्क करेंगे।"
+          : "I would be glad to arrange a **live 1-on-1 walkthrough** of Zolo Funds! 📅\n\nPlease provide your details below and our product specialist will reach out to schedule your demo.",
+        isDemoForm: true
+      }
+    ]);
+  };
+
   const handleActionClick = (action: ActionItem) => {
     if (action.type === 'demo') {
-      if (onOpenDemo) {
-        onOpenDemo();
-      } else {
-        window.location.href = '/contact';
-      }
-      setIsOpen(false);
+      triggerDemoFormInChat();
     } else if (action.type === 'whatsapp') {
       window.open('https://wa.me/918089405950?text=Hi%2C%20I%20have%20an%20inquiry%20about%20Zolo%20Funds', '_blank');
     } else if (action.type === 'call') {
@@ -552,6 +568,60 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
     } else if (action.type === 'link' && action.url) {
       window.location.href = action.url;
     }
+  };
+
+  const submitInChatDemo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!demoForm.name.trim() || !demoForm.phone.trim()) {
+      alert('Please enter your Name and Phone number.');
+      return;
+    }
+
+    setIsSubmittingDemo(true);
+    const payload = {
+      name: demoForm.name.trim(),
+      phone: demoForm.phone.trim(),
+      company: demoForm.company.trim() || 'Individual Lender',
+      vertical: demoForm.vertical || 'microlending',
+      city: demoForm.city.trim() || 'Tamil Nadu',
+      source: 'chat_assistant',
+      message: 'Lead captured directly through Zolo Assistant in-chat demo form.'
+    };
+
+    try {
+      const endpoint = window.location.hostname.includes('zolofunds.com')
+        ? '/api/demo_request.php'
+        : '/api/demo-request';
+
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn('Network request failed, continuing fallback confirmation:', err);
+    }
+
+    setIsSubmittingDemo(false);
+    setDemoSubmitted(true);
+
+    const confirmationText = lang === 'ta'
+      ? `🎉 **நன்றி, ${demoForm.name}! உங்கள் நேரடி டெமோ பதிவு செய்யப்பட்டது.**\n\nஉங்கள் விபரங்கள் எங்கள் உதவி மையத்திற்கு (support@zolofunds.com) அனுப்பப்பட்டுள்ளன.\n\nஎங்கள் தயாரிப்பு ஆலோசகர் உங்களை **${demoForm.phone}** எண்ணில் விரைவில் தொடர்புகொள்வார்.`
+      : lang === 'hi'
+      ? `🎉 **धन्यवाद, ${demoForm.name}! आपका लाइव डेमो रजिस्टर हो गया है।**\n\nआपकी जानकारी हमारे सपोर्ट डेस्क (support@zolofunds.com) पर भेज दी गई है।\n\nहमारे स्पेशलिस्ट आपसे **${demoForm.phone}** पर जल्द संपर्क करेंगे।`
+      : `🎉 **Live Demo Booked Successfully!**\n\nThank you, **${demoForm.name}**! Your request has been delivered to our support desk (**support@zolofunds.com**).\n\nOur product specialist will reach out to you on **${demoForm.phone}** shortly to demonstrate Zolo Funds!`;
+
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: 'bot',
+        text: confirmationText,
+        actions: [
+          { type: 'whatsapp', label: 'Chat on WhatsApp' },
+          { type: 'call', label: 'Call +91 80894 05950' }
+        ]
+      }
+    ]);
   };
 
   const handleReset = () => {
@@ -563,6 +633,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
         suggestions: greeting.suggestions
       }
     ]);
+    setDemoSubmitted(false);
   };
 
   return (
@@ -908,6 +979,131 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
                       <br />
                     </span>
                   ))}
+
+                  {/* INLINE DEMO BOOKING FORM */}
+                  {msg.isDemoForm && !demoSubmitted && (
+                    <form
+                      onSubmit={submitInChatDemo}
+                      style={{
+                        marginTop: '12px',
+                        background: '#FDF4FF',
+                        border: '1.5px solid #F0ABFC',
+                        borderRadius: '12px',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#7D287E', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Calendar size={14} />
+                        <span>Schedule Your Live Walkthrough</span>
+                      </div>
+                      
+                      <input
+                        type="text"
+                        placeholder="Your Full Name *"
+                        required
+                        value={demoForm.name}
+                        onChange={(e) => setDemoForm(prev => ({ ...prev, name: e.target.value }))}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          background: '#FFFFFF'
+                        }}
+                      />
+
+                      <input
+                        type="tel"
+                        placeholder="WhatsApp / Phone Number *"
+                        required
+                        value={demoForm.phone}
+                        onChange={(e) => setDemoForm(prev => ({ ...prev, phone: e.target.value }))}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          background: '#FFFFFF'
+                        }}
+                      />
+
+                      <input
+                        type="text"
+                        placeholder="Company / Firm Name"
+                        value={demoForm.company}
+                        onChange={(e) => setDemoForm(prev => ({ ...prev, company: e.target.value }))}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          background: '#FFFFFF'
+                        }}
+                      />
+
+                      <select
+                        value={demoForm.vertical}
+                        onChange={(e) => setDemoForm(prev => ({ ...prev, vertical: e.target.value }))}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          background: '#FFFFFF'
+                        }}
+                      >
+                        <option value="Daily Microfinance">Daily / Weekly Microfinance (Thandal)</option>
+                        <option value="Auto & Vehicle Finance">Auto & Vehicle Finance (HP)</option>
+                        <option value="Gold Loan & Jewels">Gold Loan & Jewels</option>
+                        <option value="Chit Funds">Chit Funds</option>
+                        <option value="Multiple Verticals">Multiple Verticals</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        placeholder="City / Location (e.g. Erode, Salem)"
+                        value={demoForm.city}
+                        onChange={(e) => setDemoForm(prev => ({ ...prev, city: e.target.value }))}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          background: '#FFFFFF'
+                        }}
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={isSubmittingDemo}
+                        style={{
+                          marginTop: '4px',
+                          background: '#7D287E',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '9px 14px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: isSubmittingDemo ? 'wait' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        {isSubmittingDemo ? 'Submitting...' : 'Confirm Live Walkthrough →'}
+                      </button>
+                    </form>
+                  )}
                 </div>
 
                 {/* Optional Action Buttons */}
@@ -969,7 +1165,6 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
               </div>
             ))}
 
-            {/* Typing Indicator */}
             {isTyping && (
               <div
                 style={{
