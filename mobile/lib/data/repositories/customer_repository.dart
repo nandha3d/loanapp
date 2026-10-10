@@ -93,7 +93,7 @@ final customerFilterProvider = StateProvider.autoDispose<CustomerListFilter>(
 );
 
 final customerListProvider =
-    FutureProvider.autoDispose<List<Customer>>((ref) async {
+    FutureProvider<List<Customer>>((ref) async {
   final filter = ref.watch(customerFilterProvider);
   // Status and route filter on the server, same as web (CUST-03).
   final all = await ref.watch(customerRepositoryProvider).list(

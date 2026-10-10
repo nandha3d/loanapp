@@ -56,9 +56,6 @@ class _InteractivePortfolioDonutCardState
     final withOverdue = s.portfolioHealth.withOverdue;
     final totalHealthLoans = s.portfolioHealth.total;
 
-    final isWide = MediaQuery.sizeOf(context).width >= 900 &&
-        MediaQuery.textScalerOf(context).scale(1) <= 1.2;
-
     final repaymentCard = _buildRepaymentStatusCard(
       paid: paid,
       pending: pending,
@@ -72,23 +69,15 @@ class _InteractivePortfolioDonutCardState
       total: totalHealthLoans,
     );
 
-    if (isWide) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(child: repaymentCard),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(child: loansCard),
         ],
-      );
-    }
-
-    return Column(
-      children: [
-        repaymentCard,
-        const SizedBox(height: 14),
-        loansCard,
-      ],
+      ),
     );
   }
 
@@ -118,7 +107,7 @@ class _InteractivePortfolioDonutCardState
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -128,31 +117,40 @@ class _InteractivePortfolioDonutCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Portfolio by Repayment Status',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+          SizedBox(
+            height: 34,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Repayment Status',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (total <= 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
+            SizedBox(
+              height: 110,
               child: Center(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.pie_chart_outline_rounded,
-                      size: 36,
+                      size: 30,
                       color: AppColors.chartExpected,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'No dues today',
+                      'No dues',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 11.5,
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
@@ -162,127 +160,116 @@ class _InteractivePortfolioDonutCardState
               ),
             )
           else
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // Interactive Donut Chart with Center Text
-                SizedBox(
-                  width: 160,
-                  height: 160,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      PieChart(
-                        PieChartData(
-                          pieTouchData: PieTouchData(
-                            touchCallback:
-                                (FlTouchEvent event, pieTouchResponse) {
-                              setState(() {
-                                if (!event.isInterestedForInteractions ||
-                                    pieTouchResponse == null ||
-                                    pieTouchResponse.touchedSection == null) {
-                                  _touchedRepaymentIndex = -1;
-                                  return;
-                                }
-                                _touchedRepaymentIndex = pieTouchResponse
-                                    .touchedSection!.touchedSectionIndex;
-                              });
-                            },
+            Center(
+              child: SizedBox(
+                width: 108,
+                height: 108,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        pieTouchData: PieTouchData(
+                          touchCallback:
+                              (FlTouchEvent event, pieTouchResponse) {
+                            setState(() {
+                              if (!event.isInterestedForInteractions ||
+                                  pieTouchResponse == null ||
+                                  pieTouchResponse.touchedSection == null) {
+                                _touchedRepaymentIndex = -1;
+                                return;
+                              }
+                              _touchedRepaymentIndex = pieTouchResponse
+                                  .touchedSection!.touchedSectionIndex;
+                            });
+                          },
+                        ),
+                        sectionsSpace: 2.5,
+                        centerSpaceRadius: 28,
+                        startDegreeOffset: -90,
+                        sections: [
+                          PieChartSectionData(
+                            value: paid > 0 ? paid : 0.001,
+                            color: AppColors.chartSuccess,
+                            radius: _touchedRepaymentIndex == 0 ? 19 : 14,
+                            showTitle: false,
                           ),
-                          sectionsSpace: 3,
-                          centerSpaceRadius: 46,
-                          startDegreeOffset: -90,
-                          sections: [
-                            PieChartSectionData(
-                              value: paid > 0 ? paid : 0.001,
-                              color: AppColors.chartSuccess,
-                              radius: _touchedRepaymentIndex == 0 ? 25 : 18,
-                              showTitle: false,
+                          PieChartSectionData(
+                            value: pending > 0 ? pending : 0.001,
+                            color: const Color(0xFFF59E0B),
+                            radius: _touchedRepaymentIndex == 1 ? 19 : 14,
+                            showTitle: false,
+                          ),
+                          PieChartSectionData(
+                            value: overdue > 0 ? overdue : 0.001,
+                            color: AppColors.chartOverdue,
+                            radius: _touchedRepaymentIndex == 2 ? 19 : 14,
+                            showTitle: false,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 52,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              centerTop,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                height: 1.1,
+                              ),
                             ),
-                            PieChartSectionData(
-                              value: pending > 0 ? pending : 0.001,
-                              color: const Color(0xFFF59E0B),
-                              radius: _touchedRepaymentIndex == 1 ? 25 : 18,
-                              showTitle: false,
-                            ),
-                            PieChartSectionData(
-                              value: overdue > 0 ? overdue : 0.001,
-                              color: AppColors.chartOverdue,
-                              radius: _touchedRepaymentIndex == 2 ? 25 : 18,
-                              showTitle: false,
+                            const SizedBox(height: 1),
+                            Text(
+                              centerSub,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(
-                        width: 88,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                centerTop,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                centerSub,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                // Right-side Legend
-                SizedBox(
-                  width: 260,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _LegendRow(
-                        color: AppColors.chartSuccess,
-                        label: 'Paid',
-                        value: _formatShort(paid),
-                        percent: '$paidPct%',
-                        isHighlighted: _touchedRepaymentIndex == 0,
-                      ),
-                      const SizedBox(height: 10),
-                      _LegendRow(
-                        color: const Color(0xFFF59E0B),
-                        label: 'Pending',
-                        value: _formatShort(pending),
-                        percent: '$pendingPct%',
-                        isHighlighted: _touchedRepaymentIndex == 1,
-                      ),
-                      const SizedBox(height: 10),
-                      _LegendRow(
-                        color: AppColors.chartOverdue,
-                        label: 'Overdue',
-                        value: _formatShort(overdue),
-                        percent: '$overduePct%',
-                        isHighlighted: _touchedRepaymentIndex == 2,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
+          const SizedBox(height: 12),
+          Column(
+            children: [
+              _LegendRow(
+                color: AppColors.chartSuccess,
+                label: 'Paid',
+                value: _formatShort(paid),
+                percent: '$paidPct%',
+                isHighlighted: _touchedRepaymentIndex == 0,
+              ),
+              const SizedBox(height: 5),
+              _LegendRow(
+                color: const Color(0xFFF59E0B),
+                label: 'Pending',
+                value: _formatShort(pending),
+                percent: '$pendingPct%',
+                isHighlighted: _touchedRepaymentIndex == 1,
+              ),
+              const SizedBox(height: 5),
+              _LegendRow(
+                color: AppColors.chartOverdue,
+                label: 'Overdue',
+                value: _formatShort(overdue),
+                percent: '$overduePct%',
+                isHighlighted: _touchedRepaymentIndex == 2,
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -305,11 +292,11 @@ class _InteractivePortfolioDonutCardState
       centerSub = 'On Track ($onTrackPct%)';
     } else if (_touchedLoanIndex == 1) {
       centerTop = '$withOverdue';
-      centerSub = 'With Overdue ($withOverduePct%)';
+      centerSub = 'Overdue ($withOverduePct%)';
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -319,45 +306,52 @@ class _InteractivePortfolioDonutCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Portfolio Health',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+          SizedBox(
+            height: 34,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Portfolio Health',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'By loan status',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
+                Text(
+                  'By loan status',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 1,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (total <= 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
+            SizedBox(
+              height: 110,
               child: Center(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.donut_large_rounded,
-                      size: 36,
+                      size: 30,
                       color: AppColors.chartExpected,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'No loans in portfolio',
+                      'No loans',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 11.5,
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
@@ -367,115 +361,115 @@ class _InteractivePortfolioDonutCardState
               ),
             )
           else
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // Interactive Donut Chart with Center Text
-                SizedBox(
-                  width: 160,
-                  height: 160,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      PieChart(
-                        PieChartData(
-                          pieTouchData: PieTouchData(
-                            touchCallback:
-                                (FlTouchEvent event, pieTouchResponse) {
-                              setState(() {
-                                if (!event.isInterestedForInteractions ||
-                                    pieTouchResponse == null ||
-                                    pieTouchResponse.touchedSection == null) {
-                                  _touchedLoanIndex = -1;
-                                  return;
-                                }
-                                _touchedLoanIndex = pieTouchResponse
-                                    .touchedSection!.touchedSectionIndex;
-                              });
-                            },
+            Center(
+              child: SizedBox(
+                width: 108,
+                height: 108,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        pieTouchData: PieTouchData(
+                          touchCallback:
+                              (FlTouchEvent event, pieTouchResponse) {
+                            setState(() {
+                              if (!event.isInterestedForInteractions ||
+                                  pieTouchResponse == null ||
+                                  pieTouchResponse.touchedSection == null) {
+                                _touchedLoanIndex = -1;
+                                return;
+                              }
+                              _touchedLoanIndex = pieTouchResponse
+                                  .touchedSection!.touchedSectionIndex;
+                            });
+                          },
+                        ),
+                        sectionsSpace: 2.5,
+                        centerSpaceRadius: 28,
+                        startDegreeOffset: -90,
+                        sections: [
+                          PieChartSectionData(
+                            value: onTrack > 0 ? onTrack.toDouble() : 0.001,
+                            color: AppColors.chartSuccess,
+                            radius: _touchedLoanIndex == 0 ? 19 : 14,
+                            showTitle: false,
                           ),
-                          sectionsSpace: 3,
-                          centerSpaceRadius: 46,
-                          startDegreeOffset: -90,
-                          sections: [
-                            PieChartSectionData(
-                              value: onTrack > 0 ? onTrack.toDouble() : 0.001,
-                              color: AppColors.chartSuccess,
-                              radius: _touchedLoanIndex == 0 ? 25 : 18,
-                              showTitle: false,
+                          PieChartSectionData(
+                            value: withOverdue > 0
+                                ? withOverdue.toDouble()
+                                : 0.001,
+                            color: AppColors.chartOverdue,
+                            radius: _touchedLoanIndex == 1 ? 19 : 14,
+                            showTitle: false,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 52,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              centerTop,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                height: 1.1,
+                              ),
                             ),
-                            PieChartSectionData(
-                              value: withOverdue > 0
-                                  ? withOverdue.toDouble()
-                                  : 0.001,
-                              color: AppColors.chartOverdue,
-                              radius: _touchedLoanIndex == 1 ? 25 : 18,
-                              showTitle: false,
+                            const SizedBox(height: 1),
+                            Text(
+                              centerSub,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(
-                        width: 88,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                centerTop,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                centerSub,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                // Right-side Legend
-                SizedBox(
-                  width: 260,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _LegendRow(
-                        color: AppColors.chartSuccess,
-                        label: 'On Track',
-                        value: '$onTrack',
-                        percent: '$onTrackPct%',
-                        isHighlighted: _touchedLoanIndex == 0,
-                      ),
-                      const SizedBox(height: 10),
-                      _LegendRow(
-                        color: AppColors.chartOverdue,
-                        label: 'With Overdue',
-                        value: '$withOverdue',
-                        percent: '$withOverduePct%',
-                        isHighlighted: _touchedLoanIndex == 1,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
+          const SizedBox(height: 12),
+          Column(
+            children: [
+              _LegendRow(
+                color: AppColors.chartSuccess,
+                label: 'On Track',
+                value: '$onTrack',
+                percent: '$onTrackPct%',
+                isHighlighted: _touchedLoanIndex == 0,
+              ),
+              const SizedBox(height: 5),
+              _LegendRow(
+                color: AppColors.chartOverdue,
+                label: 'With Overdue',
+                value: '$withOverdue',
+                percent: '$withOverduePct%',
+                isHighlighted: _touchedLoanIndex == 1,
+              ),
+              const SizedBox(height: 5),
+              // Balance row height with repayment 3-item list
+              const Opacity(
+                opacity: 0.0,
+                child: _LegendRow(
+                  color: Colors.transparent,
+                  label: '',
+                  value: '',
+                  percent: '',
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -502,43 +496,44 @@ class _LegendRow extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       padding: EdgeInsets.symmetric(
-        horizontal: isHighlighted ? 6 : 0,
-        vertical: isHighlighted ? 3 : 0,
+        horizontal: isHighlighted ? 4 : 0,
+        vertical: isHighlighted ? 2 : 1,
       ),
       decoration: BoxDecoration(
         color: isHighlighted ? color.withAlpha(20) : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         children: [
           Container(
-            width: 10,
-            height: 10,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
                 color: AppColors.textPrimary,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Flexible(
-            child: Text(
-              '$value ($percent)',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
+          const SizedBox(width: 4),
+          Text(
+            percent.isNotEmpty ? '$value ($percent)' : value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
             ),
           ),
         ],

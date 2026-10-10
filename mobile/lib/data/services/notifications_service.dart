@@ -92,6 +92,6 @@ final notificationsServiceProvider = Provider<NotificationsService>(
 );
 
 /// NOT-03: unread count for the dashboard bell; invalidated on read.
-final unreadNotificationsCountProvider = FutureProvider.autoDispose<int>(
+final unreadNotificationsCountProvider = FutureProvider<int>(
   (ref) => ref.watch(notificationsServiceProvider).unreadCount(),
 );

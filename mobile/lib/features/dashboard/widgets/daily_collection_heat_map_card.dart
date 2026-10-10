@@ -7,7 +7,7 @@ import 'package:zolofund/data/models/analytics.dart';
 import 'package:zolofund/data/services/analytics_service.dart';
 
 final dailyCollectionHeatMapPointsProvider =
-    FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
+    FutureProvider<List<CollectionPoint>>((ref) {
   return ref.watch(analyticsServiceProvider).collections(range: 90);
 });
 

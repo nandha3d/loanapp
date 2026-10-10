@@ -4,7 +4,7 @@ import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/agent_location.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
 
-final liveAgentLocationsProvider = FutureProvider.autoDispose<List<AgentLocation>>((ref) async {
+final liveAgentLocationsProvider = FutureProvider<List<AgentLocation>>((ref) async {
   final dio = ref.watch(dioProvider);
   final res = await dio.get<Map<String, dynamic>>('/gps/live');
   return unwrapEnvelope(

@@ -46,10 +46,12 @@ CollectionDashboard? _cachedCollectionDashboard;
 const String _kCollectionCacheBox = 'collection_cache';
 
 List<CollectionRow>? cachedCollectionTodayFor(String? scopeKey) {
-  if (scopeKey == null) return null;
-  if (_cachedCollectionScopeKey == scopeKey && _cachedCollectionToday != null) {
-    return _cachedCollectionToday;
+  if (_cachedCollectionToday != null) {
+    if (scopeKey == null || _cachedCollectionScopeKey == scopeKey || _cachedCollectionScopeKey == null) {
+      return _cachedCollectionToday;
+    }
   }
+  if (scopeKey == null) return _cachedCollectionToday;
   // Instant disk read from Hive
   if (Hive.isBoxOpen(_kCollectionCacheBox)) {
     try {
@@ -70,7 +72,7 @@ List<CollectionRow>? cachedCollectionTodayFor(String? scopeKey) {
   return null;
 }
 
-List<CollectionRow>? get cachedCollectionToday => null;
+List<CollectionRow>? get cachedCollectionToday => _cachedCollectionToday;
 
 void clearCollectionTodayCache() {
   _cachedCollectionDashboard = null;

@@ -25,10 +25,12 @@ class DashboardRepository {
   }
 
   static DashboardSummary? cachedSummaryFor(String? scopeKey) {
-    if (scopeKey == null) return null;
-    if (_cachedScopeKey == scopeKey && _cachedSummary != null) {
-      return _cachedSummary;
+    if (_cachedSummary != null) {
+      if (scopeKey == null || _cachedScopeKey == scopeKey || _cachedScopeKey == null) {
+        return _cachedSummary;
+      }
     }
+    if (scopeKey == null) return _cachedSummary;
     // Instant disk read from Hive if box is already open
     if (Hive.isBoxOpen(_kBoxName)) {
       try {
@@ -48,10 +50,12 @@ class DashboardRepository {
   }
 
   static ChitDashboardSummary? cachedChitSummaryFor(String? scopeKey) {
-    if (scopeKey == null) return null;
-    if (_cachedScopeKey == scopeKey && _cachedChitSummary != null) {
-      return _cachedChitSummary;
+    if (_cachedChitSummary != null) {
+      if (scopeKey == null || _cachedScopeKey == scopeKey || _cachedScopeKey == null) {
+        return _cachedChitSummary;
+      }
     }
+    if (scopeKey == null) return _cachedChitSummary;
     if (Hive.isBoxOpen(_kBoxName)) {
       try {
         final box = Hive.box<dynamic>(_kBoxName);

@@ -137,6 +137,9 @@ class DashboardScreen extends ConsumerWidget {
         color: AppColors.primary,
         onRefresh: () async {
           ref.invalidate(dailyCollectionHeatMapPointsProvider);
+          ref.invalidate(mapPinsProvider);
+          ref.invalidate(activeAnnouncementsProvider);
+          ref.invalidate(unreadNotificationsCountProvider);
           await ref.read(authControllerProvider.notifier).refreshProfile();
           return isChit
               ? ref.refresh(chitDashboardSummaryProvider.future)
@@ -148,7 +151,8 @@ class DashboardScreen extends ConsumerWidget {
                   final scopeKey =
                       user != null ? '${user.tenantSlug}_${user.id}' : null;
                   final cached =
-                      DashboardRepository.cachedChitSummaryFor(scopeKey);
+                      DashboardRepository.cachedChitSummaryFor(scopeKey) ??
+                          DashboardRepository.cachedChitSummary;
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -163,7 +167,8 @@ class DashboardScreen extends ConsumerWidget {
                   final scopeKey =
                       user != null ? '${user.tenantSlug}_${user.id}' : null;
                   final cached =
-                      DashboardRepository.cachedChitSummaryFor(scopeKey);
+                      DashboardRepository.cachedChitSummaryFor(scopeKey) ??
+                          DashboardRepository.cachedChitSummary;
                   if (cached != null) {
                     return ChitDashboardBody(
                       summary: cached,
@@ -185,7 +190,8 @@ class DashboardScreen extends ConsumerWidget {
                 loading: () {
                   final scopeKey =
                       user != null ? '${user.tenantSlug}_${user.id}' : null;
-                  final cached = DashboardRepository.cachedSummaryFor(scopeKey);
+                  final cached = DashboardRepository.cachedSummaryFor(scopeKey) ??
+                      DashboardRepository.cachedSummary;
                   if (cached != null) {
                     return _DashboardBody(
                       summary: cached,
@@ -200,7 +206,8 @@ class DashboardScreen extends ConsumerWidget {
                 error: (err, _) {
                   final scopeKey =
                       user != null ? '${user.tenantSlug}_${user.id}' : null;
-                  final cached = DashboardRepository.cachedSummaryFor(scopeKey);
+                  final cached = DashboardRepository.cachedSummaryFor(scopeKey) ??
+                      DashboardRepository.cachedSummary;
                   if (cached != null) {
                     return _DashboardBody(
                       summary: cached,

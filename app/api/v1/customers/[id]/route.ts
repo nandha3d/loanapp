@@ -386,15 +386,19 @@ export async function PATCH(
       }
     }
 
-    await writeAudit({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      action: 'update',
-      entityType: 'customer',
-      entityId: existing.id,
-      oldValue: existing,
-      newValue: data,
-    });
+    try {
+      await writeAudit({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: 'update',
+        entityType: 'customer',
+        entityId: existing.id,
+        oldValue: existing,
+        newValue: data,
+      });
+    } catch (auditErr) {
+      console.error('[customers PATCH] audit log write failed:', auditErr);
+    }
 
     // SEC-01: Strip passwordHash so it never reaches client or browser component
     const { passwordHash: _ph, ...safeUpdated } = updated;
@@ -402,7 +406,7 @@ export async function PATCH(
     return ok({
       ...safeUpdated,
       pan: maskPan(updated.pan),
-      aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber)),
+      aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber) ?? updated.aadharNumber),
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Customer update failed', 500);

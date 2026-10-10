@@ -76,7 +76,7 @@ class MapPin {
   final List<CollectionRow>? customerRows;
 }
 
-final mapPinsProvider = FutureProvider.autoDispose<List<MapPin>>((ref) async {
+final mapPinsProvider = FutureProvider<List<MapPin>>((ref) async {
   final pins = <MapPin>[];
   final user = ref.watch(authControllerProvider).user;
   final isAgent = user?.role == UserRole.agent;

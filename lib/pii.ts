@@ -62,26 +62,36 @@ export function decryptAadharNumber(value: string | null | undefined, rawKey?: s
 
   const [, version, ivValue, tagValue, encryptedValue] = value.split(':');
   if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
-    throw new Error('Unsupported Aadhaar encryption payload.');
+    return null;
   }
 
-  const decipher = crypto.createDecipheriv(
-    'aes-256-gcm',
-    getEncryptionKey(rawKey),
-    Buffer.from(ivValue, 'base64url'),
-  );
-  decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+  try {
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      getEncryptionKey(rawKey),
+      Buffer.from(ivValue, 'base64url'),
+    );
+    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
 
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(encryptedValue, 'base64url')),
-    decipher.final(),
-  ]).toString('utf8');
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedValue, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
 
-  return normalizeAadharNumber(decrypted);
+    return normalizeAadharNumber(decrypted);
+  } catch (error) {
+    console.warn('[PII] Failed to decrypt Aadhaar number:', error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 export function maskAadharNumber(value: string | null | undefined): string | null {
   if (!value) return null;
+  if (value.startsWith(`${AADHAR_ENCRYPTION_PREFIX}:`)) {
+    const decrypted = decryptAadharNumber(value);
+    if (decrypted) return maskAadharNumber(decrypted);
+    return 'XXXX XXXX ****';
+  }
   const normalized = normalizeAadharNumber(value);
   if (!normalized) return null;
   const lastFour = normalized.slice(-4);
@@ -134,23 +144,32 @@ export function decryptField(value: string | null | undefined, rawKey?: string):
     return value;
   }
 
-  const [, , version, ivValue, tagValue, encryptedValue] = value.split(':');
-  if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
-    throw new Error('Unsupported field encryption payload.');
+  const parts = value.split(':');
+  if (parts.length < 6 || parts[2] !== 'v1') {
+    return value;
+  }
+  const [, , , ivValue, tagValue, encryptedValue] = parts;
+  if (!ivValue || !tagValue || !encryptedValue) {
+    return value;
   }
 
-  const decipher = crypto.createDecipheriv(
-    'aes-256-gcm',
-    getEncryptionKey(rawKey),
-    Buffer.from(ivValue, 'base64url'),
-  );
-  decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+  try {
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      getEncryptionKey(rawKey),
+      Buffer.from(ivValue, 'base64url'),
+    );
+    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
 
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(encryptedValue, 'base64url')),
-    decipher.final(),
-  ]).toString('utf8');
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encryptedValue, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
 
-  return decrypted;
+    return decrypted;
+  } catch (err) {
+    console.warn('[PII] Failed to decrypt field:', err instanceof Error ? err.message : err);
+    return value;
+  }
 }
 

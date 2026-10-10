@@ -14,7 +14,7 @@ import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final trendRangeProvider = StateProvider<int>((ref) => 7);
 
-final _trendProvider = FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
+final _trendProvider = FutureProvider<List<CollectionPoint>>((ref) {
   final range = ref.watch(trendRangeProvider);
   return ref.watch(analyticsServiceProvider).collections(range: range);
 });

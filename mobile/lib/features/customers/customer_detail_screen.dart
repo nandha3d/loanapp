@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
@@ -27,6 +28,20 @@ import 'package:zolofund/features/location/location_picker_screen.dart';
 import 'package:zolofund/shared/utils/phone.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
+
+String _cleanGpsError(dynamic e) {
+  if (e is DioException) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final msg = data['error'] ?? data['message'];
+      if (msg != null && msg.toString().isNotEmpty) return msg.toString();
+    }
+    final code = e.response?.statusCode;
+    if (code != null) return 'Server responded with code $code. Please try again.';
+    return 'Network connection error. Please try again.';
+  }
+  return e.toString();
+}
 
 class CustomerDetailScreen extends ConsumerWidget {
   const CustomerDetailScreen({super.key, required this.id});
@@ -357,7 +372,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Failed to update GPS: $e'),
+                          content: Text('Failed to update GPS: ${_cleanGpsError(e)}'),
                           backgroundColor: AppColors.danger,
                         ),
                       );
@@ -417,7 +432,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Failed to update GPS: $e'),
+                          content: Text('Failed to update GPS: ${_cleanGpsError(e)}'),
                           backgroundColor: AppColors.danger,
                         ),
                       );

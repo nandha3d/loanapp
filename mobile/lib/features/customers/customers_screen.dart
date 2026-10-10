@@ -31,7 +31,7 @@ class _StatusOpt {
   final String label;
 }
 
-final _customerRoutesProvider = FutureProvider.autoDispose<List<AppRoute>>(
+final _customerRoutesProvider = FutureProvider<List<AppRoute>>(
   (ref) => ref.watch(settingsServiceProvider).routes(),
 );
 
