@@ -70,6 +70,14 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
   await Hive.initFlutter();
+  try {
+    await Future.wait([
+      Hive.openBox<dynamic>('dashboard_cache'),
+      Hive.openBox<dynamic>('collection_cache'),
+    ]);
+  } catch (e) {
+    debugPrint('[Hive] Cache box pre-open note: $e');
+  }
   // FCM: init Firebase (reads google-services.json) before the app starts.
   try {
     await Firebase.initializeApp();

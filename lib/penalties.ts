@@ -125,9 +125,20 @@ async function penaltyMissedDays(
   return pastTermMissedDays(ext) ?? missedRows;
 }
 
+const bulkPenaltySyncLastRun = new Map<string, { time: number; result: PenaltySyncResult }>();
+
 export async function ensurePendingPenaltiesForMissedLoans(
   scope: PenaltySyncScope
 ): Promise<PenaltySyncResult> {
+  // If bulk sync across whole tenant/branch, throttle to at most once per 60 seconds
+  if (!scope.loanId) {
+    const key = `${scope.tenantId || ''}_${scope.appType || ''}_${scope.branchId || ''}_${scope.routeId || ''}`;
+    const cached = bulkPenaltySyncLastRun.get(key);
+    if (cached && Date.now() - cached.time < 60_000) {
+      return cached.result;
+    }
+  }
+
   const loanWhere: any = {
     status: { in: ['active', 'overdue'] },
     instalments: { some: { status: 'missed' } },

@@ -27,6 +27,13 @@ class AuthStorage {
         ),
       );
 
+  // In-memory cache to avoid repeated asynchronous Android KeyStore / Keystore IPC on every request
+  static String? _memToken;
+  static String? _memRefreshToken;
+  static String? _memTenantSlug;
+  static String? _memBranchId;
+  static String? _memAppType;
+
   Future<void> saveSession({
     required String token,
     required String tenantSlug,
@@ -34,39 +41,78 @@ class AuthStorage {
     String? branchId,
     String? refreshToken,
   }) async {
-    await _storage.write(key: _kToken, value: token);
-    await _storage.write(key: _kTenantSlug, value: tenantSlug);
-    await _storage.write(key: _kAppType, value: appType);
-    if (branchId != null) {
-      await _storage.write(key: _kBranchId, value: branchId);
-    }
-    if (refreshToken != null) {
-      await _storage.write(key: _kRefreshToken, value: refreshToken);
-    }
+    _memToken = token;
+    _memTenantSlug = tenantSlug;
+    _memAppType = appType;
+    _memBranchId = branchId;
+    _memRefreshToken = refreshToken;
+
+    await Future.wait([
+      _storage.write(key: _kToken, value: token),
+      _storage.write(key: _kTenantSlug, value: tenantSlug),
+      _storage.write(key: _kAppType, value: appType),
+      if (branchId != null) _storage.write(key: _kBranchId, value: branchId),
+      if (refreshToken != null) _storage.write(key: _kRefreshToken, value: refreshToken),
+    ]);
   }
 
   Future<void> updateTokens({
     required String token,
     required String refreshToken,
   }) async {
+    _memToken = token;
+    _memRefreshToken = refreshToken;
     await Future.wait([
       _storage.write(key: _kToken, value: token),
       _storage.write(key: _kRefreshToken, value: refreshToken),
     ]);
   }
 
-  Future<String?> readToken() => _storage.read(key: _kToken);
-  Future<String?> readRefreshToken() => _storage.read(key: _kRefreshToken);
-  Future<String?> readTenantSlug() => _storage.read(key: _kTenantSlug);
-  Future<String?> readBranchId() => _storage.read(key: _kBranchId);
-  Future<String?> readAppType() => _storage.read(key: _kAppType);
+  Future<String?> readToken() async {
+    if (_memToken != null) return _memToken;
+    final val = await _storage.read(key: _kToken);
+    if (val != null) _memToken = val;
+    return val;
+  }
 
-  Future<void> saveActiveAppType(String appType) =>
-      _storage.write(key: _kAppType, value: appType);
+  Future<String?> readRefreshToken() async {
+    if (_memRefreshToken != null) return _memRefreshToken;
+    final val = await _storage.read(key: _kRefreshToken);
+    if (val != null) _memRefreshToken = val;
+    return val;
+  }
+
+  Future<String?> readTenantSlug() async {
+    if (_memTenantSlug != null) return _memTenantSlug;
+    final val = await _storage.read(key: _kTenantSlug);
+    if (val != null) _memTenantSlug = val;
+    return val;
+  }
+
+  Future<String?> readBranchId() async {
+    if (_memBranchId != null) return _memBranchId;
+    final val = await _storage.read(key: _kBranchId);
+    if (val != null) _memBranchId = val;
+    return val;
+  }
+
+  Future<String?> readAppType() async {
+    if (_memAppType != null) return _memAppType;
+    final val = await _storage.read(key: _kAppType);
+    if (val != null) _memAppType = val;
+    return val;
+  }
+
+  Future<void> saveActiveAppType(String appType) async {
+    _memAppType = appType;
+    await _storage.write(key: _kAppType, value: appType);
+  }
 
   /// Superadmin branch switcher: sent as `X-Branch-Id` (`all` = All Branches).
-  Future<void> saveActiveBranchId(String branchId) =>
-      _storage.write(key: _kBranchId, value: branchId);
+  Future<void> saveActiveBranchId(String branchId) async {
+    _memBranchId = branchId;
+    await _storage.write(key: _kBranchId, value: branchId);
+  }
 
   /// Cached profile of the signed-in user (JSON) — lets the app boot to the
   /// dashboard offline / on a slow network instead of bouncing to login while
@@ -83,6 +129,11 @@ class AuthStorage {
       _storage.delete(key: _kPendingTotpUser);
 
   Future<void> clear() async {
+    _memToken = null;
+    _memRefreshToken = null;
+    _memTenantSlug = null;
+    _memBranchId = null;
+    _memAppType = null;
     await _storage.deleteAll();
   }
 }

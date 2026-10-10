@@ -264,6 +264,11 @@ class _DashboardBody extends ConsumerWidget {
           responsive: responsive,
         ),
         const SizedBox(height: 14),
+        DashboardGpsWidget(
+          isSubscribed: ref.watch(authControllerProvider).user?.gpsTrackingEnabled ?? false,
+          onTapSubscribe: () => showGpsAddonSubscribeSheet(context, ref),
+        ),
+        const SizedBox(height: 14),
         if (isAgent)
           _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
         else
@@ -1621,11 +1626,6 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             );
           },
           data: (rows) => _buildRowsContent(rows, t),
-        ),
-        const SizedBox(height: 14),
-        DashboardGpsWidget(
-          isSubscribed: isGpsSubscribed,
-          onTapSubscribe: () => showGpsAddonSubscribeSheet(context, ref),
         ),
       ],
     );

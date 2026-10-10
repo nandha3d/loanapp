@@ -396,12 +396,6 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
   @override
   Widget build(BuildContext context) {
     final isAgent = ref.watch(authControllerProvider).user?.role == UserRole.agent;
-
-    if (!widget.isSubscribed) {
-      if (isAgent) return const SizedBox.shrink();
-      return _LockedGpsCard(onTapSubscribe: widget.onTapSubscribe);
-    }
-
     final pinsAsync = ref.watch(mapPinsProvider);
     // Agents must not call /gps/live (server returns 403 for non-admin roles).
     final agentsAsync = isAgent
@@ -421,6 +415,38 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!widget.isSubscribed && !isAgent)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                onTap: widget.onTapSubscribe,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primary.withAlpha(40)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.gps_fixed_rounded, size: 15, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Showing customer collection map. Tap to unlock Live Agent Radar.',
+                          style: AppTypography.extraTiny.copyWith(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, size: 15, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           // ── Header: Title + Live Radar Badge + View Full Map ─────────
           Row(
             children: [
@@ -1638,144 +1664,6 @@ void _showPinSheet(
   );
 }
 
-// ── Locked GPS Card (for non-subscribers) ──────────────────────────────────────
-
-class _LockedGpsCard extends StatelessWidget {
-  const _LockedGpsCard({required this.onTapSubscribe});
-  final VoidCallback onTapSubscribe;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppTokens.shadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTapSubscribe,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(
-                        Icons.gps_fixed_rounded,
-                        color: AppColors.primary,
-                        size: 22,
-                      ),
-                      Positioned(
-                        bottom: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.lock_rounded,
-                            size: 11,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Live GPS Tracking',
-                            style: AppTypography.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.warningBg,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.lock_rounded,
-                                  size: 9,
-                                  color: AppColors.warning,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  'PLAN FEATURE',
-                                  style: AppTypography.extraTiny.copyWith(
-                                    color: AppColors.warning,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 9,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Track field agent routes, live map & collection geotags.',
-                        style: AppTypography.caption.copyWith(fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Subscribe',
-                    style: AppTypography.extraTiny.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ── Locked-feature notice ─────────────────────────────────────────────────────
 

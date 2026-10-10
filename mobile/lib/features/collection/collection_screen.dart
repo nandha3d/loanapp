@@ -32,6 +32,8 @@ import 'package:zolofund/features/collection/widgets/customer_map_pin.dart';
 import 'package:zolofund/features/collection/offline_banner.dart';
 import 'package:zolofund/features/collection/gps_enforcement_dialog.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
+import 'dart:convert';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/help_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
@@ -40,12 +42,32 @@ import 'package:zolofund/shared/widgets/empty_state.dart';
 
 List<CollectionRow>? _cachedCollectionToday;
 String? _cachedCollectionScopeKey;
+CollectionDashboard? _cachedCollectionDashboard;
+const String _kCollectionCacheBox = 'collection_cache';
 
 List<CollectionRow>? cachedCollectionTodayFor(String? scopeKey) {
-  if (scopeKey == null || _cachedCollectionScopeKey != scopeKey) {
-    return null;
+  if (scopeKey == null) return null;
+  if (_cachedCollectionScopeKey == scopeKey && _cachedCollectionToday != null) {
+    return _cachedCollectionToday;
   }
-  return _cachedCollectionToday;
+  // Instant disk read from Hive
+  if (Hive.isBoxOpen(_kCollectionCacheBox)) {
+    try {
+      final box = Hive.box<dynamic>(_kCollectionCacheBox);
+      final rawStr = box.get('dash_$scopeKey') as String?;
+      if (rawStr != null && rawStr.isNotEmpty) {
+        final decoded = jsonDecode(rawStr) as Map<String, dynamic>;
+        final dash = CollectionDashboard.fromJson(decoded);
+        _cachedCollectionScopeKey = scopeKey;
+        _cachedCollectionDashboard = dash;
+        _cachedCollectionToday = dash.rows;
+        return _cachedCollectionToday;
+      }
+    } catch (e) {
+      debugPrint('[Collection] Error reading cached rows from disk: $e');
+    }
+  }
+  return null;
 }
 
 List<CollectionRow>? get cachedCollectionToday => null;
@@ -54,9 +76,12 @@ void clearCollectionTodayCache() {
   _cachedCollectionDashboard = null;
   _cachedCollectionToday = null;
   _cachedCollectionScopeKey = null;
+  if (Hive.isBoxOpen(_kCollectionCacheBox)) {
+    try {
+      Hive.box<dynamic>(_kCollectionCacheBox).clear();
+    } catch (_) {}
+  }
 }
-
-CollectionDashboard? _cachedCollectionDashboard;
 
 /// GET /collection/dashboard — rows plus the server's worklist totals (COL-01).
 /// Invalidate this one to refresh; [collectionTodayProvider] follows it.
@@ -64,14 +89,30 @@ final collectionDashboardProvider =
     FutureProvider<CollectionDashboard>((ref) async {
   final user = ref.watch(authControllerProvider).user;
   final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
-  void remember(CollectionDashboard dash) {
+  void remember(CollectionDashboard dash, [Map<String, dynamic>? raw]) {
     _cachedCollectionDashboard = dash;
     _cachedCollectionToday = dash.rows;
-    if (scopeKey != null) _cachedCollectionScopeKey = scopeKey;
+    if (scopeKey != null) {
+      _cachedCollectionScopeKey = scopeKey;
+      if (raw != null) {
+        try {
+          if (Hive.isBoxOpen(_kCollectionCacheBox)) {
+            Hive.box<dynamic>(_kCollectionCacheBox).put('dash_$scopeKey', jsonEncode(raw));
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  // Preload from disk if memory is empty
+  if (scopeKey != null && _cachedCollectionDashboard == null) {
+    cachedCollectionTodayFor(scopeKey);
   }
 
   try {
-    final dash = await ref.watch(collectionServiceProvider).dashboard();
+    final dash = await ref.watch(collectionServiceProvider).dashboard(
+      onRawData: (rawMap) => remember(_cachedCollectionDashboard ?? CollectionDashboard.fromJson(rawMap), rawMap),
+    );
     remember(dash);
     return dash;
   } catch (e) {
@@ -85,7 +126,9 @@ final collectionDashboardProvider =
     // Retry once after a brief delay if initial fetch fails on startup
     try {
       await Future<void>.delayed(const Duration(milliseconds: 700));
-      final dash = await ref.watch(collectionServiceProvider).dashboard();
+      final dash = await ref.watch(collectionServiceProvider).dashboard(
+        onRawData: (rawMap) => remember(_cachedCollectionDashboard ?? CollectionDashboard.fromJson(rawMap), rawMap),
+      );
       remember(dash);
       return dash;
     } catch (_) {

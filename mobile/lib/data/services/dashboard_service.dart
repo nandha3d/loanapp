@@ -10,20 +10,27 @@ class DashboardService {
   DashboardService(this._dio);
   final Dio _dio;
 
-  Future<DashboardSummary> getSummary() async {
+  Future<DashboardSummary> getSummary({void Function(Map<String, dynamic> raw)? onRawData}) async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.dashboard);
     return unwrapEnvelope(
       res,
-      (dynamic d) => DashboardSummary.fromJson(d as Map<String, dynamic>),
+      (dynamic d) {
+        final map = d as Map<String, dynamic>;
+        onRawData?.call(map);
+        return DashboardSummary.fromJson(map);
+      },
     );
   }
 
-  Future<ChitDashboardSummary> getChitSummary() async {
+  Future<ChitDashboardSummary> getChitSummary({void Function(Map<String, dynamic> raw)? onRawData}) async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.dashboardChits);
     return unwrapEnvelope(
       res,
-      (dynamic d) =>
-          ChitDashboardSummary.fromJson(d as Map<String, dynamic>),
+      (dynamic d) {
+        final map = d as Map<String, dynamic>;
+        onRawData?.call(map);
+        return ChitDashboardSummary.fromJson(map);
+      },
     );
   }
 

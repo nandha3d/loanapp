@@ -11,12 +11,16 @@ class CollectionService {
 
   /// Today's + overdue worklist with server totals — same endpoint as web
   /// Collection Entry (COL-01).
-  Future<CollectionDashboard> dashboard() async {
+  Future<CollectionDashboard> dashboard({void Function(Map<String, dynamic> raw)? onRawData}) async {
     final res =
         await _dio.get<Map<String, dynamic>>(Endpoints.collectionDashboard);
     return unwrapEnvelope(
       res,
-      (dynamic d) => CollectionDashboard.fromJson(d as Map<String, dynamic>),
+      (dynamic d) {
+        final map = d as Map<String, dynamic>;
+        onRawData?.call(map);
+        return CollectionDashboard.fromJson(map);
+      },
     );
   }
 
