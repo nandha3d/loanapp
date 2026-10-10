@@ -1,7 +1,124 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Bot, Phone, Calendar, RotateCcw } from 'lucide-react';
+import { MessageSquare, X, Send, Bot, Phone, Calendar, RotateCcw, Globe, ArrowRight } from 'lucide-react';
+
+// Play clean Web Audio notification chime
+function playChime() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    const now = ctx.currentTime;
+    
+    // Tone 1: E5 (659.25 Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(659.25, now);
+    gain1.gain.setValueAtTime(0.08, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.22);
+
+    // Tone 2: B5 (987.77 Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(987.77, now + 0.10);
+    gain2.gain.setValueAtTime(0.10, now + 0.10);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.10);
+    osc2.stop(now + 0.45);
+  } catch (err) {
+    // Autoplay policy fallback
+  }
+}
+
+interface LanguageDef {
+  code: string;
+  label: string;
+  flag: string;
+}
+
+const LANGUAGES: LanguageDef[] = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'ta', label: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'hi', label: 'हिंदी', flag: '🇮🇳' },
+  { code: 'te', label: 'తెలుగు', flag: '🇮🇳' },
+  { code: 'kn', label: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'ml', label: 'മലയാളം', flag: '🇮🇳' }
+];
+
+const GREETING_TEXTS: Record<string, { welcome: string; suggestions: string[] }> = {
+  en: {
+    welcome: "Hello! 👋 I'm **Zolo Assistant**, your lending software specialist.\n\n**Important Notice:** Zolo Funds is a **loan tracking software for lenders and NBFCs** — we do not provide loans directly to individuals.\n\nHow can I help your finance business today?",
+    suggestions: [
+      "Do you provide loans to borrowers?",
+      "What are your pricing plans?",
+      "How does GPS collection work?",
+      "Explain Daily & Weekly Microfinance",
+      "Do you support Gold Loans & Chit Funds?",
+      "Book a live demo"
+    ]
+  },
+  ta: {
+    welcome: "வணக்கம்! 🙏 நான் **Zolo Assistant**.\n\n**முக்கிய குறிப்பு:** Zolo Funds என்பது பைனான்சியர்கள் மற்றும் கடன் நிறுவனங்களுக்கான **கடன் கண்காணிப்பு மென்பொருள் (Loan Tracking Software)** — நாங்கள் நேரடியாக கடன் வழங்குவதில்லை.\n\nஉங்கள் பைனான்ஸ் நிறுவனத்திற்கு என்ன உதவி தேவை?",
+    suggestions: [
+      "நீங்கள் கடன் தருகிறீர்களா?",
+      "மென்பொருளின் விலை எவ்வளவு?",
+      "தினசரி தண்டல் மைக்ரோபைனான்ஸ் எப்படி இயங்குகிறது?",
+      "GPS கலெக்ஷன் எப்படி வேலை செய்கிறது?",
+      "நகைக்கடன் & சீட்டு நிதி ஆதரவு உண்டா?",
+      "நேரடி டெமோ பார்க்க வேண்டும்"
+    ]
+  },
+  hi: {
+    welcome: "नमस्ते! 🙏 मैं **Zolo Assistant** हूँ।\n\n**ज़रूरी सूचना:** Zolo Funds लेंडर्स और NBFCs के लिए एक **लोन ट्रैकिंग और कलेक्शन सॉफ्टवेयर** है — हम सीधे लोन नहीं देते हैं।\n\nआपके फाइनेंस बिज़नेस के लिए क्या जानकारी चाहिए?",
+    suggestions: [
+      "क्या आप सीधे लोन देते हैं?",
+      "सॉफ्टवेयर के प्लान और कीमत क्या है?",
+      "डेली माइक्रोफाइनेंस कैसे काम करता है?",
+      "GPS फील्ड ट्रैकिंग कैसे काम करती है?",
+      "क्या गोल्ड लोन और चिट फंड सपोर्ट है?",
+      "लाइव डेमो बुक करें"
+    ]
+  },
+  te: {
+    welcome: "నమస్కారం! 🙏 నేను **Zolo Assistant**.\n\n**ముఖ్య గమనిక:** Zolo Funds అనేది ఫైనాన్షియర్స్ మరియు NBFCల కోసం ఒక **లోన్ ట్రాకింగ్ సాఫ్ట్‌వేర్** — మేము నేరుగా రుణాలు ఇవ్వము.\n\nమీ ఫైనాన్స్ వ్యాపారం కోసం ఏ సమాచారం కావాలి?",
+    suggestions: [
+      "మీరు రుణాలు ఇస్తారా?",
+      "ధరలు మరియు ప్లాన్లు ఏమిటి?",
+      "డైలీ మైక్రోఫైనాన్స్ ఎలా పనిచేస్తుంది?",
+      "డెమో చూడండి"
+    ]
+  },
+  kn: {
+    welcome: "ನಮಸ್ಕಾರ! 🙏 ನಾನು **Zolo Assistant**.\n\n**ಪ್ರಮುಖ ಮಾಹಿತಿ:** Zolo Funds ಸಾಲ ನೀಡುವ ಸಂಸ್ಥೆಗಳಿಗಾಗಿ ಒಂದು **ಲೋನ್ ಟ್ರ್ಯಾಕಿಂಗ್ ಸಾಫ್ಟ್‌ವೇರ್** — ನಾವು ನೇರವಾಗಿ ಸಾಲ ನೀಡುವುದಿಲ್ಲ.\n\nನಿಮ್ಮ ಫೈನಾನ್ಸ್ ವ್ಯವಹಾರಕ್ಕೆ ಯಾವ ಮಾಹಿತಿ ಬೇಕು?",
+    suggestions: [
+      "ನೀವು ಸಾಲ ನೀಡುತ್ತೀರಾ?",
+      "ಸಾಫ್ಟ್‌ವೇರ್ ಬೆಲೆ ಎಷ್ಟು?",
+      "ದೈನಂದಿನ ಮೈಕ್ರೋಫೈನಾನ್ಸ್ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ?",
+      "ಡೆಮೊ ವೀಕ್ಷಿಸಿ"
+    ]
+  },
+  ml: {
+    welcome: "നമസ്കാരം! 🙏 ഞാൻ **Zolo Assistant**.\n\n**ശ്രദ്ധിക്കുക:** Zolo Funds എന്നത് ധനകാര്യ സ്ഥാപനങ്ങൾക്കായുള്ള ഒരു **ലോൺ ട്രാക്കിംഗ് സോഫ്റ്റ്‌വെയർ** ആണ് — ഞങ്ങൾ നേരിട്ട് വായ്പ നൽകുന്നില്ല.\n\nനിങ്ങളുടെ ഫിനാൻസ് ബിസിനസിന് എന്ത് സഹായമാണ് വേണ്ടത്?",
+    suggestions: [
+      "നിങ്ങൾ വായ്പ നൽകുന്നുണ്ടോ?",
+      "സോഫ്റ്റ്‌വെയർ നിരക്കുകൾ എത്ര?",
+      "ഡെയ്ലി കളക്ഷൻ എങ്ങനെ പ്രവർത്തിക്കുന്നു?",
+      "ഡെമോ കാണുക"
+    ]
+  }
+};
 
 interface ActionItem {
   type: 'demo' | 'whatsapp' | 'call' | 'link';
@@ -16,342 +133,282 @@ interface MessageItem {
   suggestions?: string[];
 }
 
-const INITIAL_MESSAGES: MessageItem[] = [
-  {
-    sender: 'bot',
-    text: "Hello! 👋 I'm **Zolo Assistant**, your lending software specialist.\n\nI have in-depth knowledge of all our modules — daily microfinance, auto finance, gold loans, chit funds, GPS field tracking, offline sync, and pricing. How can I help your finance business today?",
-    suggestions: [
-      "What are your pricing plans?",
-      "How does GPS doorstep collection work?",
-      "Explain Daily & Weekly Microfinance",
-      "Do you support Gold Loans & Chit Funds?",
-      "How does offline collection work?",
-      "Book a live demo"
-    ]
-  }
-];
-
-// 100% Comprehensive Domain Knowledge Base
-const KNOWLEDGE_BASE: {
+interface KnowledgeItem {
   id: string;
   keywords: string[];
-  answer: string;
+  answer: Record<string, string>;
   actions?: ActionItem[];
   suggestions?: string[];
-}[] = [
+}
+
+const KNOWLEDGE_BASE: KnowledgeItem[] = [
+  // 1. CRITICAL: "Do you give loans? / Can I get a loan? / Is this lending money to the borrower?"
   {
-    id: 'pricing',
-    keywords: ['price', 'pricing', 'cost', 'plan', 'plans', 'subscription', 'charge', 'charges', 'rate', 'rates', 'how much', 'fee', 'package', 'starter', 'growth', 'scale', 'enterprise', 'rupee', 'kattanam'],
-    answer: "Zolo Funds offers transparent, value-driven pricing tiers with no hidden charges:\n\n" +
-            "• **Starter (₹999/mo):** Up to 2 branches, 3 collection agents, daily/weekly microfinance, digital day-book, basic reports.\n" +
-            "• **Growth (₹2,999/mo):** Up to 5 branches, 10 collection agents, auto finance & gold loans, GPS geofencing, thermal printer integration.\n" +
-            "• **Scale (₹7,999/mo):** Unlimited branches, 25 agents, chit funds, WhatsApp receipts & automated double-entry accounting.\n" +
-            "• **Enterprise (Custom):** Dedicated database, custom API integrations, high-volume NBFC scaling & on-site staff training.\n\n" +
-            "Every plan starts with an unconditional **14-Day Free Trial** with no credit card required!",
+    id: 'not_a_lender',
+    keywords: [
+      'lend money', 'lending money', 'give loan', 'giving loan', 'provide loan', 'providing loan',
+      'get a loan', 'need loan', 'borrow money', 'borrower loan', 'apply loan', 'apply for loan',
+      'can i get loan', 'do you give loan', 'do you give loans', 'is this capable of lending',
+      'loan kidaikuma', 'kadan kidaikuma', 'kadan tharuvirgala', 'kadan venum', 'loan venum',
+      'loan milega', 'loan dete ho', 'kya aap loan dete ho', 'paisa chahiye', 'loan chahiye',
+      'personal loan', 'urgent loan', 'cash loan', 'runam', 'saala', 'vaaypa'
+    ],
+    answer: {
+      en: "❌ **No. Zolo Funds does NOT provide loans or lend money to borrowers.**\n\n" +
+          "Zolo Funds is strictly a **B2B Loan Management & Field Collection Software Platform** built for lenders, NBFCs, microfinance institutions, vehicle financiers, and chit fund operators to track and manage their own operations.\n\n" +
+          "• We are a **technology provider**, not a bank or money lender.\n" +
+          "• If you run a **lending business**, our software will help you track daily collections, GPS geofencing, and overdue loans.\n" +
+          "• You can test our software with an unconditional **14-Day Free Trial**!",
+      ta: "❌ **இல்லை. Zolo Funds கடன் வழங்கும் நிறுவனம் அல்ல. நாங்கள் கடன் கொடுப்பதில்லை.**\n\n" +
+          "Zolo Funds என்பது கடன் கொடுக்கும் பைனான்சியர்கள், NBFCகள், மைக்ரோபைனான்ஸ் நிறுவனங்கள் மற்றும் சீட்டு நிதி நடத்துவோருக்கான **கடன் கண்காணிப்பு தொழில்நுட்ப மென்பொருள் (Loan Tracking Software)** மட்டுமே.\n\n" +
+          "• நாங்கள் மென்பொருள் தயாரிப்பாளர்கள்; பணக்கடன் வழங்குபவர்கள் அல்ல.\n" +
+          "• நீங்கள் பைனான்ஸ் தொழில் நடத்துபவராக இருந்தால், உங்கள் கடன்களையும் கலெக்ஷன் ஏஜென்டுகளையும் நிர்வகிக்க எங்கள் மென்பொருளைப் பயன்படுத்தலாம்!\n" +
+          "• 14 நாள் இலவச சோதனையை (Free Trial) இன்றே தொடங்கலாம்!",
+      hi: "❌ **नहीं। Zolo Funds कोई लोन देने वाली कंपनी या बैंक नहीं है। हम सीधे लोन नहीं देते हैं।**\n\n" +
+          "Zolo Funds एक **लोन मैनेजमेंट और फील्ड कलेक्शन सॉफ्टवेयर** है जो लेंडर्स, NBFCs, और माइक्रोफाइनेंस कंपनियों को अपने लोन और डेली कलेक्शन ट्रैक करने के लिए बनाया गया है।\n\n" +
+          "• हम एक सॉफ्टवेयर टेक्नोलॉजी प्रदाता हैं, लोन देने वाले नहीं।\n" +
+          "• यदि आपका फाइनेंस व्यवसाय है, तो आप हमारे सॉफ्टवेयर से फील्ड एजेंट्स, GPS और लेज़र आसानी से संभाल सकते हैं।\n" +
+          "• आप 14 दिन का **फ्री ट्रायल** आज ही शुरू कर सकते हैं!"
+    },
     actions: [
       { type: 'demo', label: 'Start 14-Day Free Trial' },
       { type: 'whatsapp', label: 'WhatsApp Sales' }
     ],
     suggestions: [
-      "How does the 14-day free trial work?",
-      "What are the payment terms?",
-      "Do you provide a mobile app for agents?"
-    ]
-  },
-  {
-    id: 'trial',
-    keywords: ['trial', 'free trial', 'demo', 'book demo', 'walkthrough', 'testing', 'try', 'test drive', 'sample'],
-    answer: "You can test Zolo Funds completely risk-free with our **14-Day Free Trial**:\n\n" +
-            "• **Instant Full Access:** Test the superadmin portal, loan origination, day-book, and the Android field agent APK.\n" +
-            "• **Zero Financial Commitment:** No credit card or bank details required.\n" +
-            "• **Personal Walkthrough:** Our product team will give you a live Google Meet or phone walkthrough and help set up your branches.\n" +
-            "• **Data Retention:** Any test loans and customer records created can be kept or reset with one click when you activate.",
-    actions: [
-      { type: 'demo', label: 'Schedule Live Walkthrough' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
       "What are your pricing plans?",
-      "Can I test on my Android phone?"
+      "How does Daily Microfinance tracking work?",
+      "Explain GPS doorstep collection"
     ]
   },
+
+  // 2. Pricing & Subscriptions
+  {
+    id: 'pricing',
+    keywords: ['price', 'pricing', 'cost', 'plan', 'plans', 'subscription', 'charge', 'rate', 'how much', 'fee', 'package', 'starter', 'growth', 'scale', 'vilai', 'kattanam', 'daam', 'keemat', 'dharalu', 'bele'],
+    answer: {
+      en: "Zolo Funds offers transparent, value-driven pricing tiers with no hidden charges:\n\n" +
+          "• **Starter (₹999/mo):** Up to 2 branches, 3 collection agents, daily/weekly microfinance, digital day-book.\n" +
+          "• **Growth (₹2,999/mo):** Up to 5 branches, 10 collection agents, auto finance & gold loans, GPS geofencing, thermal printer integration.\n" +
+          "• **Scale (₹7,999/mo):** Unlimited branches, 25 agents, chit funds, WhatsApp receipts & double-entry accounting.\n" +
+          "• **Enterprise (Custom):** Dedicated database, custom API integrations, NBFC scaling & on-site staff training.\n\n" +
+          "Every plan starts with an unconditional **14-Day Free Trial** with no credit card required!",
+      ta: "Zolo Funds மென்பொருளின் வெளிப்படையான கட்டண விபரங்கள்:\n\n" +
+          "• **Starter (₹999/மாதம்):** 2 கிளைகள், 3 கலெக்ஷன் ஏஜென்டுகள், தினசரி/வாராந்திர மைக்ரோபைனான்ஸ், டிஜிட்டல் டே-புக்.\n" +
+          "• **Growth (₹2,999/மாதம்):** 5 கிளைகள், 10 ஏஜென்டுகள், வாகன பைனான்ஸ் & நகைக்கடன், GPS ஜியோபென்சிங், புளூடூத் பிரிண்டர் இணைப்பு.\n" +
+          "• **Scale (₹7,999/மாதம்):** வரம்பற்ற கிளைகள், 25 ஏஜென்டுகள், சீட்டு நிதி, வாட்ஸ்அப் ரசீதுகள், இரட்டைப் பதிவு கணக்கியல்.\n" +
+          "• **Enterprise (விருப்பப்படி):** பிரத்யேக டேட்டாபேஸ், தனிப்பயன் வசதிகள் மற்றும் நேரடிப் பயிற்சி.\n\n" +
+          "அனைத்து பிளான்களுக்கும் **14 நாள் இலவச சோதனை (Free Trial)** உண்டு!",
+      hi: "Zolo Funds सॉफ्टवेयर के किफायती और पारदर्शी प्लान्स:\n\n" +
+          "• **Starter (₹999/माह):** 2 ब्रांच, 3 कलेक्शन एजेंट्स, डेली/वीकली माइक्रोफाइनेंस, डे-बुक लेजर।\n" +
+          "• **Growth (₹2,999/माह):** 5 ब्रांच, 10 एजेंट्स, ऑटो व गोल्ड लोन, GPS जियोफेंसिंग, थर्मल प्रिंटर।\n" +
+          "• **Scale (₹7,999/माह):** अनलिमिटेड ब्रांच, 25 एजेंट्स, चिट फंड, व्हाट्सएप रसीदें और अकाउंटिंग।\n" +
+          "• **Enterprise (कस्टम):** डेडिकेटेड डेटाबेस और ऑन-साइट ट्रेनिंग।\n\n" +
+          "हर प्लान में **14 दिन का फ्री ट्रायल** बिना किसी क्रेडिट कार्ड के उपलब्ध है!"
+    },
+    actions: [
+      { type: 'demo', label: 'Start 14-Day Free Trial' },
+      { type: 'whatsapp', label: 'WhatsApp Sales' }
+    ]
+  },
+
+  // 3. Daily & Weekly Microfinance (Thandal)
   {
     id: 'microfinance',
-    keywords: ['micro', 'microlending', 'daily', 'weekly', 'thandal', 'vaddi', 'kandhu', 'emi', 'flat', 'reducing', 'diminishing', 'collection', 'repayment', 'daily collection', 'instalment', 'schedule', 'foreclosure', 'discount', 'penalty', 'grace period'],
-    answer: "Zolo Funds is tailor-made for Indian **Daily & Weekly Microfinance (Thandal / Micro-lending)**:\n\n" +
-            "• **Repayment Cadence:** Flexible Daily (e.g. 100 days), Weekly, Bi-weekly, and Monthly schedules.\n" +
-            "• **Calculation Models:** Flat EMI or Diminishing (Reducing Balance) with exact day-count interest.\n" +
-            "• **Agent Run Sheets:** Line-by-line doorstep collection lists ordered by customer location efficiency.\n" +
-            "• **Cash Drawer Handshake:** Collection agents surrender collected cash to the branch cashier with two-way digital signature reconciliation.\n" +
-            "• **Automated Penalty Rules:** Configurable grace periods (e.g. 3 days) and linear overdue penalty accrual.\n" +
-            "• **Foreclosure Engine:** Early loan payoff calculation with automated interest discount rebates.",
+    keywords: ['micro', 'microlending', 'daily', 'weekly', 'thandal', 'vaddi', 'kandhu', 'emi', 'flat', 'reducing', 'diminishing', 'daily collection', 'instalment', 'penalty', 'foreclosure', 'thandal app'],
+    answer: {
+      en: "Zolo Funds is tailor-made for Indian **Daily & Weekly Microfinance (Thandal)**:\n\n" +
+          "• **Flexible Cadence:** Daily (e.g. 100 days), Weekly, Bi-weekly, and Monthly repayment schedules.\n" +
+          "• **Calculation Modes:** Flat EMI or Diminishing (Reducing Balance) with exact day-count conventions.\n" +
+          "• **Agent Run Sheets:** Line-by-line doorstep collection lists ordered by customer location efficiency.\n" +
+          "• **Cash Drawer Handshake:** Collection agents surrender collected cash to branch cashier with two-way digital signature verification.\n" +
+          "• **Automated Penalty Engine:** Configurable grace periods and linear overdue penalty calculations.\n" +
+          "• **Foreclosure Engine:** Early loan payoff with automated interest rebate discounts.",
+      ta: "Zolo Funds இந்திய **தினசரி & வாராந்திர மைக்ரோபைனான்ஸ் (தண்டல்)** முறைக்காகவே வடிவமைக்கப்பட்டது:\n\n" +
+          "• **தவணை முறைகள்:** தினசரி (100 நாள் தண்டல்), வாராந்திர, 15 நாட்கள் மற்றும் மாதத் தவணைகள்.\n" +
+          "• **வட்டி கணக்கீடு:** பிளாட் இ.எம்.ஐ (Flat EMI) அல்லது குறைந்துவரும் இருப்பு வட்டி (Diminishing Interest).\n" +
+          "• **கலெக்ஷன் பட்டியல்:** ஏஜென்டுகளுக்கு ஏதுவாக வரிசைப்படுத்தப்பட்ட டோர்ஸ்டெப் ரன்-ஷீட்.\n" +
+          "• **கேஷியர் சரிபார்ப்பு:** ஏஜென்ட் வசூலித்த பணத்தை மாலையில் கிளையில் ஒப்படைக்கும் டிஜிட்டல் ஹேண்ட்ஷேக்.\n" +
+          "• **அபராதக் கணக்கீடு:** சலுகை நாட்கள் மற்றும் தாமதக் கட்டணங்கள் தானாக கணக்கிடப்படும்.",
+      hi: "Zolo Funds भारतीय **डेली और वीकली माइक्रोफाइनेंस (कलेक्शन)** के लिए परफेक्ट है:\n\n" +
+          "• **लचीली किस्तें:** डेली (100 दिन आदि), वीकली और मंथली कलेक्शन शेड्यूल्स।\n" +
+          "• **ब्याज गणना:** फ्लैट ईएमआई (Flat EMI) या रिड्यूसिंग बैलेंस (Diminishing)।\n" +
+          "• **एजेंट रन शीट:** घर-घर कलेक्शन के लिए आसान रूट लिस्ट।\n" +
+          "• **कैशियर मिलान:** शाम को एजेंट द्वारा कैशियर को डिजिटल हैंडशेक से कैश जमा करना।\n" +
+          "• **पेनल्टी नियम:** ग्रेस पीरियड और लेट पेनल्टी की ऑटोमैटिक कैलकुलेशन।"
+    },
     actions: [
       { type: 'demo', label: 'See Microfinance Demo' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How does GPS collection work?",
-      "Does it support thermal Bluetooth printers?"
+      { type: 'whatsapp', label: 'WhatsApp Sales' }
     ]
   },
-  {
-    id: 'autofinance',
-    keywords: ['auto', 'vehicle', 'hp', 'hire purchase', 'bike', 'car', 'tractor', 'lorry', 'two wheeler', 'commercial', 'chassis', 'engine', 'hypothecation', 'rto', 'rc', 'repossession', 'seizure', 'insurance', 'vandi loan'],
-    answer: "Our **Auto & Vehicle Finance Module** covers complete Hire Purchase (HP) operations:\n\n" +
-            "• **Asset Registry:** Vehicle registration number, chassis number, engine number, make, model, and hypothecation status.\n" +
-            "• **Document Vault:** Upload RC book copies, insurance policies, and vehicle inspection photos.\n" +
-            "• **Co-Applicant & Guarantor:** Capture multiple guarantors with KYC and property backing.\n" +
-            "• **Insurance Expiry Tracker:** Automated alerts 30 days and 15 days before policy expiration.\n" +
-            "• **Default & Repossession:** Step-by-step default escalation with statutory grace notices and repossession inventory tracking.",
-    actions: [
-      { type: 'demo', label: 'Explore Auto Finance' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "What about Gold Loans?",
-      "Can we print vehicle EMI receipts?"
-    ]
-  },
-  {
-    id: 'goldloan',
-    keywords: ['gold', 'jewel', 'jewelry', 'pawn', 'pawnbroking', 'giruva', 'giruvas', 'nagai', 'ornament', 'karat', 'purity', 'weight', 'gross weight', 'net weight', 'stone', 'vault', 'safe', 'locker', 'auction', 'bullet'],
-    answer: "Our **Gold Loan & Jewel Mortgage Module** offers bank-grade collateral security:\n\n" +
-            "• **Detailed Item Appraisal:** Itemize bangles, chains, rings, coins with gross weight, stone deduction, net weight, and karat purity (22K, 18K).\n" +
-            "• **Vault Packet Identification:** Assign each loan file to an encrypted safe locker packet ID.\n" +
-            "• **Interest Schemes:** Simple monthly interest, compound interest, or Bullet repayment (principal due at end, interest serviced monthly).\n" +
-            "• **Market Value Recalculation:** Instant LTV (Loan-To-Value) monitoring against daily Gold Bullion rates.\n" +
-            "• **Statutory Auction Register:** Automated registered notice generator complying with Indian pawn-broking laws.",
-    actions: [
-      { type: 'demo', label: 'Explore Gold Loan Module' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How do Chit Funds work?",
-      "What are the pricing plans?"
-    ]
-  },
-  {
-    id: 'chitfunds',
-    keywords: ['chit', 'chit fund', 'chitty', 'seettu', 'auction', 'foreman', 'dividend', 'subscriber', 'bid', 'bidding', 'reverse auction', 'passbook', 'registrar', 'act 1982'],
-    answer: "Yes! Zolo Funds features a dedicated **Chit Fund Operating Module** compliant with the Chit Funds Act, 1982:\n\n" +
-            "• **Group Lifecycle:** Create chit pools (e.g. 20, 25, or 50 members; ₹50,000 to ₹1 Crore pools).\n" +
-            "• **Reverse Auction Engine:** Record monthly member bids, calculate discount prize money, and enforce statutory ceiling bids.\n" +
-            "• **Foreman Commission:** Automated 5% foreman commission calculation.\n" +
-            "• **Dividend Distribution:** Auto-split remaining discount among all non-prized subscribers to reduce next month's call installment.\n" +
-            "• **Digital Passbook:** Automated member passbook generation and registrar compliance filings.",
-    actions: [
-      { type: 'demo', label: 'Explore Chit Fund Module' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "Can agents collect chit installments on mobile?",
-      "Book a live demo"
-    ]
-  },
+
+  // 4. GPS Doorstep Verification
   {
     id: 'gps',
-    keywords: ['gps', 'geofence', 'geofencing', 'location', 'tracking', 'field', 'doorstep', 'route', 'map', 'agent tracking', 'fraud', 'phantom', 'distance', 'radius'],
-    answer: "Our **GPS Collection Verification Engine** eliminates phantom collections and employee fraud:\n\n" +
-            "• **Live Doorstep Geofence:** When an agent taps 'Collect', the mobile app verifies satellite GPS coordinates against the borrower's registered home or shop.\n" +
-            "• **Manager Radius Alerts:** Collections attempted beyond the permissible radius (e.g. 50 meters) are flagged immediately for manager approval.\n" +
-            "• **Optimized Route Sheets:** The app organizes the daily collection list geographically to minimize fuel and travel time.\n" +
-            "• **Shift-Only Privacy:** GPS tracking runs strictly during active work hours; tracking terminates immediately when the agent clocks out.",
+    keywords: ['gps', 'geofence', 'geofencing', 'location', 'tracking', 'doorstep', 'route', 'fraud', 'phantom', 'agent location'],
+    answer: {
+      en: "Our **GPS Collection Verification Engine** eliminates phantom collections and employee fraud:\n\n" +
+          "• **Live Doorstep Geofence:** When an agent taps 'Collect', the mobile app verifies satellite GPS coordinates against the borrower's registered home or shop.\n" +
+          "• **Manager Radius Alerts:** Collections attempted beyond the permissible radius (e.g. 50 meters) are flagged immediately for manager approval.\n" +
+          "• **Optimized Route Sheets:** The app organizes the daily collection list geographically to minimize fuel and travel time.\n" +
+          "• **Shift-Only Privacy:** GPS tracking runs strictly during active work hours; tracking terminates immediately when the agent clocks out.",
+      ta: "எங்கள் **GPS கலெக்ஷன் வெரிஃபிகேஷன்** போலி என்ட்ரிகளை 100% தடுக்கிறது:\n\n" +
+          "• **டோர்ஸ்டெப் ஜியோபென்சிங்:** ஏஜென்ட் 'Collect' பொத்தானை அழுத்தும்போது, வாடிக்கையாளரின் பதிவு செய்யப்பட்ட கடையிலோ வீட்டிலோ நேரில் இருக்கிறாரா என செயற்கைக்கோள் GPS மூலம் சரிபார்க்கிறது.\n" +
+          "• **மேனேஜர் எச்சரிக்கை:** நிர்ணயிக்கப்பட்ட தூரத்திற்கு வெளியே வசூலிக்க முயன்றால் உடனடியாக மேனேஜருக்கு அலர்ட் செல்கிறது.\n" +
+          "• **ஷிப்ட் நேரம் மட்டும்:** ஏஜென்ட் பணி தொடங்கும் போது மட்டும் GPS இயங்கும்; லாக்-அவுட் செய்தவுடன் தானாக நின்றுவிடும்.",
+      hi: "हमारा **GPS वेरिफिकेशन इंजन** फर्जी कलेक्शन और फ्रॉड को पूरी तरह रोकता है:\n\n" +
+          "• **लाइव डोरस्टेप जियोफेंसिंग:** जब एजेंट 'Collect' दबाता है, तो ऐप सैटेलाइट GPS से जांचता है कि वह ग्राहक की दुकान या घर पर मौजूद है या नहीं।\n" +
+          "• **मैनेजर अलर्ट:** तय दूरी से बाहर कलेक्शन की कोशिश पर मैनेजर को तुरंत अलर्ट मिलता है।\n" +
+          "• **शिफ्ट-बेस्ड प्राइवेसी:** ट्रैकिंग केवल ऑन-ड्यूटी काम करती है; लॉगआउट होते ही अपने आप बंद हो जाती है।"
+    },
     actions: [
       { type: 'demo', label: 'See Field App Demo' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How does offline mode work?",
-      "Does it support Bluetooth thermal printers?"
+      { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
+
+  // 5. Offline Sync
   {
     id: 'offline',
     keywords: ['offline', 'no internet', 'connectivity', 'network', 'sync', 'signal', 'rural', 'basement', 'remote'],
-    answer: "Yes! The ZoloFund Android mobile app features an **Offline-First Synchronization Architecture**:\n\n" +
-            "• **Zero-Signal Collections:** Agents can collect cash installments in basements, remote villages, or hill stations with zero internet signal.\n" +
-            "• **Cryptographic Storage:** Every collection creates a tamper-proof cryptographic receipt stored locally in encrypted device memory.\n" +
-            "• **3-Second Auto Sync:** The moment the phone detects 2G, 3G, 4G, or Wi-Fi, all transactions automatically upload and reconcile with the head office ledger in under 3 seconds!",
+    answer: {
+      en: "Yes! The ZoloFund Android mobile app features an **Offline-First Synchronization Architecture**:\n\n" +
+          "• **Zero-Signal Collections:** Agents can collect cash installments in basements, remote villages, or hill stations with zero internet signal.\n" +
+          "• **Cryptographic Storage:** Every collection creates a tamper-proof cryptographic receipt stored locally in encrypted device memory.\n" +
+          "• **3-Second Auto Sync:** The moment the phone detects 2G, 3G, 4G, or Wi-Fi, all transactions automatically upload and reconcile with the head office ledger in under 3 seconds!",
+      ta: "ஆம்! ZoloFund ஆண்ட்ராய்டு ஆப் **முழுமையான ஆஃப்லைன் (Offline) வசதி** கொண்டது:\n\n" +
+          "• **இன்டர்நெட் தேவையில்லை:** பேஸ்மென்ட் கடைகள் அல்லது தொலைதூர கிராமங்களில் சிக்னல் இல்லாவிட்டாலும் தடையின்றி ரசீது போடலாம்.\n" +
+          "• **பாதுகாப்பான மெமரி:** அனைத்து கலெக்ஷன்களும் என்க்ரிப்ட் செய்யப்பட்ட உள்ளூர் மெமரியில் பத்திரமாக சேமிக்கப்படும்.\n" +
+          "• **3 நொடிகளில் ஆட்டோ-சிங்க்:** மொபைலில் சிக்னல் கிடைத்தவுடன் 3 நொடிகளுக்குள் தலைமை அலுவலக லெட்ஜரில் தானாக அப்டேட் ஆகிவிடும்!",
+      hi: "हाँ! ZoloFund एंड्रॉइड ऐप **ऑफलाइन-फर्स्ट टेक्नोलॉजी** पर काम करता है:\n\n" +
+          "• **बिना इंटरनेट कलेक्शन:** बेसमेंट या दूरदराज गांवों में बिना किसी नेटवर्क सिग्नल के भी कलेक्शन किया जा सकता है।\n" +
+          "• **सुरक्षित स्टोरेज:** हर ट्रांजैक्शन एन्क्रिप्टेड मेमोरी में सुरक्षित सेव होता है।\n" +
+          "• **3 सेकंड में ऑटो-सिंक:** जैसे ही 2G/3G/4G/Wi-Fi मिलता है, सारा डेटा 3 सेकंड में हेड ऑफिस में सिंक हो जाता है!"
+    },
     actions: [
       { type: 'demo', label: 'Test Android APK' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "Does it print physical paper receipts?",
-      "What are the pricing plans?"
+      { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
+
+  // 6. Gold Loan & Jewels
   {
-    id: 'receipts',
-    keywords: ['receipt', 'printer', 'printing', 'bluetooth', 'thermal', 'thermal printer', 'paper', 'bill', 'slip', 'whatsapp receipt', 'sms', 'ngx', 'bluprint', 'dlt'],
-    answer: "Zolo Funds delivers instant proof of payment to eliminate customer disputes:\n\n" +
-            "• **Bluetooth Thermal Printers:** Pairs with all standard 2-inch and 3-inch ESC/POS Bluetooth printers (NGX, Bluprint, Pegasus, etc.) for instant doorstep paper slips.\n" +
-            "• **Branded WhatsApp Receipts:** Dispatches a formatted, branded WhatsApp payment receipt directly to the customer's phone.\n" +
-            "• **DLT-Registered SMS:** Sends an official SMS confirmation with unique receipt ID, amount collected, and updated loan balance.",
+    id: 'goldloan',
+    keywords: ['gold', 'jewel', 'jewelry', 'pawn', 'pawnbroking', 'giruva', 'giruvas', 'nagai', 'ornament', 'karat', 'purity', 'vault', 'safe', 'locker', 'auction'],
+    answer: {
+      en: "Our **Gold Loan & Jewel Mortgage Module** offers bank-grade collateral security:\n\n" +
+          "• **Detailed Item Appraisal:** Itemize bangles, chains, rings with gross weight, stone deduction, net weight, and karat purity (22K, 18K).\n" +
+          "• **Vault Packet Identification:** Assign each loan file to an encrypted safe locker packet ID.\n" +
+          "• **Interest Schemes:** Simple monthly interest, compound interest, or Bullet repayment (principal due at end).\n" +
+          "• **Market Value Recalculation:** Instant LTV monitoring against daily Gold Bullion rates.\n" +
+          "• **Statutory Auction Register:** Automated registered notice generator complying with Indian pawn-broking laws.",
+      ta: "எங்கள் **நகைக்கடன் & அடகு மென்பொருள் (Gold Loan Module)** வங்கித் தரத்திலான பாதுகாப்பை வழங்குகிறது:\n\n" +
+          "• **ஆபரண மதிப்பீடு:** வளையல், செயின், மோதிரம் என மொத்த எடை, கல் கழிவு, நிகர எடை மற்றும் 22K/18K காரட் தரம் வாரியாகப் பதிவு செய்யலாம்.\n" +
+          "• **லாக்கர் பாக்கெட் ஐடி:** ஒவ்வொரு நகைக் கணக்கிற்கும் பிரத்யேக லாக்கர் பாக்கெட் எண் ஒதுக்கப்படும்.\n" +
+          "• **வட்டி முறைகள்:** மாத எளிய வட்டி, கூட்டு வட்டி அல்லது புல்லட் ரீபேமென்ட் (முடிவில் அசல் செலுத்துதல்).\n" +
+          "• **ஏல நோட்டீஸ்:** தவணை தவறிய கடன்களுக்கு சட்டரீதியான ஏல அறிவிப்பு நோட்டீஸ்களை உடனே அச்சிடலாம்.",
+      hi: "हमारा **गोल्ड लोन मॉड्यूल** बैंक-ग्रेड सुरक्षा प्रदान करता है:\n\n" +
+          "• **विस्तृत मूल्यांकन:** गहनों का ग्रॉस वजन, स्टोन कटौती, नेट वजन और 22K/18K शुद्धता दर्ज करें।\n" +
+          "• **लॉकर पैकेट आईडी:** हर लोन फाइल के लिए सुरक्षित लॉकर पैकेट पहचान संख्या।\n" +
+          "• **ब्याज स्कीम्स:** मंथली सिंपल ब्याज या बुलेट रीपेमेंट (मूलधन अंत में)।\n" +
+          "• **ऑक्शन नोटिस:** डिफ़ॉल्ट पर नियमानुसार लीगल नीलामी नोटिस तुरंत बनाएं।"
+    },
     actions: [
-      { type: 'demo', label: 'See Receipt Formats' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How does GPS collection work?",
-      "Can we test the Android app?"
+      { type: 'demo', label: 'Explore Gold Loan Module' },
+      { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
+
+  // 7. Chit Funds
   {
-    id: 'accounting',
-    keywords: ['accounting', 'ledger', 'daybook', 'day book', 'cashbook', 'cash book', 'double entry', 'p&l', 'profit', 'loss', 'balance sheet', 'journal', 'cash drawer', 'cashier', 'audit', 'tax'],
-    answer: "Zolo Funds comes with an automated **Double-Entry Financial Accounting Core**:\n\n" +
-            "• **Automated Posting:** Loan disbursals, interest collections, penalties, and fee deductions automatically post corresponding Debit/Credit journal vouchers.\n" +
-            "• **Daily Cash-Book & Day-Book:** View opening cash balances, daily inflows, agent handshakes, branch expenses, and closing float.\n" +
-            "• **Financial Statements:** Generate real-time Trial Balance, Profit & Loss (P&L) statements, and Balance Sheet with zero manual bookkeeping.\n" +
-            "• **Audit Trail:** Every financial alteration is logged with user timestamp, IP address, and supervisor approvals.",
+    id: 'chitfunds',
+    keywords: ['chit', 'chit fund', 'chitty', 'seettu', 'auction', 'foreman', 'dividend', 'subscriber', 'reverse auction', 'passbook', 'act 1982'],
+    answer: {
+      en: "Yes! Zolo Funds features a dedicated **Chit Fund Operating Module** compliant with the Chit Funds Act, 1982:\n\n" +
+          "• **Group Lifecycle:** Create chit pools (20, 25, or 50 members; ₹50,000 to ₹1 Crore pools).\n" +
+          "• **Reverse Auction Engine:** Record monthly member bids, calculate discount prize money, and enforce statutory ceiling bids.\n" +
+          "• **Foreman Commission:** Automated 5% foreman commission calculation.\n" +
+          "• **Dividend Distribution:** Auto-split remaining discount among all non-prized subscribers to reduce next month's call.\n" +
+          "• **Digital Passbook:** Automated member passbook generation and registrar compliance filings.",
+      ta: "ஆம்! Zolo Funds-ல் **சீட்டு நிதி சட்டம் 1982**-க்கு இணங்க பிரத்யேக சீட்டு மேலாண்மை உள்ளது:\n\n" +
+          "• **சீட்டு குழுக்கள்:** 20, 25 அல்லது 50 உறுப்பினர்கள் கொண்ட ₹50,000 முதல் ₹1 கோடி வரையிலான குழுக்கள்.\n" +
+          "• **ரிவர்ஸ் ஏலம்:** மாதாந்திர ஏலப் பதிவு, தள்ளுபடித் தொகை மற்றும் ஏல உச்சவரம்பு தானாகக் கணக்கிடப்படும்.\n" +
+          "• **ஃபோர்மேன் கமிஷன்:** 5% ஃபோர்மேன் கமிஷன் தானாக கழிக்கப்படும்.\n" +
+          "• **டிவிடென்ட் பகிர்வு:** ஏலம் எடுக்காத உறுப்பினர்களுக்கு லாபப் பங்கு பிரித்து அடுத்த மாதத் தவணை குறைக்கப்படும்.\n" +
+          "• **டிஜிட்டல் பாஸ்புக்:** உறுப்பினர்களுக்கான பாஸ்புக் பிரிண்டிங் வசதி.",
+      hi: "हाँ! Zolo Funds में **चिट फंड एक्ट 1982** के अनुसार पूर्ण चिट फंड मॉड्यूल है:\n\n" +
+          "• **चिट ग्रुप्स:** 20, 25 या 50 सदस्यों वाले ₹50,000 से ₹1 करोड़ तक के ग्रुप्स बनाएं।\n" +
+          "• **रिवर्स ऑक्शन:** मासिक बोली, प्राइज़ मनी और डिस्काउंट की सटीक गणना।\n" +
+          "• **फोरमैन कमीशन:** 5% फोरमैन कमीशन ऑटो-डिडक्शन।\n" +
+          "• **डिविडेंड बंटवारा:** गैर-विजेता सदस्यों में डिस्काउंट बांटकर अगली किस्त कम करना।\n" +
+          "• **डिजिटल पासबुक:** सदस्यों के लिए ऑटोमैटिक पासबुक और रजिस्ट्रार रिपोर्ट्स।"
+    },
     actions: [
-      { type: 'demo', label: 'See Accounting Demo' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How does RBI NPA classification work?",
-      "What are your pricing plans?"
+      { type: 'demo', label: 'Explore Chit Fund Module' },
+      { type: 'whatsapp', label: 'WhatsApp' }
     ]
   },
-  {
-    id: 'npa_rbi',
-    keywords: ['npa', 'rbi', 'provisioning', 'sma', 'sma0', 'sma1', 'sma2', 'substandard', 'doubtful', 'loss asset', 'overdue', 'delinquency', 'defaulter', 'compliance'],
-    answer: "Our software has built-in **RBI Asset Classification & NPA Rules**:\n\n" +
-            "• **SMA-0 (1 to 30 Days Overdue):** Early delinquency alerts with automated payment reminders.\n" +
-            "• **SMA-1 (31 to 60 Days Overdue):** Escalated recovery workflows and supervisor field visits.\n" +
-            "• **SMA-2 (61 to 90 Days Overdue):** Pre-NPA legal default notices and guarantor warnings.\n" +
-            "• **91+ Days NPA Classification:** Automated transition into Sub-standard, Doubtful (D1, D2, D3), and Loss assets with statutory provisioning reserve calculations (0.40% to 100%).",
-    actions: [
-      { type: 'demo', label: 'Explore Compliance Tools' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "Explain the Security Architecture",
-      "How does loan foreclosure work?"
-    ]
-  },
-  {
-    id: 'kyc_borrower',
-    keywords: ['kyc', 'borrower', 'customer', 'aadhaar', 'pan', 'voter id', 'ration card', 'document', 'photo', 'camera', 'credit score', 'cibil', 'onboarding'],
-    answer: "Comprehensive **Borrower Onboarding & KYC Management**:\n\n" +
-            "• **Document Capture:** Live camera photo capture and digital scanning of Aadhaar, PAN card, Voter ID, and Ration cards.\n" +
-            "• **Credit Scoring Engine:** Internal credit scoring system (300 to 850 score band) evaluating borrower discipline across past loan cycles.\n" +
-            "• **Family & Guarantor Mapping:** Map co-borrowers, relatives, and guarantors to prevent cross-default exposure.\n" +
-            "• **Blacklist & Defaulter Registry:** Cross-branch blacklist verification prevents issuing new loans to habitual defaulters.",
-    actions: [
-      { type: 'demo', label: 'See Onboarding Demo' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "How does Daily Microfinance work?",
-      "What are the pricing plans?"
-    ]
-  },
-  {
-    id: 'security_dpdp',
-    keywords: ['security', 'safe', 'dpdp', 'encryption', 'data', 'cloud', 'backup', 'privacy', 'gdpr', 'playstore', 'delete account'],
-    answer: "Zolo Funds is engineered with bank-grade security and statutory compliance:\n\n" +
-            "• **Multi-Tenant Logical Isolation:** Your financial records and borrower database are strictly isolated and never shared.\n" +
-            "• **Military-Grade Encryption:** TLS 1.3 transit encryption + AES-256 at-rest database storage.\n" +
-            "• **Automated Cloud Backups:** Daily encrypted off-site cloud backups with instant point-in-time recovery.\n" +
-            "• **DPDP Act 2023 Compliant:** Full compliance with Indian Data Protection laws, user consent registers, and auditability.\n" +
-            "• **Play Store Compliant:** Built-in account deletion portal (`/delete-account`) to meet Google Play safety standards.",
-    actions: [
-      { type: 'demo', label: 'Review Security Setup' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "Where is your office located?",
-      "What are your pricing plans?"
-    ]
-  },
+
+  // 8. Contact & Office
   {
     id: 'contact_office',
-    keywords: ['contact', 'phone', 'call', 'number', 'address', 'office', 'support', 'email', 'location', 'erode', 'animazon', 'narayana valasu', 'nasiyanur', 'tamil nadu', 'headquarters', 'helpline'],
-    answer: "You can reach the Zolo Funds team directly:\n\n" +
-            "• **Direct Helpline & Sales:** [+91 80894 05950](tel:+918089405950)\n" +
-            "• **WhatsApp Support:** Instant chat available Monday–Saturday\n" +
-            "• **Email Support:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
-            "• **Corporate Office Address:**\n" +
-            "  **155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India**\n" +
-            "• **Languages Supported:** Tamil, English, Hindi, Telugu, Kannada, Malayalam\n" +
-            "• **Support Hours:** Monday–Saturday, 09:30 AM to 06:30 PM IST.",
+    keywords: ['contact', 'phone', 'call', 'number', 'address', 'office', 'support', 'email', 'location', 'erode', 'animazon', 'narayana valasu', 'nasiyanur', 'tamil nadu', 'mugavari', 'pata'],
+    answer: {
+      en: "You can reach the Zolo Funds team directly:\n\n" +
+          "• **Helpline & Sales:** [+91 80894 05950](tel:+918089405950)\n" +
+          "• **WhatsApp Support:** Instant chat available Monday–Saturday\n" +
+          "• **Email Support:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
+          "• **Corporate Office Address:**\n" +
+          "  **155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India**\n" +
+          "• **Languages Supported:** Tamil, English, Hindi, Telugu, Kannada, Malayalam\n" +
+          "• **Support Hours:** Monday–Saturday, 09:30 AM to 06:30 PM IST.",
+      ta: "Zolo Funds குழுவை நேரடியாகத் தொடர்பு கொள்ள:\n\n" +
+          "• **தொலைபேசி உதவி:** [+91 80894 05950](tel:+918089405950)\n" +
+          "• **வாட்ஸ்அப் ஆதரவு:** திங்கள் - சனி வரை நேரடி உரையாடல்\n" +
+          "• **மின்னஞ்சல்:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
+          "• **தலைமை அலுவலக முகவரி:**\n" +
+          "  **155, Animazon, நாராயண வலசு, நசியனூர் ரோடு, ஈரோடு - 638011, தமிழ்நாடு, இந்தியா**\n" +
+          "• **பேசப்படும் மொழிகள்:** தமிழ், ஆங்கிலம், இந்தி, தெலுங்கு, கன்னடம், மலையாளம்.",
+      hi: "आप Zolo Funds टीम से सीधे संपर्क कर सकते हैं:\n\n" +
+          "• **हेल्पलाइन व सेल्स:** [+91 80894 05950](tel:+918089405950)\n" +
+          "• **व्हाट्सएप सपोर्ट:** सोमवार से शनिवार त्वरित सहायता\n" +
+          "• **ईमेल:** [support@zolofunds.com](mailto:support@zolofunds.com)\n" +
+          "• **कॉर्पोरेट ऑफिस का पता:**\n" +
+          "  **155, Animazon, नारायणा वलसु, नसियानूर रोड, इरोड - 638011, तमिलनाडु, भारत**\n" +
+          "• **भाषाएँ:** तमिल, अंग्रेजी, हिंदी, तेलुगु, कन्नड़, मलयालम।"
+    },
     actions: [
       { type: 'call', label: 'Call +91 80894 05950' },
       { type: 'whatsapp', label: 'WhatsApp' }
-    ],
-    suggestions: [
-      "What are your pricing plans?",
-      "Book a live demo"
-    ]
-  },
-  {
-    id: 'multibranch_roles',
-    keywords: ['branch', 'multi branch', 'branches', 'roles', 'permission', 'superadmin', 'manager', 'cashier', 'agent', 'auditor', 'access control', 'rbac'],
-    answer: "Zolo Funds gives you complete organizational control with **Role-Based Access Control (RBAC)**:\n\n" +
-            "• **Multi-Branch Hierarchy:** Manage 2, 10, or 50+ branches from a single superadmin dashboard with consolidated or branch-specific reporting.\n" +
-            "• **Staff Roles:** Pre-built roles for Superadmin, Branch Manager, Loan Officer, Field Agent, Cashier, and Auditor.\n" +
-            "• **Granular Permissions:** Restrict who can approve loans, release funds, waive overdue penalties, or export Excel reports.\n" +
-            "• **Device Binding:** Restrict field agents to specific registered smartphones for heightened security.",
-    actions: [
-      { type: 'demo', label: 'Explore Multi-Branch Setup' },
-      { type: 'whatsapp', label: 'Chat on WhatsApp' }
-    ],
-    suggestions: [
-      "What are your pricing plans?",
-      "How does offline collection work?"
-    ]
-  },
-  {
-    id: 'app_download',
-    keywords: ['app', 'mobile app', 'download', 'apk', 'play store', 'android', 'phone', 'install', 'mobile'],
-    answer: "Our **Android Field Agent Application** is built for maximum speed and simplicity:\n\n" +
-            "• **Lightweight APK:** Operates smoothly on any Android smartphone (Android 8.0 and above).\n" +
-            "• **Works Offline:** No internet required for collecting installments at customer doorsteps.\n" +
-            "• **Bluetooth Printing:** One-tap thermal receipt generation.\n" +
-            "• **Google Play Friendly:** Fully vetted under Google Play Financial App and Lending Policies.\n" +
-            "• Would you like us to send you the test APK or grant test portal credentials?",
-    actions: [
-      { type: 'demo', label: 'Request APK Walkthrough' },
-      { type: 'whatsapp', label: 'WhatsApp' }
-    ],
-    suggestions: [
-      "How does GPS tracking work?",
-      "What are your pricing plans?"
-    ]
-  },
-  {
-    id: 'greetings',
-    keywords: ['hi', 'hello', 'hey', 'vanakkam', 'namaste', 'good morning', 'good afternoon', 'good evening', 'start', 'help'],
-    answer: "Hello and welcome to Zolo Funds! 🙏\n\n" +
-            "I'm **Zolo Assistant**. I can help you with anything about our lending platform — daily collections, auto finance, gold loans, chit funds, GPS field tracking, pricing, or getting a 14-day free trial.\n\n" +
-            "What type of finance business do you operate?",
-    suggestions: [
-      "Daily / Weekly Microfinance",
-      "Auto & Vehicle Finance",
-      "Gold Loans & Jewels",
-      "Chit Funds",
-      "Pricing Plans",
-      "Schedule Live Demo"
     ]
   }
 ];
 
-// High-Precision NLP Token Matching Engine
-function findSmartAnswer(userInput: string) {
+function detectLanguage(text: string): string | null {
+  if (/[\u0B80-\u0BFF]/.test(text) || /\b(thandal|vaddi|kadan|kidaikuma|eppadi|solla|vilai|nanri|vanakkam|seettu|nagai)\b/i.test(text)) {
+    return 'ta';
+  }
+  if (/[\u0900-\u097F]/.test(text) || /\b(namaste|kaise|kitna|daam|chahiye|batao|kya|milega|dete|paisa)\b/i.test(text)) {
+    return 'hi';
+  }
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+  if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
+  if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
+  
+  return null;
+}
+
+function findSmartAnswer(userInput: string, currentLang: string) {
   const query = userInput.toLowerCase().trim();
   if (!query) return null;
 
-  if (/^(hi|hello|hey|vanakkam|namaste)$/i.test(query)) {
-    return KNOWLEDGE_BASE.find(item => item.id === 'greetings');
-  }
+  const detected = detectLanguage(query);
+  const activeLang = detected || currentLang || 'en';
 
-  let bestMatch = null;
+  let bestMatch: KnowledgeItem | null = null;
   let highestScore = 0;
 
   for (const item of KNOWLEDGE_BASE) {
-    if (item.id === 'greetings') continue;
     let score = 0;
     for (const kw of item.keywords) {
       if (query.includes(kw)) {
@@ -365,23 +422,34 @@ function findSmartAnswer(userInput: string) {
   }
 
   if (bestMatch && highestScore > 0) {
-    return bestMatch;
+    const answerText = bestMatch.answer[activeLang] || bestMatch.answer['en'];
+    return {
+      answer: answerText,
+      actions: bestMatch.actions || [],
+      suggestions: bestMatch.suggestions || [],
+      detectedLang: activeLang
+    };
   }
 
+  const fallback: Record<string, string> = {
+    en: "Zolo Funds is a **Loan Tracking & Collection Software Platform for Lenders & NBFCs** (we do not lend money directly).\n\nWe support Daily Microfinance, Auto Finance, Gold Loans, and Chit Funds with GPS doorstep verification. Would you like to book a 1-on-1 walkthrough or try the 14-day free trial?",
+    ta: "Zolo Funds என்பது **பைனான்சியர்களுக்கான கடன் கண்காணிப்பு மென்பொருள்** (நாங்கள் நேரடியாக கடன் கொடுப்பதில்லை).\n\nதினசரி மைக்ரோபைனான்ஸ், வாகன கடன், நகைக்கடன் மற்றும் சீட்டு நிதி மேலாண்மை வசதிகள் இதில் உள்ளன. நேரடி டெமோ பார்க்க விரும்புகிறீர்களா?",
+    hi: "Zolo Funds **लेंडर्स और फाइनेंस कंपनियों के लिए एक लोन ट्रैकिंग सॉफ्टवेयर** है (हम सीधे लोन नहीं देते)।\n\nइसमें डेली माइक्रोफाइनेंस, ऑटो व गोल्ड लोन और GPS फील्ड ट्रैकिंग उपलब्ध है। क्या आप 14 दिन का फ्री ट्रायल देखना चाहते हैं?"
+  };
+
   return {
-    answer: "Thank you for asking! **Zolo Funds** is an all-in-one lending management system for **Daily & Weekly Microfinance, Auto Finance, Gold Loans, and Chit Funds** with live GPS doorstep verification, offline mobile syncing, and double-entry accounting.\n\n" +
-            "I would be delighted to connect you with our product team for a 1-on-1 walkthrough or answer any specific module question!",
+    answer: fallback[activeLang] || fallback['en'],
     actions: [
       { type: 'demo' as const, label: 'Book Live Walkthrough' },
       { type: 'whatsapp' as const, label: 'WhatsApp' },
       { type: 'call' as const, label: 'Call +91 80894 05950' }
     ],
     suggestions: [
+      "Do you provide loans to borrowers?",
       "What are your pricing plans?",
-      "How does GPS collection work?",
-      "Explain Daily Microfinance",
-      "Do you support Gold Loans?"
-    ]
+      "Explain Daily Microfinance"
+    ],
+    detectedLang: activeLang
   };
 }
 
@@ -391,11 +459,31 @@ interface AiChatWidgetProps {
 
 export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<MessageItem[]>(INITIAL_MESSAGES);
+  const [lang, setLang] = useState('en');
+  const [messages, setMessages] = useState<MessageItem[]>([
+    {
+      sender: 'bot',
+      text: GREETING_TEXTS.en.welcome,
+      suggestions: GREETING_TEXTS.en.suggestions
+    }
+  ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(1);
+  const [showGreetingBubble, setShowGreetingBubble] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const hasGreeted = sessionStorage.getItem('zolo_assistant_greeted');
+    if (!hasGreeted && !isOpen) {
+      const timer = setTimeout(() => {
+        setShowGreetingBubble(true);
+        playChime();
+        sessionStorage.setItem('zolo_assistant_greeted', 'true');
+      }, 2200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -405,8 +493,22 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
     if (isOpen) {
       scrollToBottom();
       setUnreadCount(0);
+      setShowGreetingBubble(false);
     }
   }, [isOpen, messages]);
+
+  const handleLanguageChange = (newLang: string) => {
+    setLang(newLang);
+    const greeting = GREETING_TEXTS[newLang] || GREETING_TEXTS.en;
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: 'bot',
+        text: greeting.welcome,
+        suggestions: greeting.suggestions
+      }
+    ]);
+  };
 
   const handleSend = (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
@@ -418,8 +520,11 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
     setIsTyping(true);
 
     setTimeout(() => {
-      const match = findSmartAnswer(text);
+      const match = findSmartAnswer(text, lang);
       if (match) {
+        if (match.detectedLang && match.detectedLang !== lang) {
+          setLang(match.detectedLang);
+        }
         const botMessage: MessageItem = {
           sender: 'bot',
           text: match.answer,
@@ -450,12 +555,100 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
   };
 
   const handleReset = () => {
-    setMessages(INITIAL_MESSAGES);
+    const greeting = GREETING_TEXTS[lang] || GREETING_TEXTS.en;
+    setMessages([
+      {
+        sender: 'bot',
+        text: greeting.welcome,
+        suggestions: greeting.suggestions
+      }
+    ]);
   };
 
   return (
     <>
-      {/* Floating Toggle Button */}
+      {/* 1. Auto-Greeting Speech Bubble on Page Open */}
+      {!isOpen && showGreetingBubble && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '88px',
+            right: '24px',
+            zIndex: 1100,
+            maxWidth: '320px',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            padding: '14px 16px',
+            boxShadow: '0 12px 36px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(125, 40, 126, 0.15)',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            fontFamily: 'inherit'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: '#7D287E',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Bot size={14} color="#FFFFFF" />
+              </div>
+              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#7D287E' }}>Zolo Assistant</span>
+            </div>
+            <button
+              onClick={() => setShowGreetingBubble(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              aria-label="Dismiss greeting"
+            >
+              <X size={15} />
+            </button>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#1E293B', lineHeight: 1.45 }}>
+            👋 <strong>Welcome to Zolo Funds!</strong> Need software to track your loans, microfinance daily collections, or chit funds?
+          </p>
+          <button
+            onClick={() => {
+              setShowGreetingBubble(false);
+              setIsOpen(true);
+            }}
+            style={{
+              marginTop: '10px',
+              width: '100%',
+              background: '#7D287E',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>Ask How We Can Help</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* 2. Floating Toggle Button */}
       <div
         style={{
           position: 'fixed',
@@ -523,15 +716,15 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
         )}
       </div>
 
-      {/* Expandable Chat Window */}
+      {/* 3. Expandable Chat Window */}
       {isOpen && (
         <div
           style={{
             position: 'fixed',
             bottom: '24px',
             right: '24px',
-            width: 'min(380px, calc(100vw - 32px))',
-            height: 'min(560px, calc(100vh - 100px))',
+            width: 'min(390px, calc(100vw - 32px))',
+            height: 'min(580px, calc(100vh - 100px))',
             background: '#FFFFFF',
             borderRadius: '20px',
             boxShadow: '0 16px 48px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(125, 40, 126, 0.12)',
@@ -548,7 +741,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
             style={{
               background: 'linear-gradient(135deg, #7D287E 0%, #5A195B 100%)',
               color: '#FFFFFF',
-              padding: '16px 18px',
+              padding: '14px 16px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -586,8 +779,8 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
                 <div style={{ fontWeight: 800, fontSize: '1rem', color: '#FFFFFF' }}>
                   Zolo Assistant
                 </div>
-                <div style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.85)' }}>
-                  Instant answers · No waiting
+                <div style={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.85)' }}>
+                  Lending Software Specialist
                 </div>
               </div>
             </div>
@@ -632,6 +825,45 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
             </div>
           </div>
 
+          {/* Language Selector Bar */}
+          <div
+            style={{
+              background: '#F1F5F9',
+              padding: '6px 12px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
+              scrollbarWidth: 'none'
+            }}
+          >
+            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Globe size={11} />
+              Language:
+            </span>
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => handleLanguageChange(l.code)}
+                style={{
+                  background: lang === l.code ? '#7D287E' : '#FFFFFF',
+                  color: lang === l.code ? '#FFFFFF' : '#334155',
+                  border: lang === l.code ? '1px solid #7D287E' : '1px solid #CBD5E1',
+                  borderRadius: '12px',
+                  padding: '2px 8px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {l.flag} {l.label}
+              </button>
+            ))}
+          </div>
+
           {/* Messages List Area */}
           <div
             style={{
@@ -655,13 +887,13 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
               >
                 <div
                   style={{
-                    maxWidth: '86%',
+                    maxWidth: '88%',
                     padding: '12px 16px',
                     borderRadius: msg.sender === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                     background: msg.sender === 'user' ? '#7D287E' : '#FFFFFF',
                     color: msg.sender === 'user' ? '#FFFFFF' : '#0F172A',
                     boxShadow: msg.sender === 'user' ? '0 4px 12px rgba(125,40,126,0.25)' : '0 2px 8px rgba(0,0,0,0.05)',
-                    fontSize: '0.9rem',
+                    fontSize: '0.88rem',
                     lineHeight: 1.55,
                     whiteSpace: 'pre-line'
                   }}
@@ -678,7 +910,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
                   ))}
                 </div>
 
-                {/* Optional Interactive Action Buttons */}
+                {/* Optional Action Buttons */}
                 {msg.actions && msg.actions.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                     {msg.actions.map((act, aIdx) => (
@@ -717,15 +949,16 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
                         key={sIdx}
                         onClick={() => handleSend(sug)}
                         style={{
-                          background: '#F1F5F9',
-                          color: '#475569',
-                          border: '1px solid #E2E8F0',
+                          background: '#FFFFFF',
+                          color: '#334155',
+                          border: '1px solid #CBD5E1',
                           borderRadius: '16px',
                           padding: '5px 12px',
                           fontSize: '0.78rem',
                           fontWeight: 600,
                           cursor: 'pointer',
-                          textAlign: 'left'
+                          textAlign: 'left',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
                         }}
                       >
                         {sug}
@@ -806,7 +1039,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
           >
             <input
               type="text"
-              placeholder="Ask about microfinance, gold loans, GPS, pricing..."
+              placeholder={lang === 'ta' ? 'கேள்விகளை தட்டச்சு செய்யவும்...' : lang === 'hi' ? 'सवाल यहाँ टाइप करें...' : 'Ask a question or type a topic...'}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               style={{
@@ -814,7 +1047,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps) {
                 padding: '10px 14px',
                 borderRadius: '10px',
                 border: '1.5px solid #E2E8F0',
-                fontSize: '0.9rem',
+                fontSize: '0.88rem',
                 outline: 'none',
                 color: '#0F172A',
                 fontFamily: 'inherit'
