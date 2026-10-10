@@ -14,6 +14,7 @@ import Testimonials from './Testimonials';
 import Faq from './Faq';
 import DemoModal from './DemoModal';
 import Footer from './Footer';
+import AiChatWidget from './AiChatWidget';
 import './zolofunds.css';
 
 export default function ZoloFundsLanding() {
@@ -42,6 +43,8 @@ export default function ZoloFundsLanding() {
       </main>
 
       <Footer onOpenDemo={() => setDemoOpen(true)} />
+
+      <AiChatWidget onOpenDemo={() => setDemoOpen(true)} />
 
       <DemoModal
         isOpen={demoOpen}

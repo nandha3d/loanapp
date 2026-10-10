@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Navbar from './_components/Navbar';
 import Footer from './_components/Footer';
+import AiChatWidget from '@/components/zolofunds/AiChatWidget';
 import { SiteJsonLd } from './_components/JsonLd';
 import { siteConfig, baseKeywords, OG_IMAGE } from './_components/seo';
 import './marketing.css';
@@ -53,6 +54,7 @@ export default function MarketingLayout({
       <Navbar />
       <main>{children}</main>
       <Footer />
+      <AiChatWidget />
     </div>
   );
 }
