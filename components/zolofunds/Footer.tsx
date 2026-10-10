@@ -27,7 +27,7 @@ export default function Footer({ onOpenDemo }: FooterProps) {
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '36px',
+            gap: '32px',
             marginBottom: '48px'
           }}
         >
@@ -81,37 +81,18 @@ export default function Footer({ onOpenDemo }: FooterProps) {
             </div>
           </div>
 
-          {/* Quick Portal Access */}
+          {/* Legal & Compliance Policies */}
           <div>
             <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--brand-purple)', marginBottom: '16px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              PORTAL ACCESS
+              LEGAL & POLICIES
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
-              <Link href={portalUrls.login} style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
-                <LogIn size={14} />
-                <span>Login to Staff Portal</span>
-              </Link>
-              <Link href={portalUrls.register} style={{ ...footerLinkStyle, display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--brand-purple)', fontWeight: 700 }}>
-                <UserPlus size={14} />
-                <span>Register New Company</span>
-              </Link>
-              <Link href="/borrower" style={footerLinkStyle}>
-                Borrower Self-Service
-              </Link>
-              <button
-                onClick={onOpenDemo}
-                style={{
-                  ...footerLinkStyle,
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  color: 'var(--brand-purple)'
-                }}
-              >
-                Book Live Walkthrough →
-              </button>
+              <Link href="/privacy" style={footerLinkStyle}>Privacy Policy</Link>
+              <Link href="/terms" style={footerLinkStyle}>Terms of Service</Link>
+              <Link href="/refund" style={footerLinkStyle}>Cancellation & Refund</Link>
+              <Link href="/security" style={footerLinkStyle}>Security Architecture</Link>
+              <Link href="/delete-account" style={footerLinkStyle}>Request Data Deletion</Link>
+              <Link href="/terms" style={footerLinkStyle}>RBI Fair Practices Code</Link>
             </div>
           </div>
 
@@ -146,7 +127,20 @@ export default function Footer({ onOpenDemo }: FooterProps) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Mail size={15} color="var(--brand-purple)" />
-                <span style={{ fontWeight: 600 }}>contact@zolofunds.com</span>
+                <span style={{ fontWeight: 600 }}>support@zolofunds.com</span>
+              </div>
+              <div style={{ marginTop: '8px' }}>
+                <Link
+                  href={portalUrls.login}
+                  style={{
+                    ...footerLinkStyle,
+                    color: 'var(--brand-purple)',
+                    fontWeight: 700,
+                    fontSize: '0.86rem'
+                  }}
+                >
+                  Staff Portal Login →
+                </Link>
               </div>
             </div>
           </div>

@@ -4,31 +4,33 @@ import { Twitter, LinkedIn, Mail } from './icons';
 
 const COLS = [
   {
-    title: 'Product',
+    title: 'Lending Verticals',
     links: [
-      { href: '/products', label: 'Micro Lending' },
-      { href: '/products', label: 'Auto Finance' },
-      { href: '/products', label: 'Gold Loan' },
-      { href: '/products', label: 'Chit Funds' },
-      { href: '/pricing', label: 'Pricing' },
+      { href: '/products', label: 'Micro Lending & Daily Collection' },
+      { href: '/products', label: 'Auto & Vehicle Finance' },
+      { href: '/products', label: 'Gold Loan Vault' },
+      { href: '/products', label: 'Chit Fund Operations' },
+      { href: '/pricing', label: 'Subscription Pricing' },
     ],
   },
   {
-    title: 'Company',
+    title: 'Platform Features',
     links: [
-      { href: '/about-us', label: 'About Us' },
-      { href: '/solutions', label: 'Solutions' },
-      { href: '/contact', label: 'Contact' },
-      { href: '/login', label: 'Sign In' },
+      { href: '/solutions', label: 'GPS Geofenced Field Sync' },
+      { href: '/solutions', label: 'Customer KYC & Aadhaar OTP' },
+      { href: '/solutions', label: 'Automated RBI NPA Buckets' },
+      { href: '/solutions', label: 'CRIF & CIBIL Bureau Checks' },
+      { href: '/contact', label: 'Schedule Live Demo' },
     ],
   },
   {
-    title: 'Resources',
+    title: 'Legal & Policies',
     links: [
-      { href: '/contact', label: 'Request a Demo' },
-      { href: '/contact', label: 'Support' },
-      { href: '/solutions', label: 'For NBFCs' },
-      { href: '/solutions', label: 'For Chit Companies' },
+      { href: '/privacy', label: 'Privacy Policy' },
+      { href: '/terms', label: 'Terms of Service' },
+      { href: '/refund', label: 'Cancellation & Refund' },
+      { href: '/security', label: 'Security & Architecture' },
+      { href: '/delete-account', label: 'Request Data Deletion' },
     ],
   },
 ];
@@ -72,6 +74,7 @@ export default function Footer() {
             <Link href="/refund">Refund Policy</Link>
             <Link href="/security">Security</Link>
             <Link href="/delete-account">Data Deletion</Link>
+            <Link href="/login">Staff Login</Link>
           </span>
         </div>
       </div>
