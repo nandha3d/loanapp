@@ -42,13 +42,21 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    if (!isAgent) {
-      await ensurePendingPenaltiesForMissedLoans({
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        branchId: ctx.branchId || undefined,
-      });
-    }
+    // MONEY-14: the pending-penalty accrual still runs on every dashboard load.
+    // It writes only Penalty rows, so only the penalty aggregate waits for it;
+    // every other read below runs alongside instead of queueing behind it.
+    const penaltySweep = isAgent
+      ? Promise.resolve()
+      : ensurePendingPenaltiesForMissedLoans({
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          branchId: ctx.branchId || undefined,
+        });
+    // Preclose approvals are scoped by the loan's branch (SCOPE-18). Shared by
+    // today's approval feed and the pending-approvals count.
+    const precloseVisibility: Promise<Prisma.ApprovalRequestWhereInput | null> = !isAgent && ctx.branchId && ctx.appType === 'microlending'
+      ? precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId)
+      : Promise.resolve(null);
 
     // ApprovalRequest has no branchId. Match the v1 approvals queue: agents
     // see their own requests; admins see their branch's requests, with loan
@@ -63,17 +71,30 @@ export async function GET(req: NextRequest) {
     };
     if (isAgent) {
       approvalWhere.requestedById = ctx.userId;
-    } else if (ctx.branchId) {
-      if (ctx.appType === 'microlending') {
-        approvalWhere.AND = [{ OR: [
-          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
-          await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
-        ] }];
-      } else {
-        approvalWhere.requestedBy = { branchId: ctx.branchId };
-      }
+    } else if (ctx.branchId && ctx.appType !== 'microlending') {
+      approvalWhere.requestedBy = { branchId: ctx.branchId };
     }
+    const withPrecloseScope = (
+      where: Prisma.ApprovalRequestWhereInput,
+      visibility: Prisma.ApprovalRequestWhereInput | null,
+    ): Prisma.ApprovalRequestWhereInput => visibility
+      ? { ...where, AND: [{ OR: [
+          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
+          visibility,
+        ] }] }
+      : where;
 
+    const routeWhere = { tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) };
+    const bizTodayUtc = startOfBusinessDayUtc();
+    const cashFlowMonths = Array.from({ length: 6 }, (_, i) => {
+      const offset = 5 - i;
+      const start = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset, 1));
+      const end = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset + 1, 1));
+      return { start, end, label: start.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) };
+    });
+
+    // Every independent read in one round trip wave — the route used to run
+    // these in five sequential waves.
     const [
       activeLoans,
       overdueLoans,
@@ -82,13 +103,30 @@ export async function GET(req: NextRequest) {
       pendingPenaltiesAgg,
       activeAgents,
       recentLoans,
-      overdueInstalmentsForTotals,
+      allInstalmentsForMetrics,
       overdueDefaulterRows,
       paymentsToday,
       routes,
+      routeOverdueRows,
       recentActivity,
       cashCollectedAgg,
       todayActivityRows,
+      totalLoansAgg,
+      topRepayer,
+      topBorrower,
+      pendingUpiCollections,
+      pendingCashCollections,
+      collectionsByMode,
+      todayNewLoans,
+      todayNewCustomers,
+      todayClosedLoans,
+      todayApprovals,
+      staffBookTotals,
+      pendingApprovals,
+      ageingSetting,
+      collectibleLoanCount,
+      cashFlowGroups,
+      upiManualVerifySetting,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
@@ -115,11 +153,11 @@ export async function GET(req: NextRequest) {
       }),
       isAgent
         ? Promise.resolve({ _sum: { grossPenalty: 0, settledAmount: 0, waivedAmount: 0 }, _count: 0 })
-        : prisma.penalty.aggregate({
+        : penaltySweep.then(() => prisma.penalty.aggregate({
             where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, status: { in: ['pending', 'partial'] } },
             _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
             _count: true,
-          }),
+          })),
       prisma.user.count({
         where: {
           tenantId: ctx.tenantId,
@@ -135,15 +173,32 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      // Full schedules of every loan with an instalment due today or an
+      // overdue / part-paid one — the input to repayment distribution. One
+      // query: this used to fetch those instalment rows only to collect their
+      // loan ids, then fetch the schedules by id in a second round trip.
       prisma.instalment.findMany({
         where: {
-          loan: { ...baseLoan, status: { in: ['active', 'overdue'] } },
-          status: { not: 'waived' },
-          OR: [
-            { dueDate: { lt: today } },
-            { receivedAmount: { gt: 0 } },
-          ],
+          loan: {
+            ...baseLoan,
+            status: { in: ['active', 'overdue'] },
+            instalments: {
+              some: {
+                OR: [
+                  { dueDate: { gte: today, lt: tomorrow } },
+                  {
+                    status: { not: 'waived' },
+                    OR: [
+                      { dueDate: { lt: today } },
+                      { receivedAmount: { gt: 0 } },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
         },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
         select: {
           id: true,
           loanId: true,
@@ -174,25 +229,25 @@ export async function GET(req: NextRequest) {
         select: { loanId: true, amount: true },
       }),
       prisma.route.findMany({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) },
-        include: {
-          routeAgents: { include: { agent: true } },
-          customers: {
-            select: {
-              id: true,
-              loans: {
-                where: { status: { in: ['active', 'overdue'] } },
-                select: {
-                  instalments: {
-                    where: { dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
-                    select: { dueAmount: true, receivedAmount: true },
-                  },
-                },
-              },
-            },
-          },
+        where: routeWhere,
+        select: {
+          id: true,
+          name: true,
+          routeAgents: { select: { agentId: true, agent: { select: { name: true } } } },
           _count: { select: { customers: true } },
         },
+      }),
+      // Route performance overdue: the past-due unpaid instalments of active /
+      // overdue loans of every customer on those routes, as flat rows. Replaces
+      // a nested routes → customers → loans → instalments include that loaded
+      // every customer and loan on every route.
+      prisma.instalment.findMany({
+        where: {
+          dueDate: { lt: today },
+          status: { in: ['upcoming', 'missed', 'partial'] },
+          loan: { status: { in: ['active', 'overdue'] }, customer: { route: routeWhere } },
+        },
+        select: { dueAmount: true, receivedAmount: true, loan: { select: { customer: { select: { routeId: true } } } } },
       }),
       prisma.auditLog.findMany({
         where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, ...scopedBranchWhere(ctx) } },
@@ -251,22 +306,7 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { submittedAt: 'desc' },
       }),
-    ]);
-
-    // Web dashboard parity additions
-    const [
-      totalLoansAgg,
-      topRepayer,
-      topBorrower,
-      pendingUpiCollections,
-      pendingCashCollections,
-      collectionsByMode,
-      todayNewLoans,
-      todayNewCustomers,
-      todayClosedLoans,
-      todayApprovals,
-      staffBookTotals,
-    ] = await Promise.all([
+      // Web dashboard parity additions
       isAgent ? prisma.loan.aggregate({
         where: { ...baseLoan, status: { in: ['active', 'overdue', 'closed', 'settled'] } },
         _sum: { principal: true, disbursed: true, totalCollected: true },
@@ -396,8 +436,8 @@ export async function GET(req: NextRequest) {
         take: 10,
       }),
       // Approvals processed today
-      prisma.approvalRequest.findMany({
-        where: approvalWhere,
+      precloseVisibility.then((visibility) => prisma.approvalRequest.findMany({
+        where: withPrecloseScope(approvalWhere, visibility),
         select: {
           id: true,
           requestType: true,
@@ -410,29 +450,45 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: 'desc' },
         take: 10,
-      }),
+      })),
       isAgent ? Promise.resolve(null) : getDashboardBookTotals(ctx.tenantId, ctx.appType, ctx.branchId),
+      // Things waiting for admin attention — matches the /approvals page and the web KPI.
+      isAgent
+        ? Promise.resolve(0)
+        : Promise.all([
+            precloseVisibility.then((visibility) => prisma.approvalRequest.count({
+              where: withPrecloseScope({
+                tenantId: ctx.tenantId,
+                appType: ctx.appType,
+                status: 'pending',
+                ...(ctx.branchId && ctx.appType !== 'microlending' ? { requestedBy: { branchId: ctx.branchId } } : {}),
+              }, visibility),
+            })),
+            prisma.loan.count({ where: { ...baseLoan, status: 'pending_review' } }),
+            prisma.customer.count({ where: { ...baseCustomer, status: 'pending_review' } }),
+          ]).then(([a, l, c]) => a + l + c),
+      getSetting(ctx.tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
+      prisma.loan.count({ where: { ...baseLoan, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
+      Promise.all(
+        cashFlowMonths.map((m) =>
+          prisma.accountEntry.groupBy({
+            by: ['type'],
+            where: {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              ...scopedBranchWhere(ctx),
+              type: { in: ['loan_disburse', 'collection'] },
+              entryDate: { gte: m.start, lt: m.end },
+            },
+            _sum: { amount: true },
+          }),
+        ),
+      ),
+      getSetting(ctx.tenantId, 'upi_manual_verification', 'false'),
     ]);
 
     const totalDisbursed = staffBookTotals?.totalDisbursed ?? Number(totalLoansAgg?._sum.disbursed ?? 0);
     const totalCollectedAllTime = staffBookTotals?.totalCollectedAllTime ?? Number(totalLoansAgg?._sum.totalCollected ?? 0);
-
-    let bestPayer = '—';
-    if (topRepayer.length > 0 && topRepayer[0].customerId) {
-      const cust = await prisma.customer.findFirst({
-        where: { id: topRepayer[0].customerId, tenantId: ctx.tenantId },
-        select: { name: true },
-      });
-      if (cust) bestPayer = cust.name;
-    }
-    let highestBorrower = '—';
-    if (topBorrower.length > 0 && topBorrower[0].customerId) {
-      const cust = await prisma.customer.findFirst({
-        where: { id: topBorrower[0].customerId, tenantId: ctx.tenantId },
-        select: { name: true },
-      });
-      if (cust) highestBorrower = cust.name;
-    }
 
     const todayByMode: Record<string, number> = {};
     for (const c of collectionsByMode) {
@@ -446,29 +502,6 @@ export async function GET(req: NextRequest) {
       ? 0
       : Math.max(0, pendingPenaltyGross - pendingPenaltySettled - pendingPenaltyWaived);
     const pendingPenalties = isAgent ? 0 : (pendingPenaltiesAgg._count ?? 0);
-
-    // Combine all loan IDs from today's instalments and overdue instalments to compute distributed metrics
-    const allLoanIdsForMetrics = Array.from(new Set([
-      ...todayInstalments.map((i) => i.loanId),
-      ...overdueInstalmentsForTotals.map((i) => i.loanId),
-    ]));
-
-    const allInstalmentsForMetrics = allLoanIdsForMetrics.length > 0
-      ? await prisma.instalment.findMany({
-          where: { loanId: { in: allLoanIdsForMetrics } },
-          orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-          select: {
-            id: true,
-            loanId: true,
-            dueDate: true,
-            dueAmount: true,
-            receivedAmount: true,
-            status: true,
-            instalmentNo: true,
-            loan: { select: { id: true, frequency: true, status: true, customerId: true } },
-          },
-        })
-      : [];
 
     const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
       allInstalmentsForMetrics as any,
@@ -521,26 +554,6 @@ export async function GET(req: NextRequest) {
       (sum: number, e: any) => sum + Number(e.receivedAmount || 0),
       0,
     );
-    // Things waiting for admin attention — matches the /approvals page and the web KPI.
-    const pendingApprovals = isAgent
-      ? 0
-      : await Promise.all([
-          prisma.approvalRequest.count({
-            where: {
-              tenantId: ctx.tenantId,
-              appType: ctx.appType,
-              status: 'pending',
-              ...(ctx.branchId && ctx.appType === 'microlending'
-                ? { OR: [
-                    { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
-                    await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
-                  ] }
-                : (ctx.branchId ? { requestedBy: { branchId: ctx.branchId } } : {})),
-            },
-          }),
-          prisma.loan.count({ where: { ...baseLoan, status: 'pending_review' } }),
-          prisma.customer.count({ where: { ...baseCustomer, status: 'pending_review' } }),
-        ]).then(([a, l, c]) => a + l + c);
 
     // ── Dashboard charts (DASH-05 parity with web page.tsx) ───────────────
     let overdueAgeing: any[] = [];
@@ -553,41 +566,24 @@ export async function GET(req: NextRequest) {
       overdueAmount: Number(item.overdueAmount),
       customerId: item.loan?.customerId ?? '',
     }));
-    const bizTodayUtc = startOfBusinessDayUtc();
-    const cashFlowMonths = Array.from({ length: 6 }, (_, i) => {
-      const offset = 5 - i;
-      const start = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset, 1));
-      const end = new Date(Date.UTC(bizTodayUtc.getUTCFullYear(), bizTodayUtc.getUTCMonth() - offset + 1, 1));
-      return { start, end, label: start.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) };
-    });
     const topOverdue = topOverdueCustomers(overdueRows, 6);
 
-    const [ageingSetting, collectibleLoanCount, topOverdueCustomerRows, cashFlowGroups, upiManualVerifySetting] = await Promise.all([
-      getSetting(ctx.tenantId, 'report_aging_buckets', DEFAULT_AGEING_BUCKETS),
-      prisma.loan.count({ where: { ...baseLoan, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
+    // Second (last) wave: names for the ids the first wave produced.
+    const customerName = (customerId: string | null | undefined) => customerId
+      ? prisma.customer.findFirst({ where: { id: customerId, tenantId: ctx.tenantId }, select: { name: true } })
+      : Promise.resolve(null);
+    const [bestPayerRow, highestBorrowerRow, topOverdueCustomerRows] = await Promise.all([
+      customerName(topRepayer[0]?.customerId),
+      customerName(topBorrower[0]?.customerId),
       topOverdue.length > 0
         ? prisma.customer.findMany({
             where: { tenantId: ctx.tenantId, appType: ctx.appType, id: { in: topOverdue.map((c) => c.customerId) } },
             select: { id: true, name: true, customerCode: true, route: { select: { name: true } } },
           })
         : Promise.resolve([]),
-      Promise.all(
-        cashFlowMonths.map((m) =>
-          prisma.accountEntry.groupBy({
-            by: ['type'],
-            where: {
-              tenantId: ctx.tenantId,
-              appType: ctx.appType,
-              ...scopedBranchWhere(ctx),
-              type: { in: ['loan_disburse', 'collection'] },
-              entryDate: { gte: m.start, lt: m.end },
-            },
-            _sum: { amount: true },
-          }),
-        ),
-      ),
-      getSetting(ctx.tenantId, 'upi_manual_verification', 'false'),
     ]);
+    const bestPayer = bestPayerRow?.name ?? '—';
+    const highestBorrower = highestBorrowerRow?.name ?? '—';
     const upiManualVerification = upiManualVerifySetting === 'true';
 
     overdueAgeing = buildOverdueAgeing(overdueRows, parseAgeingEdges(ageingSetting));
@@ -824,12 +820,13 @@ export async function GET(req: NextRequest) {
       .map((item) => ({ ...item, overdueAmount: outstanding(item) }))
       .filter((item) => item.overdueAmount > 0);
 
+    const overdueByRoute = new Map<string, number>();
+    for (const item of routeOverdueRows) {
+      const routeId = item.loan.customer.routeId;
+      if (routeId) overdueByRoute.set(routeId, (overdueByRoute.get(routeId) ?? 0) + outstanding(item));
+    }
     const routePerformance = routes.map((route) => {
-      const routeOverdue = route.customers.reduce((sum, customer) => {
-        return sum + customer.loans.reduce((loanSum, loan) => {
-          return loanSum + loan.instalments.reduce((instSum, item) => instSum + outstanding(item), 0);
-        }, 0);
-      }, 0);
+      const routeOverdue = overdueByRoute.get(route.id) ?? 0;
       return {
         id: route.id,
         name: route.name,

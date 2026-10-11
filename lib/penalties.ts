@@ -126,18 +126,94 @@ async function penaltyMissedDays(
 }
 
 const bulkPenaltySyncLastRun = new Map<string, { time: number; result: PenaltySyncResult }>();
+const bulkPenaltySyncInFlight = new Map<string, Promise<PenaltySyncResult>>();
+
+const PENALTY_SYNC_SELECT = {
+  id: true,
+  missedDays: true,
+  grossPenalty: true,
+  settledAmount: true,
+  waivedAmount: true,
+  status: true,
+} as const;
+
+type PenaltySyncRow = {
+  id: string;
+  missedDays: number;
+  grossPenalty: unknown;
+  settledAmount: unknown;
+  waivedAmount: unknown;
+  status: string;
+};
+
+/**
+ * What the pending accrual must write for one loan, or null when its penalty
+ * rows already carry the live figure: top up / re-stamp the open penalty, or
+ * create one for the outstanding amount (MONEY-14).
+ */
+function pendingPenaltyWrite(
+  penalties: PenaltySyncRow[],
+  liveGrossPenalty: number,
+  missedDays: number,
+): { kind: 'update'; id: string; grossPenalty: number } | { kind: 'create'; grossPenalty: number } | null {
+  const recordedGross = penalties.reduce(
+    (sum, penalty) => sum + Number(penalty.grossPenalty),
+    0
+  );
+  const resolvedTotal = penalties.reduce(
+    (sum, penalty) =>
+      sum + Number(penalty.settledAmount) + Number(penalty.waivedAmount),
+    0
+  );
+  const activePenalty = penalties.find((penalty) =>
+    ACTIVE_PENALTY_STATUSES.includes(penalty.status)
+  );
+  const outstandingPenalty =
+    Math.max(recordedGross, liveGrossPenalty) - resolvedTotal;
+
+  if (outstandingPenalty <= 0) return null;
+
+  if (activePenalty) {
+    const grossShortfall = Math.max(0, liveGrossPenalty - recordedGross);
+    const shouldUpdate =
+      grossShortfall > 0 || activePenalty.missedDays !== missedDays;
+    return shouldUpdate
+      ? { kind: 'update', id: activePenalty.id, grossPenalty: Number(activePenalty.grossPenalty) + grossShortfall }
+      : null;
+  }
+
+  return { kind: 'create', grossPenalty: outstandingPenalty };
+}
 
 export async function ensurePendingPenaltiesForMissedLoans(
   scope: PenaltySyncScope
 ): Promise<PenaltySyncResult> {
-  // If bulk sync across whole tenant/branch, throttle to at most once per 60 seconds
-  if (!scope.loanId) {
-    const key = `${scope.tenantId || ''}_${scope.appType || ''}_${scope.branchId || ''}_${scope.routeId || ''}`;
-    const cached = bulkPenaltySyncLastRun.get(key);
-    if (cached && Date.now() - cached.time < 60_000) {
-      return cached.result;
-    }
+  // A single-loan sync (preclose quote/approval) always runs fresh.
+  if (scope.loanId) return syncPendingPenalties(scope);
+
+  // A bulk sync across a tenant/branch runs at most once per 60 seconds per
+  // scope, and concurrent page loads share the run already in flight.
+  const key = `${scope.tenantId || ''}_${scope.appType || ''}_${scope.branchId || ''}_${scope.routeId || ''}`;
+  const cached = bulkPenaltySyncLastRun.get(key);
+  if (cached && Date.now() - cached.time < 60_000) {
+    return cached.result;
   }
+  const running = bulkPenaltySyncInFlight.get(key);
+  if (running) return running;
+
+  const run = syncPendingPenalties(scope)
+    .then((result) => {
+      bulkPenaltySyncLastRun.set(key, { time: Date.now(), result });
+      return result;
+    })
+    .finally(() => bulkPenaltySyncInFlight.delete(key));
+  bulkPenaltySyncInFlight.set(key, run);
+  return run;
+}
+
+async function syncPendingPenalties(
+  scope: PenaltySyncScope
+): Promise<PenaltySyncResult> {
 
   const loanWhere: any = {
     status: { in: ['active', 'overdue'] },
@@ -177,61 +253,50 @@ export async function ensurePendingPenaltiesForMissedLoans(
   let penaltiesCreated = 0;
   let penaltiesUpdated = 0;
 
+  // One read of every candidate loan's penalties, so loans already in step
+  // skip the per-loan transaction below. The transaction still re-reads and
+  // re-decides; this only stops opening one when nothing would be written.
+  const penaltiesByLoan = new Map<string, PenaltySyncRow[]>();
+  if (loans.length > 0) {
+    const rows = await prisma.penalty.findMany({
+      where: { loanId: { in: loans.map((loan) => loan.id) } },
+      select: { ...PENALTY_SYNC_SELECT, loanId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const { loanId, ...row } of rows) {
+      const list = penaltiesByLoan.get(loanId);
+      if (list) list.push(row);
+      else penaltiesByLoan.set(loanId, [row]);
+    }
+  }
+
   for (const loan of loans) {
     const missedDays = await penaltyMissedDays(loan, today);
     const liveGrossPenalty = missedDays * Number(loan.penaltyRate);
     if (missedDays === 0 || liveGrossPenalty <= 0) continue;
+    if (!pendingPenaltyWrite(penaltiesByLoan.get(loan.id) ?? [], liveGrossPenalty, missedDays)) continue;
 
     // Use an interactive transaction to prevent race-condition duplicates
     await prisma.$transaction(async (tx) => {
       // Re-fetch penalties inside the transaction for consistency
       const penalties = await tx.penalty.findMany({
         where: { loanId: loan.id },
-        select: {
-          id: true,
-          missedDays: true,
-          grossPenalty: true,
-          settledAmount: true,
-          waivedAmount: true,
-          status: true,
-        },
+        select: PENALTY_SYNC_SELECT,
         orderBy: { createdAt: 'asc' },
       });
 
-      const recordedGross = penalties.reduce(
-        (sum, penalty) => sum + Number(penalty.grossPenalty),
-        0
-      );
-      const resolvedTotal = penalties.reduce(
-        (sum, penalty) =>
-          sum + Number(penalty.settledAmount) + Number(penalty.waivedAmount),
-        0
-      );
-      const activePenalty = penalties.find((penalty) =>
-        ACTIVE_PENALTY_STATUSES.includes(penalty.status)
-      );
-      const outstandingPenalty =
-        Math.max(recordedGross, liveGrossPenalty) - resolvedTotal;
+      const write = pendingPenaltyWrite(penalties, liveGrossPenalty, missedDays);
+      if (!write) return;
 
-      if (outstandingPenalty <= 0) return;
-
-      if (activePenalty) {
-        const grossShortfall = Math.max(0, liveGrossPenalty - recordedGross);
-        const nextGrossPenalty =
-          Number(activePenalty.grossPenalty) + grossShortfall;
-        const shouldUpdate =
-          grossShortfall > 0 || activePenalty.missedDays !== missedDays;
-
-        if (shouldUpdate) {
-          await tx.penalty.update({
-            where: { id: activePenalty.id },
-            data: {
-              grossPenalty: nextGrossPenalty,
-              missedDays,
-            },
-          });
-          penaltiesUpdated++;
-        }
+      if (write.kind === 'update') {
+        await tx.penalty.update({
+          where: { id: write.id },
+          data: {
+            grossPenalty: write.grossPenalty,
+            missedDays,
+          },
+        });
+        penaltiesUpdated++;
         return;
       }
 
@@ -240,7 +305,7 @@ export async function ensurePendingPenaltiesForMissedLoans(
           loanId: loan.id,
           customerId: loan.customerId,
           missedDays,
-          grossPenalty: outstandingPenalty,
+          grossPenalty: write.grossPenalty,
           status: 'pending',
         },
       });

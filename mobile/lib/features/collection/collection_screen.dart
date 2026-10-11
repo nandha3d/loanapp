@@ -89,8 +89,7 @@ void clearCollectionTodayCache() {
 /// Invalidate this one to refresh; [collectionTodayProvider] follows it.
 final collectionDashboardProvider =
     FutureProvider<CollectionDashboard>((ref) async {
-  final user = ref.watch(authControllerProvider).user;
-  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+  final scopeKey = ref.watch(dashboardScopeKeyProvider);
   void remember(CollectionDashboard dash, [Map<String, dynamic>? raw]) {
     _cachedCollectionDashboard = dash;
     _cachedCollectionToday = dash.rows;

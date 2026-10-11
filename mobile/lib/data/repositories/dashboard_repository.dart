@@ -160,13 +160,25 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
   (ref) => DashboardRepository(ref.watch(dashboardServiceProvider)),
 );
 
+/// Tenant + user scope of the signed-in session. Selected instead of watching
+/// the whole auth state: a profile refresh or lock/unlock replaces AuthState
+/// with the same user, which used to re-run every dashboard provider and fire a
+/// second request that discarded the one already in flight.
+final dashboardScopeKeyProvider = Provider<String?>((ref) {
+  return ref.watch(
+    authControllerProvider.select((s) {
+      final user = s.user;
+      return user != null ? '${user.tenantSlug}_${user.id}' : null;
+    }),
+  );
+});
+
 /// FutureProvider consumed by dashboard screen. NOT autoDispose — the cache
 /// persists across tab switches so returning to the dashboard is instant.
-/// Watches authControllerProvider so that tenant/user changes immediately
+/// Watches [dashboardScopeKeyProvider] so that tenant/user changes immediately
 /// invalidate and re-evaluate with the active session's scope key.
 final dashboardSummaryProvider = FutureProvider<DashboardSummary>((ref) {
-  final user = ref.watch(authControllerProvider).user;
-  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+  final scopeKey = ref.watch(dashboardScopeKeyProvider);
   return ref.watch(dashboardRepositoryProvider).getSummary(scopeKey: scopeKey);
 });
 
@@ -174,7 +186,6 @@ final dashboardSummaryProvider = FutureProvider<DashboardSummary>((ref) {
 /// signed-in user is a chit tenant (AppType.userIsChit).
 final chitDashboardSummaryProvider =
     FutureProvider<ChitDashboardSummary>((ref) {
-  final user = ref.watch(authControllerProvider).user;
-  final scopeKey = user != null ? '${user.tenantSlug}_${user.id}' : null;
+  final scopeKey = ref.watch(dashboardScopeKeyProvider);
   return ref.watch(dashboardRepositoryProvider).getChitSummary(scopeKey: scopeKey);
 });

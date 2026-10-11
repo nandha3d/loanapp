@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/authed_image.dart';
@@ -78,8 +79,11 @@ class MapPin {
 
 final mapPinsProvider = FutureProvider<List<MapPin>>((ref) async {
   final pins = <MapPin>[];
-  final user = ref.watch(authControllerProvider).user;
-  final isAgent = user?.role == UserRole.agent;
+  // Re-run on a session or role change, not on every profile refresh.
+  ref.watch(dashboardScopeKeyProvider);
+  final isAgent = ref.watch(
+    authControllerProvider.select((s) => s.user?.role == UserRole.agent),
+  );
   final seenCustomerIds = <String>{};
 
   // 1. Agent live locations (admin/superadmin only)
