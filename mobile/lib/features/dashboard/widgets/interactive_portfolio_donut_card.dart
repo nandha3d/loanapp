@@ -117,8 +117,10 @@ class _InteractivePortfolioDonutCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 34,
+          // Min (not fixed) height: equal headers at normal text, room to grow
+          // at large accessibility text sizes instead of overflowing.
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 34),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -306,8 +308,10 @@ class _InteractivePortfolioDonutCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 34,
+          // Min (not fixed) height: equal headers at normal text, room to grow
+          // at large accessibility text sizes instead of overflowing.
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 34),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -493,6 +497,46 @@ class _LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The legend column is ~130px wide on a 320px phone and the two donut
+    // cards share one IntrinsicHeight row, so the layout must have exact
+    // intrinsic sizes (no Wrap / LayoutBuilder). Narrow screens or large text
+    // put the amount on its own line; otherwise label and amount share a line.
+    final mq = MediaQuery.of(context);
+    final stacked = mq.size.width < 360 || mq.textScaler.scale(10) > 12;
+
+    final dotAndLabel = <Widget>[
+      Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+      ),
+      const SizedBox(width: 5),
+      Expanded(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    ];
+    final amount = Text(
+      percent.isNotEmpty ? '$value ($percent)' : value,
+      textAlign: stacked ? TextAlign.left : TextAlign.right,
+      style: TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textPrimary,
+      ),
+    );
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       padding: EdgeInsets.symmetric(
@@ -503,41 +547,24 @@ class _LegendRow extends StatelessWidget {
         color: isHighlighted ? color.withAlpha(20) : Colors.transparent,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
+      child: stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: dotAndLabel),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: amount,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                ...dotAndLabel,
+                const SizedBox(width: 4),
+                amount,
+              ],
             ),
-          ),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
-                color: AppColors.textPrimary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            percent.isNotEmpty ? '$value ($percent)' : value,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
