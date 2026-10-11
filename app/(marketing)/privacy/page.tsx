@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import Link from 'next/link';
 import { buildMetadata } from '../_components/seo';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
@@ -42,8 +43,8 @@ export default function PrivacyPolicyPage() {
             <div className="mk-legal-badge">DPDP Act 2023 &middot; IT Act 2000 &middot; Google Play User Data policy</div>
 
             <div className="mk-legal-meta">
-              <div><b>Entity:</b> Zolo Funds (India) Technologies Private Limited</div>
-              <div><b>CIN / Registration:</b> U72900TN2026PTC158920</div>
+              <div><b>Operated by:</b> {LEGAL.operator}</div>
+              <div><b>Udyam Registration:</b> {LEGAL.udyam}</div>
               <div><b>Effective Date:</b> January 1, 2026</div>
               <div><b>Last Updated:</b> {lastUpdated}</div>
               <div><b>Jurisdiction:</b> Republic of India (Governed by DPDP Act 2023 &amp; IT Act 2000)</div>
@@ -53,7 +54,7 @@ export default function PrivacyPolicyPage() {
             <div className="mk-legal-callout mk-legal-callout--alert">
               <strong>MANDATORY REGULATORY NOTICE &amp; NON-LENDER STATUS DISCLAIMER:</strong>
               <p style={{ marginTop: 8, marginBottom: 0 }}>
-                Zolo Funds (India) Technologies Private Limited (&quot;Zolo Funds&quot;) is strictly a software and technology infrastructure provider
+                {LEGAL.product}, operated by {LEGAL.operator} (&quot;Zolo Funds&quot;, &quot;we&quot;), is strictly a software and technology infrastructure provider
                 (Technology Service Provider / Lending SaaS). <strong>Zolo Funds IS NOT A BANK, NON-BANKING FINANCIAL COMPANY (NBFC), HOUSING FINANCE COMPANY, OR DIRECT MONEY LENDER.</strong>
                 We do not solicit loans from the public, disburse money from our own balance sheet, underwrite individual credit decisions, or collect
                 interest for our own account. All loan products, underwriting rules, interest rates, sanctions, and recovery decisions are originated
@@ -295,10 +296,10 @@ export default function PrivacyPolicyPage() {
               regarding data privacy should be addressed to our designated Grievance Officer:
             </p>
             <div className="mk-legal-callout">
-              <b>Grievance Officer:</b> S. G. Nandhakumar, Data Protection &amp; Compliance Officer<br />
-              <b>Entity:</b> Zolo Funds (India) Technologies Private Limited<br />
-              <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
-              <b>CIN:</b> U72900TN2026PTC158920<br />
+              <b>Grievance Officer:</b> {LEGAL.grievanceOfficer}<br />
+              <b>Entity:</b> {LEGAL.operator}<br />
+              <b>Office:</b> {LEGAL.address}<br />
+              <b>Udyam Registration:</b> {LEGAL.udyam}<br />
               <b>Dedicated Email:</b> <a href="mailto:grievance@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>grievance@zolofunds.com</a><br />
               <b>Support Email:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
               <b>Helpline:</b> +91 80894 05950 (Mon–Sat, 09:30 AM to 06:30 PM IST)<br />

@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
@@ -31,7 +32,7 @@ export default function DeleteAccountPage() {
             <div className="mk-legal-badge">DPDP Act 2023 &middot; Google Play User Data policy</div>
 
             <div className="mk-legal-meta">
-              <div><b>Developer / Entity:</b> Zolo Funds (India) Technologies Private Limited</div>
+              <div><b>Developer:</b> {LEGAL.operator}</div>
               <div><b>Applies to:</b> Web portal (<Link href="https://app.zolofunds.com" style={{ color: 'var(--mk-primary)' }}>app.zolofunds.com</Link>) &amp; ZoloFund Android app</div>
               <div><b>Timeline:</b> Completed within 7 business days after we confirm the request is yours</div>
             </div>
@@ -118,8 +119,8 @@ export default function DeleteAccountPage() {
               <h2>5. Questions &amp; grievances</h2>
               <p>If something goes wrong with your request, contact our Data Protection &amp; Grievance desk:</p>
               <div className="mk-legal-callout">
-                <b>Entity:</b> Zolo Funds (India) Technologies Private Limited<br />
-                <b>Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
+                <b>Entity:</b> {LEGAL.operator}<br />
+                <b>Office:</b> {LEGAL.address}<br />
                 <b>Grievance email:</b> <a href="mailto:grievance@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>grievance@zolofunds.com</a><br />
                 <b>Support:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
                 <b>Helpline:</b> +91 80894 05950 (Mon–Sat, 9:30 AM – 6:30 PM IST)<br />

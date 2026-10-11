@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import Link from 'next/link';
 import { buildMetadata } from '../_components/seo';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
@@ -41,10 +42,10 @@ export default function TermsOfServicePage() {
             <div className="mk-legal-badge">Master Subscription Agreement (Republic of India)</div>
 
             <div className="mk-legal-meta">
-              <div><b>Licensor:</b> Zolo Funds (India) Technologies Private Limited</div>
-              <div><b>CIN:</b> U72900TN2026PTC158920</div>
+              <div><b>Licensor:</b> {LEGAL.operator}</div>
+              <div><b>Udyam Registration:</b> {LEGAL.udyam}</div>
               <div><b>Governing Law:</b> Laws of the Republic of India</div>
-              <div><b>Exclusive Jurisdiction:</b> Courts of Chennai, Tamil Nadu</div>
+              <div><b>Exclusive Jurisdiction:</b> Courts of Erode, Tamil Nadu</div>
               <div><b>Effective Date:</b> January 1, 2026</div>
               <div><b>Last Updated:</b> {lastUpdated}</div>
             </div>
@@ -52,7 +53,7 @@ export default function TermsOfServicePage() {
             <div className="mk-legal-callout mk-legal-callout--alert">
               <strong>CRITICAL REGULATORY NOTICE — NON-LENDER STATUS & COMPLIANCE DIVISION:</strong>
               <p style={{ marginTop: 8, marginBottom: 0 }}>
-                Zolo Funds (India) Technologies Private Limited is exclusively a technology and software development company (Technology Service Provider / Lending SaaS).
+                {LEGAL.product}, operated by {LEGAL.operator}, is exclusively a technology and software provider (Technology Service Provider / Lending SaaS).
                 <strong> Zolo Funds IS NOT A LENDER, BANK, NON-BANKING FINANCIAL COMPANY (NBFC), HOUSING FINANCE COMPANY, OR COOPERATIVE SOCIETY.</strong>
                 We do not solicit, evaluate, approve, fund, guarantee, or collect loans for our own account. The subscribing customer
                 (&quot;Tenant&quot;, &quot;Subscriber&quot;, or &quot;Customer&quot;) acknowledges that it holds sole legal responsibility for obtaining
@@ -65,7 +66,7 @@ export default function TermsOfServicePage() {
             <h2>Article 1: Preamble, Acceptance of Terms & Corporate Representations</h2>
             <p>
               This Master Software-as-a-Service Agreement (&quot;Agreement&quot; or &quot;Terms&quot;) is a legally binding contract entered into between
-              <strong> Zolo Funds (India) Technologies Private Limited</strong>, a company incorporated under the Companies Act, 2013 having its corporate office at 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India
+              <strong> {LEGAL.tradeName}</strong>, a sole proprietorship owned by <strong>{LEGAL.proprietor}</strong> (Udyam Registration {LEGAL.udyam}), having its office at {LEGAL.address}
               (&quot;Zolo Funds&quot;, &quot;Licensor&quot;, &quot;we&quot;, &quot;us&quot;, &quot;our&quot;) and the legal entity, sole proprietorship, partnership firm, company,
               or cooperative institution subscribing to, accessing, or utilizing the software services (&quot;Customer&quot;, &quot;Tenant&quot;, &quot;Subscriber&quot;, or &quot;you&quot;).
             </p>
@@ -217,7 +218,7 @@ export default function TermsOfServicePage() {
             </p>
             <ul>
               <li>The arbitral tribunal shall consist of a <strong>sole arbitrator</strong> mutually appointed by the parties. If the parties fail to agree within 30 days, the arbitrator shall be appointed in accordance with the Act.</li>
-              <li>The seat and legal venue of arbitration shall be <strong>Chennai, Tamil Nadu, India</strong>.</li>
+              <li>The seat and legal venue of arbitration shall be <strong>Erode, Tamil Nadu, India</strong>.</li>
               <li>The language of the arbitral proceedings shall be <strong>English</strong>.</li>
               <li>The arbitral award shall be final, conclusive, and binding upon both parties, enforceable in any court of competent jurisdiction.</li>
             </ul>
@@ -225,7 +226,7 @@ export default function TermsOfServicePage() {
             <h2>Article 16: Governing Law, Jurisdiction &amp; Miscellaneous</h2>
             <ul>
               <li><strong>Governing Law:</strong> This Agreement shall be governed by, interpreted, and construed in accordance with the substantive laws of the Republic of India.</li>
-              <li><strong>Exclusive Court Jurisdiction:</strong> Subject to the mandatory arbitration clause in Article 15, the competent courts located in <strong>Chennai, Tamil Nadu, India</strong> shall possess exclusive jurisdiction over any legal proceedings arising hereunder.</li>
+              <li><strong>Exclusive Court Jurisdiction:</strong> Subject to the mandatory arbitration clause in Article 15, the competent courts located in <strong>Erode, Tamil Nadu, India</strong> shall possess exclusive jurisdiction over any legal proceedings arising hereunder.</li>
               <li><strong>Severability:</strong> If any provision of this Agreement is held to be invalid or unenforceable, that provision shall be enforced to the maximum extent permissible, and the remaining provisions shall remain in full force and effect.</li>
               <li><strong>Force Majeure:</strong> Neither party shall be liable for delays or failures in performance resulting from acts of God, strikes, pandemics, government lockdowns, utility failures, or major telecommunication outages beyond reasonable control.</li>
               <li><strong>Entire Agreement:</strong> This Agreement, together with the incorporated Privacy Policy, Refund Policy, and Security Architecture, constitutes the entire agreement between the parties concerning the subject matter hereof and supersedes all prior proposals, marketing collateral, or informal understandings.</li>
@@ -235,9 +236,9 @@ export default function TermsOfServicePage() {
               <h2>Article 17: Official Legal Notices &amp; Communication</h2>
               <p>All formal legal notices, contractual amendments, or arbitration filings must be addressed to:</p>
               <div className="mk-legal-callout">
-                <b>Legal &amp; Compliance Directorate:</b> Zolo Funds (India) Technologies Private Limited<br />
-                <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
-                <b>CIN:</b> U72900TN2026PTC158920<br />
+                <b>Legal &amp; Compliance Directorate:</b> {LEGAL.operator}<br />
+                <b>Office:</b> {LEGAL.address}<br />
+                <b>Udyam Registration:</b> {LEGAL.udyam}<br />
                 <b>Official Legal Email:</b> <a href="mailto:legal@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>legal@zolofunds.com</a><br />
                 <b>General Inquiries:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
                 <b>Corporate Phone:</b> +91 80894 05950

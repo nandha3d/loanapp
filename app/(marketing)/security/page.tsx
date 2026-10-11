@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import Link from 'next/link';
 import { buildMetadata } from '../_components/seo';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
@@ -40,7 +41,7 @@ export default function SecurityOverviewPage() {
         <div className="mk-container">
           <article className="mk-legal">
             <div className="mk-legal-meta">
-              <div><b>Entity:</b> Zolo Funds (India) Technologies Private Limited</div>
+              <div><b>Operated by:</b> {LEGAL.operator}</div>
               <div><b>Scope:</b> Web portal, APIs, Android app, database</div>
               <div><b>Last Updated:</b> {lastUpdated}</div>
             </div>
@@ -122,8 +123,8 @@ export default function SecurityOverviewPage() {
               reports in good faith without accessing or changing customer data.
             </p>
             <div className="mk-legal-callout">
-              <b>Entity:</b> Zolo Funds (India) Technologies Private Limited<br />
-              <b>Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
+              <b>Entity:</b> {LEGAL.operator}<br />
+              <b>Office:</b> {LEGAL.address}<br />
               <b>Email:</b> <a href="mailto:support@zolofunds.com?subject=Security%20report" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a> (subject: &quot;Security report&quot;)<br />
               <b>Helpline:</b> +91 80894 05950<br />
               <b>Acknowledgement:</b> within 24 hours

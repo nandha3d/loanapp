@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import Link from 'next/link';
 import { buildMetadata } from '../_components/seo';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
@@ -41,8 +42,8 @@ export default function RefundPolicyPage() {
             <div className="mk-legal-badge">Razorpay & Indian Commercial Law Compliant</div>
 
             <div className="mk-legal-meta">
-              <div><b>Entity:</b> Zolo Funds (India) Technologies Private Limited</div>
-              <div><b>CIN:</b> U72900TN2026PTC158920</div>
+              <div><b>Operated by:</b> {LEGAL.operator}</div>
+              <div><b>Udyam Registration:</b> {LEGAL.udyam}</div>
               <div><b>Authorized Payment Gateway:</b> Razorpay Software Private Limited</div>
               <div><b>Applicable Products:</b> Zolo Funds Cloud SaaS Subscriptions & Modules</div>
               <div><b>Effective Date:</b> January 1, 2026</div>
@@ -63,7 +64,7 @@ export default function RefundPolicyPage() {
             <p>
               This Cancellation and Refund Policy (&quot;Policy&quot;) governs all purchases, subscription renewals, module upgrades, and automated
               recurring debits executed on the Zolo Funds software platform (<Link href="https://zolofunds.com" style={{ color: 'var(--mk-primary)' }}>https://zolofunds.com</Link> and <Link href="https://app.zolofunds.com" style={{ color: 'var(--mk-primary)' }}>https://app.zolofunds.com</Link>),
-              operated by <strong>Zolo Funds (India) Technologies Private Limited</strong> (&quot;Zolo Funds&quot;, &quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
+              operated by <strong>{LEGAL.operator}</strong> (&quot;Zolo Funds&quot;, &quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
             </p>
             <p>
               By subscribing to any software tier (Starter, Growth, Scale, or Enterprise) or purchasing add-on capabilities (such as additional field agent seats,
@@ -201,8 +202,8 @@ export default function RefundPolicyPage() {
               For all billing inquiries, cancellation requests, refund claims, or tax invoice questions, please contact our dedicated accounts team:
             </p>
             <div className="mk-legal-callout">
-              <b>Billing &amp; Accounts Desk:</b> Zolo Funds (India) Technologies Private Limited<br />
-              <b>Corporate Office:</b> 155, Animazon, Narayana Valasu, Nasiyanur Road, Erode - 638011, Tamil Nadu, India<br />
+              <b>Billing &amp; Accounts Desk:</b> {LEGAL.operator}<br />
+              <b>Office:</b> {LEGAL.address}<br />
               <b>Dedicated Billing Email:</b> <a href="mailto:billing@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>billing@zolofunds.com</a><br />
               <b>General Support:</b> <a href="mailto:support@zolofunds.com" style={{ color: 'var(--mk-primary)', fontWeight: 700 }}>support@zolofunds.com</a><br />
               <b>Accounts Helpline:</b> +91 80894 05950 (Mon–Sat, 09:30 AM to 06:30 PM IST)<br />

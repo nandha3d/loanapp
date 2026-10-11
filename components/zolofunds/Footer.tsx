@@ -1,5 +1,6 @@
 'use client';
 
+import { LEGAL } from '@/lib/legalEntity';
 import React from 'react';
 import Link from 'next/link';
 import { ShieldCheck, Mail, Phone, MapPin, LogIn, UserPlus } from 'lucide-react';
@@ -167,7 +168,7 @@ export default function Footer({ onOpenDemo }: FooterProps) {
           }}
         >
           <div>
-            © {new Date().getFullYear()} Zolo Funds (India) Technologies Private Limited. All rights reserved.
+            © {new Date().getFullYear()} {LEGAL.tradeName} ({LEGAL.proprietor}). {LEGAL.product} is a product of {LEGAL.tradeName}. All rights reserved.
           </div>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <Link href="/privacy" style={{ color: 'inherit' }}>Privacy Policy</Link>

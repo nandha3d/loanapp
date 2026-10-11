@@ -217,23 +217,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---- Testimonial ---- */}
-      <section className="mk-section">
-        <div className="mk-container">
-          <div className="mk-quote">
-            <div className="mk-quote__mark">&ldquo;</div>
-            <p>We replaced three tools with ZoloFund. GPS collection and the agent wallet alone cut our daily reconciliation from hours to minutes.</p>
-            <div className="mk-quote__who">
-              <span className="mk-quote__av">RK</span>
-              <div style={{ textAlign: 'left' }}>
-                <b>Branch Operations Lead</b>
-                <small>Regional micro-finance lender</small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <CtaBand />
     </>
   );

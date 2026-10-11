@@ -1,3 +1,4 @@
+import { LEGAL } from '@/lib/legalEntity';
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import { Twitter, LinkedIn, Mail } from './icons';
@@ -67,7 +68,7 @@ export default function Footer() {
         </div>
 
         <div className="mk-footer__bottom">
-          <span>© {new Date().getFullYear()} Zolo Funds (India) Technologies Private Limited. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} {LEGAL.tradeName} ({LEGAL.proprietor}). {LEGAL.product} is a product of {LEGAL.tradeName}. All rights reserved.</span>
           <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <Link href="/privacy">Privacy Policy</Link>
             <Link href="/terms">Terms of Service</Link>

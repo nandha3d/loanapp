@@ -10,7 +10,6 @@ import LoanCalculator from './LoanCalculator';
 import MobileApp from './MobileApp';
 import WorkflowExplorer from './WorkflowExplorer';
 import Pricing from './Pricing';
-import Testimonials from './Testimonials';
 import Faq from './Faq';
 import DemoModal from './DemoModal';
 import Footer from './Footer';
@@ -38,7 +37,6 @@ export default function ZoloFundsLanding() {
         <MobileApp onOpenDemo={() => setDemoOpen(true)} />
         <WorkflowExplorer onOpenDemo={() => setDemoOpen(true)} />
         <Pricing onOpenDemo={() => setDemoOpen(true)} />
-        <Testimonials />
         <Faq />
       </main>
 
