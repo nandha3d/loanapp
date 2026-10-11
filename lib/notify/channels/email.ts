@@ -164,6 +164,38 @@ export async function sendEmail(
   return result;
 }
 
+/**
+ * Platform (non-tenant) mail — marketing-site leads, account-deletion requests.
+ * Env SMTP only; no tenant settings, no notification_logs row (no tenant).
+ */
+export async function sendPlatformEmail(
+  to: string,
+  subject: string,
+  html: string,
+  opts?: { replyTo?: string },
+): Promise<EmailResult> {
+  const cfg = await resolveEmailConfig('');
+  if (!cfg.configured) {
+    const error = 'Email not sent: SMTP is not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS).';
+    console.error(`[EMAIL:platform] ${error} (to=${to}, subject="${subject}")`);
+    return { success: false, notConfigured: true, error };
+  }
+  try {
+    await buildTransport(cfg).sendMail({
+      from: `"${cfg.fromName}" <${cfg.fromAddr}>`,
+      to,
+      subject,
+      html,
+      ...(opts?.replyTo ? { replyTo: opts.replyTo } : {}),
+    });
+    return { success: true };
+  } catch (err: any) {
+    const error = err?.message || 'SMTP send failed';
+    console.error(`[EMAIL:platform] send failed (to=${to}, subject="${subject}"): ${error}`);
+    return { success: false, error };
+  }
+}
+
 async function logNotification(
   tenantId: string,
   to: string,

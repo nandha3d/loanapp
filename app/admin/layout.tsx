@@ -4,6 +4,7 @@ import { SessionProvider } from 'next-auth/react';
 import Link from 'next/link';
 import LogoutButton from '@/components/ui/LogoutButton';
 import prisma from '@/lib/db';
+import { countOpenDeletionRequests } from '@/lib/deletionRequests';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
 
@@ -34,6 +35,7 @@ export default async function AdminLayout({
   // Fetch counts for developer
   let pendingModuleRequestCount = 0;
   let pendingEnquiryCount = 0;
+  let openDeletionCount = 0;
   if (userRole === 'developer') {
     pendingModuleRequestCount = await prisma.moduleRequest.count({ where: { status: 'pending' } });
     try {
@@ -42,6 +44,7 @@ export default async function AdminLayout({
     } catch {
       pendingEnquiryCount = 0;
     }
+    openDeletionCount = await countOpenDeletionRequests();
   }
 
   return (
@@ -134,6 +137,27 @@ export default async function AdminLayout({
                     textAlign: 'center',
                   }}>
                     {pendingEnquiryCount}
+                  </span>
+                )}
+              </Link>
+            )}
+            {userRole === 'developer' && (
+              <Link href="/admin/deletion-requests">
+                <span className="material-icons-outlined">person_remove</span>
+                Deletion Requests
+                {openDeletionCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--danger)',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    minWidth: '20px',
+                    textAlign: 'center',
+                  }}>
+                    {openDeletionCount}
                   </span>
                 )}
               </Link>

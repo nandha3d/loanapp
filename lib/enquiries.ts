@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
-import nodemailer from 'nodemailer';
+import { sendPlatformEmail } from '@/lib/notify/channels/email';
+import { escapeHtml } from '@/lib/escapeHtml';
 
 export interface EnquiryInput {
   name: string;
@@ -204,13 +205,14 @@ export async function deleteEnquiry(id: string): Promise<boolean> {
  */
 export async function sendEnquiryEmailToSupport(data: EnquiryInput): Promise<boolean> {
   const to = 'support@zolofunds.com';
-  const name = data.name || 'Unknown';
-  const phone = data.phone || 'N/A';
-  const company = data.company || 'Not Specified';
-  const vertical = data.vertical || 'General Microfinance';
-  const city = data.city || 'Not Specified';
+  // All lead fields are visitor-supplied — escape before putting them in HTML.
+  const name = escapeHtml(data.name || 'Unknown');
+  const phone = escapeHtml(data.phone || 'N/A');
+  const company = escapeHtml(data.company || 'Not Specified');
+  const vertical = escapeHtml(data.vertical || 'General Microfinance');
+  const city = escapeHtml(data.city || 'Not Specified');
   const source = data.source === 'chat_assistant' ? 'Zolo Assistant (Live Chat)' : 'Website Demo Request';
-  const message = data.message ? `<p><strong>Note/Query:</strong> ${data.message}</p>` : '';
+  const message = data.message ? `<p><strong>Note/Query:</strong> ${escapeHtml(data.message)}</p>` : '';
   const cleanPhone = phone.replace(/[^0-9]/g, '');
 
   const subject = `New Live Demo Lead: ${name} (${company}) - ${phone}`;
@@ -266,34 +268,7 @@ export async function sendEnquiryEmailToSupport(data: EnquiryInput): Promise<boo
     </html>
   `;
 
-  // Try platform SMTP first, then fallback to direct zolofunds.com SMTP
-  try {
-    const smtpHost = process.env.SMTP_HOST || 'mail.zolofunds.com';
-    const smtpPort = Number(process.env.SMTP_PORT || '465');
-    const smtpUser = process.env.SMTP_USER || 'noreply@zolofunds.com';
-    const smtpPass = process.env.SMTP_PASS || 'Animazon@Erode11';
-    const isSecure = smtpPort === 465;
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: isSecure,
-      auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 10000,
-    });
-
-    await transporter.sendMail({
-      from: `"Zolo Assistant Lead" <${smtpUser}>`,
-      to,
-      subject,
-      html,
-    });
-
-    console.log(`[Enquiry Email] Alert sent to ${to} for lead ${name}`);
-    return true;
-  } catch (err: any) {
-    console.error('[Enquiry Email Failed]', err?.message || err);
-    return false;
-  }
+  const result = await sendPlatformEmail(to, subject, html);
+  if (result.success) console.log(`[Enquiry Email] Alert sent to ${to} for lead ${name}`);
+  return result.success;
 }
