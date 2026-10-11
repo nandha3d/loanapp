@@ -17,6 +17,9 @@ const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/
 const cspSupabase = SUPABASE_URL ? ` ${SUPABASE_URL} wss://${SUPABASE_URL.replace(/^https?:\/\//, '')}` : '';
 
 const securityHeaders = [
+  // HSTS (ignored by browsers over plain http, so harmless in local dev). No
+  // includeSubDomains: other zolofunds.com hosts (mail/ftp) are not all HTTPS.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

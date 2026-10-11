@@ -29,7 +29,7 @@ export default function Pricing({ onOpenDemo }) {
       yearlySavings: null,
       savingsPct: null,
       effectiveMonthly: 0,
-      description: 'Test out LoanTrack features for free',
+      description: 'Test out Zolo Funds features for free',
       branchesVal: '1',
       agentsVal: '1',
       loansVal: '25',

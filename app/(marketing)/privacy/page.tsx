@@ -5,7 +5,7 @@ import { BreadcrumbJsonLd } from '../_components/JsonLd';
 export const metadata = buildMetadata({
   title: 'Privacy Policy | Zolo Funds — Data Safety, Permissions & DPDP Compliance',
   description:
-    'Exhaustive Privacy Policy for Zolo Funds web platform and Android mobile app. Fully compliant with Digital Personal Data Protection Act 2023, IT Act 2000, RBI Digital Lending Guidelines 2022, and Google Play Store Financial Services Policy.',
+    'Privacy Policy for the Zolo Funds web platform and the ZoloFund Android app, covering the DPDP Act 2023, IT Act 2000 and Google Play User Data policy.',
   path: '/privacy',
   keywords: [
     'Zolo Funds privacy policy',
@@ -19,7 +19,7 @@ export const metadata = buildMetadata({
 });
 
 export default function PrivacyPolicyPage() {
-  const lastUpdated = 'October 10, 2026';
+  const lastUpdated = 'October 11, 2026';
 
   return (
     <>
@@ -39,7 +39,7 @@ export default function PrivacyPolicyPage() {
       <section className="mk-section mk-section--soft">
         <div className="mk-container">
           <article className="mk-legal">
-            <div className="mk-legal-badge">Google Play Store &amp; DPDP Act 2023 (Republic of India) Compliant</div>
+            <div className="mk-legal-badge">DPDP Act 2023 &middot; IT Act 2000 &middot; Google Play User Data policy</div>
 
             <div className="mk-legal-meta">
               <div><b>Entity:</b> Zolo Funds (India) Technologies Private Limited</div>
@@ -74,7 +74,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>The Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011 (SPDI Rules)</strong>;</li>
               <li><strong>The Reserve Bank of India (RBI) Guidelines on Digital Lending (2022)</strong> as applicable to Lending Service Providers (LSPs) and Technology Service Providers (TSPs);</li>
               <li><strong>The Aadhaar (Targeted Delivery of Financial and Other Subsidies, Benefits and Services) Act, 2016</strong> and UIDAI Circulars on masking and offline KYC;</li>
-              <li><strong>Google Play Store Developer Policies</strong>, specifically including the Financial Services Policy, Personal Loans Policy, and Data Safety Disclosures.</li>
+              <li><strong>Google Play Developer Program Policies</strong>, including the User Data policy and Data safety disclosures.</li>
             </ul>
 
             <h2>2. Definitions Under This Policy</h2>
@@ -101,7 +101,7 @@ export default function PrivacyPolicyPage() {
             <p>Lenders utilize our multi-tenant database to manage their loan portfolios. Such data is uploaded by the Lender or collected via field agent applications:</p>
             <ul>
               <li><strong>Borrower Profile:</strong> Full legal name, father&apos;s/spouse&apos;s name, residential address, mobile phone number, alternate emergency contact, and profile photograph.</li>
-              <li><strong>KYC Documents:</strong> PAN number, masked Aadhaar reference (last 4 digits only per UIDAI regulations; raw 12-digit Aadhaar numbers and biometric templates are strictly prohibited and rejected by our validation filters), voter ID, or driving license uploaded by the field officer.</li>
+              <li><strong>KYC Documents:</strong> PAN number, Aadhaar number (stored encrypted with AES-256-GCM and shown masked in the app), Aadhaar e-KYC details returned through our KYC partner when the lender uses Aadhaar OTP (name, date of birth, address, photo), and voter ID or driving licence images. Biometric templates (fingerprint/iris) are never collected.</li>
               <li><strong>Loan Particulars:</strong> Loan account number, principal sanctioned, interest rate, disbursement date, repayment schedule (daily, weekly, monthly), EMI installment breakdown, penalty charges, and outstanding balances.</li>
               <li><strong>Module-Specific Collateral Records:</strong>
                 <ul>
@@ -121,9 +121,8 @@ export default function PrivacyPolicyPage() {
 
             <h2>4. Android Mobile Application Permissions (Google Play Store Disclosure)</h2>
             <p>
-              The ZoloFund Android mobile application is engineered for field collection officers, loan origination agents, and branch managers.
-              In strict compliance with <strong>Google Play Store Developer Policies</strong> and the <strong>Personal Loans Policy</strong>,
-              every permission requested by the app is detailed below with its explicit, narrow purpose:
+              The ZoloFund Android app is used by the staff of lending businesses (owners, branch managers and field collection agents). It does not
+              offer loans to consumers. Every permission the app requests is listed below with its purpose:
             </p>
 
             <table className="mk-legal-table">
@@ -139,26 +138,19 @@ export default function PrivacyPolicyPage() {
                   <td><strong>ACCESS_FINE_LOCATION &amp; ACCESS_COARSE_LOCATION</strong></td>
                   <td>GPS Collection Verification &amp; Fraud Prevention</td>
                   <td>
-                    Captured <strong>only</strong> when a field officer records a repayment collection or conducts a physical customer onboarding visit.
-                    The precise latitude and longitude are recorded alongside the timestamp on the digital receipt. This ensures that cash collections
-                    occurred at the borrower&apos;s physical shop or residence, preventing phantom entries and protecting both parties.
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>ACCESS_BACKGROUND_LOCATION</strong></td>
-                  <td>Field Agent Route Optimization (Optional)</td>
-                  <td>
-                    Used strictly while an agent is actively &quot;On Duty&quot; and clocked in through the app to display daily collection progress
-                    along their assigned route. <strong>Location tracking automatically ceases the moment the agent clocks out or logs off.</strong>
-                    We do not track agents off-duty or during weekends.
+                    Used while the app is open. When a field officer records a collection or a customer visit, the latitude, longitude, accuracy and
+                    time are saved with the record so the business can confirm the visit really happened. While the collection route screen is open,
+                    the app also sends the officer&apos;s location about every 30 seconds so the office can follow route progress; this stops when the
+                    screen is closed. Readings from fake-GPS apps are flagged. The ZoloFund app does <strong>not</strong> collect location in the background.
                   </td>
                 </tr>
                 <tr>
                   <td><strong>CAMERA</strong></td>
                   <td>KYC Document Digitization &amp; Borrower Verification</td>
                   <td>
-                    Used to photograph the borrower for live profile creation and to scan physical paper documents (application form, PAN card, collateral proof).
-                    Images are compressed on-device and uploaded directly over TLS 1.3 encrypted channels.
+                    Used to photograph customers, KYC documents and collateral, and to scan payment QR codes. Images are compressed on the device and uploaded
+                    over HTTPS (TLS 1.2 or higher). Face detection (to frame customer photos) and QR scanning run on the device using Google ML Kit; no face
+                    data is sent to our servers beyond the photo itself.
                   </td>
                 </tr>
                 <tr>
@@ -166,7 +158,8 @@ export default function PrivacyPolicyPage() {
                   <td>Voice-Assisted Collection Entry (Speech-to-Text)</td>
                   <td>
                     Enables collection officers to speak customer names or installment amounts into the field run sheet (hands-free entry).
-                    Audio is streamed exclusively to the on-device or native speech recognition service and <strong>is never recorded ambiently, stored as audio files, or analyzed for advertising.</strong>
+                    Audio goes only to the phone&apos;s speech-recognition service (on the device or Google&apos;s, depending on the phone) while voice entry is active;
+                    the app receives text only. <strong>ZoloFund never records, stores or uploads audio.</strong>
                   </td>
                 </tr>
                 <tr>
@@ -219,17 +212,22 @@ export default function PrivacyPolicyPage() {
               <strong>Our Binding Privacy Commitment:</strong>
               <p style={{ marginTop: 6, marginBottom: 0 }}>
                 Zolo Funds <strong>DOES NOT sell, trade, rent, monetize, or broker personal data</strong> to third-party data brokers, advertising
-                aggregators, telemarketers, credit scoring bureaus, or marketing networks under any circumstance. Your data belongs exclusively to your organization and is
-                processed strictly to execute the operational software features you have contracted.
+                aggregators, telemarketers or marketing networks. Your data belongs to your organization and is processed only to provide the software features
+                you use. When a lender runs a credit check, the borrower details needed for that check (name, PAN, date of birth, address, mobile) are sent to
+                the credit bureau the lender uses. This is part of the service the lender requests, not a sale of data.
               </p>
             </div>
 
             <h2>7. Third-Party Sub-Processors &amp; Infrastructure Partners</h2>
-            <p>To deliver reliable cloud services, Zolo Funds collaborates with industry-standard, security-certified sub-processors:</p>
+            <p>We use the following service providers. Some are used only when a lender turns the feature on:</p>
             <ul>
               <li><strong>Firebase Cloud Messaging (Google LLC):</strong> Real-time push notification delivery to Android smartphones.</li>
               <li><strong>Razorpay Software Private Limited:</strong> PCI-DSS Level 1 certified payment gateway facilitating subscription billing for software plans.</li>
-              <li><strong>Hostinger Cloud Infrastructure:</strong> ISO/IEC 27001, SOC 2 Type II certified cloud server hosting located within data centers serving the Indian region.</li>
+              <li><strong>Hostinger International Ltd:</strong> virtual private server hosting our application and database in Mumbai, India.</li>
+              <li><strong>Digio Internet Pvt Ltd:</strong> Aadhaar OTP e-KYC and video KYC, when the lender enables KYC.</li>
+              <li><strong>CRIF High Mark and TransUnion CIBIL:</strong> credit reports, when the lender runs a bureau check.</li>
+              <li><strong>Google LLC:</strong> Google Sign-In (optional login), Firebase Cloud Messaging (push notifications) and on-device ML Kit (photo framing, QR scanning).</li>
+              <li><strong>Map tile provider:</strong> map images in the app and portal; the provider sees the device IP address and the map area being viewed.</li>
               <li><strong>Meta WhatsApp Business Cloud API:</strong> Optional transactional messaging service used to send digital repayment receipts and overdue alerts directly to borrowers upon Lender configuration.</li>
               <li><strong>MSG91 / Telemark Telecom Services:</strong> Optional DLT-registered SMS gateway for dispatching OTPs and payment acknowledgments.</li>
             </ul>
@@ -238,8 +236,8 @@ export default function PrivacyPolicyPage() {
             <p>Zolo Funds maintains enterprise-grade technical and organizational security controls:</p>
             <ul>
               <li><strong>Multi-Tenant Database Scoping:</strong> Logical separation enforced at the ORM and SQL boundary ensuring that Tenant A cannot access, query, or alter data belonging to Tenant B.</li>
-              <li><strong>Cryptographic In-Transit Protection:</strong> Mandatory Transport Layer Security (TLS 1.3) with HTTP Strict Transport Security (HSTS) across all endpoints.</li>
-              <li><strong>Cryptographic At-Rest Protection:</strong> Advanced Encryption Standard (AES-256) applied to database storage volumes and encrypted off-site backup archives.</li>
+              <li><strong>Encryption in transit:</strong> all web and API traffic uses HTTPS (TLS 1.2 or 1.3) with HTTP Strict Transport Security (HSTS).</li>
+              <li><strong>Encryption of sensitive fields:</strong> Aadhaar numbers and integration credentials (API keys, payment-gateway secrets) are encrypted in the database with AES-256-GCM.</li>
               <li><strong>Password Security:</strong> User passwords are one-way hashed using salted bcrypt and cannot be read or retrieved in plaintext by administrators or software engineers.</li>
               <li><strong>Immutable Audit Trails:</strong> Financial entries (disbursements, repayments, waivers, write-offs) are append-only. Silent deletion or editing of financial records is blocked at the software engine level.</li>
             </ul>
@@ -280,7 +278,8 @@ export default function PrivacyPolicyPage() {
             <h2>11. Cross-Border Data Transfer &amp; Indian Data Residency</h2>
             <p>
               In compliance with Indian data sovereignty principles and RBI digital lending directives, all primary customer databases, loan ledgers,
-              and KYC archives are stored and processed on servers located <strong>within the territory of the Republic of India</strong>.
+              and KYC archives are stored and processed on servers located <strong>in India (Mumbai)</strong>. Some providers in section 7 (for example Google,
+              for push notifications) may process limited data, such as device push tokens, outside India.
             </p>
 
             <h2>12. Protection of Children&apos;s Privacy</h2>

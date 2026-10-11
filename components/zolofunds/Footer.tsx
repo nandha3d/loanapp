@@ -49,7 +49,7 @@ export default function Footer({ onOpenDemo }: FooterProps) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#059669', fontWeight: 700 }}>
               <ShieldCheck size={16} />
-              <span>RBI NPA Norms Aligned · AES-256 Encrypted</span>
+              <span>RBI NPA Norms Aligned · Data hosted in India</span>
             </div>
           </div>
 

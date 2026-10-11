@@ -155,17 +155,17 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "Zolo Funds is strictly a **B2B Loan Management & Field Collection Software Platform** built for lenders, NBFCs, microfinance institutions, vehicle financiers, and chit fund operators to track and manage their own operations.\n\n" +
           "• We are a **technology provider**, not a bank or money lender.\n" +
           "• If you run a **lending business**, our software will help you track daily collections, GPS geofencing, and overdue loans.\n" +
-          "• You can test our software with an unconditional **14-Day Free Trial**!",
+          "• You can test our software with a **15-Day Free Trial** on paid plans, or use the Free plan forever!",
       ta: "❌ **இல்லை. Zolo Funds கடன் வழங்கும் நிறுவனம் அல்ல. நாங்கள் கடன் கொடுப்பதில்லை.**\n\n" +
           "Zolo Funds என்பது கடன் கொடுக்கும் பைனான்சியர்கள், NBFCகள், மைக்ரோபைனான்ஸ் நிறுவனங்கள் மற்றும் சீட்டு நிதி நடத்துவோருக்கான **கடன் கண்காணிப்பு தொழில்நுட்ப மென்பொருள் (Loan Tracking Software)** மட்டுமே.\n\n" +
           "• நாங்கள் மென்பொருள் தயாரிப்பாளர்கள்; பணக்கடன் வழங்குபவர்கள் அல்ல.\n" +
           "• நீங்கள் பைனான்ஸ் தொழில் நடத்துபவராக இருந்தால், உங்கள் கடன்களையும் கலெக்ஷன் ஏஜென்டுகளையும் நிர்வகிக்க எங்கள் மென்பொருளைப் பயன்படுத்தலாம்!\n" +
-          "• 14 நாள் இலவச சோதனையை (Free Trial) இன்றே தொடங்கலாம்!",
+          "• 15 நாள் இலவச சோதனையை (Free Trial) இன்றே தொடங்கலாம்!",
       hi: "❌ **नहीं। Zolo Funds कोई लोन देने वाली कंपनी या बैंक नहीं है। हम सीधे लोन नहीं देते हैं।**\n\n" +
           "Zolo Funds एक **लोन मैनेजमेंट और फील्ड कलेक्शन सॉफ्टवेयर** है जो लेंडर्स, NBFCs, और माइक्रोफाइनेंस कंपनियों को अपने लोन और डेली कलेक्शन ट्रैक करने के लिए बनाया गया है।\n\n" +
           "• हम एक सॉफ्टवेयर टेक्नोलॉजी प्रदाता हैं, लोन देने वाले नहीं।\n" +
           "• यदि आपका फाइनेंस व्यवसाय है, तो आप हमारे सॉफ्टवेयर से फील्ड एजेंट्स, GPS और लेज़र आसानी से संभाल सकते हैं।\n" +
-          "• आप 14 दिन का **फ्री ट्रायल** आज ही शुरू कर सकते हैं!"
+          "• आप 15 दिन का **फ्री ट्रायल** आज ही शुरू कर सकते हैं!"
     },
     actions: [
       { type: 'demo', label: 'Book Live Walkthrough' },
@@ -195,17 +195,17 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
           "• **Growth (₹2,999/mo):** Up to 5 branches, 10 collection agents, auto finance & gold loans, GPS geofencing, thermal printer integration.\n" +
           "• **Scale (₹7,999/mo):** Unlimited branches, 25 agents, chit funds, WhatsApp receipts & double-entry accounting.\n" +
           "• **Enterprise (Custom):** Dedicated database, custom API integrations, NBFC scaling & on-site staff training.\n\n" +
-          "Every plan starts with an unconditional **14-Day Free Trial** with no credit card required!",
+          "Every paid plan starts with a **15-Day Free Trial** with no credit card required!",
       ta: "Zolo Funds மென்பொருளின் வெளிப்படையான கட்டண விபரங்கள்:\n\n" +
           "• **Starter (₹999/மாதம்):** 2 கிளைகள், 3 கலெக்ஷன் ஏஜென்டுகள், தினசரி/வாராந்திர மைக்ரோபைனான்ஸ், டிஜிட்டல் டே-புக்.\n" +
           "• **Growth (₹2,999/மாதம்):** 5 கிளைகள், 10 ஏஜென்டுகள், வாகன பைனான்ஸ் & நகைக்கடன், GPS ஜியோபென்சிங், புளூடூத் பிரிண்டர்.\n" +
           "• **Scale (₹7,999/மாதம்):** வரம்பற்ற கிளைகள், 25 ஏஜென்டுகள், சீட்டு நிதி, வாட்ஸ்அப் ரசீதுகள், இரட்டைப் பதிவு கணக்கியல்.\n" +
-          "அனைத்து பிளான்களுக்கும் **14 நாள் இலவச சோதனை (Free Trial)** உண்டு!",
+          "அனைத்து பிளான்களுக்கும் **15 நாள் இலவச சோதனை (Free Trial)** உண்டு!",
       hi: "Zolo Funds सॉफ्टवेयर के किफायती और पारदर्शी प्लान्स:\n\n" +
           "• **Starter (₹999/माह):** 2 ब्रांच, 3 कलेक्शन एजेंट्स, डेली/वीकली माइक्रोफाइनेंस, डे-बुक।\n" +
           "• **Growth (₹2,999/माह):** 5 ब्रांच, 10 एजेंट्स, ऑटो व गोल्ड लोन, GPS जियोफेंसिंग, थर्मल प्रिंटर।\n" +
           "• **Scale (₹7,999/माह):** अनलिमिटेड ब्रांच, 25 एजेंट्स, चिट फंड, व्हाट्सएप रसीदें और अकाउंटिंग।\n" +
-          "हर प्लान में **14 दिन का फ्री ट्रायल** बिना किसी क्रेडिट कार्ड के उपलब्ध है!"
+          "हर प्लान में **15 दिन का फ्री ट्रायल** बिना किसी क्रेडिट कार्ड के उपलब्ध है!"
     },
     actions: [
       { type: 'demo', label: 'Book Live Walkthrough' },
@@ -425,9 +425,9 @@ function findSmartAnswer(userInput: string, currentLang: string) {
   }
 
   const fallback: Record<string, string> = {
-    en: "Zolo Funds is a **Loan Tracking & Collection Software Platform for Lenders & NBFCs** (we do not lend money directly).\n\nWe support Daily Microfinance, Auto Finance, Gold Loans, and Chit Funds with GPS doorstep verification. Would you like to book a 1-on-1 walkthrough or try the 14-day free trial?",
+    en: "Zolo Funds is a **Loan Tracking & Collection Software Platform for Lenders & NBFCs** (we do not lend money directly).\n\nWe support Daily Microfinance, Auto Finance, Gold Loans, and Chit Funds with GPS doorstep verification. Would you like to book a 1-on-1 walkthrough or try the 15-day free trial?",
     ta: "Zolo Funds என்பது **பைனான்சியர்களுக்கான கடன் கண்காணிப்பு மென்பொருள்** (நாங்கள் நேரடியாக கடன் கொடுப்பதில்லை).\n\nதினசரி மைக்ரோபைனான்ஸ், வாகன கடன், நகைக்கடன் மற்றும் சீட்டு நிதி மேலாண்மை வசதிகள் இதில் உள்ளன. நேரடி டெமோ பார்க்க விரும்புகிறீர்களா?",
-    hi: "Zolo Funds **लेंडर्स और फाइनेंस कंपनियों के लिए एक लोन ट्रैकिंग सॉफ्टवेयर** है (हम सीधे लोन नहीं देते)।\n\nइसमें डेली माइक्रोफाइनेंस, ऑटो व गोल्ड लोन और GPS फील्ड ट्रैकिंग उपलब्ध है। क्या आप 14 दिन का फ्री ट्रायल देखना चाहते हैं?"
+    hi: "Zolo Funds **लेंडर्स और फाइनेंस कंपनियों के लिए एक लोन ट्रैकिंग सॉफ्टवेयर** है (हम सीधे लोन नहीं देते)।\n\nइसमें डेली माइक्रोफाइनेंस, ऑटो व गोल्ड लोन और GPS फील्ड ट्रैकिंग उपलब्ध है। क्या आप 15 दिन का फ्री ट्रायल देखना चाहते हैं?"
   };
 
   return {

@@ -18,7 +18,7 @@ const STEPS = [
     num: '02',
     icon: <Satellite size={22} />,
     title: 'GPS Lock Acquired',
-    desc: 'The smartphone acquires a satellite GPS lock and begins continuous background tracking of the agent\'s live coordinates.',
+    desc: 'With the route screen open, the phone gets a GPS lock and shares the agent\'s position with the office every few seconds.',
     detail: 'Works even in low-signal areas — coordinates are cached and synced when connectivity restores.'
   },
   {

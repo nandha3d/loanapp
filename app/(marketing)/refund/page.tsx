@@ -52,7 +52,7 @@ export default function RefundPolicyPage() {
             <div className="mk-legal-callout mk-legal-callout--alert">
               <strong>COMMERCIAL POLICY HIGHLIGHT:</strong>
               <p style={{ marginTop: 8, marginBottom: 0 }}>
-                Zolo Funds provides a <strong>14-Day Full-Feature Free Trial</strong> with zero payment card commitment so organizations
+                Zolo Funds provides a <strong>15-Day Full-Feature Free Trial</strong> on paid plans with zero payment card commitment so organizations
                 can thoroughly evaluate all lending modules, field collection apps, and accounting ledgers before paying any fees.
                 Consequently, recurring subscription fees are generally non-refundable once a billing cycle commences, except in cases of
                 verified billing discrepancies, duplicate charges, or statutory cancellation requests detailed in this Policy.
@@ -71,7 +71,7 @@ export default function RefundPolicyPage() {
               expressly agrees to the terms and procedures outlined herein.
             </p>
 
-            <h2>2. 14-Day Risk-Free Trial Period</h2>
+            <h2>2. 15-Day Risk-Free Trial Period</h2>
             <p>
               To ensure that every financier, microfinance institution, gold loan provider, or chit fund operator can confirm that Zolo Funds meets
               their exact operational and accounting requirements, we offer an unconditional free trial:
@@ -79,7 +79,7 @@ export default function RefundPolicyPage() {
             <ul>
               <li><strong>Zero Payment Details Required:</strong> No credit card, debit card, UPI mandate, or bank account authorization is collected to begin the trial.</li>
               <li><strong>Full Feature Availability:</strong> Trial accounts receive unrestricted access to loan origination, schedule generation, Android field agent APK, day-book ledgers, and reporting engines.</li>
-              <li><strong>Zero Automatic Obligation:</strong> At the expiration of 14 days, your account will simply pause without any surprise charges unless you actively choose to purchase an ongoing commercial subscription.</li>
+              <li><strong>Zero Automatic Obligation:</strong> When the trial ends, your account moves to the Free plan automatically, with no charges, unless you choose to buy a paid subscription.</li>
             </ul>
 
             <h2>3. Subscription Cancellation Procedure</h2>

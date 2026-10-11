@@ -259,7 +259,7 @@ export default function Features({ onOpenDemo }) {
       summary: 'Strict data isolation ensures your loan book, borrower lists, and collections remain 100% confidential.',
       details: [
         'Row-level tenant isolation: strict separation between different finance companies',
-        'Sensitive PII (Aadhaar, PAN, bureau records) encrypted with AES-256 encryption',
+        'Aadhaar numbers and integration keys encrypted with AES-256-GCM',
         'Role-Based Access Control (RBAC): Superadmin, Branch Admin, Field Agent, and Auditor',
         'Immutable audit logs record every single add, update, delete, and approval',
         'Cloud backups automated daily with 99.99% infrastructure uptime SLA'

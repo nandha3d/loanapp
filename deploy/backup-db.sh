@@ -18,6 +18,7 @@
 #   # RCLONE_REMOTE=b2:zolofund-backups
 
 set -euo pipefail
+umask 077   # dumps hold borrower PII — root-only
 
 CONF=/etc/zolofund/backup.env
 if [ ! -f "$CONF" ]; then
@@ -52,6 +53,7 @@ MYSQL_PWD="$DB_PASS" mysqldump \
   --routines \
   --triggers \
   --events \
+  --no-tablespaces \
   --default-character-set=utf8mb4 \
   "$DB_NAME" \
   | gzip -9 > "$TMP"

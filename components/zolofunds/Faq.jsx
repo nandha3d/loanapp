@@ -39,7 +39,7 @@ export default function Faq() {
     },
     {
       q: 'Is my lending firm\'s customer data and loan book isolated from other lenders?',
-      a: 'Yes, 100%. Zolo Funds uses strict multi-tenant database row-level isolation and AES-256 bank-grade field-level encryption for all sensitive PII (Aadhaar, PAN, bureau records). Your loan book is completely private and accessible only by your authenticated users.'
+      a: 'Yes, 100%. Every record is isolated by business and branch on the server, all traffic is encrypted (HTTPS), and Aadhaar numbers are stored encrypted with AES-256-GCM. Your loan book is completely private and accessible only by your authenticated users.'
     }
   ];
 

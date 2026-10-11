@@ -29,7 +29,7 @@ export default function MobileApp({ onOpenDemo }) {
     },
     {
       icon: <MapPin size={22} />,
-      title: 'GPS Background Geocoding',
+      title: 'GPS-Stamped Collections',
       desc: 'Automatic location stamps verify where the collection happened, alerting you immediately on any off-route payments.'
     },
     {
