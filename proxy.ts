@@ -308,12 +308,11 @@ export async function proxy(request: NextRequest) {
   // Marketing domain routing: zolofunds.com / www.zolofunds.com
   const isMarketingDomain = hostname === 'zolofunds.com' || hostname === 'www.zolofunds.com';
   if (isMarketingDomain) {
+    // `/` is rendered by app/page.tsx (host-aware landing). Do NOT rewrite to
+    // /zolofunds here: behind nginx (X-Forwarded-Proto: https) Next treats the
+    // rewrite as external and proxies to https://localhost:3000 → EPROTO 500.
     if (pathname === '/') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/zolofunds';
-      return NextResponse.rewrite(url, {
-        request: { headers: request.headers }
-      });
+      return nextWithTenantHeaders(request, tenantSlug);
     }
     if (pathname === '/login') {
       const target = new URL('https://app.zolofunds.com/login');
