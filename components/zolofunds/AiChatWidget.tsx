@@ -589,11 +589,7 @@ export default function AiChatWidget({ onOpenDemo }: AiChatWidgetProps = {}) {
     };
 
     try {
-      const endpoint = window.location.hostname.includes('zolofunds.com')
-        ? '/api/demo_request.php'
-        : '/api/demo-request';
-
-      await fetch(endpoint, {
+      await fetch('/api/demo-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

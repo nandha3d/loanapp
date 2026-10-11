@@ -31,9 +31,6 @@ export interface EnquiryRecord {
   updated_at: Date;
 }
 
-const REMOTE_API_URL = 'https://zolofunds.com/api/demo_request.php';
-const REMOTE_API_KEY = 'ZoloAdminLeadsKey_2026';
-
 export function parseSafeDate(val: any): Date {
   if (!val) return new Date();
   if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
@@ -113,49 +110,7 @@ export async function createEnquiry(input: EnquiryInput): Promise<string> {
 }
 
 /**
- * Fetch remote leads captured from zolofunds.com public marketing site.
- */
-async function fetchRemoteLeads(): Promise<EnquiryRecord[]> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(`${REMOTE_API_URL}?key=${REMOTE_API_KEY}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!data.success || !Array.isArray(data.leads)) return [];
-
-    return data.leads.map((l: any): EnquiryRecord => ({
-      id: `remote_${l.id}`,
-      name: l.name || 'Anonymous',
-      phone: l.phone || '',
-      email: null,
-      company: l.company || null,
-      vertical: l.vertical || 'General Lending',
-      loan_capacity: l.loan_capacity || null,
-      agent_count: l.agent_count || null,
-      city: l.city || null,
-      source: 'zolofunds.com (Live Chat)',
-      message: `Lead captured from zolofunds.com live chat walkthrough`,
-      status: l.status || 'new',
-      created_at: parseSafeDate(l.created_at),
-      updated_at: parseSafeDate(l.created_at),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Fetch all enquiries (both local SaaS enquiries and live marketing site enquiries)
- * with optional status filter.
+ * Fetch all enquiries with optional status filter.
  */
 export async function getEnquiries(statusFilter?: string): Promise<EnquiryRecord[]> {
   await ensureEnquiriesTable();
@@ -177,26 +132,7 @@ export async function getEnquiries(statusFilter?: string): Promise<EnquiryRecord
     localRows = [];
   }
 
-  // Fetch remote leads from live marketing site
-  const remoteRows = await fetchRemoteLeads();
-
-  // Combine and deduplicate
   const all = [...localRows];
-  for (const r of remoteRows) {
-    if (statusFilter && statusFilter !== 'all' && r.status !== statusFilter) {
-      continue;
-    }
-    // Prevent duplicate phone if present in local
-    const exists = all.some((x) => {
-      if (!x.phone || !r.phone || x.phone !== r.phone) return false;
-      const t1 = parseSafeDate(x.created_at).getTime();
-      const t2 = parseSafeDate(r.created_at).getTime();
-      return Math.abs(t1 - t2) < 60000;
-    });
-    if (!exists) {
-      all.push(r);
-    }
-  }
 
   // Sort descending by created_at
   all.sort((a, b) => parseSafeDate(b.created_at).getTime() - parseSafeDate(a.created_at).getTime());
@@ -237,15 +173,6 @@ export async function getEnquiryStats(): Promise<{
     else if (row.status === 'converted') converted += c;
   }
 
-  // Add remote leads to counts
-  const remoteRows = await fetchRemoteLeads();
-  for (const r of remoteRows) {
-    total += 1;
-    if (r.status === 'new') newCount += 1;
-    else if (r.status === 'contacted') contacted += 1;
-    else if (r.status === 'converted') converted += 1;
-  }
-
   return { total, newCount, contacted, converted };
 }
 
@@ -253,23 +180,6 @@ export async function getEnquiryStats(): Promise<{
  * Update enquiry status (e.g. 'contacted', 'converted', 'closed').
  */
 export async function updateEnquiryStatus(id: string, status: string): Promise<boolean> {
-  if (id.startsWith('remote_')) {
-    const remoteId = parseInt(id.replace('remote_', ''), 10);
-    try {
-      await fetch(`${REMOTE_API_URL}?key=${REMOTE_API_KEY}&action=update_status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        body: JSON.stringify({ id: remoteId, status })
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   await ensureEnquiriesTable();
   await prisma.$queryRawUnsafe(
     `UPDATE enquiries SET status = ?, updated_at = NOW() WHERE id = ?`,
@@ -284,23 +194,6 @@ export async function updateEnquiryStatus(id: string, status: string): Promise<b
  * Delete an enquiry.
  */
 export async function deleteEnquiry(id: string): Promise<boolean> {
-  if (id.startsWith('remote_')) {
-    const remoteId = parseInt(id.replace('remote_', ''), 10);
-    try {
-      await fetch(`${REMOTE_API_URL}?key=${REMOTE_API_KEY}&action=delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        body: JSON.stringify({ id: remoteId })
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   await ensureEnquiriesTable();
   await prisma.$queryRawUnsafe(`DELETE FROM enquiries WHERE id = ?`, id);
   return true;
