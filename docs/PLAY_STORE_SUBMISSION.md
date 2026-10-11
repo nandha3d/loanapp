@@ -169,7 +169,7 @@ holds the account.
 
 The Play build requests: INTERNET, CAMERA, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION,
 POST_NOTIFICATIONS, USE_BIOMETRIC, RECORD_AUDIO, READ_MEDIA_IMAGES (and legacy
-storage on Android ≤12). **No** background location → no location declaration form.
+storage on Android ≤12). Libraries add normal (no-prompt) permissions: ACCESS_NETWORK_STATE, WAKE_LOCK, VIBRATE, NFC, READ_BASIC_PHONE_STATE, USE_FINGERPRINT — no declaration needed. **No** background location → no location declaration form.
 No SMS / call-log / contacts / QUERY_ALL_PACKAGES / exact-alarm → no extra forms.
 CI fails the bundle if ACCESS_BACKGROUND_LOCATION or cleartext HTTP sneaks back in.
 
