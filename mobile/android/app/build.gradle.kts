@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -24,14 +25,17 @@ if (hasReleaseKeystore) {
 // separated list of base64 "KEY=value" strings; when PLAY_RELEASE is on, the
 // release manifest also merges src/play/AndroidManifest.xml (no background
 // location, no cleartext). Every other build is unchanged.
-val dartDefines: Map<String, String> = (project.findProperty("dart-defines") as String?)
-    ?.split(",")
-    ?.mapNotNull { encoded ->
-        runCatching { String(java.util.Base64.getDecoder().decode(encoded)) }.getOrNull()
+val dartDefines: Map<String, String> = ((project.findProperty("dart-defines") as String?) ?: "")
+    .split(",")
+    .filter { encoded: String -> encoded.isNotBlank() }
+    .mapNotNull { encoded: String ->
+        runCatching { String(Base64.getDecoder().decode(encoded), Charsets.UTF_8) }.getOrNull()
     }
-    ?.mapNotNull { kv -> kv.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }
-    ?.toMap()
-    ?: emptyMap()
+    .mapNotNull { kv: String ->
+        val parts: List<String> = kv.split("=", limit = 2)
+        if (parts.size == 2) parts[0] to parts[1] else null
+    }
+    .toMap()
 val isPlayRelease = dartDefines["PLAY_RELEASE"] == "true"
 
 android {
