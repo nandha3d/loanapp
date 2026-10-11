@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/a11y/ui_prefs.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
@@ -206,6 +207,10 @@ bool _canAccess(_ModuleItem item, User user) {
 
   final key = item.moduleKey;
   if (key == null) return true;
+  // Play build: vertical-specific entries only for shipped verticals.
+  if (kPlayRelease && AppType.all.contains(AppType.normalize(key)) && !AppType.isSupported(key)) {
+    return false;
+  }
   if (user.role == UserRole.developer) return true;
 
   // Core features are role-gated, not subscription-gated.

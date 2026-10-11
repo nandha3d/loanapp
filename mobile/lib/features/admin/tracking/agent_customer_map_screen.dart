@@ -23,6 +23,7 @@ import 'package:zolofund/features/collection/collection_screen.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/osm_attribution.dart';
 
 /// Aggregated customer map pin model for field agents.
 class CustomerMapPin {
@@ -546,6 +547,7 @@ class _AgentCustomerMapScreenState extends ConsumerState<AgentCustomerMapScreen>
                     panBuffer: 2,
                     keepBuffer: 3,
                   ),
+                  const OsmAttribution(),
 
                   // Route Polyline
                   if (routePoints.length >= 2)

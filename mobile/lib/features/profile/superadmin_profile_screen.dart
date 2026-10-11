@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -545,8 +546,11 @@ class _SubscriptionCard extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(t.x('sub.tap_locked'), style: AppTypography.caption),
                 ],
-                const SizedBox(height: 16),
-                _UpgradePanel(t: t),
+                // Play build: no plan/upgrade entry points (Payments policy).
+                if (!kPlayRelease) ...[
+                  const SizedBox(height: 16),
+                  _UpgradePanel(t: t),
+                ],
               ],
             ),
     );

@@ -10,6 +10,7 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/a11y/ui_prefs.dart';
 import 'package:zolofund/core/network/dio_client.dart';
@@ -184,6 +185,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           .read(authControllerProvider.notifier)
           .loginWithGoogle(idToken);
       if (res != null && res.needsRegistration) {
+        if (kPlayRelease) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(T.of(ref).x('play.no_account_ask_admin'))),
+            );
+          }
+          return;
+        }
         if (mounted) {
           // Carry the real idToken (not account.id) — the backend re-verifies it
           // to complete Google registration. account.id alone is not a token.
@@ -469,15 +478,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             SafeArea(
               child: Stack(
                 children: [
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      icon: const Icon(Icons.settings_outlined, color: Colors.white70),
-                      tooltip: 'Server Configuration',
-                      onPressed: _showServerConfigDialog,
+                  if (!kPlayRelease)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        icon: const Icon(Icons.settings_outlined, color: Colors.white70),
+                        tooltip: 'Server Configuration',
+                        onPressed: _showServerConfigDialog,
+                      ),
                     ),
-                  ),
                   Center(
                     child: SingleChildScrollView(
                       padding:
@@ -523,7 +533,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               loading: loading,
                               onSubmit: _submit,
                               onGoogleSignIn: _handleGoogleSignIn,
-                              onConfigureServer: _showServerConfigDialog,
+                              onConfigureServer: kPlayRelease ? null : _showServerConfigDialog,
                             ),
                           ),
                         ),
@@ -841,45 +851,55 @@ class _LoginCard extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
           ],
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  'New to ZoloFund? ',
-                  style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                GestureDetector(
-                  onTap: () => context.push('/register'),
-                  child: Text(
-                    'Register Business',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+          if (kPlayRelease)
+            Center(
+              child: Text(
+                t.x('play.accounts_by_admin'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+            )
+          else ...[
+            Center(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'New to ZoloFund? ',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  GestureDetector(
+                    onTap: () => context.push('/register'),
+                    child: Text(
+                      'Register Business',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: GestureDetector(
-              onTap: () => context.push('/borrower/login'),
-              child: Text(
-                'Are you a Borrower? Access Borrower Portal',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  decoration: TextDecoration.underline,
+            const SizedBox(height: 16),
+            Center(
+              child: GestureDetector(
+                onTap: () => context.push('/borrower/login'),
+                child: Text(
+                  'Are you a Borrower? Access Borrower Portal',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 24),
           Center(
             child: Wrap(

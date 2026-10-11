@@ -788,6 +788,17 @@ Key commands:
   - `--accept-data-loss` makes destructive DDL **silent**. See ORIG-4: never let a schema change require one.
   - A `db push` that adds a UNIQUE index **hard-fails** if duplicate rows exist. Dedupe first, in a script, as part of the same manual step.
   - A schema field with no migration behind it still works in production (`db push` infers it) while breaking every environment that uses `migrate deploy` — CI, a fresh deploy, a developer's local database. `LoanPackage.branchId` shipped that way and went unnoticed for exactly this reason. **Every `schema.prisma` change still needs its migration file.**
+- **DEPLOY-5** — Database backups: `deploy/backup-db.sh` runs from root's crontab on the VPS daily at 02:00 (config `/etc/zolofund/backup.env`, dumps in `/var/backups/zolofund`, 30-day retention, root-only). The public `/security` page states this; if backups change, change the page.
+
+### 15.1 Google Play build (`PLAY_RELEASE`)
+
+The Play Store build is `flutter build appbundle --dart-define=PLAY_RELEASE=true` (CI: *Build Android APK* → `play_bundle`). Without the define every build behaves as before. Switches live in `mobile/lib/core/config/release_flags.dart` and `mobile/android/app/src/play/AndroidManifest.xml`.
+
+- **PLAY-1** — The Play build is **staff-only**: no borrower login/portal routes. A borrower-facing loan screen makes Google classify the app as a personal-loan app (RBI licence + DLA listing, and no location/photos access for the whole app).
+- **PLAY-2** — The Play build is **consumption-only**: no plan prices, sign-up, upgrade/subscription screens, or links to web checkout (`_playBuildBlocks` in `app_router.dart`, `plan_upgrade_sheet.dart`). SaaS subscriptions sold in-app need Play Billing. Borrower EMI / NACH payments are financial payments and are allowed.
+- **PLAY-3** — The Play build ships only `kPlayVerticals` (v1: micro-lending). Gate verticals through `AppType.isSupported`, never with ad-hoc checks.
+- **PLAY-4** — Location is **foreground-only** in the Play build (`ACCESS_BACKGROUND_LOCATION` removed by the Play manifest). Adding background tracking requires a foreground service, persistent notification, `isMonitoringTool`, and the Play background-location declaration — and updating the privacy policy first.
+- **PLAY-5** — Public legal pages (`app/(marketing)/privacy|security|terms|refund|delete-account`) must describe the running system exactly; the Play Data safety form is filled from them. Legal entity facts live only in `lib/legalEntity.ts`.
 
 ---
 

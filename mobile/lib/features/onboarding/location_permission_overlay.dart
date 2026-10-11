@@ -4,7 +4,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 
 const _kPrefsBox = 'prefs';
@@ -19,7 +21,7 @@ const _kCoreAskedKey = 'core_permissions_prompt_seen_v2';
 /// of asking contextually the first time each feature is used. Declining any
 /// of them doesn't block the app; those features just re-prompt (or silently
 /// no-op) when used later.
-Future<void> maybeRequestCorePermissions(BuildContext context) async {
+Future<void> maybeRequestCorePermissions(BuildContext context, {T? t}) async {
   final box = Hive.isBoxOpen(_kPrefsBox)
       ? Hive.box<dynamic>(_kPrefsBox)
       : await Hive.openBox<dynamic>(_kPrefsBox);
@@ -33,8 +35,10 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           icon: Icon(Icons.verified_user_outlined, color: AppColors.primary),
-          title: const Text('App permissions'),
-          content: const Text(
+          title: Text(kPlayRelease && t != null ? t.x('play.permissions_title') : 'App permissions'),
+          content: kPlayRelease && t != null
+              ? Text(t.x('play.permissions_disclosure'))
+              : const Text(
             'ZoloFund needs a few permissions to work in the field:\n\n'
             '• Location — collection visits and route tracking\n'
             '• Camera & Photos — customer photos and KYC documents\n'
@@ -45,11 +49,11 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Not now'),
+              child: Text(kPlayRelease && t != null ? t.x('play.not_now') : 'Not now'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Continue'),
+              child: Text(kPlayRelease && t != null ? t.x('play.continue') : 'Continue'),
             ),
           ],
         ),
@@ -80,7 +84,8 @@ Future<void> maybeRequestAlwaysLocation(
   WidgetRef ref, {
   required String role,
 }) async {
-  if (role != 'agent') return;
+  // Play build: foreground location only — never ask for "all the time".
+  if (kPlayRelease || role != 'agent') return;
   final box = Hive.isBoxOpen(_kPrefsBox)
       ? Hive.box<dynamic>(_kPrefsBox)
       : await Hive.openBox<dynamic>(_kPrefsBox);
@@ -168,6 +173,8 @@ class _LocationStatusBannerState extends ConsumerState<LocationStatusBanner>
 
   @override
   Widget build(BuildContext context) {
+    // Play build is foreground-only, so the "allow all the time" nag never shows.
+    if (kPlayRelease) return const SizedBox.shrink();
     final ok = _permission == LocationPermission.always;
     if (ok || _permission == null) return const SizedBox.shrink();
 

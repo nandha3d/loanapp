@@ -39,6 +39,7 @@ import 'package:zolofund/shared/widgets/help_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/osm_attribution.dart';
 
 List<CollectionRow>? _cachedCollectionToday;
 String? _cachedCollectionScopeKey;
@@ -1266,6 +1267,7 @@ class _CollectionMap extends ConsumerWidget {
               panBuffer: 2,
               keepBuffer: 3,
             ),
+            const OsmAttribution(),
             MarkerLayer(
               markers: [
                 // Agent's own position

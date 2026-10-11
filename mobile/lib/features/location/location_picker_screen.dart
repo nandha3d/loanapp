@@ -8,6 +8,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/geocoding_service.dart';
+import 'package:zolofund/shared/widgets/osm_attribution.dart';
 
 /// Result returned by [LocationPickerScreen].
 class PickedLocation {
@@ -151,6 +152,7 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
                 panBuffer: 2,
                 keepBuffer: 3,
               ),
+              const OsmAttribution(),
             ],
           ),
           // Fixed centre pin — the map moves under it.

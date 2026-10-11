@@ -1,4 +1,8 @@
 /// User model — spec §3.1. Field names and nullability exact.
+library;
+
+import 'package:zolofund/core/config/release_flags.dart';
+
 enum UserRole {
   developer,
   superadmin,
@@ -46,7 +50,12 @@ class AppType {
   static String normalize(String module) =>
       module == legacyChit ? chitfunds : module;
 
-  static bool isSupported(String module) => all.contains(normalize(module));
+  /// Known vertical AND shipped in this build (the Play build carries only
+  /// [kPlayVerticals]; every other build carries all of them).
+  static bool isSupported(String module) {
+    final m = normalize(module);
+    return all.contains(m) && (!kPlayRelease || kPlayVerticals.contains(m));
+  }
 
   static String label(String module) {
     switch (normalize(module)) {

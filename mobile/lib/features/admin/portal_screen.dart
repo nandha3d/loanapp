@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zolofund/data/models/user.dart';
 
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/dio_client.dart';
@@ -229,6 +230,8 @@ class PortalScreen extends ConsumerWidget {
                               subtitle: 'Branches and module access',
                               onTap: () => context.push('/admin/branches'),
                             ),
+                          // Play build: no subscription screen (Payments policy).
+                          if (!kPlayRelease || role == UserRole.developer)
                           _ActionTile(
                             icon: Icons.receipt_long_rounded,
                             color: const Color(0xFF9B59B6),
@@ -263,8 +266,9 @@ class PortalScreen extends ConsumerWidget {
     int cols,
   ) {
     final normalized = enabled.map(AppType.normalize).toSet();
-    final defs =
-        _verticalDefs.where((d) => normalized.contains(d.key)).toList();
+    final defs = _verticalDefs
+        .where((d) => normalized.contains(d.key) && AppType.isSupported(d.key))
+        .toList();
     if (defs.isEmpty) {
       return SliverToBoxAdapter(
         child: _EmptyApps(),

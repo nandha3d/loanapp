@@ -7,6 +7,10 @@ on:
         description: "API base URL baked into the APK"
         required: true
         default: "https://app.zolofunds.com/api/v1"
+      play_bundle:
+        description: "Also build the Google Play bundle (.aab, PLAY_RELEASE=true)"
+        type: boolean
+        default: false
   push:
     branches: [merged-all-branches]
     paths:
@@ -66,5 +70,48 @@ jobs:
         with:
           name: zolofund-release-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # ── Google Play bundle (manual runs with play_bundle=true) ──────────────
+      # PLAY_RELEASE=true: staff-only, micro-lending only, no in-app purchase
+      # surfaces, foreground location only, no cleartext (lib/core/config/
+      # release_flags.dart + android/app/src/play/AndroidManifest.xml).
+      - name: Build Play App Bundle
+        if: ${{ github.event.inputs.play_bundle == 'true' }}
+        run: |
+          flutter build appbundle --release \
+            --dart-define=PLAY_RELEASE=true \
+            --dart-define=API_BASE_URL=https://app.zolofunds.com/api/v1
+
+      - name: Verify Play bundle (permissions, cleartext, 16 KB pages)
+        if: ${{ github.event.inputs.play_bundle == 'true' }}
+        run: |
+          set -euo pipefail
+          MANIFEST=$(find build/app/intermediates -path '*release*' -name AndroidManifest.xml -path '*merged*' | head -1)
+          echo "Merged manifest: $MANIFEST"
+          grep -o 'android.permission.[A-Z_]*' "$MANIFEST" | sort -u
+          if grep -q 'ACCESS_BACKGROUND_LOCATION' "$MANIFEST"; then
+            echo "::error::Play bundle must not request ACCESS_BACKGROUND_LOCATION"; exit 1
+          fi
+          if ! grep -q 'usesCleartextTraffic="false"' "$MANIFEST"; then
+            echo "::error::Play bundle must disable cleartext traffic"; exit 1
+          fi
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          rm -rf /tmp/aab && mkdir -p /tmp/aab && unzip -q "$AAB" -d /tmp/aab
+          bad=0
+          for so in $(find /tmp/aab -path '*arm64-v8a*' -name '*.so'); do
+            align=$(readelf -lW "$so" | awk '/LOAD/{print $NF; exit}')
+            echo "$(basename "$so"): $align"
+            if [ $((align)) -lt 16384 ]; then echo "::error::$(basename "$so") is not 16 KB aligned ($align)"; bad=1; fi
+          done
+          exit $bad
+
+      - name: Upload Play bundle artifact
+        if: ${{ github.event.inputs.play_bundle == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: zolofund-play-aab
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30

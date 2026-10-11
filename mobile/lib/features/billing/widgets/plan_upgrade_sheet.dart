@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -63,11 +64,14 @@ Future<void> showPlanUpgradeSheet(
   final t = T.of(ref);
   final featureName = t.x('plan.feature.$featureKey');
   final user = ref.read(authControllerProvider).user;
-  final canViewPlans =
-      user?.role == UserRole.superadmin || user?.role == UserRole.admin;
-  final canOpenWeb = user?.role == UserRole.superadmin;
-  final bodyKey =
-      canOpenWeb ? 'plan.upgrade_body_owner' : 'plan.upgrade_body_staff';
+  // Play build is consumption-only (Payments policy): no plan screen, no web
+  // checkout link — everyone gets the "ask your account owner" text.
+  final canViewPlans = !kPlayRelease &&
+      (user?.role == UserRole.superadmin || user?.role == UserRole.admin);
+  final canOpenWeb = !kPlayRelease && user?.role == UserRole.superadmin;
+  final bodyKey = kPlayRelease
+      ? 'play.plan_feature_locked'
+      : (canOpenWeb ? 'plan.upgrade_body_owner' : 'plan.upgrade_body_staff');
   final webUri = Uri.parse(
     '${ref.read(mediaBaseUrlProvider)}'
     '/${AppType.normalize(user?.appType ?? AppType.microlending)}'

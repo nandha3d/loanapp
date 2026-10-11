@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/config/release_flags.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -310,13 +311,15 @@ class _CapacityCard extends StatelessWidget {
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: 12),
-            AppButton(
-              label: t.x('sub.upgrade_cta'),
-              leading: const Icon(Icons.workspace_premium_outlined),
-              onPressed: () => context.push('/microlending/subscription'),
-              expand: true,
-            ),
+            if (!kPlayRelease) ...[
+              const SizedBox(height: 12),
+              AppButton(
+                label: t.x('sub.upgrade_cta'),
+                leading: const Icon(Icons.workspace_premium_outlined),
+                onPressed: () => context.push('/microlending/subscription'),
+                expand: true,
+              ),
+            ],
           ],
         ],
       ),

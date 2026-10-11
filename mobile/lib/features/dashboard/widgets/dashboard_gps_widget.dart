@@ -22,6 +22,7 @@ import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
 import 'package:zolofund/features/billing/widgets/plan_upgrade_sheet.dart';
 import 'package:zolofund/features/collection/collection_screen.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
+import 'package:zolofund/shared/widgets/osm_attribution.dart';
 
 // ── Map pin data ──────────────────────────────────────────────────────────────
 
@@ -711,6 +712,7 @@ class _DashboardGpsWidgetState extends ConsumerState<DashboardGpsWidget> {
                             panBuffer: 2,
                             keepBuffer: 3,
                           ),
+                          const OsmAttribution(),
                           MarkerLayer(
                             markers: filteredPins.map((pin) {
                               final isAgentPin = pin.type == PinType.agent;

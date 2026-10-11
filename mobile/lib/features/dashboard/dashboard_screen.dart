@@ -68,7 +68,7 @@ class DashboardScreen extends ConsumerWidget {
         if (!context.mounted) return;
         await maybeShowOnboarding(context, role: user.role.name);
         if (!context.mounted) return;
-        await maybeRequestCorePermissions(context);
+        await maybeRequestCorePermissions(context, t: T.of(ref));
         if (!context.mounted) return;
         await maybeRequestAlwaysLocation(context, ref, role: user.role.name);
       });

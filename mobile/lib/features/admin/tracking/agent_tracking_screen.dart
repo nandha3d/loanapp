@@ -21,6 +21,7 @@ import 'package:zolofund/features/admin/tracking/agent_customer_map_screen.dart'
 import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/osm_attribution.dart';
 
 class AgentTrackingScreen extends ConsumerStatefulWidget {
   const AgentTrackingScreen({super.key});
@@ -38,7 +39,6 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
 
   // Live GPS Tracking & Map Controls
   bool _liveGpsMode = true;
-  bool _isSatellite = false;
   bool _showTrail = true;
   AgentCollection? _selectedCollection;
   AgentCollection? _liveAlertCollection;
@@ -350,13 +350,12 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: _isSatellite
-                          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.zolofund.app',
                       panBuffer: 2,
                       keepBuffer: 3,
                     ),
+                    const OsmAttribution(),
                     // Route the agent actually travelled (ping trail).
                     if (_showTrail && trail.length >= 2)
                       PolylineLayer(
@@ -544,12 +543,6 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen>
                       isActive: _liveGpsMode,
                       activeColor: AppColors.success,
                       onPressed: _toggleLiveGpsMode,
-                    ),
-                    const SizedBox(height: 6),
-                    _mapToolbarButton(
-                      icon: _isSatellite ? Icons.map_outlined : Icons.satellite_alt_outlined,
-                      tooltip: _isSatellite ? t.x('admin.streets') : t.x('admin.satellite'),
-                      onPressed: () => setState(() => _isSatellite = !_isSatellite),
                     ),
                     const SizedBox(height: 6),
                     _mapToolbarButton(

@@ -19,6 +19,21 @@ if (hasReleaseKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Google Play build = `--dart-define=PLAY_RELEASE=true` (see lib/core/config/
+// release_flags.dart). Flutter forwards dart-defines to Gradle as a comma-
+// separated list of base64 "KEY=value" strings; when PLAY_RELEASE is on, the
+// release manifest also merges src/play/AndroidManifest.xml (no background
+// location, no cleartext). Every other build is unchanged.
+val dartDefines: Map<String, String> = (project.findProperty("dart-defines") as String?)
+    ?.split(",")
+    ?.mapNotNull { encoded ->
+        runCatching { String(java.util.Base64.getDecoder().decode(encoded)) }.getOrNull()
+    }
+    ?.mapNotNull { kv -> kv.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }
+    ?.toMap()
+    ?: emptyMap()
+val isPlayRelease = dartDefines["PLAY_RELEASE"] == "true"
+
 android {
     namespace = "com.zolofund.app"
     compileSdk = 36
@@ -36,7 +51,8 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        // Google Play: new apps/updates must target API 36 from 31 Aug 2026.
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -52,6 +68,10 @@ android {
                 enableV2Signing = true
             }
         }
+    }
+
+    if (isPlayRelease) {
+        sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
     }
 
     buildTypes {

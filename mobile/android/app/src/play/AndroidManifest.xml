@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google Play build overlay. Merged over src/main/AndroidManifest.xml only
+     when the build is run with dart-define PLAY_RELEASE=true (see
+     app/build.gradle.kts). Sideloaded/dev builds are unaffected.
+
+     - No background location: the Play build tracks in the foreground only
+       (no "Allow all the time" prompt, no Play background-location review).
+     - No cleartext HTTP: the Play build only talks to the HTTPS API and hides
+       the server-configuration screen. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
+        tools:node="remove" />
+
+    <application
+        android:usesCleartextTraffic="false"
+        tools:replace="android:usesCleartextTraffic" />
+</manifest>

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/config/release_flags.dart';
+import 'package:zolofund/features/auth/vertical_unavailable_screen.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/user.dart';
@@ -132,7 +134,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final atSplash = loc == '/splash';
 
       if (stage == AuthStage.unauthenticated) {
-        if (atRegister || atBorrower) return null;
+        if ((atRegister || atBorrower) && !kPlayRelease) return null;
         return atLogin ? null : '/login';
       }
       if (stage == AuthStage.pendingTotp) {
@@ -144,6 +146,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Authenticated redirect.
       final user = auth.user;
       if (user != null) {
+        // Play build carries only kPlayVerticals. Agents are pinned to one
+        // vertical (AUTH-3) → explain and offer logout. Admins pick a shipped
+        // vertical from /portal.
+        if (kPlayRelease &&
+            user.role != UserRole.developer &&
+            !AppType.isSupported(user.appType)) {
+          if (user.role == UserRole.agent) {
+            return loc == '/unavailable' ? null : '/unavailable';
+          }
+          if (loc != '/portal' && !loc.startsWith('/profile') && !loc.startsWith('/settings')) {
+            return '/portal';
+          }
+          return null;
+        }
         if (atLogin ||
             atRegister ||
             atTotp ||
@@ -174,6 +190,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/unavailable',
+        builder: (_, __) => const VerticalUnavailableScreen(),
+      ),
       GoRoute(
         path: '/forgot-password',
         builder: (_, __) => const ForgotPasswordScreen(),
@@ -493,7 +513,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// Screens the Google Play build does not ship (see release_flags.dart):
+/// non-shipped verticals, and every plan / price / subscription screen
+/// (Play Payments policy — the Play build is consumption-only).
+bool _playBuildBlocks(String location) {
+  const prefixes = [
+    '/chits',
+    '/vehicles',
+    '/gold-reports',
+    '/portal/billing',
+    '/microlending/subscription',
+    '/register',
+    '/borrower',
+  ];
+  return prefixes.any((p) => location == p || location.startsWith('$p/') || location.startsWith('$p?'));
+}
+
 bool _moduleBlocked(String location, User user) {
+  if (kPlayRelease && user.role != UserRole.developer && _playBuildBlocks(location)) {
+    return true;
+  }
   if (AppType.userIsChit(user) && location.startsWith('/loans/new')) {
     return true;
   }
