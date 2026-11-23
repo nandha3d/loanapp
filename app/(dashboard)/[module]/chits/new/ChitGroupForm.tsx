@@ -365,219 +365,80 @@ export default function ChitGroupForm({
     customers.filter((c) => !selectedMembers.some((id, i) => i !== idx && id === c.id));
 
   return (
-    <form onSubmit={handleSubmit} className="card" style={{ maxWidth: '880px' }}>
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <h3>{d.createGroup}</h3>
-        <Link href="/settings?tab=chittypes" className="btn btn-ghost btn-sm">
-          {d.configureChitTypesLink || 'Enable / configure more chit types'}
-        </Link>
-      </div>
+    <div
+      className="grid-60-40 chit-create-grid"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 380px)',
+        gap: '24px',
+        alignItems: 'start',
+      }}
+    >
+      <style>{`
+        @media (max-width: 1024px) {
+          .chit-create-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
 
-      {error && (
-        <div className="alert alert-danger" style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>
-          {error}
+      {/* Main Creation Form on the Left */}
+      <form onSubmit={handleSubmit} className="card" style={{ maxWidth: '100%' }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <h3>{d.createGroup}</h3>
+          <Link href="/settings?tab=chittypes" className="btn btn-ghost btn-sm">
+            {d.configureChitTypesLink || 'Enable / configure more chit types'}
+          </Link>
         </div>
-      )}
 
-      {/* Quick Templates Banner & Cards */}
-      <div
-        style={{
-          marginBottom: '24px',
-          padding: '16px',
-          borderRadius: '12px',
-          background: 'var(--bg-card, #f8fafc)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '8px',
-            marginBottom: '6px',
-          }}
-        >
-          <h4
+        {error && (
+          <div className="alert alert-danger" style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>
+            {error}
+          </div>
+        )}
+
+        {/* Compact banner if a template is active */}
+        {activeTemplate && (
+          <div
             style={{
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: 'var(--text-primary)',
+              margin: '0 0 16px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              background: '#dcfce7',
+              border: '1px solid #86efac',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              justifyContent: 'space-between',
+              fontSize: '.80rem',
             }}
           >
-            <span>⚡</span>
-            <span>{d.quickTemplatesTitle || 'Quick Templates (Tamil Nadu Ground Presets)'}</span>
-          </h4>
-          {activeTemplate && (
-            <span
-              style={{
-                fontSize: '.75rem',
-                fontWeight: 600,
-                padding: '4px 10px',
-                borderRadius: '20px',
-                background: '#dcfce7',
-                color: '#15803d',
-                border: '1px solid #86efac',
-              }}
-            >
+            <span style={{ color: '#15803d', fontWeight: 600 }}>
               ✓ {d.templateActiveBadge || 'Template Applied — All fields remain 100% editable'}
             </span>
-          )}
-        </div>
-        <p style={{ margin: '0 0 14px', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-          {d.quickTemplatesSubtitle ||
-            'One-click presets for popular community models. Select a template to autofill, then customize any value.'}
+            <button
+              type="button"
+              onClick={() => setActiveTemplate(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: '.74rem',
+                textDecoration: 'underline',
+              }}
+            >
+              {d.clearTemplate || 'Clear template indicator'}
+            </button>
+          </div>
+        )}
+
+        <p style={{ ...hintStyle, marginBottom: '16px' }}>
+          Groups are saved as drafts. A group can be activated only after members, tickets, and (for registered chits) compliance details are complete.
         </p>
 
-        {/* Category Filter Pills */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          {[
-            { id: 'ALL', label: d.templateCatAll || 'All (18)' },
-            { id: 'AUCTION', label: d.templateCatAuction || 'A. Bidding & Auction (4)' },
-            { id: 'FIXED_CHART', label: d.templateCatFixedChart || 'B. Fixed & Rotation (7)' },
-            { id: 'MICRO_COMMODITY', label: d.templateCatMicroCommodity || 'C. Daily & Gold (4)' },
-            { id: 'ENTERPRISE_HYBRID', label: d.templateCatEnterpriseHybrid || 'D. Enterprise & Hybrid (3)' },
-          ].map((cat) => {
-            const isCatActive = selectedCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id as any)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '20px',
-                  fontSize: '.78rem',
-                  fontWeight: isCatActive ? 700 : 500,
-                  border: isCatActive ? '1px solid var(--primary, #059669)' : '1px solid var(--border)',
-                  background: isCatActive ? 'var(--primary, #059669)' : 'var(--bg-surface, #fff)',
-                  color: isCatActive ? '#fff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Template Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {PRACTICAL_CHIT_TEMPLATES.filter(
-            (t) => selectedCategory === 'ALL' || t.category === selectedCategory,
-          ).map((tmpl) => {
-            const isSelected = activeTemplate === tmpl.code;
-            const tData = (d.templates as any)?.[tmpl.code];
-            const title = tData?.title || tmpl.defaultName;
-            const badge = tData?.badge || tmpl.defaultBadge;
-            const desc = tData?.desc;
-
-            return (
-              <button
-                key={tmpl.code}
-                type="button"
-                onClick={() => applyTemplate(tmpl)}
-                style={{
-                  textAlign: 'left',
-                  padding: '12px 14px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  border: isSelected ? '2px solid #16a34a' : '1px solid var(--border)',
-                  background: isSelected ? 'rgba(22, 163, 74, 0.08)' : 'var(--bg-surface, #ffffff)',
-                  boxShadow: isSelected ? '0 0 0 1px #16a34a' : '0 1px 2px rgba(0,0,0,0.04)',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '.88rem', color: 'var(--text-primary)', lineHeight: 1.3 }}>
-                    {title}
-                  </span>
-                  {isSelected && (
-                    <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 800 }}>● Active</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '.74rem', color: '#2563eb', fontWeight: 600 }}>
-                  🏷️ {badge}
-                </div>
-                {desc && (
-                  <div style={{ fontSize: '.73rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                    {desc}
-                  </div>
-                )}
-                <div
-                  style={{
-                    marginTop: 'auto',
-                    paddingTop: '4px',
-                    fontSize: '.72rem',
-                    color: 'var(--text-muted, #64748b)',
-                    display: 'flex',
-                    gap: '8px',
-                  }}
-                >
-                  <span>{currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')}</span>
-                  <span>•</span>
-                  <span>{tmpl.defaultTotalMembers} members</span>
-                  <span>•</span>
-                  <span>{tmpl.defaultFrequency}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 0. Chit Engine Type selector (enabled types only) */}
-      <div style={sectionStyle}>
-        <h4 style={sectionTitleStyle}>{d.selectEngineType || '0. Chit Engine Type'}</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
-          {availableTypes.map((code) => {
-            const item = CHIT_ENGINE_CATALOG[code];
-            const active = selectedEngine === code;
-            return (
-              <button
-                key={code}
-                type="button"
-                onClick={() => selectEngineType(code)}
-                style={{
-                  textAlign: 'left',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  background: active ? 'var(--primary-light, #fef3c7)' : 'var(--bg-card, #fff)',
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: '.86rem', color: 'var(--text-primary)' }}>
-                  {d.engineNames?.[code] || item.name}
-                </div>
-                <div style={{ fontSize: '.72rem', color: 'var(--primary-dark)', marginTop: '2px' }}>
-                  {item.regionalNames}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <p style={hintStyle}>{d.engineDescs?.[selectedEngine] || catalogItem.description}</p>
-      </div>
-
-      {/* 1. Basic details */}
-      <div style={sectionStyle}>
-        <h4 style={sectionTitleStyle}>1. Basic details</h4>
+        {/* 1. Basic details */}
+        <div style={sectionStyle}>
+          <h4 style={sectionTitleStyle}>1. Basic details</h4>
         <div style={gridStyle}>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">{d.groupName} *</label>
@@ -685,6 +546,25 @@ export default function ChitGroupForm({
       <div style={sectionStyle}>
         <h4 style={sectionTitleStyle}>2. Chit style &amp; cadence</h4>
         <div style={gridStyle}>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">{d.selectEngineType || 'Chit engine model'}</label>
+            <select
+              className="form-control"
+              value={selectedEngine}
+              onChange={(e) => selectEngineType(e.target.value as ChitEngineType)}
+            >
+              {availableTypes.map((code) => {
+                const item = CHIT_ENGINE_CATALOG[code];
+                return (
+                  <option key={code} value={code}>
+                    {d.engineNames?.[code] || item.name} ({item.regionalNames})
+                  </option>
+                );
+              })}
+            </select>
+            <p style={hintStyle}>{d.engineDescs?.[selectedEngine] || catalogItem.description}</p>
+          </div>
+
           <div className="form-group">
             <label className="form-label">Auction / resolution mode *</label>
             <select name="auctionType" className="form-control" value={auctionType} onChange={(e) => setAuctionType(e.target.value as typeof auctionType)}>
@@ -1615,5 +1495,174 @@ export default function ChitGroupForm({
         <button type="button" className="btn btn-secondary" onClick={() => router.back()}>{d.cancel}</button>
       </div>
     </form>
-  );
+
+    {/* Right Side Pane: Quick Chit Templates */}
+    <aside
+      style={{
+        position: 'sticky',
+        top: '20px',
+        maxHeight: 'calc(100vh - 40px)',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      <div
+        className="card"
+        style={{
+          padding: '16px 18px',
+          background: 'var(--surface, #ffffff)',
+          borderRadius: 'var(--radius, 12px)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow, 0 1px 3px rgba(0,0,0,0.05))',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            marginBottom: '4px',
+          }}
+        >
+          <h4
+            style={{
+              margin: 0,
+              fontSize: '.98rem',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>⚡</span>
+            <span>{d.quickTemplatesTitle || 'Quick Chit Templates'}</span>
+          </h4>
+          <span
+            style={{
+              fontSize: '.72rem',
+              background: 'var(--bg-card, #f1f5f9)',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            18 Presets
+          </span>
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: '.78rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+          {d.quickTemplatesSubtitle ||
+            'Click any preset to autofill the form. All values remain 100% editable.'}
+        </p>
+
+        {/* Category Filter Pills */}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          {[
+            { id: 'ALL', label: d.templateCatAll || 'All (18)' },
+            { id: 'AUCTION', label: d.templateCatAuction || 'A. Bidding (4)' },
+            { id: 'FIXED_CHART', label: d.templateCatFixedChart || 'B. Fixed & Rot. (7)' },
+            { id: 'MICRO_COMMODITY', label: d.templateCatMicroCommodity || 'C. Daily & Gold (4)' },
+            { id: 'ENTERPRISE_HYBRID', label: d.templateCatEnterpriseHybrid || 'D. Enterprise (3)' },
+          ].map((cat) => {
+            const isCatActive = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id as any)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  fontSize: '.72rem',
+                  fontWeight: isCatActive ? 700 : 500,
+                  border: isCatActive ? '1px solid var(--primary, #059669)' : '1px solid var(--border)',
+                  background: isCatActive ? 'var(--primary, #059669)' : 'var(--bg-surface, #fff)',
+                  color: isCatActive ? '#fff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Stacked list of templates */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {PRACTICAL_CHIT_TEMPLATES.filter(
+            (t) => selectedCategory === 'ALL' || t.category === selectedCategory,
+          ).map((tmpl) => {
+            const isSelected = activeTemplate === tmpl.code;
+            const tData = (d.templates as any)?.[tmpl.code];
+            const title = tData?.title || tmpl.defaultName;
+            const badge = tData?.badge || tmpl.defaultBadge;
+            const desc = tData?.desc;
+
+            return (
+              <button
+                key={tmpl.code}
+                type="button"
+                onClick={() => applyTemplate(tmpl)}
+                style={{
+                  textAlign: 'left',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  border: isSelected ? '2px solid #16a34a' : '1px solid var(--border)',
+                  background: isSelected ? 'rgba(22, 163, 74, 0.08)' : 'var(--bg-surface, #ffffff)',
+                  boxShadow: isSelected ? '0 0 0 1px #16a34a' : '0 1px 2px rgba(0,0,0,0.03)',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  width: '100%',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '.84rem', color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                    {title}
+                  </span>
+                  {isSelected && (
+                    <span style={{ fontSize: '.70rem', color: '#16a34a', fontWeight: 800, whiteSpace: 'nowrap' }}>● Active</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '.72rem', color: '#2563eb', fontWeight: 600 }}>
+                  🏷️ {badge}
+                </div>
+                {desc && (
+                  <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                    {desc}
+                  </div>
+                )}
+                <div
+                  style={{
+                    marginTop: '4px',
+                    paddingTop: '4px',
+                    fontSize: '.70rem',
+                    color: 'var(--text-muted, #64748b)',
+                    display: 'flex',
+                    gap: '6px',
+                    borderTop: '1px dashed var(--border, #e2e8f0)',
+                  }}
+                >
+                  <span>{currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')}</span>
+                  <span>•</span>
+                  <span>{tmpl.defaultTotalMembers} members</span>
+                  <span>•</span>
+                  <span>{tmpl.defaultFrequency}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </aside>
+  </div>
+);
 }
