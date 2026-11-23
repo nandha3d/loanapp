@@ -55,7 +55,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         actualMembers: members.length,
         distinctTicketCount: ticketShares.size,
         missingTicketCount: members.filter((member) => !member.ticketNo).length,
-        pendingAgreementCount: members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length,
+        pendingAgreementCount:
+          group.chitType === 'registered'
+            ? members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length
+            : 0,
         hasForemanTicket: group.hasForemanTicket,
         foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
       });
@@ -64,6 +67,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      if (group.chitType !== 'registered') {
+        await tx.chitMember.updateMany({
+          where: {
+            chitGroupId: group.id,
+            agreementStatus: { notIn: ['signed', 'verified'] },
+          },
+          data: {
+            agreementStatus: 'signed',
+            agreementSignedAt: new Date(),
+          },
+        });
+      }
       return activateChitGroupInTx(tx, {
         scope: { tenantId: ctx.tenantId, appType: 'chitfunds', userId: ctx.userId },
         group,

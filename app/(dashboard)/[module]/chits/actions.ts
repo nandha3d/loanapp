@@ -371,74 +371,101 @@ export async function autoAssignChitTicketNumbers(groupId: string) {
   revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
 }
 
-export async function activateChitGroup(groupId: string) {
-  const { scope, group } = await loadScopedGroup(groupId);
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
-  if (group.status === 'active') throw new Error('Chit group is already active');
+export async function activateChitGroup(groupId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { scope, group } = await loadScopedGroup(groupId);
+    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    if (group.status === 'active') {
+      return { ok: false, error: 'Chit group is already active' };
+    }
 
-  const members = await prisma.chitMember.findMany({
-    where: { chitGroupId: group.id },
-    select: {
-      id: true,
-      ticketNo: true,
-      ticketShare: true,
-      agreementStatus: true,
-      isForemanTicket: true,
-      hasWon: true,
-      customer: { select: { name: true } },
-    },
-  });
-  const ticketCounts = new Map<string, number>();
-  const ticketShares = new Map<string, number>();
-  for (const member of members) {
-    if (!member.ticketNo) continue;
-    ticketCounts.set(member.ticketNo, (ticketCounts.get(member.ticketNo) ?? 0) + 1);
-    ticketShares.set(member.ticketNo, (ticketShares.get(member.ticketNo) ?? 0) + Number(member.ticketShare));
+    const members = await prisma.chitMember.findMany({
+      where: { chitGroupId: group.id },
+      select: {
+        id: true,
+        ticketNo: true,
+        ticketShare: true,
+        agreementStatus: true,
+        isForemanTicket: true,
+        hasWon: true,
+        customer: { select: { name: true } },
+      },
+    });
+    const ticketCounts = new Map<string, number>();
+    const ticketShares = new Map<string, number>();
+    for (const member of members) {
+      if (!member.ticketNo) continue;
+      ticketCounts.set(member.ticketNo, (ticketCounts.get(member.ticketNo) ?? 0) + 1);
+      ticketShares.set(member.ticketNo, (ticketShares.get(member.ticketNo) ?? 0) + Number(member.ticketShare));
+    }
+    const invalidShareCount = Array.from(ticketShares.values()).filter((sum) => Math.abs(sum - 1) > 0.001).length;
+    if (invalidShareCount) {
+      return { ok: false, error: 'Each ticket share total must equal 1.00' };
+    }
+
+    const rawPendingAgreements = members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length;
+
+    validateChitGroupActivation({
+      chitType: group.chitType,
+      registrationNo: group.registrationNo,
+      registrationDate: group.registrationDate,
+      registrarOffice: group.registrarOffice,
+      bylawNo: group.bylawNo,
+      commencementCertificate: group.commencementCertificate,
+      approvedBankName: group.approvedBankName,
+      foremanName: group.foremanName,
+      commissionPct: Number(group.commissionPct),
+      foremanCommissionCapPct: group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : null,
+      maxDiscountPct: group.maxDiscountPct ? Number(group.maxDiscountPct) : null,
+      totalMembers: group.totalMembers,
+      actualMembers: members.length,
+      distinctTicketCount: ticketCounts.size,
+      missingTicketCount: members.filter((member) => !member.ticketNo).length,
+      duplicateTicketCount: 0,
+      pendingAgreementCount: group.chitType === 'registered' ? rawPendingAgreements : 0,
+      hasForemanTicket: group.hasForemanTicket,
+      foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      if (group.chitType !== 'registered' && rawPendingAgreements > 0) {
+        await tx.chitMember.updateMany({
+          where: {
+            chitGroupId: group.id,
+            agreementStatus: { notIn: ['signed', 'verified'] },
+          },
+          data: {
+            agreementStatus: 'signed',
+            agreementSignedAt: new Date(),
+          },
+        });
+      }
+
+      await activateChitGroupInTx(tx, {
+        scope,
+        group,
+        members,
+      });
+
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'activate',
+        entityType: 'chit_group',
+        entityId: group.id,
+        newValue: { status: 'active', complianceStatus: 'active' },
+      });
+    });
+
+    revalidatePath(modulePath(scope.appType, '/chits'));
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
+    if (group.groupCode) {
+      revalidatePath(modulePath(scope.appType, `/chits/${group.groupCode}`));
+    }
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Failed to activate chit group' };
   }
-  const invalidShareCount = Array.from(ticketShares.values()).filter((sum) => Math.abs(sum - 1) > 0.001).length;
-  if (invalidShareCount) throw new Error('Each ticket share total must equal 1.00');
-
-  validateChitGroupActivation({
-    chitType: group.chitType,
-    registrationNo: group.registrationNo,
-    registrationDate: group.registrationDate,
-    registrarOffice: group.registrarOffice,
-    bylawNo: group.bylawNo,
-    commencementCertificate: group.commencementCertificate,
-    approvedBankName: group.approvedBankName,
-    foremanName: group.foremanName,
-    commissionPct: Number(group.commissionPct),
-    foremanCommissionCapPct: group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : null,
-    maxDiscountPct: group.maxDiscountPct ? Number(group.maxDiscountPct) : null,
-    totalMembers: group.totalMembers,
-    actualMembers: members.length,
-    distinctTicketCount: ticketCounts.size,
-    missingTicketCount: members.filter((member) => !member.ticketNo).length,
-    duplicateTicketCount: 0,
-    pendingAgreementCount: members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length,
-    hasForemanTicket: group.hasForemanTicket,
-    foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
-  });
-
-  await prisma.$transaction(async (tx) => {
-    await activateChitGroupInTx(tx, {
-      scope,
-      group,
-      members,
-    });
-
-    await createChitAudit(tx, {
-      tenantId: scope.tenantId,
-      userId: scope.userId,
-      action: 'activate',
-      entityType: 'chit_group',
-      entityId: group.id,
-      newValue: { status: 'active', complianceStatus: 'active' },
-    });
-  });
-
-  revalidatePath(modulePath(scope.appType, '/chits'));
-  revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
 }
 
 export async function updateChitMemberDetails(memberId: string, formData: FormData) {

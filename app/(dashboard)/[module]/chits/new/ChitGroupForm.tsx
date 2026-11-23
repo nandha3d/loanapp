@@ -31,6 +31,7 @@ import {
   type ChitTemplateCode,
   type ChitTemplateDefinition,
 } from '@/lib/chits/templates';
+import ChitTemplateExplainerModal from '@/components/chits/ChitTemplateExplainerModal';
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -85,6 +86,7 @@ export default function ChitGroupForm({
   const [totalMembers, setTotalMembers] = useState(5);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [activeTemplate, setActiveTemplate] = useState<ChitTemplateCode | null>(null);
+  const [explainerTemplate, setExplainerTemplate] = useState<ChitTemplateDefinition | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | ChitEngineCategory>('ALL');
   const [groupName, setGroupName] = useState('');
   const [chitValue, setChitValue] = useState(0);
@@ -369,16 +371,23 @@ export default function ChitGroupForm({
       className="grid-60-40 chit-create-grid"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 380px)',
+        gridTemplateColumns: 'minmax(0, 0.95fr) minmax(480px, 1.05fr)',
         gap: '24px',
         alignItems: 'start',
       }}
     >
       <style>{`
-        @media (max-width: 1024px) {
+        @media (max-width: 1180px) {
           .chit-create-grid {
             grid-template-columns: 1fr !important;
           }
+        }
+        .chit-template-card {
+          transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+        }
+        .chit-template-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12) !important;
         }
       `}</style>
 
@@ -1496,173 +1505,413 @@ export default function ChitGroupForm({
       </div>
     </form>
 
-    {/* Right Side Pane: Quick Chit Templates */}
+    {/* Right Side Pane: Highlighted Quick Chit Templates with Multi-Language Visual Popup */}
     <aside
       style={{
         position: 'sticky',
-        top: '20px',
-        maxHeight: 'calc(100vh - 40px)',
+        top: '76px',
+        maxHeight: 'calc(100vh - 92px)',
         overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '14px',
       }}
     >
       <div
         className="card"
         style={{
-          padding: '16px 18px',
+          padding: '0',
           background: 'var(--surface, #ffffff)',
-          borderRadius: 'var(--radius, 12px)',
-          border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow, 0 1px 3px rgba(0,0,0,0.05))',
+          borderRadius: '16px',
+          border: '2px solid #cbd5e1',
+          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
+          overflow: 'hidden',
         }}
       >
-        {/* Header */}
+        {/* Prominent Gradient Header Banner */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            marginBottom: '4px',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 58%, #047857 100%)',
+            color: '#ffffff',
+            padding: '18px 20px',
           }}
         >
-          <h4
+          <div
             style={{
-              margin: 0,
-              fontSize: '.98rem',
-              fontWeight: 700,
-              color: 'var(--text-primary)',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              justifyContent: 'space-between',
+              gap: '10px',
+              marginBottom: '6px',
             }}
           >
-            <span>⚡</span>
-            <span>{d.quickTemplatesTitle || 'Quick Chit Templates'}</span>
-          </h4>
-          <span
-            style={{
-              fontSize: '.72rem',
-              background: 'var(--bg-card, #f1f5f9)',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            18 Presets
-          </span>
-        </div>
-        <p style={{ margin: '0 0 12px', fontSize: '.78rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-          {d.quickTemplatesSubtitle ||
-            'Click any preset to autofill the form. All values remain 100% editable.'}
-        </p>
-
-        {/* Category Filter Pills */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          {[
-            { id: 'ALL', label: d.templateCatAll || 'All (18)' },
-            { id: 'AUCTION', label: d.templateCatAuction || 'A. Bidding (4)' },
-            { id: 'FIXED_CHART', label: d.templateCatFixedChart || 'B. Fixed & Rot. (7)' },
-            { id: 'MICRO_COMMODITY', label: d.templateCatMicroCommodity || 'C. Daily & Gold (4)' },
-            { id: 'ENTERPRISE_HYBRID', label: d.templateCatEnterpriseHybrid || 'D. Enterprise (3)' },
-          ].map((cat) => {
-            const isCatActive = selectedCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id as any)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '16px',
-                  fontSize: '.72rem',
-                  fontWeight: isCatActive ? 700 : 500,
-                  border: isCatActive ? '1px solid var(--primary, #059669)' : '1px solid var(--border)',
-                  background: isCatActive ? 'var(--primary, #059669)' : 'var(--bg-surface, #fff)',
-                  color: isCatActive ? '#fff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
+            <h4
+              style={{
+                margin: 0,
+                fontSize: '1.1rem',
+                fontWeight: 800,
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span>⚡</span>
+              <span>{d.quickTemplatesTitle || 'Quick Chit Templates (Ground Presets)'}</span>
+            </h4>
+            <span
+              style={{
+                fontSize: '.76rem',
+                background: 'rgba(255, 255, 255, 0.18)',
+                border: '1px solid rgba(255, 255, 255, 0.28)',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontWeight: 800,
+                color: '#ffffff',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              18 Presets
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: '.84rem', color: '#e2e8f0', lineHeight: 1.45 }}>
+            {d.quickTemplatesSubtitle ||
+              'Click any template card or "Details & Flowchart" to autofill the form and view the multi-language graphical explanation.'}
+          </p>
         </div>
 
-        {/* Stacked list of templates */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {PRACTICAL_CHIT_TEMPLATES.filter(
-            (t) => selectedCategory === 'ALL' || t.category === selectedCategory,
-          ).map((tmpl) => {
-            const isSelected = activeTemplate === tmpl.code;
-            const tData = (d.templates as any)?.[tmpl.code];
-            const title = tData?.title || tmpl.defaultName;
-            const badge = tData?.badge || tmpl.defaultBadge;
-            const desc = tData?.desc;
-
-            return (
-              <button
-                key={tmpl.code}
-                type="button"
-                onClick={() => applyTemplate(tmpl)}
-                style={{
-                  textAlign: 'left',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  border: isSelected ? '2px solid #16a34a' : '1px solid var(--border)',
-                  background: isSelected ? 'rgba(22, 163, 74, 0.08)' : 'var(--bg-surface, #ffffff)',
-                  boxShadow: isSelected ? '0 0 0 1px #16a34a' : '0 1px 2px rgba(0,0,0,0.03)',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  width: '100%',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '.84rem', color: 'var(--text-primary)', lineHeight: 1.3 }}>
-                    {title}
-                  </span>
-                  {isSelected && (
-                    <span style={{ fontSize: '.70rem', color: '#16a34a', fontWeight: 800, whiteSpace: 'nowrap' }}>● Active</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '.72rem', color: '#2563eb', fontWeight: 600 }}>
-                  🏷️ {badge}
-                </div>
-                {desc && (
-                  <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                    {desc}
-                  </div>
-                )}
-                <div
+        <div style={{ padding: '16px 18px', background: '#f8fafc' }}>
+          {/* Category Filter Pills */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            {[
+              { id: 'ALL', label: d.templateCatAll || 'All Templates (18)' },
+              { id: 'AUCTION', label: d.templateCatAuction || 'A. Bidding & Auction (4)' },
+              { id: 'FIXED_CHART', label: d.templateCatFixedChart || 'B. Fixed & Rotation (7)' },
+              { id: 'MICRO_COMMODITY', label: d.templateCatMicroCommodity || 'C. Daily & Gold (4)' },
+              { id: 'ENTERPRISE_HYBRID', label: d.templateCatEnterpriseHybrid || 'D. Enterprise & Hybrid (3)' },
+            ].map((cat) => {
+              const isCatActive = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.id as any)}
                   style={{
-                    marginTop: '4px',
-                    paddingTop: '4px',
-                    fontSize: '.70rem',
-                    color: 'var(--text-muted, #64748b)',
-                    display: 'flex',
-                    gap: '6px',
-                    borderTop: '1px dashed var(--border, #e2e8f0)',
+                    padding: '6px 13px',
+                    borderRadius: '999px',
+                    fontSize: '.78rem',
+                    fontWeight: isCatActive ? 800 : 600,
+                    border: isCatActive ? '2px solid #047857' : '1px solid #cbd5e1',
+                    background: isCatActive ? '#047857' : '#ffffff',
+                    color: isCatActive ? '#ffffff' : '#334155',
+                    cursor: 'pointer',
+                    boxShadow: isCatActive ? '0 3px 10px rgba(4, 120, 87, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <span>{currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')}</span>
-                  <span>•</span>
-                  <span>{tmpl.defaultTotalMembers} members</span>
-                  <span>•</span>
-                  <span>{tmpl.defaultFrequency}</span>
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Highlighted List of Templates */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {PRACTICAL_CHIT_TEMPLATES.filter(
+              (t) => selectedCategory === 'ALL' || t.category === selectedCategory,
+            ).map((tmpl, index) => {
+              const isSelected = activeTemplate === tmpl.code;
+              const tData = (d.templates as any)?.[tmpl.code];
+              const title = tData?.title || tmpl.defaultName;
+              const badge = tData?.badge || tmpl.defaultBadge;
+              const desc = tData?.desc || CHIT_ENGINE_CATALOG[tmpl.engineType]?.description;
+
+              const catTheme =
+                tmpl.category === 'AUCTION'
+                  ? {
+                      accent: '#2563eb',
+                      border: '#93c5fd',
+                      bg: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
+                      pillBg: '#dbeafe',
+                      pillText: '#1e40af',
+                      catLabel: 'Bidding & Auction',
+                      icon: 'gavel',
+                    }
+                  : tmpl.category === 'FIXED_CHART'
+                    ? {
+                        accent: '#7c3aed',
+                        border: '#c4b5fd',
+                        bg: 'linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)',
+                        pillBg: '#ede9fe',
+                        pillText: '#5b21b6',
+                        catLabel: 'Fixed & Rotation',
+                        icon: 'table_chart',
+                      }
+                    : tmpl.category === 'MICRO_COMMODITY'
+                      ? {
+                          accent: '#d97706',
+                          border: '#fcd34d',
+                          bg: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)',
+                          pillBg: '#fef3c7',
+                          pillText: '#92400e',
+                          catLabel: 'Daily & Gold',
+                          icon: 'workspace_premium',
+                        }
+                      : {
+                          accent: '#0d9488',
+                          border: '#5eead4',
+                          bg: 'linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)',
+                          pillBg: '#ccfbf1',
+                          pillText: '#115e59',
+                          catLabel: 'Enterprise & Hybrid',
+                          icon: 'account_tree',
+                        };
+
+              return (
+                <div
+                  key={tmpl.code}
+                  className="chit-template-card"
+                  onClick={() => {
+                    applyTemplate(tmpl);
+                    setExplainerTemplate(tmpl);
+                  }}
+                  style={{
+                    textAlign: 'left',
+                    padding: '16px 18px',
+                    borderRadius: '14px',
+                    cursor: 'pointer',
+                    border: isSelected ? '2px solid #16a34a' : `1.5px solid ${catTheme.border}`,
+                    borderLeft: isSelected ? '7px solid #16a34a' : `7px solid ${catTheme.accent}`,
+                    background: isSelected
+                      ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
+                      : catTheme.bg,
+                    boxShadow: isSelected
+                      ? '0 8px 22px rgba(22, 163, 74, 0.22)'
+                      : '0 4px 12px rgba(15, 23, 42, 0.06)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    width: '100%',
+                  }}
+                >
+                  {/* Top Row: Number + Category Tag + Active Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '.74rem',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: isSelected ? '#16a34a' : catTheme.accent,
+                          color: '#ffffff',
+                        }}
+                      >
+                        #{String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '.75rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '999px',
+                          background: catTheme.pillBg,
+                          color: catTheme.pillText,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{catTheme.icon}</span>
+                        {catTheme.catLabel}
+                      </span>
+                    </div>
+
+                    {isSelected ? (
+                      <span
+                        style={{
+                          fontSize: '.74rem',
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          padding: '3px 10px',
+                          borderRadius: '999px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        ✓ ACTIVE PRESET
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '.73rem',
+                          color: catTheme.accent,
+                          fontWeight: 700,
+                        }}
+                      >
+                        Click to Apply &amp; View Guide →
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title & Highlighted Rule Badge */}
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: '1.04rem',
+                        color: '#0f172a',
+                        lineHeight: 1.35,
+                        marginBottom: '6px',
+                      }}
+                    >
+                      {title}
+                    </div>
+                    <div
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '.79rem',
+                        color: catTheme.pillText,
+                        background: '#ffffff',
+                        border: `1px solid ${catTheme.border}`,
+                        padding: '3px 10px',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      🏷️ {badge}
+                    </div>
+                  </div>
+
+                  {/* Full Visible Description */}
+                  {desc && (
+                    <div
+                      style={{
+                        fontSize: '.86rem',
+                        color: '#1e293b',
+                        lineHeight: 1.55,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {desc}
+                    </div>
+                  )}
+
+                  {/* Bottom Bar: Metric Chips + Action Buttons */}
+                  <div
+                    style={{
+                      marginTop: '2px',
+                      paddingTop: '10px',
+                      borderTop: '1px dashed #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: '.76rem',
+                          fontWeight: 700,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          color: '#0f172a',
+                        }}
+                      >
+                        💰 {currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '.76rem',
+                          fontWeight: 700,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          color: '#0f172a',
+                        }}
+                      >
+                        👥 {tmpl.defaultTotalMembers} members
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '.76rem',
+                          fontWeight: 700,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          color: '#334155',
+                        }}
+                      >
+                        📅 {tmpl.defaultFrequency}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExplainerTemplate(tmpl);
+                        }}
+                        style={{
+                          padding: '5px 11px',
+                          borderRadius: '8px',
+                          fontSize: '.76rem',
+                          fontWeight: 800,
+                          border: `1.5px solid ${catTheme.accent}`,
+                          background: '#ffffff',
+                          color: catTheme.accent,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>📊</span>
+                        <span>Details &amp; Flowchart</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          applyTemplate(tmpl);
+                        }}
+                        style={{
+                          padding: '5px 11px',
+                          borderRadius: '8px',
+                          fontSize: '.76rem',
+                          fontWeight: 800,
+                          border: 'none',
+                          background: isSelected ? '#16a34a' : catTheme.accent,
+                          color: '#ffffff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isSelected ? '✓ Applied' : '⚡ Apply'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </button>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </aside>
+
+    {/* Multi-Language Flowchart & Visual Explanation Popup Modal */}
+    <ChitTemplateExplainerModal
+      template={explainerTemplate}
+      currencySymbol={currencySymbol}
+      isApplied={Boolean(explainerTemplate && activeTemplate === explainerTemplate.code)}
+      onApply={(tmpl) => applyTemplate(tmpl)}
+      onClose={() => setExplainerTemplate(null)}
+    />
   </div>
 );
 }

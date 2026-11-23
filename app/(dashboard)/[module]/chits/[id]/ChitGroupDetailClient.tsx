@@ -133,10 +133,15 @@ export default function ChitGroupDetailClient({
     setBusy(label);
     setError('');
     try {
-      await fn();
+      const res = await fn();
+      if (res && typeof res === 'object' && 'ok' in res && res.ok === false) {
+        setError(res.error || 'Action failed');
+        setBusy('');
+        return;
+      }
       router.refresh();
     } catch (e: any) {
-      setError(e.message);
+      setError(e?.message || 'Unexpected error occurred');
     }
     setBusy('');
   };
@@ -488,7 +493,27 @@ export default function ChitGroupDetailClient({
 
       {/* Members */}
       <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="card-header"><h3>👥 {d.members}</h3></div>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <h3 style={{ margin: 0 }}>👥 {d.members}</h3>
+          {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy === 'verify-all-agreements'}
+              onClick={() =>
+                run('verify-all-agreements', async () => {
+                  for (const m of group.members) {
+                    if (m.agreementStatus !== 'verified') {
+                      await verifyChitAgreement(m.id);
+                    }
+                  }
+                })
+              }
+            >
+              {busy === 'verify-all-agreements' ? 'Verifying…' : '✓ Sign & Verify All Agreements'}
+            </button>
+          )}
+        </div>
         {group.members.length === 0 ? (
           <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noMembers}</p>
         ) : (
