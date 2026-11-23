@@ -1898,46 +1898,6 @@ export const en = {
         badge: 'Bespoke Schedule · Fully Configurable',
         desc: 'Foreman specifies or imports exact non-prized due, prized due, payout, commission, and dividend for every cycle.',
       },
-      FRIENDS_FAMILY_FREE_FIRST: {
-        title: 'Friends & Family Circle Chit (Foreman First)',
-        badge: '0% Comm · Month 1 Free Pot',
-        desc: 'Foreman takes Month 1 free pot without discount. Month 2+ competitive live auction where dividend is shared exclusively among non-winners.',
-      },
-      BUSINESS_AGENT_AUCTION: {
-        title: 'Standard Commercial Auction Chit',
-        badge: '5% Comm · Equal Dividend',
-        desc: 'Commercial auction chit with 5% foreman commission and equal dividend distributed to all 10 members by reducing next month due.',
-      },
-      DAILY_SHOPKEEPER_25DAY: {
-        title: 'Shopkeeper 25-Day Daily Chit (Thandal)',
-        badge: 'Daily ₹1,000 · 25 Days · 3% Fee',
-        desc: 'Daily market collection chit for retail merchants running across 25 working days with a 3% organizer fee.',
-      },
-      LUCKY_DRAW_KULAKKAL: {
-        title: 'Lucky Draw Pure Lottery Chit (Kulakkal)',
-        badge: 'Zero Bidding · Token Draw · 5% Fee',
-        desc: 'Zero bidding chit where the lucky winner is drawn by token/lots each cycle, with full payout less 5% organizer fee.',
-      },
-      GOLD_JEWELLERY_11_PLUS_1: {
-        title: '11+1 Jeweller Gold Savings (Thanga Magal)',
-        badge: '11 Months Pay + 1 Month Free Bonus',
-        desc: 'Jeweller savings scheme where customer pays 11 months, gets 12th month bonus free from jeweller, redeemed in gold ornaments.',
-      },
-      FESTIVAL_HAMPER_DEEPAVALI: {
-        title: 'Deepavali Festival Hamper Chit',
-        badge: 'Festive Hamper · Wholesale Bonus',
-        desc: 'Festive group where monthly contributions are redeemed in high-value festival gift hampers, sweets, gold coin, or appliances.',
-      },
-      PEER_ROTATION_KAMETI: {
-        title: 'Peer Rotation Kameti Chit (Murai Chit)',
-        badge: '0% Comm · Fixed Order Sequence',
-        desc: 'Mutual trust circle where each member takes turns receiving the full 100% pot in a predetermined sequence without auction or fee.',
-      },
-      BASE_PLUS_PREMIUM_DUAL: {
-        title: 'Base + Premium Variable Due Chit (Theni)',
-        badge: 'Dual Due · Winner Premium (+₹2,000)',
-        desc: 'Members pay base installment (e.g. ₹9,000) before winning and Base + Premium (+₹2,000) every month after lifting the pot.',
-      },
     },
   },
   notifications: {
