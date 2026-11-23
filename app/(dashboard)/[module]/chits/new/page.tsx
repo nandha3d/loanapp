@@ -7,7 +7,7 @@ import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
 import { redirect } from 'next/navigation';
 import ChitGroupForm from './ChitGroupForm';
-import { getDictionary } from '@/lib/i18n';
+import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import Link from '@/components/layout/DashboardLink';
 import { getChitTypeSettings } from '@/lib/chits/settings';
 
@@ -35,6 +35,7 @@ export default async function NewChitGroupPage() {
   }
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
+  const lang = await getCurrentLanguage(tenantId);
 
   // SCOPE-12: the member picker is branch work. Tenant-wide, a superadmin on
   // one branch could enrol another branch's customers into a chit group.
@@ -54,6 +55,7 @@ export default async function NewChitGroupPage() {
         customers={customers}
         currencySymbol={currencySymbol}
         dict={dict}
+        lang={lang}
         enabledChitTypes={chitTypeSettings.enabledTypes}
         typeDefaults={chitTypeSettings.typeDefaults}
       />
