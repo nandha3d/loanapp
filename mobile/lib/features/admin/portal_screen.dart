@@ -185,13 +185,22 @@ class PortalScreen extends ConsumerWidget {
                             subtitle: 'View assigned customers',
                             onTap: () => context.go('/customers'),
                           ),
-                          _ActionTile(
-                            icon: Icons.account_balance_wallet_rounded,
-                            color: const Color(0xFFF5A623),
-                            title: 'My Loans',
-                            subtitle: 'View loan details',
-                            onTap: () => context.go('/loans'),
-                          ),
+                          if (cols.any((c) => AppType.normalize(c.id) != AppType.chitfunds))
+                            _ActionTile(
+                              icon: Icons.account_balance_wallet_rounded,
+                              color: const Color(0xFFF5A623),
+                              title: 'My Loans',
+                              subtitle: 'View loan details',
+                              onTap: () => context.go('/loans'),
+                            )
+                          else if (cols.any((c) => AppType.normalize(c.id) == AppType.chitfunds))
+                            _ActionTile(
+                              icon: Icons.savings_rounded,
+                              color: const Color(0xFFF5A623),
+                              title: 'My Chit Groups',
+                              subtitle: 'Manage chit funds & auctions',
+                              onTap: () => context.go('/chits'),
+                            ),
                           _ActionTile(
                             icon: Icons.dashboard_rounded,
                             color: const Color(0xFF9B59B6),

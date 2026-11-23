@@ -56,44 +56,44 @@ const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => s
   },
   chit_contribution_received: {
     en: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} சிட் டிக்கெட் ${d.ticketNo}-க்கு ₹${d.amount} சந்தா பெறப்பட்டது. -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} टिकट ${d.ticketNo} के लिए ₹${d.amount} की किस्त प्राप्त हुई। -${d.orgName}`,
   },
   chit_subscription_due: {
     en: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} சிட்-க்கான ₹${d.amount} சந்தா ${d.date} அன்று செலுத்த வேண்டும். -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} की ₹${d.amount} की चिट किस्त ${d.date} को देय है। -${d.orgName}`,
   },
   chit_auction_reminder_day: {
     en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} காலம் ${d.periodNumber}-க்கான சிட் ஏலம் ${d.scheduledAt}-க்கு நடைபெறும். நேரலை அறையில் இணையவும். -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} अवधि ${d.periodNumber} की चिट नीलामी ${d.scheduledAt} पर निर्धारित है। कृपया लाइव रूम में जुड़ें। -${d.orgName}`,
   },
   chit_auction_reminder_hour: {
     en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} காலம் ${d.periodNumber}-க்கான சிட் ஏலம் ${d.scheduledAt}-க்கு தொடங்குகிறது. நேரலை அறையில் இணையவும். -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} अवधि ${d.periodNumber} की चिट नीलामी ${d.scheduledAt} पर शुरू हो रही है। कृपया लाइव रूम में जुड़ें। -${d.orgName}`,
   },
   chit_auction_result: {
     en: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} காலம் ${d.periodNumber} ஏலத்தில் ${d.winnerName} வெற்றி பெற்றார். பரிசு: ₹${d.prizeAmount}. -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} अवधि ${d.periodNumber} नीलामी में ${d.winnerName} विजेता रहे। इनाम राशि: ₹${d.prizeAmount}। -${d.orgName}`,
   },
   chit_dividend_posted: {
     en: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
-    ta: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
-    hi: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
+    ta: d => `வணக்கம் ${d.name}, ${d.groupName} காலம் ${d.periodNumber}-க்கு ₹${d.dividendAmount} டிவிடெண்ட் வரவு வைக்கப்பட்டது. -${d.orgName}`,
+    hi: d => `नमस्ते ${d.name}, ${d.groupName} अवधि ${d.periodNumber} के लिए ₹${d.dividendAmount} का लाभांश दर्ज किया गया। -${d.orgName}`,
   },
 };
 
 // WhatsApp template names (pre-register these in MSG91 dashboard)
 const WA_TEMPLATES: Record<EventKey, string> = {
-  payment_received:     'lt_payment_received',
+  payment_received: 'lt_payment_received',
   payment_due_reminder: 'lt_due_reminder',
-  loan_disbursed:       'lt_loan_disbursed',
-  loan_overdue:         'lt_loan_overdue',
-  loan_closed:          'lt_loan_closed',
-  penalty_accrued:      'lt_penalty_accrued',
+  loan_disbursed: 'lt_loan_disbursed',
+  loan_overdue: 'lt_loan_overdue',
+  loan_closed: 'lt_loan_closed',
+  penalty_accrued: 'lt_penalty_accrued',
   chit_contribution_received: 'lt_chit_contribution_received',
   chit_subscription_due: 'lt_chit_subscription_due',
   chit_auction_reminder_day: 'lt_chit_auction_reminder_day',
@@ -106,17 +106,17 @@ const WA_TEMPLATES: Record<EventKey, string> = {
 
 interface NotifyParams {
   tenantId: string;
-  event:    EventKey;
-  phone:    string;
-  email?:   string;
-  lang?:    string;
-  data:     Record<string, string>;  // vars for message template
-  waVars?:  string[];                // ordered vars for WhatsApp template
+  event: EventKey;
+  phone: string;
+  email?: string;
+  lang?: string;
+  data: Record<string, string>;  // vars for message template
+  waVars?: string[];                // ordered vars for WhatsApp template
   meta?: {
     entityType?: string;
-    entityId?:   string;
-    appType?:    string;
-    branchId?:   string;
+    entityId?: string;
+    appType?: string;
+    branchId?: string;
   };
 }
 
@@ -281,7 +281,7 @@ export async function notify(params: NotifyParams): Promise<void> {
     // Email (independent of SMS/WA — send if configured and email provided)
     if (email) {
       const subject = emailSubject(event, enrichedData);
-      const html    = emailHtml(event, message, enrichedData);
+      const html = emailHtml(event, message, enrichedData);
       await sendEmail(tenantId, email, subject, html, notifyMeta);
     }
   } catch (err) {
@@ -291,12 +291,12 @@ export async function notify(params: NotifyParams): Promise<void> {
 
 function emailSubject(event: EventKey, d: Record<string, string>): string {
   const subjects: Partial<Record<EventKey, string>> = {
-    payment_received:     `Payment Received — Loan ${d.loanCode}`,
+    payment_received: `Payment Received — Loan ${d.loanCode}`,
     payment_due_reminder: `Reminder: Payment Due — Loan ${d.loanCode}`,
-    loan_disbursed:       `Loan Disbursed — ${d.loanCode}`,
-    loan_overdue:         `Overdue Notice — Loan ${d.loanCode}`,
-    loan_closed:          `Loan Closed — ${d.loanCode}`,
-    penalty_accrued:      `Penalty Notice — Loan ${d.loanCode}`,
+    loan_disbursed: `Loan Disbursed — ${d.loanCode}`,
+    loan_overdue: `Overdue Notice — Loan ${d.loanCode}`,
+    loan_closed: `Loan Closed — ${d.loanCode}`,
+    penalty_accrued: `Penalty Notice — Loan ${d.loanCode}`,
   };
   return subjects[event] || `Notification — Loan ${d.loanCode || ''}`;
 }

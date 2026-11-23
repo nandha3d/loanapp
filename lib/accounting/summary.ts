@@ -38,9 +38,13 @@ export function computeAccountingMetrics(
       case 'capital_add': capitalIn += amt; break;
       case 'capital_withdraw': capitalOut += amt; break;
       case 'loan_disburse': totalDisbursed += amt; break;
-      case 'collection': totalCollected += amt; break;
+      case 'collection':
+      case 'reversal':
+        totalCollected += amt; break;
       // DEC-06: penalty collected = cash in and revenue.
-      case 'penalty_collection': penaltyIncome += amt; break;
+      case 'penalty_collection':
+      case 'chit_penalty':
+        penaltyIncome += amt; break;
       case 'expense': totalExpenses += amt; break;
       case 'chit_payout':
       case 'chit_dividend_payout': chitOutflows += amt; break;
@@ -115,9 +119,11 @@ export async function getAccountingSummary(
         netDisbursed += amt;
         break;
       case 'collection':
+      case 'reversal':
         totalCollected += amt;
         break;
       case 'penalty_collection':
+      case 'chit_penalty':
         penaltyIncome += amt;
         break;
       case 'expense':

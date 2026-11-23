@@ -639,6 +639,7 @@ void main() {
       final penalties = await service.penalties('chit1');
       await service.createPenalty(
         'chit1',
+        subscriptionId: 'sub1',
         memberId: 'member1',
         amount: 100,
         reason: 'late payment',

@@ -19,6 +19,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
+  if (ctx.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
   const { id } = await params;
 
   const { searchParams } = new URL(req.url);

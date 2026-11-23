@@ -1496,7 +1496,7 @@ model ChitGroup {
   tenantId                String        @map("tenant_id")
   branchId                String?       @map("branch_id")
   appType                 String        @default("chitfunds") @map("app_type")
-  groupCode               String?       @unique @map("group_code")
+  groupCode               String?       @map("group_code")
   name                    String
   chitValue               Decimal       @map("chit_value") @db.Decimal(14, 2)
   monthlyContrib          Decimal       @map("monthly_contrib") @db.Decimal(14, 2)
@@ -1549,6 +1549,8 @@ model ChitGroup {
   bellCount               Int           @default(3) @map("bell_count")
   bellAutoClose           Boolean       @default(true) @map("bell_auto_close")
   hasForemanTicket        Boolean       @default(false) @map("has_foreman_ticket")
+  chitEngineType          String        @default("AUCTION_STANDARD") @map("chit_engine_type")
+  engineConfig            String?       @map("engine_config") @db.Text
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
   deletedAt               DateTime?     @map("deleted_at")
@@ -1556,9 +1558,12 @@ model ChitGroup {
   branch                  Branch?       @relation(fields: [branchId], references: [id])
   tenant                  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members                 ChitMember[]
+  poolTransactions        ChitPoolTransaction[]
 
+  @@unique([tenantId, groupCode])
   @@index([tenantId, appType, status])
   @@index([tenantId, appType, complianceStatus])
+  @@index([tenantId, appType, chitEngineType])
   @@index([branchId], map: "chit_groups_branch_id_fkey")
   @@map("chit_groups")
 }
@@ -1582,12 +1587,14 @@ model ChitMember {
   hasWon            Boolean                 @default(false) @map("has_won")
   wonAt             DateTime?               @map("won_at")
   joinedAt          DateTime                @default(now()) @map("joined_at")
-  wonAuctions       ChitAuction[]           @relation("AuctionWinner")
-  bids              ChitBid[]
-  attendance        ChitAuctionAttendance[]
-  chitGroup         ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
-  customer          Customer                @relation(fields: [customerId], references: [id])
-  subscriptions     ChitSubscription[]
+  wonAuctions          ChitAuction[]           @relation("AuctionWinner")
+  auctionWins          ChitAuctionWinner[]     @relation("ChitAuctionWinners")
+  guaranteedSecurities ChitSecurity[]          @relation("ChitSecurityGuarantor")
+  bids                 ChitBid[]
+  attendance           ChitAuctionAttendance[]
+  chitGroup            ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  customer             Customer                @relation(fields: [customerId], references: [id])
+  subscriptions        ChitSubscription[]
 
   @@unique([chitGroupId, customerId])
   @@unique([chitGroupId, memberNumber])
@@ -1638,14 +1645,18 @@ model ChitAuction {
   closedAt           DateTime?               @map("closed_at")
   reminder1DayAt     DateTime?               @map("reminder_1day_at")
   reminder1HourAt    DateTime?               @map("reminder_1hour_at")
-  resultNotifiedAt   DateTime?               @map("result_notified_at")
-  dividendNotifiedAt DateTime?               @map("dividend_notified_at")
-  bids               ChitBid[]
-  attendance         ChitAuctionAttendance[]
-  events             ChitAuctionEvent[]
-  roomMessages       ChitRoomMessage[]
-  chitGroup          ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
-  winnerMember       ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
+  resultNotifiedAt     DateTime?               @map("result_notified_at")
+  dividendNotifiedAt   DateTime?               @map("dividend_notified_at")
+  calculationBreakdown String?                 @map("calculation_breakdown") @db.Text
+  reserveFloorAmount   Decimal?                @map("reserve_floor_amount") @db.Decimal(14, 2)
+  goldRatePerGram      Decimal?                @map("gold_rate_per_gram") @db.Decimal(14, 2)
+  bids                 ChitBid[]
+  attendance           ChitAuctionAttendance[]
+  events               ChitAuctionEvent[]
+  roomMessages         ChitRoomMessage[]
+  winners              ChitAuctionWinner[]
+  chitGroup            ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  winnerMember         ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
 
   @@unique([chitGroupId, periodNumber])
   @@index([chitGroupId, status])
@@ -1714,12 +1725,17 @@ model ChitSubscription {
   periodNumber        Int           @map("period_number")
   dueDate             DateTime      @map("due_date") @db.Date
   dueAmount           Decimal       @map("due_amount") @db.Decimal(14, 2)
-  baseDueAmount       Decimal?      @map("base_due_amount") @db.Decimal(14, 2)
-  dividendAmount      Decimal       @default(0.00) @map("dividend_amount") @db.Decimal(14, 2)
-  interestAmount      Decimal       @default(0.00) @map("interest_amount") @db.Decimal(14, 2)
-  penaltyAmount       Decimal       @default(0.00) @map("penalty_amount") @db.Decimal(14, 2)
-  paidAmount          Decimal       @default(0.00) @map("paid_amount") @db.Decimal(14, 2)
-  status              String        @default("upcoming")
+  baseDueAmount          Decimal?      @map("base_due_amount") @db.Decimal(14, 2)
+  dividendAmount         Decimal       @default(0.00) @map("dividend_amount") @db.Decimal(14, 2)
+  premiumAmount          Decimal       @default(0.00) @map("premium_amount") @db.Decimal(14, 2)
+  deferredDividendAmount Decimal       @default(0.00) @map("deferred_dividend_amount") @db.Decimal(14, 2)
+  dividendForfeited      Boolean       @default(false) @map("dividend_forfeited")
+  interestAmount         Decimal       @default(0.00) @map("interest_amount") @db.Decimal(14, 2)
+  penaltyAmount          Decimal       @default(0.00) @map("penalty_amount") @db.Decimal(14, 2)
+  paidAmount             Decimal       @default(0.00) @map("paid_amount") @db.Decimal(14, 2)
+  goldRateApplied        Decimal?      @map("gold_rate_applied") @db.Decimal(14, 2)
+  goldGramsCredited      Decimal?      @default(0) @map("gold_grams_credited") @db.Decimal(14, 4)
+  status                 String        @default("upcoming")
   paidAt              DateTime?     @map("paid_at")
   reminderDayBeforeAt DateTime?     @map("reminder_day_before_at")
   reminderDueDayAt    DateTime?     @map("reminder_due_day_at")
@@ -1862,31 +1878,84 @@ model ChitReceipt {
 }
 
 model ChitSecurity {
-  id              String    @id @default(cuid())
-  tenantId        String    @map("tenant_id")
-  branchId        String?   @map("branch_id")
-  chitGroupId     String    @map("chit_group_id")
-  auctionId       String    @map("auction_id")
-  winnerMemberId  String    @map("winner_member_id")
-  securityType    String    @default("pending") @map("security_type")
-  securityValue   Decimal?  @map("security_value") @db.Decimal(14, 2)
-  guarantorName   String?   @map("guarantor_name")
-  guarantorPhone  String?   @map("guarantor_phone")
-  details         String?   @db.Text
-  status          String    @default("pending")
-  submittedAt     DateTime? @map("submitted_at")
-  verifiedById    String?   @map("verified_by_id")
-  verifiedAt      DateTime? @map("verified_at")
-  approvedById    String?   @map("approved_by_id")
-  approvedAt      DateTime? @map("approved_at")
-  rejectionReason String?   @map("rejection_reason") @db.Text
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                String      @id @default(cuid())
+  tenantId          String      @map("tenant_id")
+  branchId          String?     @map("branch_id")
+  chitGroupId       String      @map("chit_group_id")
+  auctionId         String      @map("auction_id")
+  winnerMemberId    String      @map("winner_member_id")
+  guarantorMemberId String?     @map("guarantor_member_id")
+  securityType      String      @default("pending") @map("security_type")
+  securityValue     Decimal?    @map("security_value") @db.Decimal(14, 2)
+  guarantorName     String?     @map("guarantor_name")
+  guarantorPhone    String?     @map("guarantor_phone")
+  details           String?     @db.Text
+  status            String      @default("pending")
+  submittedAt       DateTime?   @map("submitted_at")
+  verifiedById      String?     @map("verified_by_id")
+  verifiedAt        DateTime?   @map("verified_at")
+  approvedById      String?     @map("approved_by_id")
+  approvedAt        DateTime?   @map("approved_at")
+  rejectionReason   String?     @map("rejection_reason") @db.Text
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  guarantorMember   ChitMember? @relation("ChitSecurityGuarantor", fields: [guarantorMemberId], references: [id])
 
   @@index([tenantId, branchId, chitGroupId])
   @@index([auctionId, status])
   @@index([winnerMemberId])
+  @@index([guarantorMemberId])
   @@map("chit_securities")
+}
+
+model ChitAuctionWinner {
+  id              String      @id @default(cuid())
+  tenantId        String      @map("tenant_id")
+  branchId        String?     @map("branch_id")
+  appType         String      @default("chitfunds") @map("app_type")
+  chitGroupId     String      @map("chit_group_id")
+  auctionId       String      @map("auction_id")
+  memberId        String      @map("member_id")
+  bidId           String?     @map("bid_id")
+  winType         String      @default("auction") @map("win_type")
+  prizeAmount     Decimal     @map("prize_amount") @db.Decimal(14, 2)
+  bidDiscount     Decimal     @default(0.00) @map("bid_discount") @db.Decimal(14, 2)
+  commission      Decimal     @default(0.00) @db.Decimal(14, 2)
+  gstAmount       Decimal     @default(0.00) @map("gst_amount") @db.Decimal(14, 2)
+  payoutStatus    String      @default("security_pending") @map("payout_status")
+  payoutAssetType String      @default("CASH") @map("payout_asset_type")
+  assetQuantity   Decimal?    @map("asset_quantity") @db.Decimal(14, 4)
+  assetSummary    String?     @map("asset_summary") @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  auction         ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  member          ChitMember  @relation("ChitAuctionWinners", fields: [memberId], references: [id])
+
+  @@unique([auctionId, memberId])
+  @@index([tenantId, appType, chitGroupId])
+  @@index([memberId])
+  @@map("chit_auction_winners")
+}
+
+model ChitPoolTransaction {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  branchId        String?   @map("branch_id")
+  appType         String    @default("chitfunds") @map("app_type")
+  chitGroupId     String    @map("chit_group_id")
+  memberId        String?   @map("member_id")
+  txnType         String    @map("txn_type")
+  principalAmount Decimal   @default(0.00) @map("principal_amount") @db.Decimal(14, 2)
+  interestAmount  Decimal   @default(0.00) @map("interest_amount") @db.Decimal(14, 2)
+  interestRatePct Decimal?  @map("interest_rate_pct") @db.Decimal(5, 2)
+  txnDate         DateTime  @default(now()) @map("txn_date")
+  notes           String?   @db.Text
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  chitGroup       ChitGroup @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, appType, chitGroupId])
+  @@index([memberId])
+  @@map("chit_pool_transactions")
 }
 
 model ChitPenalty {

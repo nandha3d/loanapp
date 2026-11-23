@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
 import { getAnalyticsData } from './actions';
 import AnalyticsClient from './AnalyticsClient';
@@ -30,11 +30,7 @@ export default async function AnalyticsPage({
   const activeBranchId = await getActiveBranchId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
-
-  const data = await getAnalyticsData(tenantId, appType, activeBranchId);
-  const serialized = JSON.parse(JSON.stringify(data));
-
-  // --- REPORTS LOGIC ---
+  const resolvedParams = await searchParams;
   const now = new Date();
   const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -45,12 +41,143 @@ export default async function AnalyticsPage({
     return `${year}-${month}-${day}`;
   };
 
-  const resolvedParams = await searchParams;
   const fromStr = resolvedParams.from || getLocalDateString(defaultFrom);
   const toStr = resolvedParams.to || getLocalDateString(now);
   const routeId = resolvedParams.routeId || '';
   const agentId = resolvedParams.agentId || '';
+  const reportSlug = resolvedParams.report || '';
 
+  if (reportSlug && !getReportDefinitionForAppType(appType as AppType, reportSlug)) {
+    notFound();
+  }
+
+  if (appType === 'chitfunds') {
+    const subscription = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+    if (reportSlug) {
+      const supportedFilters = ['date', 'branch', 'status', 'groupId'];
+      const repDef = getReportDefinitionForAppType(appType as AppType, reportSlug);
+      const title = repDef?.name || reportSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return (
+        <div style={{ padding: '20px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <Link
+              href="/analytics"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+              Back to Chit Reports
+            </Link>
+          </div>
+          <ReportShell
+            slug={reportSlug}
+            title={title}
+            supportedFilters={supportedFilters}
+            initialFilters={{
+              from: fromStr,
+              to: toStr,
+              branchId: activeBranchId || '',
+              agentId: '',
+              routeId: '',
+              customerId: resolvedParams.customerId || '',
+              loanType: '',
+              status: resolvedParams.status || '',
+              frequency: '',
+              paymentMode: resolvedParams.paymentMode || '',
+              paymentStatus: resolvedParams.paymentStatus || '',
+              loanId: '',
+              groupId: resolvedParams.groupId || '',
+              minAmount: '',
+              maxAmount: '',
+            }}
+            dict={dict}
+            subscription={subscription}
+            appType={appType}
+          />
+        </div>
+      );
+    }
+
+    const chitReports = getReportsForAppType('chitfunds', {
+      premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
+    });
+    const chitCategories = Array.from(
+      chitReports.reduce((categories, report) => {
+        const list = categories.get(report.category) ?? [];
+        list.push({ slug: report.slug, name: report.name });
+        categories.set(report.category, list);
+        return categories;
+      }, new Map<string, { slug: string; name: string }[]>()),
+      ([category, reports]) => ({ category, reports }),
+    );
+    const chitAccountingLinks = subscription?.premiumAccountingEnabled
+      ? [
+          { href: '/accounting/premium/pnl', name: 'Income Statement (P&L)' },
+          { href: '/accounting/premium/trial-balance', name: 'Trial Balance' },
+          { href: '/accounting/premium/journal', name: 'Journal Report' },
+          { href: '/accounting/premium/tax', name: 'GST Report' },
+        ]
+      : [];
+
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              <span className="material-icons-outlined" style={{ verticalAlign: 'middle', marginRight: '8px', fontSize: '1.4rem' }}>insights</span>
+              {(dict.chits as any)?.chitReportsTitle || 'Chit Fund Reports & Registers'}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+              Group ledgers, subscriber statements, dividend registers, auction logs, and payout reports.
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+          {chitCategories.map((cat) => (
+            <div className="card" key={cat.category} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+              <h4 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>{cat.category}</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {cat.reports.map((rep) => (
+                  <Link
+                    key={rep.slug}
+                    href={`/analytics?report=${rep.slug}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '8px 12px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '8px', color: 'var(--primary)' }}>description</span>
+                    {rep.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {chitAccountingLinks.length > 0 && (
+          <div className="card" style={{ padding: '20px' }}>
+            <h4 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 700 }}>Financial Statements</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+              {chitAccountingLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="btn btn-secondary btn-sm"
+                  style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '8px 12px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '8px' }}>account_balance</span>
+                  {l.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const data = await getAnalyticsData(tenantId, appType, activeBranchId);
+  const serialized = JSON.parse(JSON.stringify(data));
+
+  // --- REPORTS LOGIC ---
   const dateFrom = new Date(fromStr);
   dateFrom.setHours(0, 0, 0, 0);
   const dateTo = new Date(toStr);
@@ -219,8 +346,6 @@ export default async function AnalyticsPage({
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId }
   });
-
-  const reportSlug = resolvedParams.report || '';
 
   if (reportSlug) {
     const filterConfig: Record<string, string[]> = {

@@ -43,8 +43,8 @@ export function calculateChitAccountingMetrics(input: ChitAccountingInput) {
     isInRange(subscription.dueDate, input.fromDate, input.toDate),
   );
   const completedAuctions = input.auctions.filter((auction) =>
-    auction.status === 'completed'
-      && isInRange(auction.completedAt || auction.auctionDate, input.fromDate, input.toDate),
+    ['completed', 'confirmed', 'paid'].includes(auction.status)
+    && isInRange(auction.completedAt || auction.auctionDate, input.fromDate, input.toDate),
   );
 
   return {
@@ -56,10 +56,10 @@ export function calculateChitAccountingMetrics(input: ChitAccountingInput) {
       (total, subscription) => total + Math.max(
         0,
         number(subscription.dueAmount)
-          - number(subscription.dividendAmount)
-          + number(subscription.interestAmount)
-          + number(subscription.penaltyAmount)
-          - number(subscription.paidAmount),
+        - number(subscription.dividendAmount)
+        + number(subscription.interestAmount)
+        + number(subscription.penaltyAmount)
+        - number(subscription.paidAmount),
       ),
       0,
     ),

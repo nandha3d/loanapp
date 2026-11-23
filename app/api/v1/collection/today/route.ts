@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
+  if (ctx.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
 
   // Day window in the business timezone (IST), matching /collection/dashboard.
   const today = startOfBusinessToday();

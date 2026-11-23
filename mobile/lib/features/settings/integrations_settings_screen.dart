@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
@@ -166,6 +168,7 @@ class _IntegrationsSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -194,45 +197,46 @@ class _IntegrationsSettingsScreenState
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _section(
-                      title: 'e-NACH Auto-Debit',
-                      subtitle: _razorpayReady
-                          ? 'Razorpay is ready for mandate checkout.'
-                          : 'Add Razorpay Key ID and Secret before live mandates.',
-                      children: [
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable e-NACH mandates'),
-                          value: _nachEnabled,
-                          onChanged: (v) => setState(() => _nachEnabled = v),
-                        ),
-                        _input(_nachMaxAmount, 'Default max debit amount',
-                            keyboardType: TextInputType.number,),
-                        _dropdown(
-                          value: _nachAuthType,
-                          label: 'Mandate auth type',
-                          values: const ['netbanking', 'debitcard', 'aadhaar'],
-                          onChanged: (v) => setState(() => _nachAuthType = v),
-                        ),
-                        _input(_nachPresentDays, 'Present debit days before due',
-                            keyboardType: TextInputType.number,),
-                        _input(_nachRetryDays, 'Retry interval days',
-                            keyboardType: TextInputType.number,),
-                        _input(_nachMaxRetries, 'Max retry attempts',
-                            keyboardType: TextInputType.number,),
-                        _button(
-                          'Save NACH',
-                          () => _save('nach', {
-                            'enabled': _nachEnabled,
-                            'defaultMaxAmount': _nachMaxAmount.text.trim(),
-                            'authType': _nachAuthType,
-                            'presentDaysBefore': _nachPresentDays.text.trim(),
-                            'retryIntervalDays': _nachRetryDays.text.trim(),
-                            'maxRetries': _nachMaxRetries.text.trim(),
-                          }),
-                        ),
-                      ],
-                    ),
+                    if (!isChit)
+                      _section(
+                        title: 'e-NACH Auto-Debit',
+                        subtitle: _razorpayReady
+                            ? 'Razorpay is ready for mandate checkout.'
+                            : 'Add Razorpay Key ID and Secret before live mandates.',
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Enable e-NACH mandates'),
+                            value: _nachEnabled,
+                            onChanged: (v) => setState(() => _nachEnabled = v),
+                          ),
+                          _input(_nachMaxAmount, 'Default max debit amount',
+                              keyboardType: TextInputType.number,),
+                          _dropdown(
+                            value: _nachAuthType,
+                            label: 'Mandate auth type',
+                            values: const ['netbanking', 'debitcard', 'aadhaar'],
+                            onChanged: (v) => setState(() => _nachAuthType = v),
+                          ),
+                          _input(_nachPresentDays, 'Present debit days before due',
+                              keyboardType: TextInputType.number,),
+                          _input(_nachRetryDays, 'Retry interval days',
+                              keyboardType: TextInputType.number,),
+                          _input(_nachMaxRetries, 'Max retry attempts',
+                              keyboardType: TextInputType.number,),
+                          _button(
+                            'Save NACH',
+                            () => _save('nach', {
+                              'enabled': _nachEnabled,
+                              'defaultMaxAmount': _nachMaxAmount.text.trim(),
+                              'authType': _nachAuthType,
+                              'presentDaysBefore': _nachPresentDays.text.trim(),
+                              'retryIntervalDays': _nachRetryDays.text.trim(),
+                              'maxRetries': _nachMaxRetries.text.trim(),
+                            }),
+                          ),
+                        ],
+                      ),
                     _section(
                       title: 'MSG91 SMS and WhatsApp',
                       subtitle: _msg91KeySet

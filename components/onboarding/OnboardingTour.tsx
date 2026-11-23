@@ -55,6 +55,43 @@ const ADMIN_STEPS: Step[] = [
   },
 ];
 
+const CHITFUNDS_ADMIN_STEPS: Step[] = [
+  {
+    title: 'Welcome to Zolo Chit Funds 👋',
+    body: "Let's set your chit fund business up in a few steps. Each step takes you to the right screen — do the action there, then press Next.",
+    page: '/dashboard',
+  },
+  {
+    title: 'Step 1 — Create a Route / Line',
+    body: 'Routes group subscribers for monthly collection. Open the Routes tab and add your first route, assigning an agent to it.',
+    page: '/settings?tab=routes',
+    highlight: 'a[href*="/settings"]',
+  },
+  {
+    title: 'Step 2 — Add a Member / Customer',
+    body: 'Press "New Customer", fill subscriber details, and assign their route (and agent) so the agent can collect monthly subscriptions.',
+    page: '/customers',
+    highlight: 'a[href*="/customers"]',
+  },
+  {
+    title: 'Step 3 — Create a Chit Group',
+    body: 'Open Chit Groups and create a new chit scheme (set chit pool value, duration, instalment amount, and auction rules).',
+    page: '/chits',
+    highlight: 'a[href*="/chits"]',
+  },
+  {
+    title: 'Step 4 — Enroll Members & Auction',
+    body: 'Enroll members into the chit group to assign ticket numbers, collect monthly subscriptions, and record monthly auction bids.',
+    page: '/chits',
+    highlight: 'a[href*="/chits"]',
+  },
+  {
+    title: "You're all set 🎉",
+    body: 'That covers the core flow: Route → Members → Chit Group → Subscriptions & Auctions. Explore Accounting, Reports, and Settings any time.',
+    page: '/dashboard',
+  },
+];
+
 const AGENT_STEPS: Step[] = [
   {
     title: 'Welcome 👋',
@@ -80,7 +117,30 @@ const AGENT_STEPS: Step[] = [
   },
 ];
 
-const STORAGE_KEY = 'lt_onboarding_v1';
+const CHITFUNDS_AGENT_STEPS: Step[] = [
+  {
+    title: 'Welcome 👋',
+    body: "Here's how to do your chit subscription collections. Press Next to jump to each screen.",
+    page: '/collection',
+  },
+  {
+    title: 'Your Subscribers',
+    body: 'These are the members in your chit groups. Tap a subscriber to see their chit tickets and dues.',
+    page: '/customers',
+    highlight: 'a[href*="/customers"]',
+  },
+  {
+    title: 'Record Collections',
+    body: "Open due chit instalments and record member payments with cash, UPI or photo proof.",
+    page: '/collection',
+    highlight: 'a[href*="/collection"]',
+  },
+  {
+    title: "You're ready 🎉",
+    body: 'Collect on time and keep your register updated. Reopen this guide whenever you need it.',
+    page: '/collection',
+  },
+];
 
 export default function OnboardingTour({
   module,
@@ -90,24 +150,39 @@ export default function OnboardingTour({
   role: string;
 }) {
   const router = useRouter();
-  const steps = role === 'agent' ? AGENT_STEPS : ADMIN_STEPS;
+  const steps =
+    module === 'chitfunds'
+      ? role === 'agent'
+        ? CHITFUNDS_AGENT_STEPS
+        : CHITFUNDS_ADMIN_STEPS
+      : role === 'agent'
+        ? AGENT_STEPS
+        : ADMIN_STEPS;
+  const storageKey = `lt_onboarding_v2_${module || 'default'}`;
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
 
   // Decide on mount whether to show (first run = no stored "done" flag).
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const legacyRaw = localStorage.getItem('lt_onboarding_v1');
+      if (legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw) as { done?: boolean };
+          if (legacy?.done && module !== 'chitfunds') return;
+        } catch { }
+      }
+      const raw = localStorage.getItem(storageKey);
       if (raw) {
         const saved = JSON.parse(raw) as { done?: boolean; index?: number };
         if (saved.done) return;
-        if (typeof saved.index === 'number') setIndex(saved.index);
+        if (typeof saved.index === 'number' && saved.index < steps.length) setIndex(saved.index);
       }
       setActive(true);
     } catch {
       setActive(true);
     }
-  }, []);
+  }, [storageKey, steps.length, module]);
 
   // Spotlight the target element for the current step, if present.
   useEffect(() => {
@@ -128,11 +203,11 @@ export default function OnboardingTour({
 
   const persist = useCallback((next: { done?: boolean; index?: number }) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {
       /* ignore quota / private-mode errors */
     }
-  }, []);
+  }, [storageKey]);
 
   const finish = useCallback(() => {
     setActive(false);
@@ -148,14 +223,15 @@ export default function OnboardingTour({
       }
       setIndex(next);
       persist({ index: next });
-      const page = steps[next].page;
+      const page = steps[next]?.page;
       if (page) router.push(modulePath(module, page));
     },
     [steps, finish, persist, router, module],
   );
 
   if (!active) return null;
-  const step = steps[index];
+  const step = steps[index] || steps[0];
+  if (!step) return null;
   const isLast = index === steps.length - 1;
 
   return (

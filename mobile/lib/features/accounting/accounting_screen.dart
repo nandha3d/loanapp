@@ -540,6 +540,7 @@ class _SummaryBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
     final isProfitable = summary.netProfit >= 0;
 
     return Column(
@@ -552,15 +553,17 @@ class _SummaryBody extends ConsumerWidget {
           value: fmt.format(summary.totalCollected),
           valueColor: AppColors.success,
         ),
-        const _Divider(),
-        _FinRow(
-          icon: Icons.arrow_upward_rounded,
-          iconColor: AppColors.danger,
-          iconBg: AppColors.dangerBg,
-          label: t.x('acc.disbursed'),
-          value: fmt.format(summary.totalDisbursed),
-          valueColor: AppColors.danger,
-        ),
+        if (!isChit) ...[
+          const _Divider(),
+          _FinRow(
+            icon: Icons.arrow_upward_rounded,
+            iconColor: AppColors.danger,
+            iconBg: AppColors.dangerBg,
+            label: t.x('acc.disbursed'),
+            value: fmt.format(summary.totalDisbursed),
+            valueColor: AppColors.danger,
+          ),
+        ],
         const _Divider(),
         _FinRow(
           icon: Icons.receipt_long_outlined,
@@ -582,16 +585,18 @@ class _SummaryBody extends ConsumerWidget {
         for (final metric in <(String, double)>[
           (t.x('acc.liquid_cash'), summary.liquidCash),
           (t.x('wallet.branch_pool_balance'), summary.branchCashAvailable),
-          (t.x('wallet.agents_float'), summary.agentFloat),
-          (t.x('acc.loan_outstanding'), summary.loanOutstanding),
+          if (!isChit) (t.x('wallet.agents_float'), summary.agentFloat),
+          if (!isChit) (t.x('acc.loan_outstanding'), summary.loanOutstanding),
           (t.x('acc.net_worth'), summary.netWorth),
           (t.x('acc.capital_in'), summary.capitalIn),
           (t.x('acc.capital_out'), summary.capitalOut),
-          (t.x('acc.released_to_agents'), summary.releasedToAgents),
-          (t.x('acc.total_deductions'), summary.totalDeductions),
-          (t.x('acc.total_interest'), summary.totalInterest),
-          (t.x('acc.penalty_income'), summary.penaltyIncome),
-          (t.x('acc.projected_revenue'), summary.projectedRevenue),
+          if (!isChit) ...[
+            (t.x('acc.released_to_agents'), summary.releasedToAgents),
+            (t.x('acc.total_deductions'), summary.totalDeductions),
+            (t.x('acc.total_interest'), summary.totalInterest),
+            (t.x('acc.penalty_income'), summary.penaltyIncome),
+            (t.x('acc.projected_revenue'), summary.projectedRevenue),
+          ],
         ]) ...[
           const _Divider(),
           _FinRow(

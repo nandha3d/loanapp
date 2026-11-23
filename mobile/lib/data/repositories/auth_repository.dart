@@ -86,7 +86,14 @@ class AuthRepository {
     final token = await _storage.readToken();
     if (token == null) return null;
     try {
-      final user = await _service.me().timeout(const Duration(seconds: 8));
+      final serverUser = await _service.me().timeout(const Duration(seconds: 8));
+      final savedAppType = await _storage.readAppType();
+      final user = (savedAppType != null &&
+              savedAppType.isNotEmpty &&
+              serverUser.role != UserRole.agent &&
+              serverUser.verticals.contains(savedAppType))
+          ? serverUser.copyWith(appType: savedAppType)
+          : serverUser;
       await _storage.saveActiveAppType(user.appType);
       await _storage.saveUserJson(jsonEncode(user.toJson()));
       return user;

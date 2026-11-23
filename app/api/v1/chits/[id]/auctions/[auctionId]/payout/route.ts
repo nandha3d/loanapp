@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
+import { findActiveGuaranteeLock } from '@/lib/chits/groupService';
 
 export async function POST(
   req: NextRequest,
@@ -27,12 +28,16 @@ export async function POST(
     });
     if (!auction) return fail('Auction not found', 404);
     const security = await prisma.chitSecurity.findFirst({ where: { auctionId }, orderBy: { updatedAt: 'desc' } });
+    const activeGuaranteeLock = auction.winnerMemberId
+      ? await findActiveGuaranteeLock(prisma, { chitGroupId: id, memberId: auction.winnerMemberId })
+      : null;
     assertCanReleasePrizePayout({
       auctionStatus: auction.status,
       payoutStatus: auction.payoutStatus,
       securityStatus: security?.status,
       winnerMemberId: auction.winnerMemberId,
       prizeAmount: auction.prizeAmount ? Number(auction.prizeAmount) : null,
+      activeGuaranteeLock,
     });
     const result = await prisma.$transaction(async (tx) => {
       const payout = await releaseChitPrizePayout(tx, {

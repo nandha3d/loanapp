@@ -1,7 +1,7 @@
 import { AGENT_PRECLOSE_FLAG, LOAN_PRECLOSE_REQUEST, canRequestLoanPreclose, isPrecloseRequestLoan } from '@/lib/loanPreclosePolicy';
 import { serverFetch } from '@/lib/api-client/server';
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getTenantName } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getTenantName, getUserAppType } from '@/lib/tenant';
 import LoanDetailClient from './LoanDetailClient';
 import HpCustomer360 from './HpCustomer360';
 import { notFound } from 'next/navigation';
@@ -15,6 +15,8 @@ export default async function LoanDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
   const session = await auth();

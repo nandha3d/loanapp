@@ -49,6 +49,9 @@ async function uploadFileHelper(file: File, context: ApiRequestContext): Promise
 
 export async function createLoan(formData: FormData) {
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') {
+    return { error: 'Not available in Chit Funds module' };
+  }
 
   try {
     const apiContext = await getApiRequestContext();

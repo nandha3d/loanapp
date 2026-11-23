@@ -219,8 +219,8 @@ export async function getAnalyticsData(
     }),
     // Audit logs for operational feed
     prisma.auditLog.findMany({
-      // SCOPE-3: AuditLog has no branchId; scope through the acting user's branch.
-      where: { tenantId, user: { role: { not: 'developer' }, ...bf } },
+      // SCOPE-3 / SCOPE-17: AuditLog has no branchId/appType; scope through the acting user's appType and branch.
+      where: { tenantId, user: { role: { not: 'developer' }, appType, ...bf } },
       orderBy: { createdAt: 'desc' },
       take: 15,
       include: { user: true },

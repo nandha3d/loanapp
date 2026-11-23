@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDefaultTenantId, getUserAppType, getSetting } from '@/lib/tenant';
 import prisma from '@/lib/db';
 import AgentDashboardClient from './AgentDashboardClient';
@@ -13,16 +13,17 @@ interface Props {
 
 export default async function AgentDashboardPage({ params }: Props) {
   const { module } = await params;
+  const appType = await getUserAppType();
+  if (module === 'chitfunds' || appType === 'chitfunds') notFound();
   const session = await auth();
   const sessionUser = session?.user as { role?: string; name?: string } | undefined;
-  const role    = sessionUser?.role;
-  const userId  = session?.user?.id;
+  const role = sessionUser?.role;
+  const userId = session?.user?.id;
 
   if (role !== 'agent' || !userId) redirect(`/${module}/dashboard`);
 
-  const tenantId    = await getDefaultTenantId();
-  const dict        = await getDictionary(tenantId);
-  const appType     = await getUserAppType();
+  const tenantId = await getDefaultTenantId();
+  const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   // DASH-11: every figure comes from GET /api/v1/dashboard — the same payload
@@ -53,9 +54,9 @@ export default async function AgentDashboardPage({ params }: Props) {
     const found = weekRecords.find((r) => toISODate(new Date(r.date)) === toISODate(dDate));
     const formattedLabel = `${dDate.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dDate.getUTCMonth()]}`;
     return {
-      date:      formattedLabel,
+      date: formattedLabel,
       collected: Number(found?.totalCollected || 0),
-      expected:  Number(found?.totalExpected  || 0),
+      expected: Number(found?.totalExpected || 0),
     };
   });
 
@@ -80,9 +81,9 @@ export default async function AgentDashboardPage({ params }: Props) {
       recentCollections={paidItems.slice(0, 5).map((c) => ({
         customerName: c.customer?.name ?? '',
         customerCode: c.customer?.customerCode ?? '',
-        loanCode:     c.loan?.loanCode ?? '',
-        amount:       Number(c.receivedAmount),
-        time:         new Date(c.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
+        loanCode: c.loan?.loanCode ?? '',
+        amount: Number(c.receivedAmount),
+        time: new Date(c.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
         preferredCollectionTime: c.customer?.preferredCollectionTime ?? null,
       }))}
       currencySymbol={currencySymbol}

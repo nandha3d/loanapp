@@ -51,11 +51,24 @@ export async function POST(
       include: { chitGroup: true },
     });
     if (!auction || !auction.winnerMemberId) return fail('Auction winner is required before security', 400);
+    const guarantorMemberId = body?.guarantorMemberId ? String(body.guarantorMemberId) : undefined;
+    if (guarantorMemberId) {
+      if (guarantorMemberId === auction.winnerMemberId) {
+        return fail('Winner cannot stand as their own internal guarantor', 400);
+      }
+      const gMem = await prisma.chitMember.findFirst({
+        where: { id: guarantorMemberId, chitGroupId: id },
+        select: { id: true },
+      });
+      if (!gMem) return fail('Selected guarantor member does not belong to this chit group', 400);
+    }
+
     const saved = await prisma.$transaction(async (tx) => {
       const existing = await tx.chitSecurity.findFirst({ where: { auctionId } });
       const data: any = {
         securityType: body?.securityType ?? existing?.securityType ?? 'guarantor',
         securityValue: body?.securityValue == null ? existing?.securityValue : Number(body.securityValue),
+        guarantorMemberId: guarantorMemberId !== undefined ? guarantorMemberId : existing?.guarantorMemberId,
         guarantorName: body?.guarantorName ?? existing?.guarantorName,
         guarantorPhone: body?.guarantorPhone ?? existing?.guarantorPhone,
         details: body?.details ?? existing?.details,

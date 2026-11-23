@@ -50,7 +50,7 @@ export async function buildChitGroupReport(params: ReportBuilderParams): Promise
     const chitValue = Number(g.chitValue);
     const memberCount = g.members.length;
     const collected = subsByGroup.get(g.id)?.collected || 0;
-    const completedAuctions = g.auctions.filter((a) => a.status === 'completed' || a.status === 'won');
+    const completedAuctions = g.auctions.filter((a) => ['completed', 'confirmed', 'paid', 'won'].includes(a.status));
     const disbursed = completedAuctions.reduce((sum, a) => sum + Number(a.prizeAmount || 0), 0);
     const currentMonth = `${completedAuctions.length}/${g.durationMonths}`;
 

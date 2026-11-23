@@ -13,6 +13,9 @@ export async function PATCH(
 ) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
   const ctx = auth.context;
 
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {

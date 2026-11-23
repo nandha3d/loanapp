@@ -88,6 +88,9 @@ export async function POST(
 
   if (!ALLOWED_DOCUMENT_TYPES.has(documentType)) return fail('Invalid document type', 400);
   if (!fileUrl) return fail('fileUrl is required', 400);
+  if (!fileUrl.startsWith(`/api/files/${ctx.tenantId}/`) || fileUrl.includes('..') || fileUrl.includes('\\')) {
+    return fail('Invalid or unauthorized fileUrl', 400);
+  }
 
   try {
     const scoped = await loadScopedSecurity(ctx, id, auctionId);

@@ -989,7 +989,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   // agent↔route assignment lives in Settings → Routes, same
                   // as web). ────────────────────────────────────────────────
                   // ── Preferred collection time (same options as web) ──
-                  if (!_agentEdit) ...[
+                  if (!isChit && !_agentEdit) ...[
                     _LabeledField(
                       label: t.x('cust.preferred_time'),
                       child: _AppDropdown<String>(
@@ -1068,7 +1068,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             const SizedBox(height: 16),
 
             // ── Collection Points section ──────────────────────────────
-            if (!_agentEdit) _buildCollectionPointsSection(t),
+            if (!isChit && !_agentEdit) _buildCollectionPointsSection(t),
 
             if (!_isEdit) const SizedBox(height: 16),
 

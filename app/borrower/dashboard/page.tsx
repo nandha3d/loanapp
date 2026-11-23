@@ -5,6 +5,7 @@ import BorrowerDashboardClient from './BorrowerDashboardClient';
 import ChitOnlyPanel from './ChitOnlyPanel';
 import PaymentProofPanel from './PaymentProofPanel';
 import { getDictionary } from '@/lib/i18n';
+import { getSetting } from '@/lib/tenant';
 import { getMyChitMemberships } from '@/lib/chits/customerPortal';
 
 export default async function BorrowerDashboard() {
@@ -50,7 +51,11 @@ export default async function BorrowerDashboard() {
   }
 
   if (loans.length === 0) {
-    return <ChitOnlyPanel memberships={chitMemberships} />;
+    const [dict, currencySymbol] = await Promise.all([
+      getDictionary(session.tenantId),
+      getSetting(session.tenantId, 'currency_symbol', '₹'),
+    ]);
+    return <ChitOnlyPanel memberships={chitMemberships} dict={dict} currencySymbol={currencySymbol} />;
   }
 
   // Fetch payment/UPI settings for custom QR display
@@ -71,7 +76,10 @@ export default async function BorrowerDashboard() {
   // Convert rich Prisma types (Decimal, Date) to plain JSON objects for Client Components compatibility
   const serializedLoans = JSON.parse(JSON.stringify(loans));
 
-  const dict = await getDictionary(session.tenantId);
+  const [dict, currencySymbol] = await Promise.all([
+    getDictionary(session.tenantId),
+    getSetting(session.tenantId, 'currency_symbol', '₹'),
+  ]);
 
   return (
     <>
@@ -82,7 +90,9 @@ export default async function BorrowerDashboard() {
         paymentSettings={paymentSettings}
         dict={dict}
       />
-      {chitMemberships.length > 0 && <ChitOnlyPanel memberships={chitMemberships} />}
+      {chitMemberships.length > 0 && (
+        <ChitOnlyPanel memberships={chitMemberships} dict={dict} currencySymbol={currencySymbol} />
+      )}
     </>
   );
 }

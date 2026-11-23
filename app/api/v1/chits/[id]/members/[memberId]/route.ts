@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { assertMemberSubstitutionAllowed } from '@/lib/chits/groupService';
 
 export async function PATCH(
   req: NextRequest,
@@ -21,8 +22,16 @@ export async function PATCH(
         chitGroupId: id,
         chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
+      include: { chitGroup: true },
     });
     if (!member) return fail('Chit member not found', 404);
+    if (body?.subscriberStatus === 'substituted' && member.subscriberStatus !== 'substituted') {
+      try {
+        await assertMemberSubstitutionAllowed(prisma, { group: member.chitGroup });
+      } catch (err: any) {
+        return fail(err?.message ?? 'Substitution disallowed', 400);
+      }
+    }
     const data: any = {};
     if (body?.ticketNo !== undefined) data.ticketNo = body.ticketNo;
     if (body?.fractionNo !== undefined) data.fractionNo = body.fractionNo;

@@ -1,4 +1,5 @@
 import prisma from '@/lib/db';
+import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
@@ -21,6 +22,7 @@ export default async function RouteTrackerPage() {
   const tenantId = await getDefaultTenantId();
   const branchId = await getActiveBranchId();
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   const dict = await getDictionary(tenantId);
   const d = dict.routeTracker;
 

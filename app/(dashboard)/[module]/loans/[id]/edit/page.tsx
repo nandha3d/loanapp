@@ -14,6 +14,7 @@ export default async function EditLoanPage({
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 

@@ -31,9 +31,17 @@ async function resolveGroupScope(tenantId: string, appType: string, groupId?: st
       select: { id: true },
     }),
   ]);
+  const subscriptionIds = subscriptions.map((s) => s.id);
+  const receipts = subscriptionIds.length
+    ? await prisma.chitReceipt.findMany({
+        where: { tenantId, appType, entityType: 'subscription', entityId: { in: subscriptionIds } },
+        select: { id: true },
+      })
+    : [];
   return {
-    subscriptionIds: subscriptions.map((s) => s.id),
+    subscriptionIds,
     auctionIds: auctions.map((a) => a.id),
+    receiptIds: receipts.map((r) => r.id),
   };
 }
 
@@ -48,13 +56,14 @@ export async function buildChitCashFlow(params: ReportBuilderParams): Promise<Re
       appType,
       ...(branchId ? { branchId } : {}),
       entryDate: { gte: from, lte: to },
-      type: { in: ['collection', 'chit_payout', 'chit_dividend_payout'] },
+      type: { in: ['collection', 'reversal', 'chit_payout', 'chit_dividend_payout'] },
       ...(scope
         ? {
             OR: [
               { referenceType: 'chit_subscription', referenceId: { in: scope.subscriptionIds } },
               { referenceType: 'chit_auction', referenceId: { in: scope.auctionIds } },
               { referenceType: 'chit_group', referenceId: groupId },
+              { referenceType: 'chit_receipt', referenceId: { in: scope.receiptIds } },
             ],
           }
         : {}),
@@ -67,7 +76,7 @@ export async function buildChitCashFlow(params: ReportBuilderParams): Promise<Re
     const key = e.entryDate.toISOString().slice(0, 10);
     const bucket = byDay.get(key) ?? { contributionsIn: 0, prizesOut: 0, dividendsOut: 0 };
     const amount = Number(e.amount);
-    if (e.type === 'collection') bucket.contributionsIn += amount;
+    if (e.type === 'collection' || e.type === 'reversal') bucket.contributionsIn += amount;
     else if (e.type === 'chit_payout') bucket.prizesOut += amount;
     else if (e.type === 'chit_dividend_payout') bucket.dividendsOut += amount;
     byDay.set(key, bucket);

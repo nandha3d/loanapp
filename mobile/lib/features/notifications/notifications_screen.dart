@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/app_strings.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/core/network/authed_image.dart';
 import 'package:zolofund/core/notifications/notification_text.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
@@ -92,6 +94,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<void> _handleTileTap(NotificationItem item) async {
     await _markOneRead(item);
     if (!mounted) return;
+    final isChit = AppType.userIsChit(ref.read(authControllerProvider).user);
+    if (isChit) {
+      if (item.link != null && item.link!.isNotEmpty && item.link!.contains('/chits')) {
+        context.push(item.link!);
+      } else {
+        context.go('/chits');
+      }
+      return;
+    }
     if (item.link != null && item.link!.isNotEmpty) {
       context.push(item.link!);
     } else if (item.type.contains('approval')) {
@@ -114,8 +125,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _handleReply(NotificationItem item) async {
     if (item.link != null && item.link!.isNotEmpty) {
+      final isChit =
+          AppType.userIsChit(ref.read(authControllerProvider).user);
+      final link = item.link!;
+      final isLoanLink = link.startsWith('/loans') ||
+          link.startsWith('/approvals') ||
+          link.startsWith('/wallet') ||
+          link.startsWith('/penalties') ||
+          link.startsWith('/npa') ||
+          link.startsWith('/vehicles') ||
+          link.startsWith('/gold-reports') ||
+          link.startsWith('/collection/runs') ||
+          link.startsWith('/tracking') ||
+          link.startsWith('/admin/tracking');
       await _markOneRead(item);
-      if (mounted) context.push(item.link!);
+      if (mounted) context.push(isChit && isLoanLink ? '/chits' : link);
       return;
     }
     _showReplyBottomSheet(item);

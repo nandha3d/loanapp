@@ -1,6 +1,6 @@
 import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { modulePath } from '@/types/modules';
@@ -10,6 +10,7 @@ export default async function CollectionRunsPage() {
   const session = await auth();
   if (!session) redirect('/login');
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
 
   let runData: any = null;
   try {

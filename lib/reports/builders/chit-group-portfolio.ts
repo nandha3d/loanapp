@@ -42,7 +42,20 @@ export async function buildChitGroupPortfolio(params: ReportBuilderParams): Prom
     const prizesPaid = completedAuctions.reduce((sum, a) => sum + Number(a.prizeAmount || 0), 0);
     const commissionEarned = completedAuctions.reduce((sum, a) => sum + Number(a.commission || 0), 0);
     const gstCollected = completedAuctions.reduce((sum, a) => sum + Number(a.gstAmount || 0), 0);
-    const dividendTotal = completedAuctions.reduce((sum, a) => sum + Number(a.dividend || 0), 0);
+    // ChitAuction.dividend is per-ticket; prefer distributableDividend from calculationBreakdown when present.
+    const dividendTotal = completedAuctions.reduce((sum, a) => {
+      if (a.calculationBreakdown) {
+        try {
+          const parsed = JSON.parse(a.calculationBreakdown);
+          if (typeof parsed?.distributableDividend === 'number') {
+            return sum + parsed.distributableDividend;
+          }
+        } catch {
+          // ignore malformed breakdown JSON
+        }
+      }
+      return sum + Number(a.dividend || 0) * Math.max(1, g.totalMembers);
+    }, 0);
     const dividendCash = g.dividendDistribution === 'CASH_PAYOUT' ? dividendTotal : 0;
     const dividendCredited = g.dividendDistribution !== 'CASH_PAYOUT' ? dividendTotal : 0;
     const nextAuction = g.auctions.find(

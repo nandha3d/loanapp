@@ -2,7 +2,13 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { validateChitConfig } from '@/lib/chits/validation';
+import { validateChitConfig, validateChitEngineConfig } from '@/lib/chits/validation';
+import {
+  mapBiddingModeToAuctionType,
+  parseChitEngineConfig,
+  serializeChitEngineConfig,
+} from '@/lib/chits/engineTypes';
+import { assertChitEngineTypeEnabled } from '@/lib/chits/settings';
 import { generateCode } from '@/lib/utils';
 
 function dateOrNow(value?: string) {
@@ -59,11 +65,41 @@ export async function POST(req: NextRequest) {
   if (memberIds.length > totalMembers) return fail('memberIds cannot exceed totalMembers', 400);
 
   try {
+    const rawEngineType =
+      body?.chitEngineType ??
+      (body?.auctionType === 'lottery'
+        ? 'PURE_LOTTERY'
+        : body?.auctionType === 'fixed_rotation'
+          ? 'FIXED_ROTATION'
+          : 'AUCTION_STANDARD');
+    const chitEngineType = await assertChitEngineTypeEnabled(ctx.tenantId, String(rawEngineType));
+    const parsedEngineConfig = parseChitEngineConfig(body?.engineConfig ?? null, chitEngineType);
+    parsedEngineConfig.foremanCompensation.commissionPct = commissionPct;
+    if (body?.minDiscountPct != null) parsedEngineConfig.discountRules.minDiscountPct = Number(body.minDiscountPct);
+    if (body?.maxDiscountPct !== undefined) {
+      parsedEngineConfig.discountRules.maxDiscountPct = body.maxDiscountPct == null ? null : Number(body.maxDiscountPct);
+    }
+
+    const auctionType =
+      body?.auctionType ?? mapBiddingModeToAuctionType(chitEngineType, parsedEngineConfig.biddingMode);
+    const dividendPolicy = body?.dividendPolicy ?? 'ALL_MEMBERS';
+    const dividendDistribution =
+      body?.dividendDistribution ??
+      (parsedEngineConfig.dividendDistributionMode === 'DEFERRED_BONUS_POOL'
+        ? 'DEFERRED_BONUS_POOL'
+        : parsedEngineConfig.dividendDistributionMode === 'NONE'
+          ? 'NONE'
+          : 'ADJUST_NEXT_DUE');
+
+    validateChitEngineConfig(chitEngineType, parsedEngineConfig, {
+      totalMembers,
+      requireScheduleRows: false,
+    });
     validateChitConfig({
-      auctionType: body?.auctionType ?? 'open_manual',
+      auctionType,
       commissionBasis: body?.commissionBasis ?? 'BID_DISCOUNT',
-      dividendPolicy: body?.dividendPolicy ?? 'ALL_MEMBERS',
-      dividendDistribution: body?.dividendDistribution ?? 'ADJUST_NEXT_DUE',
+      dividendPolicy,
+      dividendDistribution,
       tieBreakRule: body?.tieBreakRule ?? 'EARLIEST_BID',
       minDiscountPct: body?.minDiscountPct == null ? null : Number(body.minDiscountPct),
       maxDiscountPct: body?.maxDiscountPct == null ? null : Number(body.maxDiscountPct),
@@ -71,11 +107,7 @@ export async function POST(req: NextRequest) {
     });
 
     // SCOPE-7: stamp the branch the caller is actually working, resolved and
-    // tenant-validated. This previously took body.branchId verbatim for
-    // superadmin/developer, so an unvalidated id from the request body landed on
-    // the row -- including one belonging to another tenant's branch. A superadmin
-    // targets a branch by SELECTING it in the switcher, which is what ctx.branchId
-    // already carries.
+    // tenant-validated.
     const branchId = await resolveWriteBranchId(ctx);
     const group = await prisma.$transaction(async (tx) => {
       const existingCount = await tx.chitGroup.count({ where: { tenantId: ctx.tenantId } });
@@ -96,7 +128,9 @@ export async function POST(req: NextRequest) {
           status: 'draft',
           complianceStatus: 'draft',
           chitType: body?.chitType ?? 'unregistered',
-          auctionType: body?.auctionType ?? 'open_manual',
+          chitEngineType,
+          engineConfig: serializeChitEngineConfig(parsedEngineConfig),
+          auctionType,
           auctionFrequency: body?.auctionFrequency ?? 'monthly',
           frequencyUnit: body?.frequencyUnit ?? null,
           frequencyInterval: body?.frequencyInterval == null ? null : Number(body.frequencyInterval),
@@ -118,8 +152,8 @@ export async function POST(req: NextRequest) {
           fixedDiscountPct: body?.fixedDiscountPct == null ? null : Number(body.fixedDiscountPct),
           commissionBasis: body?.commissionBasis ?? 'BID_DISCOUNT',
           gstPct: body?.gstPct == null ? null : Number(body.gstPct),
-          dividendPolicy: body?.dividendPolicy ?? 'ALL_MEMBERS',
-          dividendDistribution: body?.dividendDistribution ?? 'ADJUST_NEXT_DUE',
+          dividendPolicy,
+          dividendDistribution,
           dividendRounding: body?.dividendRounding == null ? 0 : Number(body.dividendRounding),
           bidIncrement: body?.bidIncrement == null ? null : Number(body.bidIncrement),
           tieBreakRule: body?.tieBreakRule ?? 'EARLIEST_BID',
@@ -159,6 +193,8 @@ export async function POST(req: NextRequest) {
     });
     return ok(group);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to create chit group', 500);
+    const msg = e?.message ?? 'Failed to create chit group';
+    const isClientErr = /disabled|invalid|cannot|must be|required/i.test(msg);
+    return fail(msg, isClientErr ? 400 : 500);
   }
 }

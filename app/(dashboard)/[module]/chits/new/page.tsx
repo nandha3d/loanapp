@@ -1,14 +1,24 @@
+import { auth } from '@/lib/auth';
 import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
+import { canAdminChits } from '@/lib/chits/access';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
+import { modulePath } from '@/types/modules';
+import { redirect } from 'next/navigation';
 import ChitGroupForm from './ChitGroupForm';
 import { getDictionary } from '@/lib/i18n';
 import Link from '@/components/layout/DashboardLink';
+import { getChitTypeSettings } from '@/lib/chits/settings';
 
 export default async function NewChitGroupPage() {
-  const tenantId = await getDefaultTenantId();
+  const session = await auth();
+  if (!session?.user) redirect('/login');
   const appType = await getUserAppType();
+  const role = (session.user as any)?.role as string | undefined;
+  if (!canAdminChits(role)) redirect(modulePath(appType, '/collection'));
+
+  const tenantId = await getDefaultTenantId();
   try {
     await requireModule(tenantId, 'chitfunds');
   } catch {
@@ -29,15 +39,24 @@ export default async function NewChitGroupPage() {
   // SCOPE-12: the member picker is branch work. Tenant-wide, a superadmin on
   // one branch could enrol another branch's customers into a chit group.
   const activeBranchId = await getActiveBranchId();
-  const customers = await prisma.customer.findMany({
-    where: { tenantId, appType, status: 'active', ...branchScopeWhere(activeBranchId) },
-    select: { id: true, name: true, customerCode: true },
-    orderBy: { name: 'asc' },
-  });
+  const [customers, chitTypeSettings] = await Promise.all([
+    prisma.customer.findMany({
+      where: { tenantId, appType, status: 'active', deletedAt: null, ...branchScopeWhere(activeBranchId) },
+      select: { id: true, name: true, customerCode: true },
+      orderBy: { name: 'asc' },
+    }),
+    getChitTypeSettings(tenantId),
+  ]);
 
   return (
     <div>
-      <ChitGroupForm customers={customers} currencySymbol={currencySymbol} dict={dict} />
+      <ChitGroupForm
+        customers={customers}
+        currencySymbol={currencySymbol}
+        dict={dict}
+        enabledChitTypes={chitTypeSettings.enabledTypes}
+        typeDefaults={chitTypeSettings.typeDefaults}
+      />
     </div>
   );
 }

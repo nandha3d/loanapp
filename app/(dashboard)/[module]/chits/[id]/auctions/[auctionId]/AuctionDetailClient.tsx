@@ -26,6 +26,11 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 import DividendBreakdown from '@/components/chits/DividendBreakdown';
+import {
+  isBiddingEnabledForPeriod,
+  parseChitEngineConfig,
+  resolveEngineTypeFromGroup,
+} from '@/lib/chits/engineTypes';
 
 interface Props {
   auction: any;
@@ -75,8 +80,14 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
   useRegisterBreadcrumbLabel(group.id, group.name);
   useRegisterBreadcrumbLabel(auction.id, `Period ${auction.periodNumber}`);
-  const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
-  const isLive = group.auctionType === 'open_live';
+  const engineType = resolveEngineTypeFromGroup(group);
+  const engineCfg = parseChitEngineConfig(group.engineConfig, engineType);
+  const biddingAllowed = isBiddingEnabledForPeriod(group, auction.periodNumber);
+  const isDrawType = !biddingAllowed;
+  const isReservePrice = engineType === 'AUCTION_RESERVE_PRICE';
+  const isMultiDivision = engineType === 'AUCTION_MULTI_DIVISION';
+  const isConsensus = engineType === 'NEED_BASED_CONSENSUS';
+  const isLive = group.auctionType === 'open_live' && biddingAllowed;
   const isSealed = group.auctionType === 'sealed';
   const locked = ['confirmed', 'paid', 'cancelled'].includes(auction.status);
 
@@ -84,6 +95,8 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const [busy, setBusy] = useState('');
   const [bidMemberId, setBidMemberId] = useState('');
   const [bidPrize, setBidPrize] = useState<number>(Number(group.chitValue));
+  const [consensusMemberId, setConsensusMemberId] = useState('');
+  const [consensusReason, setConsensusReason] = useState('');
   const [minutes, setMinutes] = useState('');
   const [roomMinutes, setRoomMinutes] = useState(30);
   const [antiSnipe, setAntiSnipe] = useState(60);
@@ -755,19 +768,66 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                   <label className="form-label">Minutes (optional override — auto-generated when empty)</label>
                   <textarea className="form-control" rows={3} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
                 </div>
-                {isDrawType ? (
+                {isConsensus ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Select recipient member (Need-Based Consensus)</label>
+                      <select className="form-control" value={consensusMemberId} onChange={(e) => setConsensusMemberId(e.target.value)}>
+                        <option value="">{d.selectMember}</option>
+                        {eligibleBidders.map((m: any) => (
+                          <option key={m.id} value={m.id}>{m.ticketNo ?? m.memberNumber}. {m.customer.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Consensus reason / purpose</label>
+                      <input type="text" className="form-control" value={consensusReason} onChange={(e) => setConsensusReason(e.target.value)} placeholder="e.g. Medical emergency / wedding" />
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      disabled={busy === 'draw' || !consensusMemberId}
+                      onClick={() =>
+                        run('draw', () =>
+                          drawAuctionWinner(auction.id, {
+                            selectedMemberId: consensusMemberId,
+                            consensusReason,
+                          }),
+                        )
+                      }
+                    >
+                      {busy === 'draw' ? 'Allocating…' : 'Allocate by Consensus'}
+                    </button>
+                  </div>
+                ) : isDrawType ? (
                   <button className="btn btn-primary" disabled={busy === 'draw'} onClick={() => run('draw', () => drawAuctionWinner(auction.id))}>
-                    {busy === 'draw' ? 'Drawing…' : group.auctionType === 'lottery' ? '🎲 Draw winner' : 'Resolve next in rotation'}
+                    {busy === 'draw' ? 'Resolving…' : group.auctionType === 'lottery' ? '🎲 Draw winner' : `Resolve (${engineType})`}
                   </button>
                 ) : (
-                  <button
-                    className="btn btn-primary"
-                    disabled={busy === 'confirm' || validBids.length === 0 || roomActive}
-                    onClick={() => run('confirm', () => confirmAuction(auction.id, null, minutes || null))}
-                    title={roomActive ? 'Close the bidding room first' : undefined}
-                  >
-                    {busy === 'confirm' ? 'Confirming…' : `Confirm highest bid${group.tieBreakRule === 'LOTTERY_AMONG_TIED' ? ' (cap tie → lottery)' : ''}`}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      className="btn btn-primary"
+                      disabled={busy === 'confirm' || validBids.length === 0 || roomActive}
+                      onClick={() => run('confirm', () => confirmAuction(auction.id, null, minutes || null))}
+                      title={roomActive ? 'Close the bidding room first' : undefined}
+                    >
+                      {busy === 'confirm'
+                        ? 'Confirming…'
+                        : isMultiDivision
+                          ? `Confirm Multi-Division (${engineCfg.multiDivision.lotteryWinnersPerCycle} Lottery + ${engineCfg.multiDivision.auctionWinnersPerCycle} Auction)`
+                          : `Confirm highest bid${group.tieBreakRule === 'LOTTERY_AMONG_TIED' ? ' (cap tie → lottery)' : ''}`}
+                    </button>
+                    {isReservePrice && validBids.length === 0 && (
+                      <button
+                        className="btn btn-secondary"
+                        disabled={busy === 'draw' || roomActive}
+                        onClick={() => run('draw', () => drawAuctionWinner(auction.id))}
+                      >
+                        {busy === 'draw'
+                          ? 'Drawing…'
+                          : `Draw at Reserve Floor (${auction.reserveFloorAmount ? formatCurrency(Number(auction.reserveFloorAmount), currencySymbol) : 'R_t'})`}
+                      </button>
+                    )}
+                  </div>
                 )}
                 <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
                   Confirming never releases money — the prize stays locked until security is approved.
@@ -870,22 +930,59 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                       dividendPolicy={winnerSummary.dividendPolicy}
                       dividendDistribution={winnerSummary.dividendDistribution}
                       currencySymbol={currencySymbol}
+                      engineType={winnerSummary.chitEngineType}
+                      foremanCompensationMode={winnerSummary.foremanCompensationMode}
+                      reserveFloorAmount={winnerSummary.reserveFloorAmount}
+                      forfeitedDividendTotal={winnerSummary.forfeitedDividendTotal}
+                      multiDivisionWinners={winnerSummary.multiDivisionWinners}
+                      basePlusPremiumDetails={winnerSummary.breakdown?.basePlusPremiumDetails}
+                      goldDetails={winnerSummary.breakdown?.goldDetails}
+                      commodityDetails={winnerSummary.breakdown?.commodityDetails}
+                      ascaDetails={winnerSummary.breakdown?.ascaDetails}
+                      dict={dict}
                     />
                     {winnerSummary.receiptNo && (
                       <p style={{ margin: '8px 0 0', fontSize: '.8rem', color: 'var(--success)' }}>Dividend receipt: {winnerSummary.receiptNo}</p>
                     )}
                     {winnerSummary.memberDividends?.length > 0 && (
-                      <details style={{ marginTop: '10px' }}>
-                        <summary style={{ cursor: 'pointer', fontSize: '.85rem', fontWeight: 600 }}>Per-member dividend ({winnerSummary.memberDividends.length})</summary>
-                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {winnerSummary.memberDividends.map((m: any) => (
-                            <div key={m.ticketNo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
-                              <span>{m.name} (Ticket {m.ticketNo ?? '—'})</span>
-                              <span>{formatCurrency(m.dividend, currencySymbol)}</span>
-                            </div>
-                          ))}
+                      <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                        <strong style={{ fontSize: '.86rem', display: 'block', marginBottom: '6px' }}>
+                          Per-member dividend &amp; next due ({winnerSummary.memberDividends.length})
+                        </strong>
+                        <div className="table-wrapper" style={{ maxHeight: '260px', overflowY: 'auto' }}>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Ticket</th>
+                                <th>Member</th>
+                                <th>Share</th>
+                                <th>Role</th>
+                                <th>Dividend</th>
+                                <th>Next Due</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {winnerSummary.memberDividends.map((m: any) => (
+                                <tr key={m.memberId || m.ticketNo}>
+                                  <td>#{m.ticketNo ?? '—'}</td>
+                                  <td>{m.name}</td>
+                                  <td>{m.ticketShare ?? 1}</td>
+                                  <td style={{ fontSize: '.74rem' }}>{m.roleStatus ?? 'active'}</td>
+                                  <td style={{ color: 'var(--success)', fontWeight: 700 }}>
+                                    {formatCurrency(m.dividend, currencySymbol)}
+                                    {m.forfeitedDividend > 0 && (
+                                      <span style={{ color: 'var(--danger)', display: 'block', fontSize: '.7rem' }}>
+                                        Forfeited {formatCurrency(m.forfeitedDividend, currencySymbol)}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td>{m.netPayableNextPeriod != null ? formatCurrency(m.netPayableNextPeriod, currencySymbol) : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      </details>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -997,7 +1094,8 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
-                          const fd = new FormData(e.currentTarget);
+                          const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+                          const fd = new FormData(e.currentTarget, submitter);
                           run('security', async () => {
                             await compressFormDataImages(fd);
                             return submitChitSecurity(auction.id, fd);
@@ -1007,14 +1105,32 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                           <div className="form-group">
                             <label className="form-label">Security type</label>
-                            <select name="securityType" className="form-control" defaultValue={security?.securityType ?? 'guarantor'}>
-                              <option value="guarantor">Guarantor</option>
-                              <option value="property">Property</option>
-                              <option value="gold">Gold</option>
-                              <option value="fd">Fixed deposit</option>
-                              <option value="salary">Salary</option>
-                              <option value="cheque">Cheque</option>
-                              <option value="other">Other</option>
+                            <select name="securityType" className="form-control" defaultValue={security?.securityType ?? 'INTERNAL_GUARANTOR_JAMEEN'}>
+                              <option value="INTERNAL_GUARANTOR_JAMEEN">Internal Guarantor (Jameen)</option>
+                              <option value="PROMISSORY_NOTE">Promissory Note</option>
+                              <option value="POST_DATED_CHEQUE">Post-Dated Cheque (PDC)</option>
+                              <option value="GOLD_PLEDGE">Gold Pledge</option>
+                              <option value="PROPERTY_DOCUMENT">Property Document</option>
+                              <option value="FD_LIEN">FD Lien</option>
+                              <option value="NONE">None</option>
+                              <option value="guarantor">Guarantor (legacy)</option>
+                              <option value="property">Property (legacy)</option>
+                              <option value="gold">Gold (legacy)</option>
+                              <option value="fd">Fixed deposit (legacy)</option>
+                              <option value="cheque">Cheque (legacy)</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Internal Guarantor Member (Jameen Lock)</label>
+                            <select name="guarantorMemberId" className="form-control" defaultValue={security?.guarantorMemberId ?? ''}>
+                              <option value="">None (external / non-member)</option>
+                              {group.members
+                                .filter((m: any) => m.id !== auction.winnerMemberId)
+                                .map((m: any) => (
+                                  <option key={m.id} value={m.id}>
+                                    #{m.ticketNo ?? m.memberNumber} · {m.customer.name}
+                                  </option>
+                                ))}
                             </select>
                           </div>
                           <div className="form-group">

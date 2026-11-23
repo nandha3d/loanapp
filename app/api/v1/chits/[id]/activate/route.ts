@@ -3,7 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitGroupActivation } from '@/lib/chits/validation';
-import { parseFrequency, nextPeriodDate } from '@/lib/chits/frequency';
+import { activateChitGroupInTx } from '@/lib/chits/groupService';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireMobileContext(req);
@@ -21,7 +21,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const members = await prisma.chitMember.findMany({
       where: { chitGroupId: id },
-      select: { id: true, ticketNo: true, ticketShare: true, agreementStatus: true, isForemanTicket: true },
+      select: {
+        id: true,
+        ticketNo: true,
+        ticketShare: true,
+        agreementStatus: true,
+        isForemanTicket: true,
+        hasWon: true,
+        customer: { select: { name: true } },
+      },
     });
     const ticketShares = new Map<string, number>();
     for (const member of members) {
@@ -30,9 +38,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const invalidShareCount = Array.from(ticketShares.values()).filter((sum) => Math.abs(sum - 1) > 0.001).length;
     if (invalidShareCount) return fail('Each ticket share total must equal 1.00', 400);
 
-    // Activation pre-conditions (unsigned agreements, missing compliance
-    // fields, ticket setup, …) are user-actionable — surface them as a 400
-    // with the descriptive message rather than a generic 500.
     try {
       validateChitGroupActivation({
         chitType: group.chitType,
@@ -58,44 +63,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return fail(e?.message ?? 'Chit group cannot be activated yet', 400);
     }
 
-    const freq = parseFrequency(group);
     const updated = await prisma.$transaction(async (tx) => {
-      const existingSubscriptions = await tx.chitSubscription.count({ where: { member: { chitGroupId: id } } });
-      const existingAuctions = await tx.chitAuction.count({ where: { chitGroupId: id } });
-      if (!existingSubscriptions) {
-        for (let period = 1; period <= group.totalMembers; period++) {
-          for (const member of members) {
-            const amount = Number(group.monthlyContrib) * Number(member.ticketShare);
-            await tx.chitSubscription.create({
-              data: {
-                memberId: member.id,
-                periodNumber: period,
-                dueDate: nextPeriodDate(group.startDate, period, freq),
-                dueAmount: amount,
-                baseDueAmount: amount,
-                status: 'upcoming',
-              },
-            });
-          }
-        }
-      }
-      if (!existingAuctions) {
-        for (let period = 1; period <= group.totalMembers; period++) {
-          const periodDate = nextPeriodDate(group.startDate, period, freq);
-          await tx.chitAuction.create({
-            data: {
-              chitGroupId: id,
-              periodNumber: period,
-              auctionDate: periodDate,
-              scheduledAt: periodDate,
-              status: 'pending',
-            },
-          });
-        }
-      }
-      return tx.chitGroup.update({
-        where: { id },
-        data: { status: 'active', complianceStatus: 'active' },
+      return activateChitGroupInTx(tx, {
+        scope: { tenantId: ctx.tenantId, appType: 'chitfunds', userId: ctx.userId },
+        group,
+        members,
       });
     });
     return ok(updated);

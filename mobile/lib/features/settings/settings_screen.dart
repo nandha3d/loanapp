@@ -31,6 +31,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
+    final isChit = AppType.userIsChit(user);
     final t = T.of(ref);
     final lang = ref.watch(languageProvider);
     final voiceOn = ref.watch(voiceAssistProvider);
@@ -198,49 +199,51 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          _Section(
-            title: t.x('set.routes'),
-            trailing: canManageRoutes
-                ? TextButton.icon(
-                    icon: const Icon(Icons.add, size: 16),
-                    label: Text(t.x('set.add_route')),
-                    onPressed: () => _showAddRoute(context, ref),
-                  )
-                : null,
-            child: ref.watch(_routesProvider).when(
-                  loading: () => const Skeleton(
-                    height: 80,
-                    borderRadius: AppTokens.radiusSm,
-                  ),
-                  error: (e, _) => Text(
-                    e.toString(),
-                    style: AppTypography.body.copyWith(color: AppColors.danger),
-                  ),
-                  data: (routes) => routes.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                            t.x('set.no_routes'),
-                            style: AppTypography.body
-                                .copyWith(color: AppColors.textSecondary),
+          if (!isChit) ...[
+            const SizedBox(height: 16),
+            _Section(
+              title: t.x('set.routes'),
+              trailing: canManageRoutes
+                  ? TextButton.icon(
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text(t.x('set.add_route')),
+                      onPressed: () => _showAddRoute(context, ref),
+                    )
+                  : null,
+              child: ref.watch(_routesProvider).when(
+                    loading: () => const Skeleton(
+                      height: 80,
+                      borderRadius: AppTokens.radiusSm,
+                    ),
+                    error: (e, _) => Text(
+                      e.toString(),
+                      style: AppTypography.body.copyWith(color: AppColors.danger),
+                    ),
+                    data: (routes) => routes.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              t.x('set.no_routes'),
+                              style: AppTypography.body
+                                  .copyWith(color: AppColors.textSecondary),
+                            ),
+                          )
+                        : Column(
+                            children: routes
+                                .map(
+                                  (r) => _RouteRow(
+                                    route: r,
+                                    t: t,
+                                    onTap: canManageRoutes
+                                        ? () => _showManageRoute(context, ref, r)
+                                        : null,
+                                  ),
+                                )
+                                .toList(),
                           ),
-                        )
-                      : Column(
-                          children: routes
-                              .map(
-                                (r) => _RouteRow(
-                                  route: r,
-                                  t: t,
-                                  onTap: canManageRoutes
-                                      ? () => _showManageRoute(context, ref, r)
-                                      : null,
-                                ),
-                              )
-                              .toList(),
-                        ),
-                ),
-          ),
+                  ),
+            ),
+          ],
           const SizedBox(height: 16),
           // SET-05: Features / Theme stay out of scope on mobile, and Data wipe is
           // web-only by design (destructive, needs the web confirmation flow).
@@ -334,27 +337,29 @@ class SettingsScreen extends ConsumerWidget {
                           : '/admin/team',
                     ),
                   ),
-                  Divider(height: 1, color: AppColors.border),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.bolt_outlined,
-                      color: AppColors.primary,
+                  if (!isChit) ...[
+                    Divider(height: 1, color: AppColors.border),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.bolt_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        t.x('set.penalty'),
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        t.x('set.penalty_subtitle'),
+                        style: AppTypography.caption,
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/settings/penalty'),
                     ),
-                    title: Text(
-                      t.x('set.penalty'),
-                      style: AppTypography.bodyLarge,
-                    ),
-                    subtitle: Text(
-                      t.x('set.penalty_subtitle'),
-                      style: AppTypography.caption,
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textLight,
-                    ),
-                    onTap: () => context.push('/settings/penalty'),
-                  ),
+                  ],
                   Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -444,208 +449,210 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  Divider(height: 1, color: AppColors.border),
-                  () {
-                    final isBureauSubscribed =
-                        user?.isAddonSubscribed('bureau') == true;
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.assignment_ind_outlined,
-                        color: isBureauSubscribed
-                            ? AppColors.primary
-                            : AppColors.warning,
-                      ),
-                      title: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Bureau Pull Configuration',
-                              style: AppTypography.bodyLarge,
-                            ),
-                          ),
-                          if (!isBureauSubscribed) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                  if (!isChit) ...[
+                    Divider(height: 1, color: AppColors.border),
+                    () {
+                      final isBureauSubscribed =
+                          user?.isAddonSubscribed('bureau') == true;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.assignment_ind_outlined,
+                          color: isBureauSubscribed
+                              ? AppColors.primary
+                              : AppColors.warning,
+                        ),
+                        title: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Bureau Pull Configuration',
+                                style: AppTypography.bodyLarge,
                               ),
-                              decoration: BoxDecoration(
-                                color: AppColors.warningBg,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: AppColors.warning.withAlpha(120),
+                            ),
+                            if (!isBureauSubscribed) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warningBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppColors.warning.withAlpha(120),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.lock_rounded,
+                                      size: 10,
+                                      color: AppColors.warning,
+                                    ),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'LOCKED',
+                                      style: TextStyle(
+                                        color: AppColors.warning,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.lock_rounded,
-                                    size: 10,
-                                    color: AppColors.warning,
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          isBureauSubscribed
+                              ? 'Configure CRIF bureau pull API credentials'
+                              : 'Included in higher plans · Instant CRIF High Mark credit reports',
+                          style: AppTypography.caption,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isBureauSubscribed)
+                              Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'Upgrade',
+                                  style: AppTypography.extraTiny.copyWith(
+                                    color: AppColors.primaryDark,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    'LOCKED',
-                                    style: TextStyle(
-                                      color: AppColors.warning,
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
+                            Icon(
+                              Icons.chevron_right,
+                              color: AppColors.textLight,
                             ),
                           ],
-                        ],
-                      ),
-                      subtitle: Text(
-                        isBureauSubscribed
-                            ? 'Configure CRIF bureau pull API credentials'
-                            : 'Included in higher plans · Instant CRIF High Mark credit reports',
-                        style: AppTypography.caption,
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isBureauSubscribed)
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
+                        ),
+                        onTap: isBureauSubscribed
+                            ? () => context.push('/settings/bureau')
+                            : () => showPlanUpgradeSheet(
+                                  context,
+                                  ref,
+                                  featureKey: 'bureau',
+                                ),
+                      );
+                    }(),
+                    Divider(height: 1, color: AppColors.border),
+                    () {
+                      final isNpaSubscribed =
+                          user?.isAddonSubscribed('npa') == true;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.warning_amber_outlined,
+                          color: isNpaSubscribed
+                              ? AppColors.primary
+                              : AppColors.warning,
+                        ),
+                        title: Row(
+                          children: [
+                            Flexible(
                               child: Text(
-                                'Upgrade',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                'NPA Status Rules',
+                                style: AppTypography.bodyLarge,
                               ),
                             ),
-                          Icon(
-                            Icons.chevron_right,
-                            color: AppColors.textLight,
-                          ),
-                        ],
-                      ),
-                      onTap: isBureauSubscribed
-                          ? () => context.push('/settings/bureau')
-                          : () => showPlanUpgradeSheet(
-                                context,
-                                ref,
-                                featureKey: 'bureau',
-                              ),
-                    );
-                  }(),
-                  Divider(height: 1, color: AppColors.border),
-                  () {
-                    final isNpaSubscribed =
-                        user?.isAddonSubscribed('npa') == true;
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.warning_amber_outlined,
-                        color: isNpaSubscribed
-                            ? AppColors.primary
-                            : AppColors.warning,
-                      ),
-                      title: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'NPA Status Rules',
-                              style: AppTypography.bodyLarge,
-                            ),
-                          ),
-                          if (!isNpaSubscribed) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.warningBg,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: AppColors.warning.withAlpha(120),
+                            if (!isNpaSubscribed) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
                                 ),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.lock_rounded,
-                                    size: 10,
-                                    color: AppColors.warning,
+                                decoration: BoxDecoration(
+                                  color: AppColors.warningBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppColors.warning.withAlpha(120),
                                   ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    'LOCKED',
-                                    style: TextStyle(
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.lock_rounded,
+                                      size: 10,
                                       color: AppColors.warning,
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.3,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'LOCKED',
+                                      style: TextStyle(
+                                        color: AppColors.warning,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          isNpaSubscribed
+                              ? 'Configure overdue days and automated penalties'
+                              : 'Included in higher plans · Overdue classification and provisioning engine',
+                          style: AppTypography.caption,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isNpaSubscribed)
+                              Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'Upgrade',
+                                  style: AppTypography.extraTiny.copyWith(
+                                    color: AppColors.primaryDark,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            Icon(
+                              Icons.chevron_right,
+                              color: AppColors.textLight,
                             ),
                           ],
-                        ],
-                      ),
-                      subtitle: Text(
-                        isNpaSubscribed
-                            ? 'Configure overdue days and automated penalties'
-                            : 'Included in higher plans · Overdue classification and provisioning engine',
-                        style: AppTypography.caption,
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isNpaSubscribed)
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                'Upgrade',
-                                style: AppTypography.extraTiny.copyWith(
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.w700,
+                        ),
+                        onTap: isNpaSubscribed
+                            ? () => context.push('/settings/npa')
+                            : () => showPlanUpgradeSheet(
+                                  context,
+                                  ref,
+                                  featureKey: 'npa',
                                 ),
-                              ),
-                            ),
-                          Icon(
-                            Icons.chevron_right,
-                            color: AppColors.textLight,
-                          ),
-                        ],
-                      ),
-                      onTap: isNpaSubscribed
-                          ? () => context.push('/settings/npa')
-                          : () => showPlanUpgradeSheet(
-                                context,
-                                ref,
-                                featureKey: 'npa',
-                              ),
-                    );
-                  }(),
+                      );
+                    }(),
+                  ],
                   Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

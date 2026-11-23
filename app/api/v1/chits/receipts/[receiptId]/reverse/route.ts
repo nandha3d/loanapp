@@ -25,6 +25,13 @@ export async function POST(
     });
     if (!receipt) return fail('Receipt not found', 404);
     const result = await prisma.$transaction(async (tx) => {
+      // Atomic claim inside transaction prevents concurrent double-reversal
+      const claimed = await tx.chitReceipt.updateMany({
+        where: { id: receipt.id, tenantId: ctx.tenantId, appType: 'chitfunds', status: 'active' },
+        data: { status: 'reversed', reversedById: ctx.userId, reversedAt: new Date(), reversalReason: reason },
+      });
+      if (claimed.count === 0) throw new Error('Receipt has already been reversed');
+
       const reversalNo = await generateChitReceiptNo(tx, {
         tenantId: ctx.tenantId,
         receiptType: 'reversal',
@@ -45,10 +52,6 @@ export async function POST(
           issuedById: ctx.userId,
         },
       });
-      await tx.chitReceipt.update({
-        where: { id: receipt.id },
-        data: { status: 'reversed', reversedById: ctx.userId, reversedAt: new Date(), reversalReason: reason },
-      });
       if (receipt.receiptType === 'collection' && receipt.entityType === 'subscription') {
         const sub = await tx.chitSubscription.findUnique({ where: { id: receipt.entityId } });
         if (sub) {
@@ -63,7 +66,8 @@ export async function POST(
             data: { paidAmount: calc.newPaidAmount, status: calc.status, paidAt: calc.status === 'paid' ? sub.paidAt : null },
           });
         }
-        if (receipt.branchId) {
+        // Only deduct from physical branch cash float when the original receipt was cash (MONEY-17)
+        if (receipt.branchId && (receipt.paymentMode || 'cash') === 'cash') {
           await reverseChitContributionFromBranch(tx, {
             tenantId: ctx.tenantId,
             appType: 'chitfunds',

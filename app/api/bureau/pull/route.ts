@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { pullBureauReport } from '@/lib/bureau/bureauService';
+import { getUserAppType } from '@/lib/tenant';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,6 +11,10 @@ export async function GET(req: NextRequest) {
 
   if (!userId || !role || !['admin', 'superadmin', 'developer'].includes(role)) {
     return new Response('Unauthorized', { status: 401 });
+  }
+  const appType = await getUserAppType();
+  if (appType === 'chitfunds') {
+    return new Response('Not available in Chit Funds module', { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);

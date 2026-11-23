@@ -64,6 +64,10 @@ export default async function PendingTasksPage({
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType !== 'autofinance') {
+    const { notFound } = await import('next/navigation');
+    notFound();
+  }
 
   if ((session.user as { role?: string })?.role === 'agent') {
     redirect(modulePath(appType, '/collection'));

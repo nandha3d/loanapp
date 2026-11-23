@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { notFound, redirect } from 'next/navigation';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { listPendingSelfPay } from '@/lib/selfPay';
 import { isTenantGatewayLive } from '@/lib/tenantRazorpay';
@@ -10,6 +10,8 @@ import SelfPayClient from './SelfPayClient';
 export default async function SelfPayQueuePage({ params }: { params?: Promise<{ module?: string }> }) {
   const resolvedParams = params ? await params : undefined;
   const moduleParam = resolvedParams?.module;
+  const appType = await getUserAppType();
+  if (moduleParam === 'chitfunds' || appType === 'chitfunds') notFound();
   const session = await auth();
   if (!session) redirect('/login');
   const role = (session.user as { role?: string })?.role || 'agent';

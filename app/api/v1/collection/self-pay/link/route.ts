@@ -12,12 +12,16 @@ export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
+  if (ctx.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
 
   try {
     const body = await req.json();
     if (!body.instalmentId && !body.loanId) return fail('instalmentId or loanId required', 400);
     const link = await createSelfPayLink({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       instalmentId: body.instalmentId ? String(body.instalmentId) : undefined,
       loanId: body.loanId ? String(body.loanId) : undefined,
       amount: body.amount != null ? Number(body.amount) : undefined,

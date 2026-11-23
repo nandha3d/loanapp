@@ -41,8 +41,26 @@ import {
   assertValidPrizeAmount,
   startingDiscountAmount,
   validateChitConfig,
+  validateChitEngineConfig,
   validateChitGroupActivation,
 } from '@/lib/chits/validation';
+import {
+  isChitEngineType,
+  isBiddingEnabledForPeriod,
+  mapBiddingModeToAuctionType,
+  parseChitEngineConfig,
+  resolveEngineTypeFromGroup,
+  serializeChitEngineConfig,
+} from '@/lib/chits/engineTypes';
+import { assertChitEngineTypeEnabled } from '@/lib/chits/settings';
+import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
+import {
+  activateChitGroupInTx,
+  assertMemberSubstitutionAllowed,
+  confirmMultiDivisionAuctionInTx,
+  findActiveGuaranteeLock,
+  resolveNonAuctionPeriodInTx,
+} from '@/lib/chits/groupService';
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
@@ -50,7 +68,6 @@ import {
   validateFileBytes,
 } from '@/lib/fileUpload';
 import { generateCode } from '@/lib/utils';
-import { parseFrequency, nextPeriodDate } from '@/lib/chits/frequency';
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -146,11 +163,43 @@ export async function createChitGroup(formData: FormData) {
   const bellIntervalSeconds = numberValue(formData, 'bellIntervalSeconds', 60) ?? 60;
   const bellCount = numberValue(formData, 'bellCount', 3) ?? 3;
   const bellAutoClose = value(formData, 'bellAutoClose') !== 'false';
+
+  const rawAuctionType = value(formData, 'auctionType');
+  const rawEngineType =
+    value(formData, 'chitEngineType') ??
+    (rawAuctionType === 'lottery'
+      ? 'PURE_LOTTERY'
+      : rawAuctionType === 'fixed_rotation'
+        ? 'FIXED_ROTATION'
+        : 'AUCTION_STANDARD');
+  const chitEngineType = await assertChitEngineTypeEnabled(scope.tenantId, rawEngineType);
+  const rawEngineConfigStr = value(formData, 'engineConfig');
+  const parsedEngineConfig = parseChitEngineConfig(rawEngineConfigStr, chitEngineType);
+  parsedEngineConfig.foremanCompensation.commissionPct = commissionPct;
+  if (minDiscountPct != null) parsedEngineConfig.discountRules.minDiscountPct = minDiscountPct;
+  if (maxDiscountPct !== undefined) parsedEngineConfig.discountRules.maxDiscountPct = maxDiscountPct;
+
+  const auctionType =
+    value(formData, 'auctionType') ??
+    mapBiddingModeToAuctionType(chitEngineType, parsedEngineConfig.biddingMode);
+  const dividendPolicy = value(formData, 'dividendPolicy') ?? 'ALL_MEMBERS';
+  const dividendDistribution =
+    value(formData, 'dividendDistribution') ??
+    (parsedEngineConfig.dividendDistributionMode === 'DEFERRED_BONUS_POOL'
+      ? 'DEFERRED_BONUS_POOL'
+      : parsedEngineConfig.dividendDistributionMode === 'NONE'
+        ? 'NONE'
+        : 'ADJUST_NEXT_DUE');
+
+  validateChitEngineConfig(chitEngineType, parsedEngineConfig, {
+    totalMembers,
+    requireScheduleRows: false,
+  });
   validateChitConfig({
-    auctionType: value(formData, 'auctionType') ?? 'open_manual',
+    auctionType,
     commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
-    dividendPolicy: value(formData, 'dividendPolicy') ?? 'ALL_MEMBERS',
-    dividendDistribution: value(formData, 'dividendDistribution') ?? 'ADJUST_NEXT_DUE',
+    dividendPolicy,
+    dividendDistribution,
     tieBreakRule: value(formData, 'tieBreakRule') ?? 'EARLIEST_BID',
     minDiscountPct,
     maxDiscountPct,
@@ -180,12 +229,21 @@ export async function createChitGroup(formData: FormData) {
   }
 
   const group = await prisma.$transaction(async (tx) => {
+    const resolvedBranchId =
+      scope.branchId ??
+      (await tx.branch
+        .findMany({
+          where: { tenantId: scope.tenantId, status: 'active' },
+          select: { id: true },
+          take: 2,
+        })
+        .then((rows) => (rows.length === 1 ? rows[0].id : null)));
     const existingCount = await tx.chitGroup.count({ where: { tenantId: scope.tenantId } });
     const groupCode = generateCode('CF', existingCount + 1, 5);
     const created = await tx.chitGroup.create({
       data: {
         tenantId: scope.tenantId,
-        branchId: scope.branchId || undefined,
+        branchId: resolvedBranchId || undefined,
         appType: scope.appType,
         groupCode,
         name,
@@ -198,7 +256,9 @@ export async function createChitGroup(formData: FormData) {
         status: 'draft',
         complianceStatus: 'draft',
         chitType: value(formData, 'chitType') ?? 'unregistered',
-        auctionType: value(formData, 'auctionType') ?? 'open_manual',
+        chitEngineType,
+        engineConfig: serializeChitEngineConfig(parsedEngineConfig),
+        auctionType,
         auctionFrequency: value(formData, 'auctionFrequency') ?? 'monthly',
         frequencyUnit: value(formData, 'frequencyUnit'),
         frequencyInterval: numberValue(formData, 'frequencyInterval'),
@@ -221,8 +281,8 @@ export async function createChitGroup(formData: FormData) {
         fixedDiscountPct: numberValue(formData, 'fixedDiscountPct'),
         commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
         gstPct: numberValue(formData, 'gstPct'),
-        dividendPolicy: value(formData, 'dividendPolicy') ?? 'ALL_MEMBERS',
-        dividendDistribution: value(formData, 'dividendDistribution') ?? 'ADJUST_NEXT_DUE',
+        dividendPolicy,
+        dividendDistribution,
         dividendRounding: numberValue(formData, 'dividendRounding', 0) ?? 0,
         bidIncrement: numberValue(formData, 'bidIncrement'),
         tieBreakRule: value(formData, 'tieBreakRule') ?? 'EARLIEST_BID',
@@ -360,92 +420,12 @@ export async function activateChitGroup(groupId: string) {
     foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
   });
 
-  const freq = parseFrequency(group);
   await prisma.$transaction(async (tx) => {
-    const existingSubscriptions = await tx.chitSubscription.count({
-      where: { member: { chitGroupId: group.id } },
+    await activateChitGroupInTx(tx, {
+      scope,
+      group,
+      members,
     });
-    const existingAuctions = await tx.chitAuction.count({ where: { chitGroupId: group.id } });
-    const periodCount = group.totalMembers;
-    if (!existingSubscriptions) {
-      for (let period = 1; period <= periodCount; period++) {
-        const dueDate = nextPeriodDate(group.startDate, period, freq);
-        for (const member of members) {
-          await tx.chitSubscription.create({
-            data: {
-              memberId: member.id,
-              periodNumber: period,
-              dueDate,
-              dueAmount: Number(group.monthlyContrib) * Number(member.ticketShare),
-              baseDueAmount: Number(group.monthlyContrib) * Number(member.ticketShare),
-              status: 'upcoming',
-            },
-          });
-        }
-      }
-    }
-    if (!existingAuctions) {
-      for (let period = 1; period <= periodCount; period++) {
-        const auctionDate = nextPeriodDate(group.startDate, period, freq);
-        await tx.chitAuction.create({
-          data: {
-            chitGroupId: group.id,
-            periodNumber: period,
-            auctionDate,
-            scheduledAt: scheduledDateTime(auctionDate, group.auctionTime),
-            status: 'pending',
-          },
-        });
-      }
-    }
-    await tx.chitGroup.update({
-      where: { id: group.id },
-      data: { status: 'active', complianceStatus: 'active' },
-    });
-
-    // Foreman/company ticket takes the period-1 prize without an auction (doc 11 §7).
-    const foremanMember = group.hasForemanTicket
-      ? members.find((member) => member.isForemanTicket && !member.hasWon)
-      : null;
-    if (foremanMember) {
-      const periodOne = await tx.chitAuction.findFirst({
-        where: { chitGroupId: group.id, periodNumber: 1, status: 'pending', winnerMemberId: null },
-      });
-      if (periodOne) {
-        const fixed = calculateFixedDiscountPrize({
-          chitValue: Number(group.chitValue),
-          fixedDiscountPct: group.fixedDiscountPct ? Number(group.fixedDiscountPct) : 0,
-        });
-        const branch = group.branchId
-          ? await tx.branch.findUnique({ where: { id: group.branchId }, select: { code: true } })
-          : null;
-        const bid = await tx.chitBid.create({
-          data: {
-            tenantId: scope.tenantId,
-            branchId: group.branchId,
-            auctionId: periodOne.id,
-            chitGroupId: group.id,
-            memberId: foremanMember.id,
-            bidAmount: fixed.prizeAmount,
-            bidDiscount: fixed.bidDiscount,
-            remarks: 'Foreman ticket — period 1 prize taken without auction',
-            createdById: scope.userId || undefined,
-          },
-        });
-        await finalizeAuctionInTx(tx, {
-          scope,
-          auction: periodOne,
-          group,
-          branchCode: branch?.code,
-          selectedBid: bid,
-          winnerName: foremanMember.customer.name,
-          winnerTicketNo: foremanMember.ticketNo,
-          presentCount: 0,
-          drawEvidence: 'Foreman ticket — period 1 prize taken without auction.',
-          auditAction: 'foreman_ticket_resolve',
-        });
-      }
-    }
 
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
@@ -470,18 +450,24 @@ export async function updateChitMemberDetails(memberId: string, formData: FormDa
   });
   if (!member) throw new Error('Chit member not found');
 
+  const nextSubscriberStatus = value(formData, 'subscriberStatus') ?? member.subscriberStatus;
+  if (nextSubscriberStatus === 'substituted' && member.subscriberStatus !== 'substituted') {
+    await assertMemberSubstitutionAllowed(prisma, { group: member.chitGroup });
+  }
+
+  const has = (k: string) => formData.has(k);
   const data = {
-    // Ticket no is auto-assigned at enrollment; never silently wipe it if the field is left blank.
-    ticketNo: value(formData, 'ticketNo') ?? member.ticketNo,
-    fractionNo: value(formData, 'fractionNo'),
-    ticketShare: numberValue(formData, 'ticketShare', Number(member.ticketShare)),
-    nomineeName: value(formData, 'nomineeName'),
-    nomineeRelation: value(formData, 'nomineeRelation'),
-    nomineePhone: value(formData, 'nomineePhone'),
-    introducedBy: value(formData, 'introducedBy'),
+    // Ticket no is auto-assigned at enrollment; preserve omitted fields on 1-field updates (sign/verify).
+    ...(has('ticketNo') ? { ticketNo: value(formData, 'ticketNo') ?? member.ticketNo } : {}),
+    ...(has('fractionNo') ? { fractionNo: value(formData, 'fractionNo') } : {}),
+    ...(has('ticketShare') ? { ticketShare: numberValue(formData, 'ticketShare', Number(member.ticketShare)) } : {}),
+    ...(has('nomineeName') ? { nomineeName: value(formData, 'nomineeName') } : {}),
+    ...(has('nomineeRelation') ? { nomineeRelation: value(formData, 'nomineeRelation') } : {}),
+    ...(has('nomineePhone') ? { nomineePhone: value(formData, 'nomineePhone') } : {}),
+    ...(has('introducedBy') ? { introducedBy: value(formData, 'introducedBy') } : {}),
     agreementStatus: value(formData, 'agreementStatus') ?? member.agreementStatus,
-    subscriberStatus: value(formData, 'subscriberStatus') ?? member.subscriberStatus,
-    isForemanTicket: value(formData, 'isForemanTicket') === 'true',
+    subscriberStatus: nextSubscriberStatus,
+    ...(has('isForemanTicket') ? { isForemanTicket: value(formData, 'isForemanTicket') === 'true' } : {}),
   };
 
   await prisma.$transaction(async (tx) => {
@@ -610,8 +596,8 @@ export async function addAuctionBid(auctionId: string, memberId: string, prizeAm
   });
   if (!auction) throw new Error('Auction not found');
   if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
-  if (['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
-    throw new Error('This chit uses a draw — bids are not accepted. Use the draw action instead.');
+  if (!isBiddingEnabledForPeriod(auction.chitGroup, auction.periodNumber)) {
+    throw new Error('This chit cycle uses a draw or fixed allocation — bids are not accepted.');
   }
   const member = await prisma.chitMember.findFirst({ where: { id: memberId, chitGroupId: auction.chitGroupId } });
   if (!member) throw new Error('Member not found in this chit group');
@@ -694,6 +680,23 @@ export async function confirmAuction(auctionId: string, winningBidId?: string | 
   if (!auction) throw new Error('Auction not found');
   if (['confirmed', 'paid'].includes(auction.status)) throw new Error('Auction already confirmed');
 
+  const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+  if (engineType === 'AUCTION_MULTI_DIVISION' && !winningBidId) {
+    await prisma.$transaction(async (tx) => {
+      await confirmMultiDivisionAuctionInTx(tx, {
+        scope,
+        auction,
+        group: auction.chitGroup,
+        branchCode: auction.chitGroup.branch?.code,
+        bids: auction.bids,
+        presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+        minutesText,
+      });
+    });
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+    return;
+  }
+
   const comparableBids = auction.bids.map((bid) => ({
     ...bid,
     bidDiscount: Number(bid.bidDiscount),
@@ -746,7 +749,10 @@ export async function confirmAuction(auctionId: string, winningBidId?: string | 
 // Resolves a lottery or fixed_rotation period without bids: lottery uses the audited
 // random draw; fixed_rotation takes the lowest unprized ticket. Creates a synthetic
 // winning bid at the group's fixed discount so downstream flows match auctions.
-export async function drawAuctionWinner(auctionId: string) {
+export async function drawAuctionWinner(
+  auctionId: string,
+  opts?: { selectedMemberId?: string | null; consensusReason?: string | null; goldRatePerGram?: number | null },
+) {
   const scope = await getWebChitScope();
   assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
   const auction = await prisma.chitAuction.findFirst({
@@ -754,72 +760,18 @@ export async function drawAuctionWinner(auctionId: string) {
     include: { chitGroup: { include: { branch: true } }, attendance: true },
   });
   if (!auction) throw new Error('Auction not found');
-  if (!['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
-    throw new Error('Draw is only available for lottery or fixed rotation chits');
-  }
   if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
 
-  const eligible = await prisma.chitMember.findMany({
-    where: {
-      chitGroupId: auction.chitGroupId,
-      hasWon: false,
-      subscriberStatus: 'active',
-      ticketNo: { not: null },
-    },
-    include: { customer: true },
-  });
-  if (!eligible.length) throw new Error('No eligible tickets for this period');
-
-  let winnerMember: (typeof eligible)[number];
-  let drawEvidence: string;
-  if (auction.chitGroup.auctionType === 'lottery') {
-    const draw = drawLotteryWinner({
-      auctionId: auction.id,
-      candidates: eligible.map((member) => ({
-        memberId: member.id,
-        ticketNo: member.ticketNo as string,
-        memberName: member.customer.name,
-      })),
-    });
-    winnerMember = eligible.find((member) => member.id === draw.winner.memberId) as (typeof eligible)[number];
-    drawEvidence = formatDrawEvidence(draw);
-  } else {
-    winnerMember = [...eligible].sort((a, b) =>
-      (a.ticketNo as string).localeCompare(b.ticketNo as string, undefined, { numeric: true })
-    )[0];
-    drawEvidence = `Fixed rotation: ticket ${winnerMember.ticketNo} is next in payout order.`;
-  }
-
-  const fixed = calculateFixedDiscountPrize({
-    chitValue: Number(auction.chitGroup.chitValue),
-    fixedDiscountPct: auction.chitGroup.fixedDiscountPct ? Number(auction.chitGroup.fixedDiscountPct) : 0,
-  });
-
   await prisma.$transaction(async (tx) => {
-    const bid = await tx.chitBid.create({
-      data: {
-        tenantId: scope.tenantId,
-        branchId: auction.chitGroup.branchId,
-        auctionId: auction.id,
-        chitGroupId: auction.chitGroupId,
-        memberId: winnerMember.id,
-        bidAmount: fixed.prizeAmount,
-        bidDiscount: fixed.bidDiscount,
-        remarks: drawEvidence,
-        createdById: scope.userId || undefined,
-      },
-    });
-    await finalizeAuctionInTx(tx, {
+    await resolveNonAuctionPeriodInTx(tx, {
       scope,
       auction,
       group: auction.chitGroup,
       branchCode: auction.chitGroup.branch?.code,
-      selectedBid: bid,
-      winnerName: winnerMember.customer.name,
-      winnerTicketNo: winnerMember.ticketNo,
       presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
-      drawEvidence,
-      auditAction: 'draw_winner',
+      selectedMemberId: opts?.selectedMemberId ?? null,
+      consensusReason: opts?.consensusReason ?? null,
+      goldRatePerGram: opts?.goldRatePerGram ?? null,
     });
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
@@ -850,14 +802,30 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
           : 'submitted';
   if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
 
+  const guarantorMemberId = value(formData, 'guarantorMemberId');
+  if (guarantorMemberId) {
+    if (guarantorMemberId === auction.winnerMemberId) {
+      throw new Error('Winner cannot stand as their own internal guarantor');
+    }
+    const gMem = await prisma.chitMember.findFirst({
+      where: { id: guarantorMemberId, chitGroupId: auction.chitGroupId },
+      select: { id: true },
+    });
+    if (!gMem) throw new Error('Selected guarantor member does not belong to this chit group');
+  }
+
   await prisma.$transaction(async (tx) => {
     const security = await tx.chitSecurity.findFirst({ where: { auctionId: auction.id } });
+    // Preserve existing security fields when partial actions (reject / upload documents) run.
     const data: any = {
-      securityType: value(formData, 'securityType') ?? security?.securityType ?? 'guarantor',
-      securityValue: numberValue(formData, 'securityValue'),
-      guarantorName: value(formData, 'guarantorName'),
-      guarantorPhone: value(formData, 'guarantorPhone'),
-      details: value(formData, 'details'),
+      securityType: formData.has('securityType')
+        ? value(formData, 'securityType') ?? security?.securityType ?? 'guarantor'
+        : security?.securityType ?? 'guarantor',
+      ...(formData.has('securityValue') ? { securityValue: numberValue(formData, 'securityValue') } : {}),
+      ...(formData.has('guarantorMemberId') ? { guarantorMemberId: guarantorMemberId ?? null } : {}),
+      ...(formData.has('guarantorName') ? { guarantorName: value(formData, 'guarantorName') } : {}),
+      ...(formData.has('guarantorPhone') ? { guarantorPhone: value(formData, 'guarantorPhone') } : {}),
+      ...(formData.has('details') ? { details: value(formData, 'details') } : {}),
       status: status === 'documents' ? security?.status ?? 'submitted' : status,
       submittedAt: status === 'submitted' ? new Date() : security?.submittedAt,
       verifiedById: status === 'verified' ? scope.userId : security?.verifiedById,
@@ -965,12 +933,19 @@ export async function releasePrizePayout(auctionId: string, formData?: FormData)
   });
   if (!auction) throw new Error('Auction not found');
   const security = await prisma.chitSecurity.findFirst({ where: { auctionId: auction.id }, orderBy: { updatedAt: 'desc' } });
+  const activeGuaranteeLock = auction.winnerMemberId
+    ? await findActiveGuaranteeLock(prisma, {
+        chitGroupId: auction.chitGroupId,
+        memberId: auction.winnerMemberId,
+      })
+    : null;
   assertCanReleasePrizePayout({
     auctionStatus: auction.status,
     payoutStatus: auction.payoutStatus,
     securityStatus: security?.status,
     winnerMemberId: auction.winnerMemberId,
     prizeAmount: auction.prizeAmount ? Number(auction.prizeAmount) : null,
+    activeGuaranteeLock,
   });
 
   await prisma.$transaction(async (tx) => {
@@ -1006,6 +981,7 @@ export async function recordChitPayment(
   paymentMode = 'cash',
   referenceNo?: string | null,
   notes?: string | null,
+  goldRatePerGram?: number | null,
 ) {
   const scope = await getWebChitScope();
   if (!canCollectChits(scope.role)) throw new Error('Forbidden');
@@ -1014,6 +990,12 @@ export async function recordChitPayment(
     include: { member: { include: { chitGroup: { include: { branch: true } } } } },
   });
   if (!sub) throw new Error('Subscription not found or not in your tenant/branch');
+  const engineType = resolveEngineTypeFromGroup(sub.member.chitGroup);
+  const engineCfg = parseChitEngineConfig(sub.member.chitGroup.engineConfig, engineType);
+  const effectiveGoldRate =
+    goldRatePerGram && goldRatePerGram > 0
+      ? goldRatePerGram
+      : engineCfg.goldScheme?.defaultGoldRatePerGram ?? null;
   let receiptNo = '';
   await prisma.$transaction(async (tx) => {
     const result = await collectChitSubscriptionPayment(tx, {
@@ -1030,6 +1012,8 @@ export async function recordChitPayment(
       referenceNo,
       notes,
       collectorId: scope.userId as string,
+      isGoldWeightEngine: engineType === 'GOLD_WEIGHT_ACCUMULATION',
+      goldRatePerGram: effectiveGoldRate,
     });
     receiptNo = result.receiptNo;
     await createChitAudit(tx, {
@@ -1190,12 +1174,30 @@ export async function getLiveAuctionState(auctionId: string) {
   const highestBid = bids.length
     ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
     : null;
-  const minStep = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
   const chitValueNum = Number(auction.chitGroup.chitValue);
+  const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+  const engineCfg = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
+  const groupIncrement = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+  const engineIncrement =
+    engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
+  const minStep = groupIncrement > 0 ? groupIncrement : engineIncrement;
+  const reserveFloorPct =
+    engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
+      ? calculateReserveFloor({
+          chitValue: chitValueNum,
+          totalPeriods: auction.chitGroup.totalMembers,
+          periodNumber: auction.periodNumber,
+          reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+          maxDiscountPct: engineCfg.discountRules.uncapped
+            ? null
+            : auction.chitGroup.maxDiscountPct != null
+              ? Number(auction.chitGroup.maxDiscountPct)
+              : null,
+        }).reserveFloorPct
+      : null;
   // Bug fix (doc 13): with no bids yet, the floor must come from the group's
-  // discount floor (min discount % / commission %), matching the customer app
-  // and the hard validator — not chitValue-minus-increment, which let staff
-  // web display/accept an effective ₹(increment) discount on the opening bid.
+  // discount floor (min discount % / commission % / reserve floor), matching the
+  // customer app and the hard validator — not chitValue-minus-increment.
   const minNextPrize = highestBid
     ? Math.max(1, highestBid.bidAmount - minStep)
     : Math.max(
@@ -1205,6 +1207,7 @@ export async function getLiveAuctionState(auctionId: string) {
             minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
             bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
             commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+            reserveFloorPct,
           }),
       );
   const allBids = bids.slice(0, 200);
@@ -1357,19 +1360,19 @@ export async function cancelChitGroup(id: string) {
   if (group.status === 'cancelled') throw new Error('Already cancelled');
 
   await prisma.$transaction(async (tx) => {
-    await tx.chitGroup.update({ where: { id }, data: { status: 'cancelled', complianceStatus: 'suspended' } });
-    await tx.chitAuction.updateMany({ where: { chitGroupId: id, status: 'pending' }, data: { status: 'cancelled' } });
+    await tx.chitGroup.update({ where: { id: group.id }, data: { status: 'cancelled', complianceStatus: 'suspended' } });
+    await tx.chitAuction.updateMany({ where: { chitGroupId: group.id, status: 'pending' }, data: { status: 'cancelled' } });
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
       action: 'cancel',
       entityType: 'chit_group',
-      entityId: id,
+      entityId: group.id,
       newValue: { status: 'cancelled' },
     });
   });
   revalidatePath(modulePath(scope.appType, '/chits'));
-  revalidatePath(modulePath(scope.appType, `/chits/${id}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${group.groupCode ?? group.id}`));
 }
 
 export async function updateChitGroup(id: string, formData: FormData) {
@@ -1379,9 +1382,28 @@ export async function updateChitGroup(id: string, formData: FormData) {
     throw new Error('Only superadmin/developer can edit active compliance metadata');
   }
 
+  const nextCommissionPct =
+    numberValue(formData, 'commissionPct', Number(group.commissionPct)) ?? Number(group.commissionPct);
+  const rawEngineConfig = value(formData, 'engineConfig');
+  let validatedEngineConfig: string | undefined;
+  if (group.status === 'draft' && (rawEngineConfig || formData.has('commissionPct'))) {
+    const engineType = resolveEngineTypeFromGroup(group);
+    const parsedCfg = parseChitEngineConfig(rawEngineConfig || group.engineConfig, engineType);
+    if (formData.has('commissionPct')) {
+      parsedCfg.foremanCompensation.commissionPct = nextCommissionPct;
+    }
+    if (rawEngineConfig) {
+      validateChitEngineConfig(engineType, parsedCfg, {
+        totalMembers: group.totalMembers,
+        requireScheduleRows: false,
+      });
+    }
+    validatedEngineConfig = serializeChitEngineConfig(parsedCfg);
+  }
+
   const data = {
     name: value(formData, 'name') ?? group.name,
-    commissionPct: numberValue(formData, 'commissionPct', Number(group.commissionPct)),
+    commissionPct: nextCommissionPct,
     foremanCommissionCapPct: numberValue(formData, 'foremanCommissionCapPct', group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : undefined),
     maxDiscountPct: numberValue(formData, 'maxDiscountPct', group.maxDiscountPct ? Number(group.maxDiscountPct) : undefined),
     minDiscountPct: numberValue(formData, 'minDiscountPct', group.minDiscountPct ? Number(group.minDiscountPct) : undefined),
@@ -1394,21 +1416,22 @@ export async function updateChitGroup(id: string, formData: FormData) {
     approvedBankAccountNo: value(formData, 'approvedBankAccountNo') ?? group.approvedBankAccountNo,
     foremanName: value(formData, 'foremanName') ?? group.foremanName,
     remarks: value(formData, 'remarks') ?? group.remarks,
+    ...(validatedEngineConfig !== undefined ? { engineConfig: validatedEngineConfig } : {}),
   };
   await prisma.$transaction(async (tx) => {
-    await tx.chitGroup.update({ where: { id }, data });
+    await tx.chitGroup.update({ where: { id: group.id }, data });
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
       action: 'update',
       entityType: 'chit_group',
-      entityId: id,
+      entityId: group.id,
       newValue: data,
     });
   });
   revalidatePath(modulePath(scope.appType, '/chits'));
-  revalidatePath(modulePath(scope.appType, `/chits/${id}`));
-  redirect(modulePath(scope.appType, `/chits/${id}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${group.groupCode ?? group.id}`));
+  redirect(modulePath(scope.appType, `/chits/${group.groupCode ?? group.id}`));
 }
 
 // ─── Doc 19: customer payment proof queue ────────────────────────────
@@ -1431,23 +1454,23 @@ export async function approveChitPaymentIntentAction(intentId: string, confirmed
 
   const intent = await prisma.chitPaymentIntent.findFirst({ where: { id: intentId, tenantId: scope.tenantId } });
   if (!intent) throw new Error('Payment intent not found');
-  const member = await prisma.chitMember.findUnique({
-    where: { id: intent.memberId },
+  const member = await prisma.chitMember.findFirst({
+    where: { id: intent.memberId, chitGroup: scopedChitGroupWhere(scope) },
     select: { chitGroupId: true, chitGroup: { select: { branch: { select: { code: true } } } } },
   });
+  if (!member) throw new Error('Payment intent not found in active branch scope');
 
   const result = await approveChitPaymentIntent({
     tenantId: scope.tenantId,
     appType: scope.appType,
-    branchCode: member?.chitGroup.branch?.code,
+    branchId: scope.branchId,
+    branchCode: member.chitGroup.branch?.code,
     intentId,
     confirmedAmount,
     reviewerId: scope.userId as string,
   });
 
-  if (member) {
-    revalidatePath(modulePath(scope.appType, `/chits/${member.chitGroupId}`));
-  }
+  revalidatePath(modulePath(scope.appType, `/chits/${member.chitGroupId}`));
   revalidatePath(modulePath(scope.appType, '/chits/payments'));
   return result;
 }
@@ -1459,9 +1482,75 @@ export async function rejectChitPaymentIntentAction(intentId: string, reason: st
 
   await rejectChitPaymentIntent({
     tenantId: scope.tenantId,
+    branchId: scope.branchId,
     intentId,
     reason: reason.trim(),
     reviewerId: scope.userId as string,
   });
   revalidatePath(modulePath(scope.appType, '/chits/payments'));
+}
+
+export async function recordAscaPoolTransaction(groupId: string, formData: FormData) {
+  const { scope, group } = await loadScopedGroup(groupId);
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  if (resolveEngineTypeFromGroup(group) !== 'ASCA_SHG_REVOLVING') {
+    throw new Error('Pool transactions apply only to ASCA / SHG Revolving Pool chits');
+  }
+
+  const txnType = value(formData, 'txnType');
+  const allowedTypes = [
+    'internal_loan_disburse',
+    'internal_loan_repay',
+    'interest_income',
+    'admin_expense',
+    'maturity_distribution',
+  ];
+  if (!txnType || !allowedTypes.includes(txnType)) {
+    throw new Error('Invalid ASCA pool transaction type');
+  }
+  const memberId = value(formData, 'memberId');
+  if (memberId) {
+    const member = await prisma.chitMember.findFirst({
+      where: { id: memberId, chitGroupId: group.id },
+      select: { id: true },
+    });
+    if (!member) throw new Error('Member not found in this chit group');
+  }
+  const principalAmount = numberValue(formData, 'principalAmount', 0) ?? 0;
+  const interestAmount = numberValue(formData, 'interestAmount', 0) ?? 0;
+  const interestRatePct = numberValue(formData, 'interestRatePct');
+  const notes = value(formData, 'notes');
+  if (principalAmount < 0 || interestAmount < 0 || (principalAmount === 0 && interestAmount === 0)) {
+    throw new Error('Transaction amount must be positive');
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.chitPoolTransaction.create({
+      data: {
+        tenantId: scope.tenantId,
+        branchId: group.branchId,
+        appType: scope.appType,
+        chitGroupId: group.id,
+        memberId: memberId ?? undefined,
+        txnType,
+        principalAmount,
+        interestAmount,
+        interestRatePct: interestRatePct ?? undefined,
+        notes: notes ?? undefined,
+        createdById: scope.userId ?? undefined,
+      },
+    });
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: `asca_${txnType}`,
+      entityType: 'chit_group',
+      entityId: group.id,
+      newValue: { txnId: row.id, txnType, memberId, principalAmount, interestAmount },
+    });
+    return row;
+  });
+
+  revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
+  return created;
 }

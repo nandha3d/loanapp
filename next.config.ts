@@ -52,7 +52,14 @@ const nextConfig: NextConfig = {
   ...(PUBLIC_BASE_PATH ? { basePath: PUBLIC_BASE_PATH } : {}),
   output: 'standalone',
   compress: true,
-  allowedDevOrigins: ['lvh.me', '*.lvh.me', 'localhost:3000', 'localhost:3001'],
+  allowedDevOrigins: [
+    'lvh.me',
+    '*.lvh.me',
+    'localhost:3000',
+    'localhost:3001',
+    'zolofunds.test',
+    '*.zolofunds.test',
+  ],
   typescript: {
     // Type errors now fail the build (tsc --noEmit is clean). Keeps the type
     // safety net on for production deploys. (This Next version runs ESLint

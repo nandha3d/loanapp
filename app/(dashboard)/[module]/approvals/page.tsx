@@ -4,7 +4,7 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ApprovalsClient from './ApprovalsClient';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { branchScopeWhere } from '@/lib/branchScope';
@@ -15,16 +15,17 @@ export default async function ApprovalsPage() {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
   const userId = session?.user?.id;
-  
+
   if (!userRole) {
     redirect('/login');
   }
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   const dict = await getDictionary(tenantId);
   const activeBranchId = await getActiveBranchId();
-  
+
   // Branch scope shared by every query below so the list, the tabs and the
   // sidebar badge always agree — and so an admin can only approve records that
   // belong to their own branch.
@@ -80,9 +81,9 @@ export default async function ApprovalsPage() {
     ));
     const agentAccounts = agentUserIds.length > 0
       ? await prisma.agentAccount.findMany({
-          where: { tenantId, appType, agentId: { in: agentUserIds } },
-          select: { agentId: true, balance: true },
-        })
+        where: { tenantId, appType, agentId: { in: agentUserIds } },
+        select: { agentId: true, balance: true },
+      })
       : [];
     const floatMap = new Map<string, number>();
     for (const acc of agentAccounts) {

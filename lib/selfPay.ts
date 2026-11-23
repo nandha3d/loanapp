@@ -39,12 +39,16 @@ function outstandingOf(dueAmount: unknown, receivedAmount: unknown): number {
  */
 export async function createSelfPayLink(input: {
   tenantId: string;
+  appType?: string | null;
   loanId?: string;
   instalmentId?: string;
   amount?: number;
   channel?: string;
   ttlHours?: number;
 }): Promise<SelfPayLink> {
+  if (input.appType === 'chitfunds') {
+    throw new Error('self_pay_not_supported_for_chits');
+  }
   let instalment = input.instalmentId
     ? await prisma.instalment.findUnique({
         where: { id: input.instalmentId },
@@ -60,7 +64,11 @@ export async function createSelfPayLink(input: {
     });
   }
 
-  if (!instalment || instalment.loan.tenantId !== input.tenantId) {
+  if (
+    !instalment ||
+    instalment.loan.tenantId !== input.tenantId ||
+    (input.appType && instalment.loan.appType !== input.appType)
+  ) {
     throw new Error('instalment_not_found');
   }
 

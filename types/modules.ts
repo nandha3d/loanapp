@@ -83,7 +83,21 @@ export function prefixDashboardHref(href: string, module?: string | null): strin
   return modulePath(module, href);
 }
 
+const CHITFUNDS_BLOCKED_SUBROUTES = [
+  '/settings/gold-master',
+  '/settings/payment-gateway',
+  '/collection/runs',
+  '/collection/self-pay',
+  '/reports/agents',
+];
+
 function isModuleRouteAllowed(module: ModuleKey, page: string): boolean {
+  if (
+    module === 'chitfunds' &&
+    CHITFUNDS_BLOCKED_SUBROUTES.some((blocked) => page === blocked || page.startsWith(`${blocked}/`))
+  ) {
+    return false;
+  }
   return (
     MODULE_SHARED_ROUTES.some((route) => page === route || page.startsWith(`${route}/`)) ||
     MODULE_ROUTES[module]?.some((route) => page === route || page.startsWith(`${route}/`))
@@ -124,6 +138,15 @@ export function isRouteEnabledForModules(path: string, modules: readonly string[
   const { module, page } = parseModulePath(path);
   if (module) {
     return activeModules.includes(module) && isModuleRouteAllowed(module, page);
+  }
+
+  // When only chitfunds is enabled/active, bare subroutes blocked for chitfunds must still be rejected.
+  if (
+    activeModules.length > 0 &&
+    activeModules.every((m) => m === 'chitfunds') &&
+    CHITFUNDS_BLOCKED_SUBROUTES.some((blocked) => page === blocked || page.startsWith(`${blocked}/`))
+  ) {
+    return false;
   }
 
   // Check if at least one enabled module supports this route

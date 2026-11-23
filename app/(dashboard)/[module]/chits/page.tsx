@@ -42,7 +42,7 @@ export default async function ChitsPage({
   const q = resolvedParams.q || '';
 
   const branchId = await getActiveBranchId();
-  const where: any = { tenantId, appType };
+  const where: any = { tenantId, appType, deletedAt: null };
   if (branchId) where.branchId = branchId;
   if (status) where.status = status;
   if (q) where.name = { contains: q };
@@ -65,8 +65,8 @@ export default async function ChitsPage({
           },
         },
       }),
-      prisma.chitGroup.count({ where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) } }),
-      prisma.chitGroup.count({ where: { tenantId, appType, status: 'completed', ...(branchId ? { branchId } : {}) } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, deletedAt: null, status: 'active', ...(branchId ? { branchId } : {}) } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, deletedAt: null, status: 'completed', ...(branchId ? { branchId } : {}) } }),
     ]);
   } catch (e: any) {
     dbError = e.message || 'Database tables not yet migrated. Run: npx prisma migrate deploy';
@@ -140,7 +140,9 @@ export default async function ChitsPage({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
                       <div>
                         <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, lineHeight: 1.2 }}>{g.name}</h4>
-                        <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{g.groupCode ?? g.id}</div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>
+                          {g.groupCode ?? g.id} · <span>{g.chitEngineType || 'AUCTION_STANDARD'}</span>
+                        </div>
                       </div>
                       <span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>{g.status}</span>
                     </div>

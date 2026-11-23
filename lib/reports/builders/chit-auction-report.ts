@@ -29,12 +29,23 @@ export async function buildChitAuctionReport(params: ReportBuilderParams): Promi
   const rows = auctions.map((a) => {
     const discount = Number(a.bidDiscount || 0);
     const prizeAmount = Number(a.prizeAmount || 0);
-    const dividend = Number(a.dividend || 0);
+    // ChitAuction.dividend is already stored per-ticket (finalize.ts). Do not re-divide by memberCount.
+    const dividendPerMember = Number(a.dividend || 0);
     const memberCount = a.chitGroup.totalMembers || 1;
-    const dividendPerMember = memberCount > 0 ? dividend / memberCount : 0;
+    let totalAuctionDividend = dividendPerMember * memberCount;
+    if (a.calculationBreakdown) {
+      try {
+        const parsed = JSON.parse(a.calculationBreakdown);
+        if (typeof parsed?.distributableDividend === 'number') {
+          totalAuctionDividend = parsed.distributableDividend;
+        }
+      } catch {
+        // Fallback to dividendPerMember * memberCount on malformed JSON
+      }
+    }
 
     totalDiscount += discount;
-    totalDividend += dividend;
+    totalDividend += totalAuctionDividend;
 
     return {
       chitName: a.chitGroup.name,

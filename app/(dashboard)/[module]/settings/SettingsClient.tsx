@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 import GoldMasterClient from './gold-master/GoldMasterClient';
+import ChitTypesSettingsClient from './chit-types/ChitTypesSettingsClient';
 import { isLendingAppType, normalizeSettingsTab } from '@/lib/moduleCapabilities';
 import { MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { TEMPLATE_PLACEHOLDER_KEYS } from '@/lib/notify/templateRenderer';
@@ -16,11 +17,11 @@ import { TEMPLATE_PLACEHOLDER_KEYS } from '@/lib/notify/templateRenderer';
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
   viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null,
-  notificationTemplates = [], branches = [], planMaxBranches = 1
+  chitTypeSettings = null, notificationTemplates = [], branches = [], planMaxBranches = 1
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
   viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any,
-  notificationTemplates?: any[], branches?: any[], planMaxBranches?: number
+  chitTypeSettings?: any, notificationTemplates?: any[], branches?: any[], planMaxBranches?: number
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
@@ -218,6 +219,9 @@ export default function SettingsClient({
         {effAppType === 'goldloan' && (
           <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>{d.tabGoldMaster}</div>
         )}
+        {effAppType === 'chitfunds' && (
+          <div className={`tab ${activeTab === 'chittypes' ? 'active' : ''}`} onClick={() => setActiveTab('chittypes')}>{d.tabChitTypes}</div>
+        )}
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
         <div className={`tab ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>{d.tabIntegrations}</div>
         {subscription?.whatsappSmsEnabled && (
@@ -267,10 +271,14 @@ export default function SettingsClient({
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           {[
-            ['account_balance', 'e-NACH Auto-Debit', 'Mandate timing, retries, and Razorpay readiness'],
+            ...(effAppType !== 'chitfunds'
+              ? [['account_balance', 'e-NACH Auto-Debit', 'Mandate timing, retries, and Razorpay readiness']]
+              : []),
             ['payments', 'Razorpay Gateway', 'Tenant-owned payment links and webhook setup'],
             ['sms', 'MSG91 Notifications', 'SMS and WhatsApp API credentials'],
-            ['assignment_ind', 'KYC and Bureau', 'Digio KYC and credit bureau connection status'],
+            ...(effAppType !== 'chitfunds'
+              ? [['assignment_ind', 'KYC and Bureau', 'Digio KYC and credit bureau connection status']]
+              : []),
           ].map(([icon, title, body]) => (
             <div key={title} className="card" style={{ padding: 16, boxShadow: 'none', border: '1px solid var(--border)' }}>
               <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: 22 }}>{icon}</span>
@@ -316,16 +324,16 @@ export default function SettingsClient({
                         {a.bypassCustomerApproval && (
                           <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassCustomerApproval}>{d.badgeAutoCustomer}</span>
                         )}
-                        {a.bypassLoanApproval && (
+                        {effAppType !== 'chitfunds' && a.bypassLoanApproval && (
                           <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassLoanApproval}>{d.badgeAutoLoan}</span>
                         )}
-                        {a.autoReleaseFloat && (
+                        {effAppType !== 'chitfunds' && a.autoReleaseFloat && (
                           <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title={d.autoReleaseFloat}>{d.badgeAutoDisburse}</span>
                         )}
-                        {a.feeConfirmationMandatory && (
+                        {effAppType !== 'chitfunds' && a.feeConfirmationMandatory && (
                           <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title={d.feeConfirmationMandatory}>{d.badgeFeeConfirm}</span>
                         )}
-                        {!a.bypassCustomerApproval && !a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory && (
+                        {!a.bypassCustomerApproval && (effAppType === 'chitfunds' || (!a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory)) && (
                           <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>{d.badgeStandard}</span>
                         )}
                       </div>
@@ -426,47 +434,51 @@ export default function SettingsClient({
                 </div>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  name="bypassLoanApproval" 
-                  value="true" 
-                  defaultChecked={!!agentModal?.bypassLoanApproval} 
-                  style={{ marginTop: '3px' }}
-                />
-                <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.bypassLoanApproval}</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.bypassLoanApprovalDesc}</span>
-                </div>
-              </label>
+              {effAppType !== 'chitfunds' && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      name="bypassLoanApproval" 
+                      value="true" 
+                      defaultChecked={!!agentModal?.bypassLoanApproval} 
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.bypassLoanApproval}</strong>
+                      <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.bypassLoanApprovalDesc}</span>
+                    </div>
+                  </label>
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  name="autoReleaseFloat" 
-                  value="true" 
-                  defaultChecked={!!agentModal?.autoReleaseFloat} 
-                  style={{ marginTop: '3px' }}
-                />
-                <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.autoReleaseFloat}</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.autoReleaseFloatDesc}</span>
-                </div>
-              </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      name="autoReleaseFloat" 
+                      value="true" 
+                      defaultChecked={!!agentModal?.autoReleaseFloat} 
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.autoReleaseFloat}</strong>
+                      <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.autoReleaseFloatDesc}</span>
+                    </div>
+                  </label>
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  name="feeConfirmationMandatory" 
-                  value="true" 
-                  defaultChecked={!!agentModal?.feeConfirmationMandatory} 
-                  style={{ marginTop: '3px' }}
-                />
-                <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.feeConfirmationMandatory}</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.feeConfirmationMandatoryDesc}</span>
-                </div>
-              </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      name="feeConfirmationMandatory" 
+                      value="true" 
+                      defaultChecked={!!agentModal?.feeConfirmationMandatory} 
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.feeConfirmationMandatory}</strong>
+                      <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.feeConfirmationMandatoryDesc}</span>
+                    </div>
+                  </label>
+                </>
+              )}
             </div>
           </div>
           <div className="form-group">
@@ -979,6 +991,13 @@ export default function SettingsClient({
         </div>
       )}
 
+      {/* Chit Types Tab */}
+      {effAppType === 'chitfunds' && (
+        <div className={`tab-content ${activeTab === 'chittypes' ? 'active' : ''}`}>
+          <ChitTypesSettingsClient settings={chitTypeSettings} dict={dict} currencySymbol={currencySymbol} />
+        </div>
+      )}
+
       {/* Payment / UPI Tab */}
       <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>
         <div className="card-header"><h3>💳 {d.paymentSettings}</h3></div>
@@ -1218,10 +1237,14 @@ export default function SettingsClient({
               {[
                 { key: 'notify_event_payment_received', label: d.eventPaymentReceived },
                 { key: 'notify_event_due_reminder', label: d.eventDueReminder },
-                { key: 'notify_event_loan_disbursed', label: d.eventLoanDisbursed },
-                { key: 'notify_event_loan_overdue', label: d.eventLoanOverdue },
-                { key: 'notify_event_loan_closed', label: d.eventLoanClosed },
-                { key: 'notify_event_penalty_accrued', label: d.eventPenaltyAccrued },
+                ...(effAppType !== 'chitfunds'
+                  ? [
+                      { key: 'notify_event_loan_disbursed', label: d.eventLoanDisbursed },
+                      { key: 'notify_event_loan_overdue', label: d.eventLoanOverdue },
+                      { key: 'notify_event_loan_closed', label: d.eventLoanClosed },
+                      { key: 'notify_event_penalty_accrued', label: d.eventPenaltyAccrued },
+                    ]
+                  : []),
               ].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input 
@@ -1284,10 +1307,14 @@ export default function SettingsClient({
               >
                 <option value="payment_received">{d.eventPaymentReceived}</option>
                 <option value="payment_due_reminder">{d.eventDueReminder}</option>
-                <option value="loan_disbursed">{d.eventLoanDisbursed}</option>
-                <option value="loan_overdue">{d.eventLoanOverdue}</option>
-                <option value="loan_closed">{d.eventLoanClosed}</option>
-                <option value="penalty_accrued">{d.eventPenaltyAccrued}</option>
+                {effAppType !== 'chitfunds' && (
+                  <>
+                    <option value="loan_disbursed">{d.eventLoanDisbursed}</option>
+                    <option value="loan_overdue">{d.eventLoanOverdue}</option>
+                    <option value="loan_closed">{d.eventLoanClosed}</option>
+                    <option value="penalty_accrued">{d.eventPenaltyAccrued}</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -1577,10 +1604,12 @@ export default function SettingsClient({
               }
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input type="checkbox" name="tables" value="loans" />
-                  <strong>{d.loansAndPayments}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.loansAndPaymentsDesc}</span>
-                </label>
+                {effAppType !== 'chitfunds' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" name="tables" value="loans" />
+                    <strong>{d.loansAndPayments}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.loansAndPaymentsDesc}</span>
+                  </label>
+                )}
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="customers" />
                   <strong>{d.customersAndGuarantors}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.customersAndGuarantorsDesc}</span>

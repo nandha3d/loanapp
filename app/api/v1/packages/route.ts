@@ -6,6 +6,9 @@ import { createPackage, listPackages, PackageError } from '@/lib/packages/servic
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
   try {
     return ok(await listPackages(auth.context, new URL(req.url).searchParams.get('includeInactive') === '1'));
   } catch (error) {
@@ -16,6 +19,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
   try {
     return ok(await createPackage(auth.context, await req.json()));
   } catch (error) {

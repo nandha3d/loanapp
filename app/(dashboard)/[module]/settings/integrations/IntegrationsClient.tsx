@@ -6,6 +6,7 @@ import type { IntegrationSettings } from '@/lib/integrations/settings';
 
 type Props = {
   initial: IntegrationSettings;
+  appType?: string;
   paymentGatewayUrl: string;
   nachWebhookUrl: string;
   collectionsWebhookUrl: string;
@@ -13,10 +14,12 @@ type Props = {
 
 export default function IntegrationsClient({
   initial,
+  appType = 'microlending',
   paymentGatewayUrl,
   nachWebhookUrl,
   collectionsWebhookUrl,
 }: Props) {
+  const isChit = appType === 'chitfunds';
   const [settings, setSettings] = useState(initial);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -53,63 +56,65 @@ export default function IntegrationsClient({
         )}
       </div>
 
-      <section className="card" style={{ padding: 20 }}>
-        <div className="card-header">
-          <div>
-            <h3 style={{ margin: 0 }}>e-NACH Auto-Debit</h3>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-              Uses the same Razorpay keys configured for payment links. These settings control mandate registration and retry timing.
-            </p>
+      {!isChit && (
+        <section className="card" style={{ padding: 20 }}>
+          <div className="card-header">
+            <div>
+              <h3 style={{ margin: 0 }}>e-NACH Auto-Debit</h3>
+              <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+                Uses the same Razorpay keys configured for payment links. These settings control mandate registration and retry timing.
+              </p>
+            </div>
+            <StatusBadge active={settings.nach.enabled && settings.razorpay.ready} label={settings.nach.enabled ? 'Enabled' : 'Disabled'} />
           </div>
-          <StatusBadge active={settings.nach.enabled && settings.razorpay.ready} label={settings.nach.enabled ? 'Enabled' : 'Disabled'} />
-        </div>
-        <form
-          style={{ display: 'grid', gap: 12, marginTop: 16 }}
-          action={(fd) => save('nach', {
-            enabled: fd.get('enabled') === 'true',
-            maxRetries: fd.get('maxRetries'),
-            retryIntervalDays: fd.get('retryIntervalDays'),
-            presentDaysBefore: fd.get('presentDaysBefore'),
-            defaultMaxAmount: fd.get('defaultMaxAmount'),
-            authType: fd.get('authType'),
-          })}
-        >
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" name="enabled" value="true" defaultChecked={settings.nach.enabled} />
-            <span>Enable e-NACH mandate registration and scheduled presentation</span>
-          </label>
-          <div className="form-row">
-            <Field label="Default max debit amount">
-              <input className="form-control" name="defaultMaxAmount" type="number" min="0" defaultValue={settings.nach.defaultMaxAmount || ''} />
-            </Field>
-            <Field label="Auth type">
-              <select className="form-control" name="authType" defaultValue={settings.nach.authType}>
-                <option value="netbanking">Net banking</option>
-                <option value="debitcard">Debit card</option>
-                <option value="aadhaar">Aadhaar</option>
-              </select>
-            </Field>
-          </div>
-          <div className="form-row">
-            <Field label="Present debit before due date">
-              <input className="form-control" name="presentDaysBefore" type="number" min="1" defaultValue={settings.nach.presentDaysBefore} />
-            </Field>
-            <Field label="Retry interval days">
-              <input className="form-control" name="retryIntervalDays" type="number" min="1" defaultValue={settings.nach.retryIntervalDays} />
-            </Field>
-            <Field label="Max retries">
-              <input className="form-control" name="maxRetries" type="number" min="1" defaultValue={settings.nach.maxRetries} />
-            </Field>
-          </div>
-          <Webhook label="NACH webhook" value={nachWebhookUrl} />
-          {!settings.razorpay.ready && (
-            <p style={{ margin: 0, color: 'var(--warning)', fontSize: 13 }}>
-              Payment gateway credentials not configured on the platform.
-            </p>
-          )}
-          <button className="btn btn-primary" disabled={pending} type="submit">Save NACH</button>
-        </form>
-      </section>
+          <form
+            style={{ display: 'grid', gap: 12, marginTop: 16 }}
+            action={(fd) => save('nach', {
+              enabled: fd.get('enabled') === 'true',
+              maxRetries: fd.get('maxRetries'),
+              retryIntervalDays: fd.get('retryIntervalDays'),
+              presentDaysBefore: fd.get('presentDaysBefore'),
+              defaultMaxAmount: fd.get('defaultMaxAmount'),
+              authType: fd.get('authType'),
+            })}
+          >
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" name="enabled" value="true" defaultChecked={settings.nach.enabled} />
+              <span>Enable e-NACH mandate registration and scheduled presentation</span>
+            </label>
+            <div className="form-row">
+              <Field label="Default max debit amount">
+                <input className="form-control" name="defaultMaxAmount" type="number" min="0" defaultValue={settings.nach.defaultMaxAmount || ''} />
+              </Field>
+              <Field label="Auth type">
+                <select className="form-control" name="authType" defaultValue={settings.nach.authType}>
+                  <option value="netbanking">Net banking</option>
+                  <option value="debitcard">Debit card</option>
+                  <option value="aadhaar">Aadhaar</option>
+                </select>
+              </Field>
+            </div>
+            <div className="form-row">
+              <Field label="Present debit before due date">
+                <input className="form-control" name="presentDaysBefore" type="number" min="1" defaultValue={settings.nach.presentDaysBefore} />
+              </Field>
+              <Field label="Retry interval days">
+                <input className="form-control" name="retryIntervalDays" type="number" min="1" defaultValue={settings.nach.retryIntervalDays} />
+              </Field>
+              <Field label="Max retries">
+                <input className="form-control" name="maxRetries" type="number" min="1" defaultValue={settings.nach.maxRetries} />
+              </Field>
+            </div>
+            <Webhook label="NACH webhook" value={nachWebhookUrl} />
+            {!settings.razorpay.ready && (
+              <p style={{ margin: 0, color: 'var(--warning)', fontSize: 13 }}>
+                Payment gateway credentials not configured on the platform.
+              </p>
+            )}
+            <button className="btn btn-primary" disabled={pending} type="submit">Save NACH</button>
+          </form>
+        </section>
+      )}
 
       <section className="card" style={{ padding: 20 }}>
         <div className="card-header">
@@ -242,22 +247,24 @@ export default function IntegrationsClient({
         </form>
       </section>
 
-      <section className="card" style={{ padding: 20 }}>
-        <div className="card-header">
-          <h3 style={{ margin: 0 }}>Credit Bureau</h3>
-          <StatusBadge active={settings.bureau.enabled && settings.bureau.apiKeySet} label={settings.bureau.enabled ? 'Enabled' : 'Disabled'} />
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '8px 0 12px' }}>
-          Advanced certificate upload remains in the Bureau Connect settings tab. Use this status card to confirm API credentials are present.
-        </p>
-        <div style={{ display: 'grid', gap: 8, fontSize: 14 }}>
-          <Row label="Provider" value={settings.bureau.provider} />
-          <Row label="Environment" value={settings.bureau.environment} />
-          <Row label="Member ID" value={settings.bureau.memberIdSet ? 'Saved' : 'Missing'} />
-          <Row label="API key" value={settings.bureau.apiKeySet ? 'Saved' : 'Missing'} />
-          <Row label="Client certificate" value={settings.bureau.certificateSet ? 'Uploaded' : 'Not uploaded'} />
-        </div>
-      </section>
+      {!isChit && (
+        <section className="card" style={{ padding: 20 }}>
+          <div className="card-header">
+            <h3 style={{ margin: 0 }}>Credit Bureau</h3>
+            <StatusBadge active={settings.bureau.enabled && settings.bureau.apiKeySet} label={settings.bureau.enabled ? 'Enabled' : 'Disabled'} />
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '8px 0 12px' }}>
+            Advanced certificate upload remains in the Bureau Connect settings tab. Use this status card to confirm API credentials are present.
+          </p>
+          <div style={{ display: 'grid', gap: 8, fontSize: 14 }}>
+            <Row label="Provider" value={settings.bureau.provider} />
+            <Row label="Environment" value={settings.bureau.environment} />
+            <Row label="Member ID" value={settings.bureau.memberIdSet ? 'Saved' : 'Missing'} />
+            <Row label="API key" value={settings.bureau.apiKeySet ? 'Saved' : 'Missing'} />
+            <Row label="Client certificate" value={settings.bureau.certificateSet ? 'Uploaded' : 'Not uploaded'} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

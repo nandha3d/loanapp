@@ -1,10 +1,12 @@
 // Single source of truth for placing a chit-auction bid — shared by the staff
 // web dashboard action and the mobile REST route so both write bids the same
-// way (eligibility, discount limits, anti-snipe, source/transcript audit).
+// way (eligibility, discount limits, reserve floor, anti-snipe, source/transcript audit).
 import { antiSnipeExtension, isRoomOpen } from './liveAuction';
 import { syncRoom } from './bell';
 import { assertValidPrizeAmount } from './validation';
 import { roundMoney } from './calculations';
+import { calculateReserveFloor } from './engineCalculator';
+import { isBiddingEnabledForPeriod, parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
 
 export type ChitBidSource = 'tap' | 'voice' | 'remote';
 
@@ -12,11 +14,15 @@ export type PlaceChitBidParams = {
   auction: {
     id: string;
     chitGroupId: string;
+    periodNumber?: number;
     status: string;
     startedAt: Date | null;
     chitGroup: {
       chitValue: unknown;
+      totalMembers?: number;
       auctionType: string;
+      chitEngineType?: string | null;
+      engineConfig?: string | null;
       maxDiscountPct: unknown;
       minDiscountPct: unknown;
       commissionPct: unknown;
@@ -48,21 +54,41 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   }
 
   if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
-  if (['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
-    throw new Error('This chit uses a draw — bids are not accepted. Use the draw action instead.');
+
+  const periodNumber = auction.periodNumber ?? 1;
+  if (!isBiddingEnabledForPeriod(auction.chitGroup, periodNumber)) {
+    throw new Error('This chit cycle uses a scheduled draw or fixed allocation — bids are not accepted.');
   }
   if (member.hasWon) throw new Error('This member has already won in this group');
   if (member.subscriberStatus !== 'active') throw new Error(`A ${member.subscriberStatus} ticket cannot bid`);
 
+  const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+  const config = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
+  const chitValueNum = Number(auction.chitGroup.chitValue);
+  const uncapped = engineType === 'AUCTION_UNCAPPED_ENTERPRISE' || config.discountRules.uncapped;
+
+  let reserveFloorPct: number | null = null;
+  if (engineType === 'AUCTION_RESERVE_PRICE' && config.discountRules.reservePriceStepPct > 0) {
+    reserveFloorPct = calculateReserveFloor({
+      chitValue: chitValueNum,
+      totalPeriods: auction.chitGroup.totalMembers ?? 20,
+      periodNumber,
+      reservePriceStepPct: config.discountRules.reservePriceStepPct,
+      maxDiscountPct: uncapped ? null : auction.chitGroup.maxDiscountPct ? Number(auction.chitGroup.maxDiscountPct) : null,
+    }).reserveFloorPct;
+  }
+
   assertValidPrizeAmount({
-    chitValue: Number(auction.chitGroup.chitValue),
+    chitValue: chitValueNum,
     prizeAmount,
     maxDiscountPct: auction.chitGroup.maxDiscountPct ? Number(auction.chitGroup.maxDiscountPct) : null,
     minDiscountPct: auction.chitGroup.minDiscountPct ? Number(auction.chitGroup.minDiscountPct) : null,
     commissionPct: Number(auction.chitGroup.commissionPct),
     bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+    reserveFloorPct,
+    uncapped,
   });
-  const bidDiscount = Number(auction.chitGroup.chitValue) - prizeAmount;
+  const bidDiscount = chitValueNum - prizeAmount;
 
   // Live room: lazily evaluate bells + close on expiry, require an open room,
   // apply anti-snipe extension.
@@ -91,18 +117,24 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   }
 
   // Bid increment step; exact-cap bids always accepted so cap ties can form.
-  if (auction.chitGroup.bidIncrement) {
-    const capDiscount = auction.chitGroup.maxDiscountPct
-      ? roundMoney((Number(auction.chitGroup.chitValue) * Number(auction.chitGroup.maxDiscountPct)) / 100)
-      : null;
+  const incrementStep = auction.chitGroup.bidIncrement
+    ? Number(auction.chitGroup.bidIncrement)
+    : config.discountRules.bidIncrementMultiple > 0
+      ? config.discountRules.bidIncrementMultiple
+      : 0;
+  if (incrementStep > 0) {
+    const capDiscount =
+      !uncapped && auction.chitGroup.maxDiscountPct
+        ? roundMoney((chitValueNum * Number(auction.chitGroup.maxDiscountPct)) / 100)
+        : null;
     const highest = await tx.chitBid.aggregate({
       where: { auctionId: auction.id, status: 'valid' },
       _max: { bidDiscount: true },
     });
     const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
     const atCap = capDiscount != null && bidDiscount === capDiscount;
-    if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + Number(auction.chitGroup.bidIncrement)) {
-      throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${Number(auction.chitGroup.bidIncrement)}`);
+    if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + incrementStep) {
+      throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${incrementStep}`);
     }
   }
 

@@ -30,10 +30,14 @@ function getBucket(daysOverdue: number): AgedBucket {
  */
 export async function getAgedReceivables(params: {
   tenantId: string;
+  appType?: string | null;
   asOfDate?: Date;
   branchId?: string | null;
 }): Promise<{ rows: AgedReceivableRow[]; summary: AgedSummary; asOf: Date }> {
   const asOf = params.asOfDate ?? new Date();
+  if (params.appType === 'chitfunds') {
+    throw new Error('Aged loan receivables report is not applicable to Chit Funds');
+  }
 
   const instalments = await prisma.instalment.findMany({
     where: {
@@ -41,6 +45,7 @@ export async function getAgedReceivables(params: {
       status: { in: ['upcoming', 'partial', 'missed'] },
       loan: {
         tenantId: params.tenantId,
+        ...(params.appType ? { appType: params.appType } : {}),
         status: { in: ['active', 'overdue'] },
         deletedAt: null,
         ...(params.branchId ? { branchId: params.branchId } : {}),

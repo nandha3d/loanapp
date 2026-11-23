@@ -21,6 +21,8 @@ for (const hiddenTab of ['penalty', 'packages', 'bureau', 'npa']) {
 }
 assert.equal(chitTabs.includes('routes'), true);
 assert.equal(chitTabs.includes('notifications'), true);
+assert.equal(chitTabs.includes('chittypes'), true);
+assert.equal(getSettingsTabsForAppType('microlending').includes('chittypes'), false);
 assert.equal(normalizeSettingsTab('chitfunds', 'npa', { npaEnabled: true }), 'routes');
 assert.equal(normalizeSettingsTab('microlending', 'npa', { npaEnabled: true }), 'npa');
 

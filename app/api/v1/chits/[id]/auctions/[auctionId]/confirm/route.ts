@@ -5,6 +5,8 @@ import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getTopBids, getWinningBid } from '@/lib/chits/auction';
 import { drawLotteryWinner, formatDrawEvidence } from '@/lib/chits/lottery';
 import { finalizeAuctionInTx } from '@/lib/chits/finalize';
+import { resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
+import { confirmMultiDivisionAuctionInTx } from '@/lib/chits/groupService';
 
 export async function POST(
   req: NextRequest,
@@ -32,6 +34,22 @@ export async function POST(
     });
     if (!auction) return fail('Auction not found', 404);
     if (['confirmed', 'paid'].includes(auction.status)) return fail('Auction already confirmed', 409);
+
+    if (resolveEngineTypeFromGroup(auction.chitGroup) === 'AUCTION_MULTI_DIVISION' && !body?.winningBidId) {
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await confirmMultiDivisionAuctionInTx(tx, {
+          scope: { tenantId: ctx.tenantId, appType: 'chitfunds', userId: ctx.userId },
+          auction,
+          group: auction.chitGroup,
+          branchCode: auction.chitGroup.branch?.code,
+          bids: auction.bids,
+          presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+          minutesText: body?.minutesText ?? null,
+        });
+        return result.auction;
+      });
+      return ok(updated);
+    }
 
     const comparableBids = auction.bids.map((bid) => ({ ...bid, bidDiscount: Number(bid.bidDiscount) }));
     let drawEvidence: string | null = null;

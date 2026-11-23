@@ -49,6 +49,8 @@ class ChitGroup {
     this.bidIncrement,
     this.dividendRounding = 0,
     this.hasForemanTicket = false,
+    this.chitEngineType = 'AUCTION_STANDARD',
+    this.engineConfig,
   });
 
   final String id;
@@ -83,6 +85,8 @@ class ChitGroup {
   final double? bidIncrement;
   final int dividendRounding;
   final bool hasForemanTicket;
+  final String chitEngineType;
+  final String? engineConfig;
 
   factory ChitGroup.fromJson(Map<String, dynamic> json) {
     final counts = (json['_count'] as Map<String, dynamic>?) ?? const {};
@@ -120,6 +124,8 @@ class ChitGroup {
       bidIncrement: _nullableNum(json['bidIncrement']),
       dividendRounding: (json['dividendRounding'] as num?)?.toInt() ?? 0,
       hasForemanTicket: (json['hasForemanTicket'] as bool?) ?? false,
+      chitEngineType: (json['chitEngineType'] as String?) ?? 'AUCTION_STANDARD',
+      engineConfig: json['engineConfig'] as String?,
     );
   }
 }

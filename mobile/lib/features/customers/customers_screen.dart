@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
 import 'package:zolofund/data/services/settings_service.dart';
 import 'package:zolofund/features/customers/widgets/customer_tile.dart';
@@ -68,6 +70,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final filter = ref.watch(customerFilterProvider);
     final listAsync = ref.watch(customerListProvider);
     final t = T.of(ref);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
 
     return Scaffold(
       appBar: AppBar(
@@ -127,21 +130,22 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   ),
                   const SizedBox(width: 8),
                 ],
-                // CUST-03: route filter (server-side routeId), as on web.
-                ...?ref.watch(_customerRoutesProvider).valueOrNull?.expand(
-                      (r) => [
-                        FilterPill(
-                          label: r.name,
-                          selected: filter.routeId == r.id,
-                          onTap: () => ref
-                              .read(customerFilterProvider.notifier)
-                              .update((s) => filter.routeId == r.id
-                                  ? s.copyWith(clearRoute: true)
-                                  : s.copyWith(routeId: r.id)),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
+                // CUST-03: route filter (server-side routeId), as on web (hidden for chitfunds).
+                if (!isChit)
+                  ...?ref.watch(_customerRoutesProvider).valueOrNull?.expand(
+                        (r) => [
+                          FilterPill(
+                            label: r.name,
+                            selected: filter.routeId == r.id,
+                            onTap: () => ref
+                                .read(customerFilterProvider.notifier)
+                                .update((s) => filter.routeId == r.id
+                                    ? s.copyWith(clearRoute: true)
+                                    : s.copyWith(routeId: r.id)),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ),
               ],
             ),
           ),

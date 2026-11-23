@@ -250,7 +250,7 @@ export async function GET(req: NextRequest) {
         select: { dueAmount: true, receivedAmount: true, loan: { select: { customer: { select: { routeId: true } } } } },
       }),
       prisma.auditLog.findMany({
-        where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, ...scopedBranchWhere(ctx) } },
+        where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, appType: ctx.appType, ...scopedBranchWhere(ctx) } },
         orderBy: { createdAt: 'desc' },
         take: 8,
         include: { user: { select: { name: true } } },

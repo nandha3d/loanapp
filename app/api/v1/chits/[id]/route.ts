@@ -2,7 +2,12 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { validateChitConfig } from '@/lib/chits/validation';
+import { validateChitConfig, validateChitEngineConfig } from '@/lib/chits/validation';
+import {
+  parseChitEngineConfig,
+  resolveEngineTypeFromGroup,
+  serializeChitEngineConfig,
+} from '@/lib/chits/engineTypes';
 
 export async function GET(
   req: NextRequest,
@@ -129,6 +134,18 @@ export async function PUT(
     if (body?.tieBreakRule != null) data.tieBreakRule = body.tieBreakRule;
     if (body?.hasForemanTicket != null) data.hasForemanTicket = Boolean(body.hasForemanTicket);
     if (body?.remarks !== undefined) data.remarks = body.remarks;
+    if (body?.engineConfig !== undefined) {
+      if (existing.status !== 'draft') {
+        return fail('Engine configuration cannot be modified after activation', 409);
+      }
+      const engineType = resolveEngineTypeFromGroup(existing);
+      const parsedCfg = parseChitEngineConfig(body.engineConfig, engineType);
+      validateChitEngineConfig(engineType, parsedCfg, {
+        totalMembers: existing.totalMembers,
+        requireScheduleRows: false,
+      });
+      data.engineConfig = serializeChitEngineConfig(parsedCfg);
+    }
 
     const updated = await prisma.chitGroup.update({
       where: { id },

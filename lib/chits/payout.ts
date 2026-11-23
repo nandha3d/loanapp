@@ -60,7 +60,8 @@ export async function releaseChitPrizePayout(tx: any, input: {
     },
   });
 
-  if (input.branchId) {
+  // Deduct from branch cash account only for physical cash payouts (MONEY-17)
+  if (input.branchId && (input.paymentMode || 'cash') === 'cash') {
     const { chitPayoutFromBranch } = await import('@/lib/wallet');
     await chitPayoutFromBranch(tx, {
       tenantId: input.tenantId,

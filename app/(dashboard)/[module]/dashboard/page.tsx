@@ -1159,9 +1159,14 @@ async function getChitFundsDashboardData(tenantId: string, branchId?: string | n
     }
   });
 
-  // Fetch count of pending approvals for chitfunds
+  // Fetch count of pending approvals for chitfunds (branch-scoped)
   const pendingApprovals = await prisma.approvalRequest.count({
-    where: { tenantId, appType: 'chitfunds', status: 'pending' }
+    where: {
+      tenantId,
+      appType: 'chitfunds',
+      status: 'pending',
+      ...(branchId ? { requestedBy: { branchId } } : {}),
+    }
   });
 
   // Fetch subscriptions due today
@@ -1199,9 +1204,20 @@ async function getChitFundsDashboardData(tenantId: string, branchId?: string | n
   const totalOverdueAmount = overdueSubscriptions.reduce((sum, item) => sum + Math.max(0, Number(item.dueAmount) - Number(item.paidAmount)), 0);
   const overdueMembersCount = new Set(overdueSubscriptions.map(item => item.memberId)).size;
 
-  // Recent activity logs
+  // Recent activity logs scoped strictly to chitfunds / active branch (SCOPE-17)
   const recentActivity = await prisma.auditLog.findMany({
-    where: { tenantId, user: { role: { not: 'developer' } } },
+    where: {
+      tenantId,
+      AND: [
+        { user: { role: { not: 'developer' }, ...branchFilter } },
+        {
+          OR: [
+            { entityType: { startsWith: 'chit' } },
+            { user: { appType: 'chitfunds' } },
+          ],
+        },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
     take: 8,
     include: { user: true }

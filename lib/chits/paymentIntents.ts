@@ -6,6 +6,55 @@ import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { collectChitSubscriptionPayment } from './collections';
 
+async function assertSafeProofUrlForCustomer(
+  tenantId: string,
+  customerId: string,
+  proofUrl: string,
+) {
+  const cleaned = proofUrl.trim();
+  const expectedPrefix = `/api/files/${tenantId}/`;
+  if (!cleaned.startsWith(expectedPrefix) || cleaned.includes('..') || cleaned.includes('\\')) {
+    throw new Error('Invalid or unauthorized payment proof URL');
+  }
+  const suffix = cleaned.slice('/api/files/'.length);
+  const [kycMatch, paymentApprovalMatch, nonIntentDoc, existingIntentDoc] = await Promise.all([
+    prisma.kycDocument.findFirst({
+      where: { customer: { tenantId }, filePath: { endsWith: suffix } },
+      select: { id: true },
+    }),
+    prisma.paymentApproval.findFirst({
+      where: { tenantId, photoPath: { endsWith: suffix } },
+      select: { id: true },
+    }),
+    prisma.chitDocument.findFirst({
+      where: { tenantId, entityType: { not: 'payment_intent' }, fileUrl: { endsWith: suffix } },
+      select: { id: true },
+    }),
+    prisma.chitDocument.findFirst({
+      where: { tenantId, entityType: 'payment_intent', fileUrl: { endsWith: suffix } },
+      select: { entityId: true },
+    }),
+  ]);
+  if (kycMatch || paymentApprovalMatch || nonIntentDoc) {
+    throw new Error('Unauthorized file reference for payment proof');
+  }
+  if (existingIntentDoc) {
+    const existingIntent = await prisma.chitPaymentIntent.findFirst({
+      where: { id: existingIntentDoc.entityId, tenantId },
+      select: { memberId: true },
+    });
+    if (existingIntent) {
+      const existingMember = await prisma.chitMember.findUnique({
+        where: { id: existingIntent.memberId },
+        select: { customerId: true },
+      });
+      if (existingMember && existingMember.customerId !== customerId) {
+        throw new Error('Unauthorized file reference for payment proof');
+      }
+    }
+  }
+}
+
 export async function createChitPaymentIntent(params: {
   tenantId: string;
   customerId: string;
@@ -19,6 +68,8 @@ export async function createChitPaymentIntent(params: {
   proofSizeBytes?: number | null;
   source?: 'portal' | 'whatsapp';
 }) {
+  await assertSafeProofUrlForCustomer(params.tenantId, params.customerId, params.proofUrl);
+
   const subscription = await prisma.chitSubscription.findUnique({
     where: { id: params.subscriptionId },
     include: {
@@ -185,15 +236,22 @@ export async function listChitPaymentIntentsForStaff(params: {
 export async function approveChitPaymentIntent(params: {
   tenantId: string;
   appType: string;
+  branchId?: string | null;
   branchCode?: string | null;
   intentId: string;
   confirmedAmount: number;
   reviewerId: string;
 }) {
-  return prisma.$transaction(async (tx) => {
+  const out = await prisma.$transaction(async (tx) => {
     const intent = await tx.chitPaymentIntent.findUnique({ where: { id: params.intentId } });
     if (!intent || intent.tenantId !== params.tenantId) throw new Error('Payment intent not found');
     if (intent.status !== 'pending') throw new Error('This payment proof was already reviewed');
+
+    const claimed = await tx.chitPaymentIntent.updateMany({
+      where: { id: intent.id, tenantId: params.tenantId, status: 'pending' },
+      data: { status: 'approving' },
+    });
+    if (claimed.count !== 1) throw new Error('This payment proof was already reviewed');
 
     const subscription = await tx.chitSubscription.findUnique({ where: { id: intent.subscriptionId } });
     if (!subscription) throw new Error('Subscription not found');
@@ -202,9 +260,15 @@ export async function approveChitPaymentIntent(params: {
     }
     const member = await tx.chitMember.findUnique({
       where: { id: intent.memberId },
-      select: { chitGroup: { select: { branchId: true } }, customer: { select: { userId: true } } },
+      select: {
+        chitGroup: { select: { branchId: true, chitEngineType: true } },
+        customer: { select: { userId: true } },
+      },
     });
     if (!member) throw new Error('Member not found');
+    if (params.branchId && member.chitGroup.branchId && member.chitGroup.branchId !== params.branchId) {
+      throw new Error('Payment intent not found');
+    }
 
     const result = await collectChitSubscriptionPayment(tx, {
       tenantId: params.tenantId,
@@ -220,6 +284,7 @@ export async function approveChitPaymentIntent(params: {
       referenceNo: intent.referenceNo,
       idempotencyKey: `chit-intent:${intent.id}`,
       collectorId: params.reviewerId,
+      isGoldWeightEngine: member.chitGroup.chitEngineType === 'GOLD_WEIGHT_ACCUMULATION',
     });
 
     await tx.chitPaymentIntent.update({
@@ -227,43 +292,55 @@ export async function approveChitPaymentIntent(params: {
       data: { status: 'approved', reviewedById: params.reviewerId, reviewedAt: new Date(), receiptNo: result.receiptNo },
     });
 
-    const customerUserId = member.customer.userId;
-    if (customerUserId) {
-      await notifyUser({
-        tenantId: params.tenantId,
-        targetUserId: customerUserId,
-        appType: 'chitfunds',
-        type: 'chit_payment_approved',
-        icon: 'check_circle',
-        title: 'Payment approved',
-        message: `Your payment was approved. Receipt ${result.receiptNo}.`,
-        link: '/borrower/chits',
-      }).catch(() => {});
-    }
-
-    return { receiptNo: result.receiptNo, subscription: result.subscription };
+    return {
+      receiptNo: result.receiptNo,
+      subscription: result.subscription,
+      customerUserId: member.customer.userId,
+    };
   });
+
+  // Notify outside $transaction (NOTIF-1 / X-19).
+  if (out.customerUserId) {
+    await notifyUser({
+      tenantId: params.tenantId,
+      targetUserId: out.customerUserId,
+      appType: 'chitfunds',
+      type: 'chit_payment_approved',
+      icon: 'check_circle',
+      title: 'Payment approved',
+      message: `Your payment was approved. Receipt ${out.receiptNo}.`,
+      link: '/borrower/chits',
+    }).catch(() => {});
+  }
+
+  return { receiptNo: out.receiptNo, subscription: out.subscription };
 }
 
 export async function rejectChitPaymentIntent(params: {
   tenantId: string;
+  branchId?: string | null;
   intentId: string;
   reason: string;
   reviewerId: string;
 }) {
-  const intent = await prisma.chitPaymentIntent.findUnique({ where: { id: params.intentId } });
-  if (!intent || intent.tenantId !== params.tenantId) throw new Error('Payment intent not found');
-  if (intent.status !== 'pending') throw new Error('This payment proof was already reviewed');
-
-  await prisma.chitPaymentIntent.update({
-    where: { id: intent.id },
-    data: { status: 'rejected', reviewedById: params.reviewerId, reviewedAt: new Date(), rejectionReason: params.reason },
+  const intent = await prisma.chitPaymentIntent.findUnique({
+    where: { id: params.intentId },
   });
-
+  if (!intent || intent.tenantId !== params.tenantId) throw new Error('Payment intent not found');
   const member = await prisma.chitMember.findUnique({
     where: { id: intent.memberId },
-    select: { customer: { select: { userId: true } } },
+    select: { chitGroup: { select: { branchId: true } }, customer: { select: { userId: true } } },
   });
+  if (params.branchId && member?.chitGroup.branchId && member.chitGroup.branchId !== params.branchId) {
+    throw new Error('Payment intent not found');
+  }
+
+  const updated = await prisma.chitPaymentIntent.updateMany({
+    where: { id: intent.id, tenantId: params.tenantId, status: 'pending' },
+    data: { status: 'rejected', reviewedById: params.reviewerId, reviewedAt: new Date(), rejectionReason: params.reason },
+  });
+  if (updated.count !== 1) throw new Error('This payment proof was already reviewed');
+
   const customerUserId = member?.customer.userId;
   if (customerUserId) {
     await notifyUser({

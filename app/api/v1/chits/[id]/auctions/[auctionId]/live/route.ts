@@ -5,6 +5,8 @@ import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { secondsRemaining } from '@/lib/chits/liveAuction';
 import { syncRoom, buildBellState } from '@/lib/chits/bell';
 import { roundMoney } from '@/lib/chits/calculations';
+import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
+import { parseChitEngineConfig, resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
 import { startingDiscountAmount } from '@/lib/chits/validation';
 
 // Live auction room poll — clients call this every 2-3 seconds. Countdown must be
@@ -75,12 +77,32 @@ export async function GET(
     // that the bid validator rejects. For later bids it's the current best plus
     // the increment, but never below the floor.
     const chitValueNum = Number(auction.chitGroup.chitValue);
+    const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+    const engineCfg = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
+    const reserveFloorPct =
+      engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
+        ? calculateReserveFloor({
+            chitValue: chitValueNum,
+            totalPeriods: auction.chitGroup.totalMembers,
+            periodNumber: auction.periodNumber,
+            reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+            maxDiscountPct: engineCfg.discountRules.uncapped
+              ? null
+              : auction.chitGroup.maxDiscountPct != null
+                ? Number(auction.chitGroup.maxDiscountPct)
+                : null,
+          }).reserveFloorPct
+        : null;
     const floorDiscount = startingDiscountAmount(chitValueNum, {
       minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
       bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
       commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+      reserveFloorPct,
     });
-    const increment = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+    const groupIncrement = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+    const engineIncrement =
+      engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
+    const increment = groupIncrement > 0 ? groupIncrement : engineIncrement;
     const minNextDiscount = highestBid
       ? roundMoney(Math.max(highestBid.bidDiscount + increment, floorDiscount))
       : floorDiscount > 0

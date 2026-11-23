@@ -90,6 +90,10 @@ export const SETTING_KEY_MIN_ROLE: Record<string, SettingRole> = {
   smtp_user: 'admin',
   smtp_pass: 'admin',
   smtp_from_name: 'admin',
+
+  // Chit engine configuration (admin+)
+  chit_enabled_types: 'admin',
+  chit_type_defaults: 'admin',
 };
 
 export const SETTING_GROUPS: Record<string, string> = {
@@ -123,4 +127,6 @@ export const SETTING_GROUPS: Record<string, string> = {
   smtp_user: 'notification',
   smtp_pass: 'notification',
   smtp_from_name: 'notification',
+  chit_enabled_types: 'chits',
+  chit_type_defaults: 'chits',
 };

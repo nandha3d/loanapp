@@ -460,7 +460,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              if (c.lat == null || c.lng == null) ...[
+              if (!isChit && (c.lat == null || c.lng == null)) ...[
                 _MissingGpsBanner(
                   customer: c,
                   t: t,
@@ -470,9 +470,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               ],
               _QuickContact(customer: c, t: t),
               const SizedBox(height: 14),
-              _RiskCard(customer: c, t: t),
-              const SizedBox(height: 14),
               if (!isChit) ...[
+                _RiskCard(customer: c, t: t),
+                const SizedBox(height: 14),
                 _KpiStrip(customer: c, t: t),
                 const SizedBox(height: 14),
                 _LoansSection(customer: c, t: t),

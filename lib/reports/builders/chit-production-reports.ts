@@ -410,26 +410,34 @@ export async function buildChitPayoutReport(params: ReportBuilderParams): Promis
 }
 
 export async function buildChitSecurityPendingReport(params: ReportBuilderParams): Promise<ReportPayload> {
-  const rows = (await prisma.chitSecurity.findMany({
-    where: {
-      status: { in: ['pending', 'submitted', 'verified'] },
-      ...(params.branchId ? { branchId: params.branchId } : {}),
-      tenantId: params.tenantId,
-      auction: { chitGroup: groupWhere(params) },
-    } as any,
-    include: {
-      auction: { select: { periodNumber: true, chitGroup: { select: { name: true } } } },
-    } as any,
-    orderBy: { createdAt: 'desc' },
-  } as any)).map((s: any) => ({
-    chitName: s.auction?.chitGroup?.name || '-',
-    period: s.auction?.periodNumber || '-',
-    securityType: s.securityType,
-    securityValue: Number(s.securityValue || 0),
-    guarantorName: s.guarantorName || '-',
-    guarantorPhone: s.guarantorPhone || '-',
-    status: s.status,
-  }));
+  const auctions = await prisma.chitAuction.findMany({
+    where: { chitGroup: groupWhere(params) },
+    select: { id: true, periodNumber: true, chitGroup: { select: { name: true } } },
+  });
+  const auctionMap = new Map(auctions.map((a) => [a.id, a]));
+  const securities = auctions.length
+    ? await prisma.chitSecurity.findMany({
+        where: {
+          status: { in: ['pending', 'submitted', 'verified'] },
+          ...(params.branchId ? { branchId: params.branchId } : {}),
+          tenantId: params.tenantId,
+          auctionId: { in: Array.from(auctionMap.keys()) },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const rows = securities.map((s) => {
+    const auction = auctionMap.get(s.auctionId);
+    return {
+      chitName: auction?.chitGroup?.name || '-',
+      period: auction?.periodNumber || '-',
+      securityType: s.securityType,
+      securityValue: Number(s.securityValue || 0),
+      guarantorName: s.guarantorName || '-',
+      guarantorPhone: s.guarantorPhone || '-',
+      status: s.status,
+    };
+  });
   return {
     title: 'reports.chitSecurityPending.title',
     columns: [

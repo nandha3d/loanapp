@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { collectChitSubscriptionPayment } from '@/lib/chits/collections';
+import { parseChitEngineConfig, resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireMobileContext(req);
@@ -67,6 +68,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
+    const engineType = resolveEngineTypeFromGroup(sub.member.chitGroup);
+    const engineCfg = parseChitEngineConfig(sub.member.chitGroup.engineConfig, engineType);
+    const goldRatePerGram =
+      body?.goldRatePerGram != null
+        ? Number(body.goldRatePerGram)
+        : engineCfg.goldScheme?.defaultGoldRatePerGram ?? null;
+
     const result = await prisma.$transaction(async (tx) => {
       return collectChitSubscriptionPayment(tx, {
         tenantId: ctx.tenantId,
@@ -83,6 +91,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         idempotencyKey,
         notes: body?.notes ?? body?.note ?? null,
         collectorId: ctx.userId,
+        isGoldWeightEngine: engineType === 'GOLD_WEIGHT_ACCUMULATION',
+        goldRatePerGram,
       });
     });
     return ok({ id: sub.id, ...result });

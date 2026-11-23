@@ -6,6 +6,8 @@ import prisma from '@/lib/db';
 import { isRoomOpen, secondsRemaining } from './liveAuction';
 import { syncRoom, buildBellState } from './bell';
 import { roundMoney } from './calculations';
+import { calculateReserveFloor } from './engineCalculator';
+import { parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
 import { startingDiscountAmount } from './validation';
 
 export async function findOwnLiveAuction(customerId: string, tenantId: string, groupId: string, auctionId: string) {
@@ -87,12 +89,33 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   }));
 
   const chitValueNum = Number(auction.chitGroup.chitValue);
+  const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+  const engineCfg = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
+  const reserveFloorPct =
+    engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
+      ? calculateReserveFloor({
+          chitValue: chitValueNum,
+          totalPeriods: auction.chitGroup.totalMembers,
+          periodNumber: auction.periodNumber,
+          reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+          maxDiscountPct: engineCfg.discountRules.uncapped
+            ? null
+            : auction.chitGroup.maxDiscountPct != null
+              ? Number(auction.chitGroup.maxDiscountPct)
+              : null,
+        }).reserveFloorPct
+      : null;
+
   const floorDiscount = startingDiscountAmount(chitValueNum, {
     minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
     bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
     commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+    reserveFloorPct,
   });
-  const increment = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+  const groupIncrement = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+  const engineIncrement =
+    engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
+  const increment = groupIncrement > 0 ? groupIncrement : engineIncrement;
   const minNextDiscount = highestBid
     ? roundMoney(Math.max(Number(highestBid.bidDiscount) + increment, floorDiscount))
     : floorDiscount > 0

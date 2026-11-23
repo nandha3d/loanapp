@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { getUserAppType } from '@/lib/tenant';
 
 export async function GET(
   req: NextRequest,
@@ -13,6 +14,10 @@ export async function GET(
 
   if (!userId || !role || !['admin', 'superadmin', 'developer'].includes(role)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  const appType = await getUserAppType();
+  if (appType === 'chitfunds') {
+    return NextResponse.json({ success: false, error: 'Not available in Chit Funds module' }, { status: 403 });
   }
 
   const { customerId } = await params;

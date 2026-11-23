@@ -195,7 +195,7 @@ export function getRoleRedirectTarget(
       return `/${module}/collection`;
     }
     if (module && AGENT_BLOCKED.some((prefix) => page === prefix || page.startsWith(`${prefix}/`))) {
-      return `/${module}/agent-dashboard`;
+      return module === 'chitfunds' ? `/${module}/collection` : `/${module}/agent-dashboard`;
     }
     if (!module && AGENT_BLOCKED.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
       return '/portal';
@@ -210,7 +210,11 @@ export function getRoleRedirectTarget(
       return '/customers';
     }
     if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
-      return module ? `/${module}/agent-dashboard` : '/portal';
+      return module
+        ? module === 'chitfunds'
+          ? `/${module}/collection`
+          : `/${module}/agent-dashboard`
+        : '/portal';
     }
   }
 

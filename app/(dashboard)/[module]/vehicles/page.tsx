@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatDate } from '@/lib/utils';
@@ -18,6 +18,7 @@ export default async function VehiclesPage({
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType !== 'autofinance') notFound();
   try {
     await requireModule(tenantId, 'autofinance');
   } catch {

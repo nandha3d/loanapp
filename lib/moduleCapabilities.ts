@@ -25,12 +25,15 @@ export function getSettingsTabsForAppType(
   const tabs = ['routes'];
   if (isLendingAppType(appType)) tabs.push('penalty', 'packages');
   if (appType === 'goldloan') tabs.push('goldmaster');
+  if (appType === 'chitfunds') tabs.push('chittypes');
   tabs.push('payment', 'integrations');
   if (subscription.whatsappSmsEnabled) tabs.push('notifications');
   tabs.push('bulk');
   if (isLendingAppType(appType) && subscription.bureauEnabled) tabs.push('bureau');
   if (isLendingAppType(appType) && subscription.npaEnabled) tabs.push('npa');
-  tabs.push('branches', 'system', 'features', 'theme', 'data', 'users', 'security');
+  tabs.push('branches', 'system');
+  if (isLendingAppType(appType)) tabs.push('features');
+  tabs.push('theme', 'data', 'users', 'security');
   return tabs;
 }
 

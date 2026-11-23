@@ -13,6 +13,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType !== 'autofinance') notFound();
   const dict = await getDictionary(tenantId);
   const session = await auth();
   const isAgent = (session?.user as any)?.role === 'agent';

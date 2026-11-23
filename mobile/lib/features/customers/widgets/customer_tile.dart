@@ -104,13 +104,13 @@ class CustomerTile extends ConsumerWidget {
     final statusAccent = _statusColor(customer.status);
 
     final snippets = <Widget>[
-      _InfoSnippet(
-        icon: Icons.speed_rounded,
-        label: t.x('cust.risk_score'),
-        value: (cs != null && cs.rated) ? '${cs.score}' : '—',
-        valueColor: _scoreColor(cs?.score ?? 0),
-      ),
       if (!isChit) ...[
+        _InfoSnippet(
+          icon: Icons.speed_rounded,
+          label: t.x('cust.risk_score'),
+          value: (cs != null && cs.rated) ? '${cs.score}' : '—',
+          valueColor: _scoreColor(cs?.score ?? 0),
+        ),
         _InfoSnippet(
           icon: Icons.account_balance_wallet_outlined,
           label: t.x('cust.active_principal'),

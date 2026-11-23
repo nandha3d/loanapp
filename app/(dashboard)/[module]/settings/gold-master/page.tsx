@@ -1,12 +1,13 @@
 import { serverFetch } from '@/lib/api-client/server';
 import { getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { modulePath } from '@/types/modules';
 import GoldMasterClient from './GoldMasterClient';
 
 export default async function GoldMasterPage() {
   const appType = await getUserAppType();
+  if (appType !== 'goldloan') notFound();
   const session = await auth();
   const role = (session?.user as any)?.role || 'agent';
   if (role === 'agent') redirect(modulePath(appType, '/collection'));

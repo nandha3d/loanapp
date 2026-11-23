@@ -69,6 +69,7 @@ class ChitService {
     String? remarks,
     String source = 'tap',
     String? transcript,
+    String? idempotencyKey,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitAuctionBids(groupId, auctionId),
@@ -84,6 +85,8 @@ class ChitService {
         'source': source,
         if (transcript != null && transcript.trim().isNotEmpty)
           'transcript': transcript.trim(),
+        if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+          'idempotencyKey': idempotencyKey.trim(),
       },
     );
     return unwrapEnvelope(
@@ -563,15 +566,24 @@ class ChitService {
 
   Future<void> createPenalty(
     String groupId, {
-    required String memberId,
+    String? subscriptionId,
+    String? memberId,
     required double amount,
     required String reason,
     int? periodNumber,
   }) async {
+    assert(
+      (subscriptionId != null && subscriptionId.trim().isNotEmpty) ||
+          (memberId != null && memberId.trim().isNotEmpty),
+      'subscriptionId or memberId is required',
+    );
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPenalties(groupId),
       data: {
-        'memberId': memberId,
+        if (subscriptionId != null && subscriptionId.trim().isNotEmpty)
+          'subscriptionId': subscriptionId.trim(),
+        if (memberId != null && memberId.trim().isNotEmpty)
+          'memberId': memberId.trim(),
         'amount': amount,
         'reason': reason,
         if (periodNumber != null) 'periodNumber': periodNumber,
@@ -591,7 +603,8 @@ class ChitService {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPenaltyPay(groupId, penaltyId),
       data: {
-        'amountPaid': amountPaid,
+        // Server reads `amount` on POST /chits/:id/penalties/:penaltyId/pay.
+        'amount': amountPaid,
         'paymentMode': paymentMode,
         if (referenceNo != null) 'referenceNo': referenceNo,
         if (remarks != null) 'remarks': remarks,

@@ -381,14 +381,14 @@ export default function AccountingClient({
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.capitalWithdrawn || 'Capital Withdrawn'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
               </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Released to Agents</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#D97706' }}>-{formatCurrency(metrics.releasedToAgents, currencySymbol)}</div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Agent Float</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(summary.agentFloat, currencySymbol)}</div>
-              </div>
+              </div>}
               {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalDeductions || 'Total Deductions (Upfront Fees)'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalDeductions, currencySymbol)}</div>
@@ -440,7 +440,9 @@ export default function AccountingClient({
               </button>
             </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center', margin: '8px 0 0' }}>
-              {ac.autoRecorded || 'Loan disbursements and collections are recorded automatically.'}
+              {summary.kind === 'chit'
+                ? ((ac as any).autoRecordedChit || 'Chit contributions, prize payouts, and dividends are recorded automatically.')
+                : (ac.autoRecorded || 'Loan disbursements and collections are recorded automatically.')}
             </p>
           </div>
         </div>

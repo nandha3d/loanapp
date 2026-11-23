@@ -13,10 +13,22 @@ export type FrequencyConfig = {
 
 const LEGACY_PRESETS: Record<string, FrequencyConfig> = {
   daily: { unit: 'day', interval: 1 },
+  DAILY_30: { unit: 'day', interval: 1 },
+  DAILY_25: { unit: 'day', interval: 1, weekdays: [1, 2, 3, 4, 5, 6] },
   weekly: { unit: 'week', interval: 1 },
+  WEEKLY: { unit: 'week', interval: 1 },
   fortnightly: { unit: 'week', interval: 2 },
+  FORTNIGHTLY: { unit: 'week', interval: 2 },
   monthly: { unit: 'month', interval: 1 },
+  MONTHLY: { unit: 'month', interval: 1 },
+  BI_MONTHLY: { unit: 'month', interval: 2 },
+  SEASONAL_HARVEST: { unit: 'month', interval: 3 },
 };
+
+export function collectionFrequencyToConfig(freq: string | null | undefined): FrequencyConfig {
+  if (!freq) return LEGACY_PRESETS.monthly;
+  return LEGACY_PRESETS[freq] || LEGACY_PRESETS.monthly;
+}
 
 export function parseFrequency(group: {
   auctionFrequency?: string | null;
@@ -36,16 +48,24 @@ export function parseFrequency(group: {
   return LEGACY_PRESETS[group.auctionFrequency || 'monthly'] || LEGACY_PRESETS.monthly;
 }
 
-// Clamped month math: if the start day exceeds the number of days in the
-// target month, clamp to the last day of that month instead of letting
-// `setMonth` overflow into the next month.
+// Clamped month math in UTC (DATE-1): if the start day exceeds the number of
+// days in the target month, clamp to the last day of that month instead of
+// letting `setUTCMonth` overflow, avoiding local-timezone DST/offset day drift.
 function addMonthsClamped(date: Date, months: number): Date {
   const d = new Date(date);
-  const targetMonth = d.getMonth() + months;
-  const candidate = new Date(d.getFullYear(), targetMonth, 1);
-  const daysInTarget = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 0).getDate();
-  candidate.setDate(Math.min(d.getDate(), daysInTarget));
-  return candidate;
+  const targetYear = d.getUTCFullYear();
+  const targetMonth = d.getUTCMonth() + months;
+  const firstOfTarget = new Date(Date.UTC(targetYear, targetMonth, 1));
+  const daysInTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  return new Date(
+    Date.UTC(
+      firstOfTarget.getUTCFullYear(),
+      firstOfTarget.getUTCMonth(),
+      Math.min(d.getUTCDate(), daysInTarget),
+    ),
+  );
 }
 
 export function nextPeriodDate(startDate: Date, period: number, freq: FrequencyConfig): Date {
@@ -54,22 +74,22 @@ export function nextPeriodDate(startDate: Date, period: number, freq: FrequencyC
     // `period` occurrences are reached (period 1 = the first matching day
     // on/after startDate).
     let count = 0;
-    const cursor = new Date(startDate);
+    const cursor = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
     while (count < period) {
-      if (freq.weekdays.includes(cursor.getDay())) count++;
-      if (count < period) cursor.setDate(cursor.getDate() + 1);
+      if (freq.weekdays.includes(cursor.getUTCDay())) count++;
+      if (count < period) cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
     return cursor;
   }
   const steps = (period - 1) * freq.interval;
   if (freq.unit === 'day') {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + steps);
+    const d = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+    d.setUTCDate(d.getUTCDate() + steps);
     return d;
   }
   if (freq.unit === 'week') {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + steps * 7);
+    const d = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+    d.setUTCDate(d.getUTCDate() + steps * 7);
     return d;
   }
   return addMonthsClamped(startDate, steps); // unit === 'month'

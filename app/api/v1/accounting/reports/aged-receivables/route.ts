@@ -3,6 +3,7 @@ import { resolveActor } from '@/lib/api/dualAuth';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import { getAgedReceivables } from '@/lib/accounting/agedReceivables';
+import { getUserAppType } from '@/lib/tenant';
 
 const ALLOWED_ROLES = new Set(['admin', 'superadmin', 'developer', 'accountant']);
 
@@ -17,6 +18,11 @@ export async function GET(req: NextRequest) {
   if (!actor) return fail('Unauthorized', 401);
   if (!ALLOWED_ROLES.has(actor.role)) return fail('Forbidden', 403);
 
+  const reqAppType = req.headers.get('x-app-type')?.trim().toLowerCase() || (await getUserAppType());
+  if (reqAppType === 'chitfunds') {
+    return fail('Not available in Chit Funds module', 403);
+  }
+
   if (!(await isPremiumAccountingEnabled(actor.tenantId))) {
     return fail('Premium accounting required', 403);
   }
@@ -28,6 +34,7 @@ export async function GET(req: NextRequest) {
 
   const result = await getAgedReceivables({
     tenantId: actor.tenantId,
+    appType: reqAppType,
     asOfDate,
     branchId: searchParams.get('branchId'),
   });

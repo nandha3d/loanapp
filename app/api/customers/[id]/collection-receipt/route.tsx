@@ -20,6 +20,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const authResult = await requireApiContext();
     if (isApiError(authResult)) return authResult.response;
     const { tenantId, appType, role, userId } = authResult.context;
+    if (appType === 'chitfunds') {
+      return apiError('Not available in Chit Funds module', 403);
+    }
     const { id } = await params;
 
     const { searchParams } = new URL(req.url);

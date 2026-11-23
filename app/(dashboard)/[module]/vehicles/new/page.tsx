@@ -1,6 +1,7 @@
 import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
@@ -14,6 +15,7 @@ export default async function NewVehiclePage() {
   const userId = session?.user?.id as string | undefined;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType !== 'autofinance') notFound();
   try {
     await requireModule(tenantId, 'autofinance');
   } catch {

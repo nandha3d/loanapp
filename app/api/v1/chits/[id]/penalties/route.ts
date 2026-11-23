@@ -38,19 +38,32 @@ export async function POST(
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
   const { id } = await params;
   const body = await req.json().catch(() => null) as any;
-  const subscriptionId = String(body?.subscriptionId || '');
+  const subscriptionId = typeof body?.subscriptionId === 'string' ? body.subscriptionId.trim() : '';
+  const memberId = typeof body?.memberId === 'string' ? body.memberId.trim() : '';
+  const periodNumber = body?.periodNumber != null ? Number(body.periodNumber) : null;
   const amount = Number(body?.amount || 0);
-  if (!subscriptionId || !(amount > 0)) return fail('subscriptionId and positive amount are required', 400);
+  if ((!subscriptionId && !memberId) || !(amount > 0)) {
+    return fail('subscriptionId (or memberId) and positive amount are required', 400);
+  }
 
-  const subscription = await prisma.chitSubscription.findFirst({
-    where: {
-      id: subscriptionId,
-      member: {
-        chitGroup: { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) },
-      },
-    },
-    include: { member: { include: { chitGroup: true } } },
-  });
+  const groupFilter = { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) };
+  const subscription = subscriptionId
+    ? await prisma.chitSubscription.findFirst({
+        where: {
+          id: subscriptionId,
+          member: { chitGroup: groupFilter },
+        },
+        include: { member: { include: { chitGroup: true } } },
+      })
+    : await prisma.chitSubscription.findFirst({
+        where: {
+          memberId,
+          ...(periodNumber != null && Number.isInteger(periodNumber) ? { periodNumber } : {}),
+          member: { chitGroup: groupFilter },
+        },
+        orderBy: { periodNumber: 'desc' },
+        include: { member: { include: { chitGroup: true } } },
+      });
   if (!subscription) return fail('Subscription not found', 404);
 
   const result = await prisma.$transaction(async (tx) => {

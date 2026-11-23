@@ -5,6 +5,8 @@ import Link from '@/components/layout/DashboardLink';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
 import { getDictionary } from '@/lib/i18n';
 import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
+import { buildChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
+import { resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
 
 export default async function ChitGroupDetailPage({ params }: { params: Promise<{ id: string; module: string }> }) {
   const { id } = await params;
@@ -39,6 +41,16 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
 
   if (!group) notFound();
 
+  const [dividendLedger, poolTransactions] = await Promise.all([
+    buildChitGroupDividendLedger(group.id, scope),
+    resolveEngineTypeFromGroup(group) === 'ASCA_SHG_REVOLVING'
+      ? prisma.chitPoolTransaction.findMany({
+          where: { tenantId, appType: scope.appType, chitGroupId: group.id },
+          orderBy: { txnDate: 'desc' },
+        })
+      : Promise.resolve([]),
+  ]);
+
   return (
     <div>
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -51,7 +63,13 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
           <span className={`badge badge-${group.status === 'active' ? 'success' : 'secondary'}`} style={{ marginLeft: '8px' }}>{group.status}</span>
         </div>
       </div>
-      <ChitGroupDetailClient group={group} currencySymbol={currencySymbol} dict={dict} />
+      <ChitGroupDetailClient
+        group={JSON.parse(JSON.stringify(group))}
+        dividendLedger={dividendLedger}
+        poolTransactions={JSON.parse(JSON.stringify(poolTransactions))}
+        currencySymbol={currencySymbol}
+        dict={dict}
+      />
     </div>
   );
 }

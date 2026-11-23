@@ -1,4 +1,5 @@
 import { calculateChitPayment } from './calculations';
+import { calculateGoldWeightCredit } from './engineCalculator';
 import { generateChitReceiptNo } from './receipts';
 import type { ChitPaymentMode } from './types';
 
@@ -17,6 +18,8 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
   idempotencyKey?: string | null;
   notes?: string | null;
   collectorId: string;
+  goldRatePerGram?: number | null;
+  isGoldWeightEngine?: boolean;
 }) {
   const calc = calculateChitPayment({
     currentPaidAmount: input.currentPaidAmount,
@@ -26,11 +29,34 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
   });
   if (calc.receivedDelta <= 0) throw new Error('No new collection amount to post');
 
+  let gramsCredited: number | null = null;
+  if (input.isGoldWeightEngine) {
+    if (!input.goldRatePerGram || !(input.goldRatePerGram > 0)) {
+      throw new Error('Gold rate per gram (> 0) is required to credit gold weight');
+    }
+    gramsCredited = calculateGoldWeightCredit({
+      paymentAmount: calc.receivedDelta,
+      goldRatePerGram: input.goldRatePerGram,
+    });
+  }
+
   const receiptNo = await generateChitReceiptNo(tx, {
     tenantId: input.tenantId,
     branchCode: input.branchCode,
     receiptType: 'collection',
   });
+
+  const existingSub =
+    gramsCredited != null
+      ? await tx.chitSubscription.findUnique({
+          where: { id: input.subscriptionId },
+          select: { goldGramsCredited: true },
+        })
+      : null;
+  const nextGoldGrams =
+    gramsCredited != null
+      ? Number((Number(existingSub?.goldGramsCredited ?? 0) + gramsCredited).toFixed(4))
+      : null;
 
   const subscription = await tx.chitSubscription.update({
     where: { id: input.subscriptionId },
@@ -43,6 +69,12 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
       lastReceiptNo: receiptNo,
       lastPaymentRefNo: input.referenceNo || null,
       notes: input.notes || null,
+      ...(nextGoldGrams != null
+        ? {
+          goldRateApplied: input.goldRatePerGram,
+          goldGramsCredited: nextGoldGrams,
+        }
+        : {}),
     },
   });
 
@@ -80,7 +112,8 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
     },
   });
 
-  if (input.branchId) {
+  // Credit branch physical cash only when collection was received in cash (MONEY-17)
+  if (input.branchId && (input.paymentMode || 'cash') === 'cash') {
     const { chitContributionToBranch } = await import('@/lib/wallet');
     await chitContributionToBranch(tx, {
       tenantId: input.tenantId,
@@ -92,5 +125,11 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
     });
   }
 
-  return { subscription, receiptNo, receivedDelta: calc.receivedDelta, status: calc.status };
+  return {
+    subscription,
+    receiptNo,
+    receivedDelta: calc.receivedDelta,
+    status: calc.status,
+    goldGramsCredited: gramsCredited,
+  };
 }

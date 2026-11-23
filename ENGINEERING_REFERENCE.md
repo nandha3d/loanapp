@@ -505,15 +505,24 @@ The most stateful module. A chit group is a fixed-size savings pool: every perio
 
 ```
 ChitGroup ──┬── ChitMember (ticketNo, ticketShare, hasWon, subscriberStatus)
-            │        └── ChitSubscription   one row per member per period
-            └── ChitAuction (period)
-                     ├── ChitBid          (+ idempotencyKey, source: tap|voice|remote)
-                     ├── ChitAuctionEvent (open / extend / winner / close — the room's log)
+            │        └── ChitSubscription   one row per member per period (+ baseDueAmount, premiumAmount, deferredDividendAmount, dividendForfeited, goldRateApplied, goldGramsCredited)
+            ├── ChitPoolTransaction         within-module ASCA/SHG internal pool loans, repayments, interest & expenses
+            └── ChitAuction (period)        (+ calculationBreakdown snapshot, reserveFloorAmount, goldRatePerGram)
+                     ├── ChitAuctionWinner  multi-division per-cycle winners (lottery + M auction)
+                     ├── ChitBid            (+ idempotencyKey, source: tap|voice|remote)
+                     ├── ChitAuctionEvent   (open / extend / winner / close — the room's log)
                      ├── ChitAuctionAttendance, ChitRoomMessage
-                     └── ChitSecurity     the gate between winning and being paid
+                     └── ChitSecurity       the gate between winning and being paid (+ guarantorMemberId for internal Jameen lock)
 ChitReceipt        every collection, payout and dividend payout
 ChitPaymentIntent  borrower-initiated payment awaiting staff approval
 ```
+
+#### 18 Chit Fund Engines & Per-Tenant Settings — `lib/chits/engineTypes.ts`, `engineCalculator.ts`, `settings.ts`
+
+- **CHIT-31 (18-Engine Taxonomy & Configurable Defaults)** — `ChitGroup.chitEngineType` + `engineConfig` JSON support 18 chit engines across 4 categories (`AUCTION_*`, `BASE_PLUS_PREMIUM`, `FIXED_*`, `PURE_LOTTERY`, `FIXED_ROTATION`, `NEED_BASED_CONSENSUS`, `MICRO_DAILY_COLLECTION`, `GOLD_*`, `FESTIVAL_COMMODITY`, `HYBRID_SPLIT_PHASE`, `ASCA_SHG_REVOLVING`, `CUSTOM_MANUAL_SCHEDULE`), all 6 foreman compensation modes, 7 frequencies (`frequency.ts`), and 7 collateral types (`CHIT_SECURITY_TYPES`). Per-tenant enable/disable lists (`chit_enabled_types`) and per-type default rules (`chit_type_defaults`) are managed via **Settings → Chit Types** (`lib/chits/settings.ts`, `/api/v1/chits/settings`). Untouched tenants default strictly to `['AUCTION_STANDARD', 'PURE_LOTTERY', 'FIXED_ROTATION']` (**STABLE-2**), and both `createChitGroup` and `POST /api/v1/chits` call `assertChitEngineTypeEnabled()`.
+- **CHIT-32 (Calculation Transparency & Member Dividend Ledger)** — `calculateChitPeriodEngine()` derives all engine-specific payouts, reserve floors (`R_t = (x% * V) * (N - t + 1)`), multi-division discount pools, base+premium collection pools, gold weight credits (`g_t = S_t / R_t`), and ASCA profit shares on the server (**STABLE-8**). `finalizeAuctionInTx()` persists an immutable JSON `calculationBreakdown` snapshot on `ChitAuction`. `buildChitGroupDividendLedger()` (staff) and `buildMemberChitDividendStatement()` (customer portal, scoped strictly to requesting `customerId`) in `lib/chits/memberDividendLedger.ts` serve authoritative post-chit and per-member dividend statements (`/api/v1/chits/[id]/ledger`, `/borrower/dashboard`, `/borrower/chits`). `computeSubscriptionBalances()` avoids double-subtracting `dividendAmount` under `ADJUST_NEXT_DUE`.
+- **CHIT-33 (`SCOPE-17` Module Isolation)** — Spec §5 cross-module lending/chit coupling (Lending Bridge Loans, Loan EMI Auto-Settlement, and combined Microlending+Chit route sheets) is intentionally **excluded** so lending modules and `chitfunds` remain strictly isolated under `SCOPE-17`. Within-module internal guarantor locks (`ChitSecurity.guarantorMemberId` Jameen hold) and `ASCA_SHG_REVOLVING` pool lending (`ChitPoolTransaction`) stay strictly within `appType: 'chitfunds'`.
+- **CHIT-34 (Multi-Tenant GroupCode, Cash-Only Float & Isolation Hardening)** — `ChitGroup.groupCode` is unique per tenant via `@@unique([tenantId, groupCode])` (never globally `@unique`). All chit collection, prize payout, penalty settlement, and receipt reversal paths follow **MONEY-17** (only `paymentMode === 'cash'` touches branch physical float) and use atomic inside-transaction state claims for auction finalization and receipt reversals. All lending web routes, portal labels, Flutter routes/notifications, and lending/NACH/bureau APIs reject or hide under `chitfunds`; `superadmin|developer` gates chit-type configuration writes (`/api/v1/chits/settings`, `saveChitTypesConfigAction`); and `registered` chits never auto-bypass prize security.
 
 #### Auction arithmetic — `calculateChitAuction()`
 
@@ -538,9 +547,9 @@ roundingIncome= distributable − dividend × eligible                   (forema
 | Setting | Values |
 |---|---|
 | `auctionType` | `open_manual`, `open_live`, `sealed`, `lottery`, `fixed_rotation` |
-| `tieBreakRule` | `EARLIEST_BID`, `LOTTERY_AMONG_TIED` |
-| `dividendPolicy` | `ALL_MEMBERS`, `NON_WINNERS_ONLY` |
-| `dividendDistribution` | `ADJUST_NEXT_DUE`, `CASH_PAYOUT`, `ACCUMULATE` |
+| `tieBreakRule` | `EARLIEST_BID`, `LOTTERY_AMONG_TIED`, `MANUAL_FOREMAN_PICK` |
+| `dividendPolicy` | `ALL_MEMBERS`, `NON_WINNERS_ONLY`, `NON_PRIZED_ONLY`, `NONE` |
+| `dividendDistribution` | `ADJUST_NEXT_DUE`, `CASH_PAYOUT`, `ACCUMULATE`, `DEFERRED_BONUS_POOL`, `NONE` |
 | `commissionBasis` | `BID_DISCOUNT`, `CHIT_VALUE` |
 | `winnerInterestType` | `NONE`, `FIXED`, `PERCENT` |
 
@@ -580,7 +589,7 @@ Deliberately a **polling** architecture — 2–3 second client polls, no socket
 
 #### The payout gate
 
-- **CHIT-17** — `assertCanReleasePrizePayout()` must pass before any prize money moves: auction status in `confirmed | payout_pending`, `securityStatus === 'approved'`, `payoutStatus === 'ready'`, a winner and a positive prize amount. Call it — do not re-implement the condition.
+- **CHIT-17** — `assertCanReleasePrizePayout()` must pass before any prize money moves: auction status in `confirmed | payout_pending`, `securityStatus === 'approved'`, `payoutStatus === 'ready'`, a winner, a positive prize amount, and no blocking internal guarantor lock (`activeGuaranteeLock` — Jameen hold on `ChitSecurity.guarantorMemberId` when the guaranteed member still has unpaid overdue periods). Call it — do not re-implement the condition.
 - **CHIT-18** — `releaseChitPrizePayout()` refuses to post twice: it first looks for an existing `AccountEntry` on `(auctionId, 'chit_auction', 'chit_payout')` and throws if found. It then writes the receipt, the cash-book entry, and debits the branch pool via `chitPayoutFromBranch`.
 
 #### Dividend distribution — `applyDividendDistribution()`
@@ -590,6 +599,8 @@ Deliberately a **polling** architecture — 2–3 second client polls, no socket
 | `ADJUST_NEXT_DUE` | Credits the **next** period's subscription: `dividendAmount +=`, `dueAmount −=`. No cash moves. |
 | `ACCUMULATE` | Records `dividendAmount` on the current period. No cash moves, no due change. |
 | `CASH_PAYOUT` | Records the accrual **and** moves cash: receipt + `AccountEntry` + `chitPayoutFromBranch`. |
+| `DEFERRED_BONUS_POOL` | Accrues into `deferredDividendAmount` (maturity bonus pool released at completion for non-defaulting members). No cash moves mid-cycle. |
+| `NONE` | Records zero dividend distribution (used by fixed-chart / lottery / gold / commodity / pooled modes without cash dividends). |
 
 - **CHIT-19** — `ADJUST_NEXT_DUE` only ever touches subscriptions that are `status != 'paid'`. Never reduce a due a member has already settled.
 - **CHIT-20** — Only `CASH_PAYOUT` moves cash. If you add a distribution mode, decide explicitly which side of that line it sits on.

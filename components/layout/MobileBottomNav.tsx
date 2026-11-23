@@ -16,13 +16,20 @@ export default function MobileBottomNav({
 }) {
   const pathname = usePathname();
 
-  const items = [
-    { href: '/agent-dashboard', icon: 'dashboard', label: dict?.sidebar?.dashboard || 'Home' },
-    { href: '/collection', icon: 'point_of_sale', label: dict?.collection?.collections || 'Collect' },
-    { href: '/customers', icon: 'people', label: dict?.customers?.title || 'Customers' },
-    { href: '/loans', icon: 'account_balance', label: dict?.sidebar?.loans || 'Loans' },
-    { href: '/wallet', icon: 'payments', label: 'Wallet' },
-  ];
+  const isChit = modulePrefix === '/chitfunds';
+  const items = isChit
+    ? [
+        { href: '/collection', icon: 'point_of_sale', label: dict?.collection?.collections || 'Collect' },
+        { href: '/customers', icon: 'people', label: dict?.customers?.title || 'Customers' },
+        { href: '/notifications', icon: 'notifications', label: dict?.sidebar?.notifications || 'Alerts' },
+      ]
+    : [
+        { href: '/agent-dashboard', icon: 'dashboard', label: dict?.sidebar?.dashboard || 'Home' },
+        { href: '/collection', icon: 'point_of_sale', label: dict?.collection?.collections || 'Collect' },
+        { href: '/customers', icon: 'people', label: dict?.customers?.title || 'Customers' },
+        { href: '/loans', icon: 'account_balance', label: dict?.sidebar?.loans || 'Loans' },
+        { href: '/wallet', icon: 'payments', label: 'Wallet' },
+      ];
 
   return (
     <nav className="mobile-bottom-nav" aria-label="Quick navigation">

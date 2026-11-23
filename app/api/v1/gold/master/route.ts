@@ -16,6 +16,9 @@ function isKind(v: unknown): v is Kind {
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType !== 'goldloan') {
+    return fail('Not available in this module', 403);
+  }
   const { tenantId } = auth.context;
 
   const metal = new URL(req.url).searchParams.get('metal') || undefined;
@@ -41,6 +44,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType !== 'goldloan') {
+    return fail('Not available in this module', 403);
+  }
   const { tenantId, role } = auth.context;
   if (!ADMIN_ROLES.has(role)) return fail('Forbidden', 403);
 
@@ -72,6 +78,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType !== 'goldloan') {
+    return fail('Not available in this module', 403);
+  }
   const { tenantId, role } = auth.context;
   if (!ADMIN_ROLES.has(role)) return fail('Forbidden', 403);
 
@@ -108,6 +117,9 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
+  if (auth.context.appType !== 'goldloan') {
+    return fail('Not available in this module', 403);
+  }
   const { tenantId, role } = auth.context;
   if (!ADMIN_ROLES.has(role)) return fail('Forbidden', 403);
 

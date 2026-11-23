@@ -90,7 +90,7 @@ export default async function CustomersPage({
               <th>{dict.customersList.name}</th>
               <th>{dict.customersList.phone}</th>
               <th>{dict.customersList.route}</th>
-              <th>{dict.customersList.score}</th>
+              {appType !== 'chitfunds' && <th>{dict.customersList.score}</th>}
               {appType !== 'chitfunds' && <th>{dict.customersList.activeLoan}</th>}
               <th>{dict.customersList.status}</th>
               <th>{dict.customersList.action}</th>
@@ -119,20 +119,22 @@ export default async function CustomersPage({
                   <td data-label={dict.customersList.name}>{c.name}</td>
                   <td data-label={dict.customersList.phone}>{c.phone}</td>
                   <td data-label={dict.customersList.route}>{c.route?.name || '—'}</td>
-                  <td data-label={dict.customersList.score}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ 
-                        fontWeight: 700, 
-                        // 300–850 scale, same bands as mobile (CUST-03); unrated grey.
-                        color: grade === 'N/A' ? 'var(--text-light)' : score >= 750 ? 'var(--success)' : score >= 650 ? 'var(--warning)' : 'var(--danger)'
-                      }}>
-                        {score}
-                      </span>
-                      <span style={{ fontSize: '.7rem', padding: '1px 4px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                        {grade}
-                      </span>
-                    </div>
-                  </td>
+                  {appType !== 'chitfunds' && (
+                    <td data-label={dict.customersList.score}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ 
+                          fontWeight: 700, 
+                          // 300–850 scale, same bands as mobile (CUST-03); unrated grey.
+                          color: grade === 'N/A' ? 'var(--text-light)' : score >= 750 ? 'var(--success)' : score >= 650 ? 'var(--warning)' : 'var(--danger)'
+                        }}>
+                          {score}
+                        </span>
+                        <span style={{ fontSize: '.7rem', padding: '1px 4px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                          {grade}
+                        </span>
+                      </div>
+                    </td>
+                  )}
                   {appType !== 'chitfunds' && (
                     <td data-label={dict.customersList.activeLoan}>
                       {activeLoan ? (

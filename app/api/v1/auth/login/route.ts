@@ -3,7 +3,7 @@ import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { issueMobileToken, issueRefreshToken, loginWindowFailure, resolveUserVerticals } from '@/lib/api/v1-auth';
-import { extractTenantSlugFromHost } from '@/lib/tenant';
+import { extractTenantSlugFromHost, getTenantIdFromHost } from '@/lib/tenant';
 
 /**
  * Mobile login. Returns either a token + user, or `{ requiresTotp: true }`
@@ -18,20 +18,24 @@ export async function POST(req: NextRequest) {
       return fail('username and password are required', 400);
     }
     const username = String(body.username).trim().toLowerCase();
+    const rawHost = req.headers.get('host');
     const explicitSlug = (body.tenantSlug ? String(body.tenantSlug).trim().toLowerCase() : null) ||
-      req.headers.get('x-tenant-slug')?.trim().toLowerCase() ||
-      extractTenantSlugFromHost(req.headers.get('host'));
+      req.headers.get('x-tenant-slug')?.trim().toLowerCase();
 
     let tenantId: string | null = null;
     if (explicitSlug) {
-      const tenant = await prisma.tenant.findUnique({
-        where: { slug: explicitSlug },
+      const tenant = await prisma.tenant.findFirst({
+        where: {
+          OR: [{ slug: explicitSlug }, { customDomain: explicitSlug }],
+        },
         select: { id: true, status: true },
       });
       if (!tenant || tenant.status !== 'active') {
         return fail('Invalid credentials', 401);
       }
       tenantId = tenant.id;
+    } else if (rawHost) {
+      tenantId = await getTenantIdFromHost(rawHost);
     }
 
     let user: any = null;

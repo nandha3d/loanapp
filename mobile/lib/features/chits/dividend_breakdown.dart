@@ -25,6 +25,10 @@ class DividendBreakdown extends StatelessWidget {
     required this.dividendPolicy,
     required this.dividendDistribution,
     required this.fmt,
+    this.engineType,
+    this.reserveFloorAmount,
+    this.forfeitedDividendTotal = 0,
+    this.foremanCompensationMode,
   });
 
   final double chitValue;
@@ -39,16 +43,33 @@ class DividendBreakdown extends StatelessWidget {
   final int dividendEligibleMembers;
   final double dividend;
   final double roundingIncome;
-  final String dividendPolicy; // ALL_MEMBERS | NON_WINNERS_ONLY
-  final String dividendDistribution; // ADJUST_NEXT_DUE | CASH_PAYOUT | ACCUMULATE
+  final String dividendPolicy; // ALL_MEMBERS | NON_WINNERS_ONLY | NON_PRIZED_ONLY | NONE
+  final String dividendDistribution; // ADJUST_NEXT_DUE | CASH_PAYOUT | ACCUMULATE | DEFERRED_BONUS_POOL | NONE
   final NumberFormat fmt;
+  final String? engineType;
+  final double? reserveFloorAmount;
+  final double forfeitedDividendTotal;
+  final String? foremanCompensationMode;
 
   String get _distributionCopy {
     if (dividendDistribution == 'CASH_PAYOUT') return 'Dividend paid in cash';
     if (dividendDistribution == 'ACCUMULATE') {
       return 'Dividend accrued, no cash movement this period';
     }
+    if (dividendDistribution == 'DEFERRED_BONUS_POOL') {
+      return 'Dividend pooled as completion bonus for non-defaulting members';
+    }
+    if (dividendDistribution == 'NONE') {
+      return 'No dividend distributed under this chit type';
+    }
     return "Dividend credited to next period's due";
+  }
+
+  String get _policyCopy {
+    if (dividendPolicy == 'NON_WINNERS_ONLY') return '(winner excluded)';
+    if (dividendPolicy == 'NON_PRIZED_ONLY') return '(non-prized only)';
+    if (dividendPolicy == 'NONE') return '(no dividend)';
+    return '(all members)';
   }
 
   @override
@@ -58,8 +79,20 @@ class DividendBreakdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (engineType != null && engineType!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              foremanCompensationMode != null && foremanCompensationMode!.isNotEmpty
+                  ? 'Engine: $engineType · Foreman fee: $foremanCompensationMode'
+                  : 'Engine: $engineType',
+              style: AppTypography.tiny.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
         _row('Chit value', fmt.format(chitValue)),
         _row('− Prize amount', fmt.format(prizeAmount)),
+        if (reserveFloorAmount != null && reserveFloorAmount! > 0)
+          _row('Reserve floor', fmt.format(reserveFloorAmount!), small: true),
         _totalRow('= Bid discount', fmt.format(bidDiscount)),
         _row('− Commission ($commissionPct% of $commissionBaseLabel)',
             fmt.format(commission),),
@@ -68,12 +101,14 @@ class DividendBreakdown extends StatelessWidget {
         _totalRow('= Distributable dividend', fmt.format(distributableDividend)),
         _row(
           '÷ $dividendEligibleMembers eligible ticket${dividendEligibleMembers == 1 ? '' : 's'}',
-          dividendPolicy == 'NON_WINNERS_ONLY'
-              ? '(winner excluded)'
-              : '(all members)',
+          _policyCopy,
         ),
         _totalRow('= Dividend per ticket', fmt.format(dividend),
             color: AppColors.success,),
+        if (forfeitedDividendTotal > 0)
+          _row('Forfeited late-payer dividend retained',
+              fmt.format(forfeitedDividendTotal),
+              small: true,),
         if (roundingIncome > 0)
           _row('Rounding income (booked as foreman income)',
               fmt.format(roundingIncome),

@@ -35,6 +35,14 @@ export async function GET(req: NextRequest) {
     },
   });
   const verticals = await resolveUserVerticals(user);
+  const requestedAppType = req.headers.get('x-app-type')?.trim().toLowerCase();
+  const effectiveAppType =
+    requestedAppType &&
+    user.role !== 'agent' &&
+    verticals.includes(requestedAppType as any)
+      ? requestedAppType
+      : user.appType;
+  const isChitEffective = effectiveAppType === 'chitfunds';
 
   // Tenant security policy: the mobile app only shows the biometric lock
   // screen when this is explicitly enabled (Settings → Security).
@@ -46,24 +54,24 @@ export async function GET(req: NextRequest) {
     biometricLockRequired,
     // Minutes the app may be backgrounded/idle before it asks to unlock (0 = every time).
     appLockTimeoutMinutes,
-    gpsTrackingEnabled: Boolean(subscription?.gpsTrackingEnabled),
-    npaEnabled: Boolean(subscription?.npaEnabled),
+    gpsTrackingEnabled: !isChitEffective && Boolean(subscription?.gpsTrackingEnabled),
+    npaEnabled: !isChitEffective && Boolean(subscription?.npaEnabled),
     kycEnabled: Boolean(subscription?.kycEnabled),
     kycMethod,
     // LOAN-02: mobile shows the Bullet option only when the tenant enabled it.
-    bulletTermEnabled: await (await import('@/lib/features')).isBulletTermEnabled(user.tenantId),
+    bulletTermEnabled: !isChitEffective && (await (await import('@/lib/features')).isBulletTermEnabled(user.tenantId)),
     // LOAN-03: mobile offers Interest-Only only when the tenant enabled it.
-    interestOnlyEnabled: await (await import('@/lib/features')).isInterestOnlyEnabled(user.tenantId),
+    interestOnlyEnabled: !isChitEffective && (await (await import('@/lib/features')).isInterestOnlyEnabled(user.tenantId)),
     // CUST-07: country code for wa.me links (setting phone_country_code, default 91).
     phoneCountryCode: await getSetting(user.tenantId, 'phone_country_code', '91'),
-    bureauEnabled: Boolean(subscription?.bureauEnabled),
+    bureauEnabled: !isChitEffective && Boolean(subscription?.bureauEnabled),
     premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
     whatsappSmsEnabled: Boolean(subscription?.whatsappSmsEnabled),
-    foreclosureEnabled: Boolean(subscription?.foreclosureEnabled),
+    foreclosureEnabled: !isChitEffective && Boolean(subscription?.foreclosureEnabled),
     // SET-02: plan gate for receipt / document PDFs (web hides the toggle without it).
     receiptPdfAllowed: Boolean(subscription?.receiptPdfAllowed),
     // eNACH is a plan feature (Enterprise by default), not a tenant setting.
-    nachEnabled: Boolean(subscription?.nachEnabled),
+    nachEnabled: !isChitEffective && Boolean(subscription?.nachEnabled),
     id: user.id,
     name: user.name,
     phone: user.phone,
@@ -71,16 +79,21 @@ export async function GET(req: NextRequest) {
     username: user.username,
     role: user.role,
     branchId: user.branchId,
-    appType: user.appType,
+    appType: effectiveAppType,
     status: user.status,
     totpEnabled: Boolean(user.totpSecret),
     tenantSlug: user.tenant.slug,
-    bypassLoanApproval: user.role === 'agent' ? Boolean(user.bypassLoanApproval) : true,
-    enabledModules: enabledModulesForRole(user.role),
+    bypassLoanApproval: !isChitEffective && (user.role === 'agent' ? Boolean(user.bypassLoanApproval) : true),
+    enabledModules: enabledModulesForRole(user.role, effectiveAppType),
   });
 }
 
-function enabledModulesForRole(role: string): string[] {
+function enabledModulesForRole(role: string, appType: string): string[] {
+  if (appType === 'chitfunds') {
+    const chitBase = ['dashboard', 'customers', 'chits', 'collection'];
+    if (role === 'agent') return chitBase;
+    return [...chitBase, 'accounting', 'reports', 'settings'];
+  }
   const base = ['dashboard', 'customers', 'loans', 'collection'];
   if (role === 'agent') return base;
   return [...base, 'approvals', 'analytics', 'chits', 'reports', 'settings'];

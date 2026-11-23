@@ -533,11 +533,30 @@ bool _moduleBlocked(String location, User user) {
   if (kPlayRelease && user.role != UserRole.developer && _playBuildBlocks(location)) {
     return true;
   }
-  if (AppType.userIsChit(user) && location.startsWith('/loans/new')) {
-    return true;
-  }
-  if (AppType.userIsChit(user) && location.startsWith('/wallet')) {
-    return true;
+  if (AppType.userIsChit(user)) {
+    const blockedForChits = [
+      '/loans',
+      '/wallet',
+      '/penalties',
+      '/npa',
+      '/vehicles',
+      '/gold-reports',
+      '/collection/runs',
+      '/tracking',
+      '/admin/tracking',
+      '/approvals',
+      '/analytics',
+      '/settings/penalty',
+      '/settings/packages',
+      '/settings/bureau',
+      '/settings/npa',
+    ];
+    if (blockedForChits.any((p) => location == p || location.startsWith('$p/'))) {
+      return true;
+    }
+    if (location.startsWith('/chits')) {
+      return false;
+    }
   }
 
   // First, check administrative / developer routes.

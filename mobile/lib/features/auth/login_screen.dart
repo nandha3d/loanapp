@@ -143,9 +143,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (_submitting) return;
     setState(() => _submitting = true);
     try {
+      final activeUrl = (ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl).toLowerCase();
+      final isSamurai = activeUrl.contains('samuraibuiness.in') || activeUrl.contains('samurai');
       await ref.read(authControllerProvider.notifier).login(
             _username.text.trim(),
             _password.text,
+            tenantSlug: isSamurai ? 'samurai-ml-af-cf' : null,
           );
     } finally {
       // On success the router redirects away; only reset if still mounted

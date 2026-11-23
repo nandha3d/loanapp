@@ -10,6 +10,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const session = await auth();
   if (!session) redirect('/login');
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
 
   const { id } = await params;
   

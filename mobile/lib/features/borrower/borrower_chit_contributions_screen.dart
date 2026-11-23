@@ -10,6 +10,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/chit_contribution.dart';
 import 'package:zolofund/data/services/borrower_chit_service.dart';
+import 'package:zolofund/features/chits/dividend_breakdown.dart';
 
 final _contributionsProvider = FutureProvider.autoDispose<
     ({List<ChitContributionGroup> groups, List<ChitReceiptSummary> receipts})>((ref) {
@@ -140,7 +141,78 @@ class _GroupCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(group.groupName, style: AppTypography.body.copyWith(fontWeight: FontWeight.w800)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  group.groupName,
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (group.engineName.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    group.engineName,
+                    style: AppTypography.tiny.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (group.memberSummary != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.isCompleted
+                        ? 'Final Chit & Dividend Summary (${group.completedPeriodsCount}/${group.totalPeriods} periods)'
+                        : 'Dividend & Balance Summary (${group.completedPeriodsCount}/${group.totalPeriods} periods)',
+                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 6,
+                    children: [
+                      _summaryStat('Dividend Earned', fmt.format(group.memberSummary!.totalDividendEarned), color: AppColors.success),
+                      if (group.memberSummary!.totalDeferredDividend > 0)
+                        _summaryStat('Deferred Bonus', fmt.format(group.memberSummary!.totalDeferredDividend)),
+                      _summaryStat('Total Paid', fmt.format(group.memberSummary!.totalPaid)),
+                      _summaryStat('Outstanding', fmt.format(group.memberSummary!.totalOutstanding)),
+                      if (group.memberSummary!.totalPremiumCharged > 0)
+                        _summaryStat('Premiums', fmt.format(group.memberSummary!.totalPremiumCharged)),
+                      if (group.memberSummary!.totalWinnerInterest > 0)
+                        _summaryStat('Winner Interest', fmt.format(group.memberSummary!.totalWinnerInterest)),
+                      if (group.memberSummary!.goldTotalGrams > 0)
+                        _summaryStat('Gold Credited', '${group.memberSummary!.goldTotalGrams.toStringAsFixed(3)} g'),
+                      _summaryStat(
+                        'Net Outcome',
+                        fmt.format(group.memberSummary!.netFinancialOutcome),
+                        color: group.memberSummary!.netFinancialOutcome >= 0 ? AppColors.success : AppColors.textPrimary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           if (group.current != null)
             _PeriodTile(c: group.current!, fmt: fmt, showProofButton: true)
@@ -153,7 +225,118 @@ class _GroupCard extends ConsumerWidget {
             _PeriodExpansion(title: 'Upcoming', items: group.upcoming, fmt: fmt),
           if (group.history.isNotEmpty)
             _PeriodExpansion(title: 'History', items: group.history, fmt: fmt),
+          if (group.completedPeriodBreakdowns.isNotEmpty)
+            _CompletedPeriodBreakdownExpansion(group: group, fmt: fmt),
         ],
+      ),
+    );
+  }
+
+  Widget _summaryStat(String label, String value, {Color? color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTypography.tiny.copyWith(color: AppColors.textSecondary)),
+        Text(
+          value,
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            color: color ?? AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompletedPeriodBreakdownExpansion extends StatelessWidget {
+  const _CompletedPeriodBreakdownExpansion({required this.group, required this.fmt});
+  final ChitContributionGroup group;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Period Dividend Breakdown',
+              style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${group.completedPeriodBreakdowns.length}',
+                style: AppTypography.tiny.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        children: group.completedPeriodBreakdowns.map((b) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Period ${b.periodNumber} · Winner Ticket ${b.winnerTicketNo ?? '—'}',
+                      style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'My Dividend: ${fmt.format(b.myDividend)}',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: b.forfeitedOnLate ? AppColors.danger : AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                DividendBreakdown(
+                  chitValue: b.chitValue,
+                  prizeAmount: b.prizeAmount,
+                  bidDiscount: b.bidDiscount,
+                  commissionPct: b.commissionPct,
+                  commissionBasis: b.commissionBasis,
+                  commission: b.commission,
+                  gstPct: b.gstPct,
+                  gstAmount: b.gstAmount,
+                  distributableDividend: b.distributableDividend,
+                  dividendEligibleMembers: b.dividendEligibleMembers,
+                  dividend: b.dividendPerTicket,
+                  roundingIncome: b.roundingIncome,
+                  dividendPolicy: group.dividendPolicy,
+                  dividendDistribution: group.dividendDistribution,
+                  fmt: fmt,
+                  engineType: group.chitEngineType,
+                  reserveFloorAmount: b.reserveFloorAmount,
+                  foremanCompensationMode: b.foremanCompensationMode,
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -255,11 +438,27 @@ class _PeriodTile extends ConsumerWidget {
             children: [
               _stat('Base', fmt.format(c.baseDueAmount)),
               _stat('Dividend', fmt.format(c.dividendAmount)),
+              if (c.deferredDividendAmount > 0)
+                _stat('Deferred Div', fmt.format(c.deferredDividendAmount)),
+              if (c.premiumAmount > 0)
+                _stat('Premium', fmt.format(c.premiumAmount)),
+              if (c.interestAmount > 0)
+                _stat('Interest', fmt.format(c.interestAmount)),
               _stat('Penalty', fmt.format(c.penaltyAmount)),
+              if (c.goldGramsCredited > 0)
+                _stat('Gold', '${c.goldGramsCredited.toStringAsFixed(3)} g'),
+              _stat('Net Due', fmt.format(c.netDue)),
               _stat('Paid', fmt.format(c.paidAmount)),
               _stat('Outstanding', fmt.format(c.outstanding), bold: true),
             ],
           ),
+          if (c.dividendForfeited) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Dividend forfeited due to late payment.',
+              style: AppTypography.tiny.copyWith(color: AppColors.danger, fontWeight: FontWeight.w600),
+            ),
+          ],
           if (showProofButton && c.status != 'paid' && c.outstanding > 0) ...[
             const SizedBox(height: 10),
             _ProofButton(subscriptionId: c.subscriptionId, outstanding: c.outstanding),

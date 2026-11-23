@@ -83,7 +83,11 @@ export default function Topbar({
       if (i === 0) {
         label = (dict.sidebar as any)[seg] || seg.charAt(0).toUpperCase() + seg.slice(1);
       } else if (seg === 'new') {
-        label = dict.loans.newLoan;
+        const prevSeg = parts[i - 1];
+        if (prevSeg === 'chits') label = dict.chits?.newChitGroup || 'New Chit Group';
+        else if (prevSeg === 'customers') label = dict.customers?.addCustomer || 'New Customer';
+        else if (prevSeg === 'vehicles') label = 'New Vehicle';
+        else label = dict.loans.newLoan;
       } else {
         label = breadcrumbLabels[seg] || seg;
       }

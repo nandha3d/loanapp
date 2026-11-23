@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
@@ -15,6 +15,7 @@ export default async function FinancePartnersPage() {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType !== 'autofinance') notFound();
 
   // Master data — agents never manage brokers or dealers.
   if ((session.user as any)?.role === 'agent') {

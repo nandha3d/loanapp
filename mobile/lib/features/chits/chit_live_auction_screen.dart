@@ -2362,6 +2362,10 @@ class _StaffSummarySheetState extends ConsumerState<_StaffSummarySheet> {
                           dividendPolicy: _summary!['dividendPolicy'] as String,
                           dividendDistribution: _summary!['dividendDistribution'] as String,
                           fmt: fmt,
+                          engineType: _summary!['chitEngineType'] as String?,
+                          reserveFloorAmount: _numOrNull(_summary!['reserveFloorAmount']),
+                          forfeitedDividendTotal: _numOrNull(_summary!['forfeitedDividendTotal']) ?? 0.0,
+                          foremanCompensationMode: _summary!['foremanCompensationMode'] as String?,
                         ),
                         if ((_summary!['memberDividends'] as List?)?.isNotEmpty ?? false) ...[
                           const SizedBox(height: 16),

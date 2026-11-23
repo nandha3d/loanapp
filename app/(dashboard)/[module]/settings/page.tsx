@@ -21,7 +21,7 @@ export default async function SettingsPage() {
 
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
-  
+
   // Routes, products and the staff picker all belong to the branch being
   // administered — a branch admin configures their own branch, not the tenant
   // (SCOPE-3). Packages additionally keep their tenant-wide rows visible.
@@ -38,7 +38,9 @@ export default async function SettingsPage() {
         branch: { select: { id: true, name: true } },
       }
     }),
-    prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
+    appType === 'chitfunds'
+      ? Promise.resolve([])
+      : prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
     prisma.user.findMany({
       where: { tenantId, appType, ...branchScope },
       select: {
@@ -52,7 +54,9 @@ export default async function SettingsPage() {
     getTenantSettings(tenantId),
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),
-    prisma.bureauCredential.findUnique({ where: { tenantId } }),
+    appType === 'chitfunds'
+      ? Promise.resolve(null)
+      : prisma.bureauCredential.findUnique({ where: { tenantId } }),
     prisma.notificationTemplate.findMany({ where: { tenantId } }),
     prisma.branch.findMany({
       where: { tenantId },
@@ -173,13 +177,23 @@ export default async function SettingsPage() {
     } catch { goldMaster = null; goldConfig = null; }
   }
 
+  // Chit engine enablement & default rules (chitfunds module only).
+  let chitTypeSettings: any = null;
+  if (appType === 'chitfunds') {
+    try {
+      const { getChitTypeSettings } = await import('@/lib/chits/settings');
+      chitTypeSettings = await getChitTypeSettings(tenantId);
+    } catch { chitTypeSettings = null; }
+  }
+
   return (
     <SettingsClient
       routes={routes}
       packages={packages}
       goldMaster={goldMaster}
       goldConfig={goldConfig}
-      users={users} 
+      chitTypeSettings={chitTypeSettings}
+      users={users}
       settings={safeSettings}
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}

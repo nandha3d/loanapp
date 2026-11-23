@@ -108,10 +108,14 @@ class AuthController extends StateNotifier<AuthState> {
   /// For the Security settings screen: can this phone enforce the app lock?
   Future<bool> canUseDeviceLock() => _canUseBiometrics();
 
-  Future<void> login(String username, String password) async {
+  Future<void> login(String username, String password, {String? tenantSlug}) async {
     state = state.copyWith(clearError: true);
     try {
-      final user = await _repo.login(username: username, password: password);
+      final user = await _repo.login(
+        username: username,
+        password: password,
+        tenantSlug: tenantSlug,
+      );
       if (user == null) {
         state = state.copyWith(stage: AuthStage.pendingTotp);
       } else {
@@ -267,6 +271,7 @@ class AuthController extends StateNotifier<AuthState> {
     final user = state.user;
     if (user == null || user.appType == appType) return;
     await _repo.setActiveAppType(appType);
+    clearDomainCaches();
     state = state.copyWith(user: user.copyWith(appType: appType));
   }
 

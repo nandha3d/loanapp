@@ -168,7 +168,7 @@ final dashboardScopeKeyProvider = Provider<String?>((ref) {
   return ref.watch(
     authControllerProvider.select((s) {
       final user = s.user;
-      return user != null ? '${user.tenantSlug}_${user.id}' : null;
+      return user != null ? '${user.tenantSlug}_${user.id}_${user.appType}' : null;
     }),
   );
 });

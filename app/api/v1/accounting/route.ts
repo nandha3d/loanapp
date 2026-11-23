@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     const summary = await getAccountingSummary(ctx.tenantId, ctx.appType, ctx.branchId, range);
     const m = summary.metrics;
     return ok({
+      kind: summary.kind,
+      chitMetrics: summary.kind === 'chit' ? summary.chitMetrics : null,
       // Range KPIs (web Accounting cards).
       totalCollected: m.totalCollected,
       totalDisbursed: m.totalDisbursed,

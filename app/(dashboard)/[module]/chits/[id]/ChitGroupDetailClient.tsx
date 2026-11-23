@@ -11,6 +11,7 @@ import {
   recordChitPayment,
   updateChitMemberDetails,
   markChitAgreementSigned,
+  recordAscaPoolTransaction,
   rescheduleAuction,
   verifyChitAgreement,
 } from '../actions';
@@ -19,9 +20,20 @@ import Link from '@/components/layout/DashboardLink';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 import { parseFrequency, frequencyLabel, periodWindow } from '@/lib/chits/frequency';
 import PaymentIntentsQueue from '@/components/chits/PaymentIntentsQueue';
+import MemberDividendLedgerPanel from '@/components/chits/MemberDividendLedgerPanel';
+import { computeSubscriptionBalances } from '@/lib/chits/engineCalculator';
+import {
+  CHIT_ENGINE_CATALOG,
+  isBiddingEnabledForPeriod,
+  parseChitEngineConfig,
+  resolveEngineTypeFromGroup,
+} from '@/lib/chits/engineTypes';
+import type { ChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
 
 interface ChitGroupDetailClientProps {
   group: any;
+  dividendLedger?: ChitGroupDividendLedger | null;
+  poolTransactions?: any[];
   currencySymbol: string;
   dict: any;
 }
@@ -38,9 +50,17 @@ const DISTRIBUTION_LABELS: Record<string, string> = {
   ADJUST_NEXT_DUE: 'Reduces next installment',
   CASH_PAYOUT: 'Paid out in cash',
   ACCUMULATE: 'Accumulated to closure',
+  DEFERRED_BONUS_POOL: 'Deferred maturity bonus pool',
+  NONE: 'None (no dividend)',
 };
 
-export default function ChitGroupDetailClient({ group, currencySymbol, dict }: ChitGroupDetailClientProps) {
+export default function ChitGroupDetailClient({
+  group,
+  dividendLedger = null,
+  poolTransactions = [],
+  currencySymbol,
+  dict,
+}: ChitGroupDetailClientProps) {
   const d = dict.chits;
   const router = useRouter();
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
@@ -50,6 +70,13 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const [payMode, setPayMode] = useState('cash');
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const engineType = resolveEngineTypeFromGroup(group);
+  const engineCfg = parseChitEngineConfig(group.engineConfig, engineType);
+  const engineCatalog = CHIT_ENGINE_CATALOG[engineType];
+  const isGoldWeight = engineType === 'GOLD_WEIGHT_ACCUMULATION';
+  const [payGoldRate, setPayGoldRate] = useState<number>(
+    engineCfg.goldScheme?.defaultGoldRatePerGram ?? 0,
+  );
   const [lastReceipt, setLastReceipt] = useState('');
   const [rescheduleModal, setRescheduleModal] = useState<any>(null);
   const [rescheduleValue, setRescheduleValue] = useState('');
@@ -58,23 +85,47 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const [busy, setBusy] = useState('');
   const [subTab, setSubTab] = useState<'current' | 'overdue' | 'all'>('current');
 
-  const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
+  const isDrawType = !engineCatalog.supportsBidding || ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const completedAuctions = group.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
   const membersMissingTicketNo = group.members.filter((m: any) => !m.ticketNo).length;
+
+  const ledgerRowByMemberPeriod = new Map<string, any>();
+  if (dividendLedger) {
+    for (const ms of dividendLedger.memberStatements) {
+      for (const pr of ms.periods) {
+        ledgerRowByMemberPeriod.set(`${ms.memberId}:${pr.periodNumber}`, pr);
+      }
+    }
+  }
+
   const subscriptionBreakdown = (s: any) => {
-    const dividendAdjustment = Number(s.dividendAmount || 0);
-    const interest = Number(s.interestAmount || 0);
-    const penalty = Number(s.penaltyAmount || 0);
-    const netDue = Number(s.dueAmount) + penalty;
-    const paid = Number(s.paidAmount || 0);
+    const serverRow = ledgerRowByMemberPeriod.get(`${s.memberId}:${s.periodNumber}`);
+    if (serverRow) {
+      return {
+        baseContribution: serverRow.baseDue,
+        dividendAdjustment: serverRow.dividendEarned,
+        deferredDividend: serverRow.deferredDividend,
+        premium: serverRow.premiumAmount,
+        interest: serverRow.interestAmount,
+        penalty: serverRow.penaltyAmount,
+        netDue: serverRow.netDue,
+        paid: serverRow.paidAmount,
+        outstanding: serverRow.outstanding,
+        goldGramsCredited: serverRow.goldGramsCredited,
+      };
+    }
+    const bal = computeSubscriptionBalances(s, group.dividendDistribution);
     return {
-      baseContribution: Number(s.baseDueAmount ?? Number(s.dueAmount) + dividendAdjustment - interest),
-      dividendAdjustment,
-      interest,
-      penalty,
-      netDue,
-      paid,
-      outstanding: Math.max(0, netDue - paid),
+      baseContribution: bal.baseDueAmount,
+      dividendAdjustment: bal.dividendAmount,
+      deferredDividend: bal.deferredDividendAmount,
+      premium: bal.premiumAmount,
+      interest: bal.interestAmount,
+      penalty: bal.penaltyAmount,
+      netDue: bal.netDue,
+      paid: bal.paidAmount,
+      outstanding: bal.outstanding,
+      goldGramsCredited: Number(s.goldGramsCredited || 0),
     };
   };
 
@@ -95,7 +146,15 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
     setLoading(true);
     setError('');
     try {
-      const result = await recordChitPayment(paymentModal.memberId, paymentModal.periodNumber, payAmount, payMode, payRef || null, payNotes || null);
+      const result = await recordChitPayment(
+        paymentModal.memberId,
+        paymentModal.periodNumber,
+        payAmount,
+        payMode,
+        payRef || null,
+        payNotes || null,
+        isGoldWeight ? payGoldRate : null,
+      );
       setLastReceipt(result?.receiptNo || '');
       setPaymentModal(null);
       router.refresh();
@@ -217,16 +276,42 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
           <div className="table-wrapper">
             <table>
               <tbody>
-                <tr><td>Type</td><td>{group.chitType === 'registered' ? 'Registered' : 'Unregistered'} · {AUCTION_TYPE_LABELS[group.auctionType] ?? group.auctionType}</td></tr>
-                <tr><td>Commission</td><td>{Number(group.commissionPct)}% of {group.commissionBasis === 'CHIT_VALUE' ? 'chit value' : 'bid discount'}{group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}</td></tr>
-                <tr><td>Dividend</td><td>{group.dividendPolicy === 'NON_WINNERS_ONLY' ? 'Non-winners only' : 'All members'} · {DISTRIBUTION_LABELS[group.dividendDistribution] ?? group.dividendDistribution}{group.dividendRounding ? ` · rounded to ${currencySymbol}${group.dividendRounding}` : ''}</td></tr>
+                <tr>
+                  <td>Engine &amp; Type</td>
+                  <td>
+                    <strong>{engineCatalog.name}</strong> (<code>{engineType}</code>) ·{' '}
+                    {group.chitType === 'registered' ? 'Registered' : 'Unregistered'} ·{' '}
+                    {AUCTION_TYPE_LABELS[group.auctionType] ?? group.auctionType}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Tier &amp; Asset</td>
+                  <td>
+                    {engineCfg.regulatoryTier} · {engineCfg.scaleTier} · Asset: {engineCfg.payoutAssetType} · Cadence: {engineCfg.collectionFrequency}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Commission</td>
+                  <td>
+                    {engineCfg.foremanCompensation.mode} · {Number(group.commissionPct)}% of {group.commissionBasis === 'CHIT_VALUE' ? 'chit value' : 'bid discount'}
+                    {engineCfg.foremanCompensation.flatFeeAmount > 0 ? ` / flat ${formatCurrency(engineCfg.foremanCompensation.flatFeeAmount, currencySymbol)}` : ''}
+                    {group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}
+                  </td>
+                </tr>
+                <tr><td>Dividend</td><td>{group.dividendPolicy} · {DISTRIBUTION_LABELS[group.dividendDistribution] ?? group.dividendDistribution}{group.dividendRounding ? ` · rounded to ${currencySymbol}${group.dividendRounding}` : ''}</td></tr>
                 <tr><td>Default time</td><td>{group.auctionTime || 'Not set'}</td></tr>
                 <tr><td>Winner interest</td><td>{group.winnerInterestType === 'NONE' ? 'None' : `${group.winnerInterestType} ${group.winnerInterestValue ?? ''} for ${group.winnerInterestPeriods ?? 0} period(s)`}</td></tr>
+                <tr>
+                  <td>Default &amp; security</td>
+                  <td>
+                    {engineCfg.defaultRules.forfeitDividendOnLate ? 'Forfeit dividend on late' : 'Keep dividend on late'} · Late fee {engineCfg.defaultRules.lateFeeType} ({engineCfg.defaultRules.lateFeeValue}) · Substitution cutoff {engineCfg.defaultRules.substitutionCutoffPct}%
+                  </td>
+                </tr>
                 {!isDrawType && (
                   <tr><td>Bid rules</td><td>
-                    Discount {group.minDiscountPct ? `${Number(group.minDiscountPct)}%` : `${Number(group.commissionPct)}% (commission floor)`} – {group.maxDiscountPct ? `${Number(group.maxDiscountPct)}%` : 'no cap'}
+                    Discount {group.minDiscountPct ? `${Number(group.minDiscountPct)}%` : `${Number(group.commissionPct)}% (commission floor)`} – {engineCfg.discountRules.uncapped ? 'uncapped' : group.maxDiscountPct ? `${Number(group.maxDiscountPct)}%` : 'no cap'}
                     {group.bidIncrement ? ` · step ${formatCurrency(Number(group.bidIncrement), currencySymbol)}` : ''}
-                    {` · tie: ${group.tieBreakRule === 'LOTTERY_AMONG_TIED' ? 'lottery among tied' : 'earliest bid'}`}
+                    {` · tie: ${group.tieBreakRule}`}
                   </td></tr>
                 )}
                 {isDrawType && (
@@ -251,6 +336,83 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
           </div>
         </div>
       </div>
+
+      {/* Detailed Chit & Member Dividend Ledger (post-chit & live breakdown) */}
+      {dividendLedger && (
+        <MemberDividendLedgerPanel
+          ledger={dividendLedger}
+          currencySymbol={currencySymbol}
+          dict={dict}
+        />
+      )}
+
+      {/* ASCA / SHG Revolving Pool Transactions */}
+      {engineType === 'ASCA_SHG_REVOLVING' && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <div className="card-header"><h3>🤝 ASCA / SHG Revolving Pool Ledger</h3></div>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              await run('asca-txn', () => recordAscaPoolTransaction(group.id, fd));
+              (e.currentTarget as HTMLFormElement).reset();
+            }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', padding: '0 16px 14px', alignItems: 'end' }}
+          >
+            <div className="form-group">
+              <label className="form-label">Type</label>
+              <select name="txnType" className="form-control" required>
+                <option value="internal_loan_disburse">Internal Loan Disburse</option>
+                <option value="internal_loan_repay">Internal Loan Repay</option>
+                <option value="interest_income">Interest Income</option>
+                <option value="admin_expense">Admin Expense</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Member</label>
+              <select name="memberId" className="form-control">
+                <option value="">Group-level</option>
+                {group.members.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.ticketNo ?? m.memberNumber}. {m.customer.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Principal ({currencySymbol})</label>
+              <input name="principalAmount" type="number" min="0" step="0.01" defaultValue="0" className="form-control" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Interest ({currencySymbol})</label>
+              <input name="interestAmount" type="number" min="0" step="0.01" defaultValue="0" className="form-control" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Notes</label>
+              <input name="notes" type="text" className="form-control" />
+            </div>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy === 'asca-txn'}>
+              {busy === 'asca-txn' ? 'Saving...' : 'Record Entry'}
+            </button>
+          </form>
+          {poolTransactions.length > 0 && (
+            <div className="table-wrapper">
+              <table>
+                <thead><tr><th>Date</th><th>Type</th><th>Principal</th><th>Interest</th><th>Notes</th></tr></thead>
+                <tbody>
+                  {poolTransactions.map((t: any) => (
+                    <tr key={t.id}>
+                      <td>{formatDate(t.txnDate)}</td>
+                      <td>{t.txnType}</td>
+                      <td>{formatCurrency(Number(t.principalAmount), currencySymbol)}</td>
+                      <td>{formatCurrency(Number(t.interestAmount), currencySymbol)}</td>
+                      <td>{t.notes || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Auctions */}
       <div className="card" style={{ marginBottom: '20px' }}>
@@ -305,7 +467,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                           Reschedule
                         </button>
                       )}
-                      {isDrawType && !['confirmed', 'paid', 'cancelled'].includes(a.status) && group.status === 'active' && (
+                      {(!isBiddingEnabledForPeriod(group, a.periodNumber)) && !['confirmed', 'paid', 'cancelled'].includes(a.status) && group.status === 'active' && engineType !== 'NEED_BASED_CONSENSUS' && (
                         <button
                           className="btn btn-primary btn-sm"
                           style={{ marginLeft: '4px' }}
@@ -500,6 +662,24 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
               <label className="form-label">{d.amountPaid} ({currencySymbol})</label>
               <input type="number" className="form-control" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />
             </div>
+            {isGoldWeight && (
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label className="form-label">Bullion rate ({currencySymbol} / g)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  className="form-control"
+                  value={payGoldRate}
+                  onChange={(e) => setPayGoldRate(Number(e.target.value))}
+                />
+                {payGoldRate > 0 && payAmount > 0 && (
+                  <p style={{ fontSize: '.75rem', color: 'var(--success)', margin: '4px 0 0' }}>
+                    Credits {(payAmount / payGoldRate).toFixed(4)} g gold
+                  </p>
+                )}
+              </div>
+            )}
             <div className="form-group" style={{ marginBottom: '12px' }}>
               <label className="form-label">Payment mode</label>
               <select className="form-control" value={payMode} onChange={(e) => setPayMode(e.target.value)}>

@@ -387,8 +387,12 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
     final experienceController = TextEditingController(text: existingUser?['experience']?.toString());
     final ageController = TextEditingController(text: existingUser?['age']?.toString());
     String? dob = existingUser?['dob'] as String?;
+    final isChit = AppType.userIsChit(ref.read(authControllerProvider).user);
+    final flagKeys = isChit
+        ? const ['bypassCustomerApproval']
+        : const ['bypassCustomerApproval', 'bypassLoanApproval', 'autoReleaseFloat', 'feeConfirmationMandatory'];
     final flags = <String, bool>{
-      for (final k in const ['bypassCustomerApproval', 'bypassLoanApproval', 'autoReleaseFloat', 'feeConfirmationMandatory'])
+      for (final k in flagKeys)
         k: existingUser?[k] == true,
     };
 

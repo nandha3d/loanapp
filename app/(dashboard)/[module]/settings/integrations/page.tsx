@@ -22,6 +22,7 @@ export default async function IntegrationsPage() {
   return (
     <IntegrationsClient
       initial={settings}
+      appType={appType}
       paymentGatewayUrl={modulePath(appType, '/settings/payment-gateway')}
       collectionsWebhookUrl={`${base}/api/webhooks/razorpay/collections`}
       nachWebhookUrl={`${base}/api/webhooks/razorpay/nach`}

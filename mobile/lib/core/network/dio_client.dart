@@ -66,6 +66,7 @@ class _AuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     final path = options.path;
+    final isSamuraiHost = options.baseUrl.contains('samuraibuiness.in') || options.baseUrl.contains('samurai');
     final isAuthEndpoint = path.contains('/auth/refresh') ||
         path.contains('/auth/login') ||
         path.contains('/auth/register') ||
@@ -75,6 +76,14 @@ class _AuthInterceptor extends Interceptor {
         path.contains('/auth/reset-password') ||
         path.contains('/auth/google') ||
         path.contains('/borrower/auth');
+
+    if (isSamuraiHost) {
+      options.headers['X-Tenant-Slug'] ??= 'samurai-ml-af-cf';
+      if (options.data is Map<String, dynamic>) {
+        (options.data as Map<String, dynamic>)['tenantSlug'] ??= 'samurai-ml-af-cf';
+      }
+    }
+
     if (!isAuthEndpoint) {
       final token = await _storage.readToken();
       if (token != null && token.isNotEmpty) {

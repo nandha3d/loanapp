@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { ensurePendingPenaltiesForMissedLoans, penaltyListWhere, penaltyNet } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
@@ -17,6 +17,7 @@ export default async function PenaltiesPage({
   const userRole = (session?.user as any)?.role;
   const branchId = await getActiveBranchId();
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   if (userRole === 'agent') redirect(modulePath(appType, '/collection'));
 
   const tenantId = await getDefaultTenantId();

@@ -61,5 +61,11 @@ export async function selectApp(appType: AppType) {
     sameSite: 'lax',
   });
   
-  redirect(modulePath(appType, user.role === 'agent' ? '/agent-dashboard' : '/dashboard'));
+  const targetPage =
+    user.role === 'agent'
+      ? appType === 'chitfunds'
+        ? '/collection'
+        : '/agent-dashboard'
+      : '/dashboard';
+  redirect(modulePath(appType, targetPage));
 }

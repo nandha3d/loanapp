@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (req.headers.get('x-app-type')?.trim().toLowerCase() === 'chitfunds') {
+    return NextResponse.json({ error: 'Not available in Chit Funds module' }, { status: 403 });
+  }
   if (!ADMIN_ROLES.has(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

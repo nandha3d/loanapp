@@ -29,6 +29,9 @@
 # misc
 .DS_Store
 *.pem
+.claude/
+build_android_apk.bat
+generate_guide.py
 
 # debug
 npm-debug.log*

@@ -51,7 +51,7 @@ export default async function DashboardLayout({
     notFound();
   }
 
-  const requestedModule: ModuleKey = module;
+  const requestedModule = module as ModuleKey;
   const tenantId = await getDefaultTenantId();
   const sub = await getSubscription(tenantId);
   const access = getTenantSubscriptionAccessState(sub);
@@ -147,9 +147,11 @@ export default async function DashboardLayout({
       prisma.customer.count({
         where: { ...base, ...branchScope },
       }),
-      prisma.loan.count({
-        where: { ...base, ...branchScope },
-      }),
+      requestedModule === 'chitfunds'
+        ? Promise.resolve(0)
+        : prisma.loan.count({
+            where: { ...base, ...branchScope },
+          }),
       requestedModule === 'autofinance'
         ? prisma.vehicle.count({
             where: {

@@ -76,7 +76,7 @@ export async function ringBellManually(tx: any, auctionId: string, byUserId: str
       id: true,
       roomStatus: true,
       bellsRung: true,
-      chitGroup: { select: { bellCount: true, bellAutoClose: true } },
+      chitGroup: { select: { bellCount: true, bellAutoClose: true, bellIntervalSeconds: true } },
     },
   });
   if (!fresh) throw new Error('Auction not found');
@@ -84,9 +84,11 @@ export async function ringBellManually(tx: any, auctionId: string, byUserId: str
   if (fresh.bellsRung >= fresh.chitGroup.bellCount) throw new Error('Final bell already rung');
 
   const nextCount = fresh.bellsRung + 1;
+  // Back-calculate anchor so nextBellAt stays at now + bellIntervalSeconds (CHIT-28 / bell invariant)
+  const reAnchoredAt = new Date(now.getTime() - nextCount * fresh.chitGroup.bellIntervalSeconds * 1000);
   await tx.chitAuction.update({
     where: { id: auctionId },
-    data: { bellsRung: nextCount, bellAnchorAt: now },
+    data: { bellsRung: nextCount, bellAnchorAt: reAnchoredAt },
   });
   await tx.chitAuctionEvent.create({
     data: {

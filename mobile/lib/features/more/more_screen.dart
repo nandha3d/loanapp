@@ -197,6 +197,17 @@ List<_ModuleItem> get _allModules => <_ModuleItem>[
 ];
 
 bool _canAccess(_ModuleItem item, User user) {
+  if (AppType.userIsChit(user)) {
+    const blockedChitRoutes = {
+      '/wallet',
+      '/approvals',
+      '/penalties',
+      '/npa',
+      '/analytics',
+      '/gold-reports',
+    };
+    if (blockedChitRoutes.contains(item.route)) return false;
+  }
   final privileged = user.role == UserRole.admin ||
       user.role == UserRole.superadmin ||
       user.role == UserRole.developer;
@@ -245,7 +256,10 @@ class MoreScreen extends ConsumerWidget {
     // Simple mode (U4): field agents see only daily-work items. Admin roles
     // keep the full grid regardless of the toggle - never hides capability.
     // '/customers' counts as daily work — it moved here from the bottom nav.
-    const dailyWorkRoutes = {'/customers', '/wallet', '/settings'};
+    final isChit = AppType.userIsChit(user);
+    final dailyWorkRoutes = isChit
+        ? const {'/customers', '/collection', '/settings'}
+        : const {'/customers', '/wallet', '/settings'};
     final visible = user == null
         ? <_ModuleItem>[]
         : _allModules

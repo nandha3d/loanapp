@@ -61,19 +61,27 @@ class _BorrowerDashboardScreenState
   @override
   Widget build(BuildContext context) {
     final portal = ref.watch(_borrowerPortalProvider);
-    final loans = ref.watch(_borrowerLoansProvider);
     final fmt = ref.watch(currencyFmtProvider);
 
     // Which module view to show. Auto: loans if the customer has any, else
-    // chits. When both exist a switcher lets them flip. If the portal call
-    // fails (older server), fall back to the loans-only behavior.
+    // chits. When both exist a switcher lets them flip. Do not query loans for
+    // chit-only users and avoid flashing "My Loans" during load.
     final p = portal.valueOrNull;
+    final hasLoans = p?.hasLoans ?? false;
+    final loans = hasLoans
+        ? ref.watch(_borrowerLoansProvider)
+        : const AsyncValue<List<dynamic>>.data(<dynamic>[]);
     final showChits = p != null && p.hasChits && (_chitTab ?? !p.hasLoans);
+    final appBarTitle = p == null
+        ? 'Member Portal'
+        : showChits
+            ? 'My Chit Funds'
+            : 'My Loans';
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(showChits ? 'My Chit Funds' : 'My Loans'),
+        title: Text(appBarTitle),
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
@@ -85,7 +93,24 @@ class _BorrowerDashboardScreenState
       ),
       body: portal.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _loansBody(loans, fmt),
+        error: (err, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 42, color: AppColors.textSecondary),
+                const SizedBox(height: 10),
+                const Text('Unable to load your account summary.', style: AppTypography.body),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(_borrowerPortalProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
         data: (portal) {
           if (!portal.hasLoans && !portal.hasChits) {
             return _emptyState(

@@ -24,7 +24,10 @@ export default function AppSelectorClient({
     return enabledModules.includes(app.id);
   });
   const router = useRouter();
-  const defaultModule = normalizeModuleList(enabledModules)[0] ?? 'microlending';
+  const normalizedModules = normalizeModuleList(enabledModules);
+  const defaultModule = normalizedModules[0] ?? 'microlending';
+  const lendingModule = normalizedModules.find((m) => m !== 'chitfunds') ?? null;
+  const hasChitModule = normalizedModules.includes('chitfunds');
 
   return (
     <div style={{
@@ -211,23 +214,43 @@ export default function AppSelectorClient({
               </div>
             </button>
 
-            <button
-              onClick={() => router.push(modulePath(defaultModule, '/loans'))}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
-                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
-              }}
-              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-            >
-              <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>account_balance_wallet</span>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600 }}>My Loans</div>
-                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View loan details</div>
-              </div>
-            </button>
+            {lendingModule ? (
+              <button
+                onClick={() => router.push(modulePath(lendingModule, '/loans'))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>account_balance_wallet</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>My Loans</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View loan details</div>
+                </div>
+              </button>
+            ) : hasChitModule ? (
+              <button
+                onClick={() => router.push(modulePath('chitfunds', '/chits'))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>savings</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>My Chit Groups</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage chit funds &amp; auctions</div>
+                </div>
+              </button>
+            ) : null}
 
             <button
               onClick={() => router.push(modulePath(defaultModule, '/dashboard'))}

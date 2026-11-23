@@ -12,19 +12,31 @@ const cardStyle: React.CSSProperties = {
   boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
 };
 
-export default function ChitOnlyPanel({ memberships }: { memberships: Memberships }) {
+export default function ChitOnlyPanel({
+  memberships,
+  currencySymbol = '₹',
+  dict,
+}: {
+  memberships: Memberships;
+  currencySymbol?: string;
+  dict?: any;
+}) {
+  const dc = dict?.chits || {};
+
   return (
     <div style={{ maxWidth: '860px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>My Chits</h1>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+          {dc.portalMyChits || 'My Chits'}
+        </h1>
         <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '4px' }}>
-          Your chit fund memberships, contributions, and receipts.
+          {dc.portalMyChitsDesc || 'Your chit fund memberships, dividend earnings, contributions, and receipts.'}
         </p>
       </div>
 
       {memberships.length === 0 ? (
         <div style={cardStyle}>
-          <p style={{ color: '#64748b', margin: 0 }}>No active chit memberships found.</p>
+          <p style={{ color: '#64748b', margin: 0 }}>{dc.portalNoMemberships || 'No active chit memberships found.'}</p>
         </div>
       ) : (
         memberships.map((m) => (
@@ -34,36 +46,81 @@ export default function ChitOnlyPanel({ memberships }: { memberships: Membership
                 <div style={{ fontWeight: 700, color: '#0f172a' }}>{m.group.name}</div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                   {m.group.groupCode ? `${m.group.groupCode} · ` : ''}Ticket {m.ticketNo ?? '—'}
+                  {m.ticketShare !== 1 ? ` (${m.ticketShare} share)` : ''} · {m.engineName}
                 </div>
               </div>
-              <div
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '3px 10px',
-                  borderRadius: '999px',
-                  background: m.hasWon ? '#dcfce7' : '#e0f2fe',
-                  color: m.hasWon ? '#166534' : '#075985',
-                }}
-              >
-                {m.hasWon ? 'Prize won' : 'Active'}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    background: m.isCompleted ? '#dbeafe' : '#f1f5f9',
+                    color: m.isCompleted ? '#1e40af' : '#334155',
+                  }}
+                >
+                  {m.isCompleted
+                    ? dc.chitCompletedBadge || 'Chit Completed'
+                    : `${m.completedPeriodsCount}/${m.totalPeriods} periods`}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    background: m.hasWon ? '#dcfce7' : '#e0f2fe',
+                    color: m.hasWon ? '#166534' : '#075985',
+                  }}
+                >
+                  {m.hasWon ? 'Prize won' : 'Active'}
+                </div>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginTop: '14px' }}>
               <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Chit value</div>
-                <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.group.chitValue)}</div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.chitValue || 'Chit value'}</div>
+                <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.group.chitValue, currencySymbol)}</div>
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Monthly contribution</div>
-                <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.group.monthlyContrib)}</div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.monthlyContribution || 'Contribution'}</div>
+                <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.group.monthlyContrib, currencySymbol)}</div>
+              </div>
+              <div style={{ background: '#f0fdf4', padding: '6px 8px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                <div style={{ fontSize: '0.72rem', color: '#166534' }}>{dc.totalDividendEarned || 'Total Dividend Earned'}</div>
+                <div style={{ fontWeight: 700, color: '#15803d' }}>
+                  {formatCurrency(m.totalDividendEarned, currencySymbol)} ({m.effectiveSavingsPct}%)
+                </div>
+              </div>
+              {m.totalDeferredDividend > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.deferredBonusPool || 'Deferred Bonus'}</div>
+                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.totalDeferredDividend, currencySymbol)}</div>
+                </div>
+              )}
+              {m.goldTotalGrams > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.goldGramsAccumulated || 'Gold Accumulated'}</div>
+                  <div style={{ fontWeight: 600, color: '#b45309' }}>{m.goldTotalGrams.toFixed(4)} g</div>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.paid || 'Total Paid'}</div>
+                <div style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(m.totalPaid, currencySymbol)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{dc.netFinancialOutcome || 'Net Benefit / Outcome'}</div>
+                <div style={{ fontWeight: 700, color: m.netFinancialOutcome >= 0 ? '#15803d' : '#0f172a' }}>
+                  {formatCurrency(m.netFinancialOutcome, currencySymbol)}
+                </div>
               </div>
               {m.nextDue && (
                 <div>
                   <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Next due ({formatDate(m.nextDue.dueDate)})</div>
                   <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                    {formatCurrency(m.nextDue.dueAmount - m.nextDue.paidAmount)}
+                    {formatCurrency(m.nextDue.outstanding, currencySymbol)}
                   </div>
                 </div>
               )}
@@ -84,16 +141,17 @@ export default function ChitOnlyPanel({ memberships }: { memberships: Membership
         href="/borrower/chits"
         style={{
           textAlign: 'center',
-          padding: '10px',
+          padding: '12px',
           borderRadius: '10px',
-          border: '1px solid #cbd5e1',
-          color: '#334155',
+          border: '1px solid #0f172a',
+          background: '#0f172a',
+          color: '#fff',
           fontWeight: 600,
-          fontSize: '0.85rem',
+          fontSize: '0.88rem',
           textDecoration: 'none',
         }}
       >
-        View contributions & receipts
+        {dc.viewFullDividendStatement || 'View Detailed Chit, Dividend Statement & Receipts'}
       </Link>
     </div>
   );
