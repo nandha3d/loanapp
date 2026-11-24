@@ -55,6 +55,11 @@ import {
 import { assertChitEngineTypeEnabled } from '@/lib/chits/settings';
 import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
 import {
+  simulateChitLifecycle,
+  type ChitSimulationInput,
+  type ChitSimulationResult,
+} from '@/lib/chits/simulator';
+import {
   activateChitGroupInTx,
   assertMemberSubstitutionAllowed,
   confirmMultiDivisionAuctionInTx,
@@ -1580,4 +1585,12 @@ export async function recordAscaPoolTransaction(groupId: string, formData: FormD
 
   revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
   return created;
+}
+
+export async function simulateChitTemplateAction(
+  input: ChitSimulationInput,
+): Promise<ChitSimulationResult> {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer', 'agent']);
+  return simulateChitLifecycle(input);
 }
