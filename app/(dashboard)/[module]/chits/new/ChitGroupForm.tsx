@@ -109,7 +109,7 @@ export default function ChitGroupForm({
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [activeTemplate, setActiveTemplate] = useState<ChitTemplateCode | null>(null);
   const [explainerTemplate, setExplainerTemplate] = useState<ChitTemplateDefinition | null>(null);
-  const [showTemplatesDrawer, setShowTemplatesDrawer] = useState(false);
+  const [showTemplatesPanel, setShowTemplatesPanel] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | ChitEngineCategory>('ALL');
 
   const [groupName, setGroupName] = useState('');
@@ -336,45 +336,45 @@ export default function ChitGroupForm({
         },
         ...(prev.goldScheme
           ? {
-              goldScheme: {
-                ...prev.goldScheme,
-                ...(customOverrides.goldBonusMonths != null
-                  ? { bonusMonths: customOverrides.goldBonusMonths }
-                  : {}),
-                ...(customOverrides.goldRatePerGram != null
-                  ? { defaultGoldRatePerGram: customOverrides.goldRatePerGram }
-                  : {}),
-              },
-            }
+            goldScheme: {
+              ...prev.goldScheme,
+              ...(customOverrides.goldBonusMonths != null
+                ? { bonusMonths: customOverrides.goldBonusMonths }
+                : {}),
+              ...(customOverrides.goldRatePerGram != null
+                ? { defaultGoldRatePerGram: customOverrides.goldRatePerGram }
+                : {}),
+            },
+          }
           : {}),
         ...(prev.commodityScheme && customOverrides.merchantBonusPct != null
           ? {
-              commodityScheme: {
-                ...prev.commodityScheme,
-                merchantBonusPct: customOverrides.merchantBonusPct,
-              },
-            }
+            commodityScheme: {
+              ...prev.commodityScheme,
+              merchantBonusPct: customOverrides.merchantBonusPct,
+            },
+          }
           : {}),
         ...(prev.hybridSplitPhase
           ? {
-              hybridSplitPhase: {
-                ...prev.hybridSplitPhase,
-                ...(customOverrides.reservedCyclesCount != null
-                  ? { reservedCyclesCount: customOverrides.reservedCyclesCount }
-                  : {}),
-                ...(customOverrides.reservedDiscountPct != null
-                  ? { reservedDiscountPct: customOverrides.reservedDiscountPct }
-                  : {}),
-              },
-            }
+            hybridSplitPhase: {
+              ...prev.hybridSplitPhase,
+              ...(customOverrides.reservedCyclesCount != null
+                ? { reservedCyclesCount: customOverrides.reservedCyclesCount }
+                : {}),
+              ...(customOverrides.reservedDiscountPct != null
+                ? { reservedDiscountPct: customOverrides.reservedDiscountPct }
+                : {}),
+            },
+          }
           : {}),
         ...(prev.ascaPool && customOverrides.ascaMonthlyLoanInterestPct != null
           ? {
-              ascaPool: {
-                ...prev.ascaPool,
-                monthlyLoanInterestPct: customOverrides.ascaMonthlyLoanInterestPct,
-              },
-            }
+            ascaPool: {
+              ...prev.ascaPool,
+              monthlyLoanInterestPct: customOverrides.ascaMonthlyLoanInterestPct,
+            },
+          }
           : {}),
       }));
     }
@@ -388,7 +388,6 @@ export default function ChitGroupForm({
       setFrequencyMode('preset');
       setAuctionFrequency(tmpl.defaultFrequency);
     }
-    setShowTemplatesDrawer(false);
   };
 
   const toggleWeekday = (day: number) => {
@@ -538,8 +537,48 @@ export default function ChitGroupForm({
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <style>{`
+        .chit-create-shell {
+          display: grid;
+          grid-template-columns: ${showTemplatesPanel ? '300px minmax(0, 1fr)' : '46px minmax(0, 1fr)'};
+          gap: 14px;
+          align-items: start;
+          width: 100%;
+          transition: grid-template-columns .2s ease;
+        }
+        @media (max-width: 1040px) {
+          .chit-create-shell {
+            grid-template-columns: 1fr !important;
+          }
+          .chit-tpl-sidebar {
+            position: static !important;
+            max-height: none !important;
+          }
+        }
+        .chit-tpl-sidebar {
+          position: sticky;
+          top: 14px;
+          max-height: calc(100vh - 90px);
+          display: flex;
+          flex-direction: column;
+          border-radius: 12px;
+          background: var(--surface);
+          border: 1px solid rgba(13, 148, 136, 0.25);
+          box-shadow: 0 8px 24px -6px rgba(13, 148, 136, 0.14), 0 0 0 1px rgba(13, 148, 136, 0.08);
+          overflow: hidden;
+        }
+        .chit-tpl-scroll::-webkit-scrollbar {
+          width: 5px;
+        }
+        .chit-tpl-scroll::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.45);
+          border-radius: 4px;
+        }
+        .chit-compact-form {
+          box-shadow: 0 8px 26px -8px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(148, 163, 184, 0.16);
+          border-radius: 12px;
+        }
         .chit-compact-form .form-control {
           padding: 6px 10px;
           font-size: .82rem;
@@ -557,27 +596,59 @@ export default function ChitGroupForm({
           margin-bottom: 0;
         }
         .chit-section-box {
+          --sec-accent: #0d9488;
+          --sec-tint: rgba(13, 148, 136, 0.08);
+          --sec-glow: rgba(13, 148, 136, 0.16);
+          --sec-ring: rgba(13, 148, 136, 0.2);
           padding: 12px 14px;
-          border: 1px solid var(--border);
-          border-radius: 9px;
+          border: 1px solid var(--sec-ring);
+          border-left: 4px solid var(--sec-accent);
+          border-radius: 10px;
           background: var(--surface);
-          margin-bottom: 10px;
+          box-shadow: 0 4px 14px -4px rgba(15, 23, 42, 0.07), 0 0 16px -4px var(--sec-glow);
+          margin-bottom: 12px;
+          transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
         }
+        .chit-section-box:hover,
+        .chit-section-box:focus-within {
+          box-shadow: 0 8px 22px -6px rgba(15, 23, 42, 0.1), 0 0 22px -3px var(--sec-glow);
+        }
+        .chit-sec-1 { --sec-accent: #0d9488; --sec-tint: rgba(13, 148, 136, 0.09); --sec-glow: rgba(13, 148, 136, 0.18); --sec-ring: rgba(13, 148, 136, 0.24); }
+        .chit-sec-2 { --sec-accent: #4f46e5; --sec-tint: rgba(79, 70, 229, 0.08); --sec-glow: rgba(79, 70, 229, 0.16); --sec-ring: rgba(79, 70, 229, 0.22); }
+        .chit-sec-3 { --sec-accent: #d97706; --sec-tint: rgba(217, 119, 6, 0.09); --sec-glow: rgba(217, 119, 6, 0.16); --sec-ring: rgba(217, 119, 6, 0.24); }
+        .chit-sec-4 { --sec-accent: #0284c7; --sec-tint: rgba(2, 132, 199, 0.09); --sec-glow: rgba(2, 132, 199, 0.18); --sec-ring: rgba(2, 132, 199, 0.24); }
+        .chit-sec-5 { --sec-accent: #7c3aed; --sec-tint: rgba(124, 58, 237, 0.08); --sec-glow: rgba(124, 58, 237, 0.16); --sec-ring: rgba(124, 58, 237, 0.22); }
+        .chit-sec-6 { --sec-accent: #e11d48; --sec-tint: rgba(225, 29, 72, 0.08); --sec-glow: rgba(225, 29, 72, 0.16); --sec-ring: rgba(225, 29, 72, 0.22); }
+        .chit-sec-7 { --sec-accent: #0891b2; --sec-tint: rgba(8, 145, 178, 0.09); --sec-glow: rgba(8, 145, 178, 0.16); --sec-ring: rgba(8, 145, 178, 0.22); }
         .chit-section-hdr {
           display: flex;
           justify-content: space-between;
           align-items: center;
           flex-wrap: wrap;
           gap: 8px;
-          margin-bottom: 10px;
-          padding-bottom: 6px;
-          border-bottom: 1px solid var(--border);
+          margin: -4px -6px 10px;
+          padding: 6px 10px;
+          border-radius: 7px;
+          background: linear-gradient(90deg, var(--sec-tint) 0%, transparent 80%);
+          border-bottom: 1px solid var(--sec-ring);
         }
         .chit-section-hdr h4 {
           margin: 0;
           font-size: .88rem;
           font-weight: 700;
           color: var(--text);
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .chit-section-hdr h4::before {
+          content: '';
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: var(--sec-accent);
+          box-shadow: 0 0 8px var(--sec-accent);
+          flex-shrink: 0;
         }
         .chit-grid-3 {
           display: grid;
@@ -605,9 +676,120 @@ export default function ChitGroupForm({
         }
       `}</style>
 
-      <form onSubmit={handleSubmit} className="card chit-compact-form" style={{ padding: '14px 16px' }}>
-        {/* Compact Header & Template Strip */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+      <div className="chit-create-shell">
+        {/* LEFT SIDE PANEL: TOGGLEABLE CHIT TEMPLATES (fills left gap next to main panel) */}
+        <aside className="chit-tpl-sidebar" style={{ padding: showTemplatesPanel ? '12px' : '8px 4px' }}>
+          {!showTemplatesPanel ? (
+            <button
+              type="button"
+              onClick={() => setShowTemplatesPanel(true)}
+              title={`${ui.showAllTemplates} (18)`}
+              style={{
+                width: '100%',
+                minHeight: '220px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                color: 'var(--primary)',
+                fontWeight: 700,
+                fontSize: '.78rem',
+              }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+              <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: '.04em' }}>
+                {d.quickTemplatesTitle || 'Chit Templates'} (18)
+              </span>
+            </button>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '.92rem', fontWeight: 700, color: 'var(--text)' }}>
+                    {d.quickTemplatesTitle || 'Chit Templates'}
+                  </h3>
+                  <span style={{ fontSize: '.69rem', color: 'var(--text-secondary)' }}>18 presets · click Apply</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplatesPanel(false)}
+                  title={ui.hideTemplates}
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '2px 6px', fontSize: '.72rem' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>chevron_left</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {[
+                  { id: 'ALL' as const, label: d.templateCatAll || 'All (18)' },
+                  { id: 'AUCTION' as const, label: d.templateCatAuction || 'Auction (4)' },
+                  { id: 'FIXED_CHART' as const, label: d.templateCatFixedChart || 'Fixed (7)' },
+                  { id: 'MICRO_COMMODITY' as const, label: d.templateCatMicroCommodity || 'Daily/Gold (4)' },
+                  { id: 'ENTERPRISE_HYBRID' as const, label: d.templateCatEnterpriseHybrid || 'Enterprise (3)' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`btn btn-sm ${selectedCategory === cat.id ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '2px 7px', fontSize: '.68rem' }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="chit-tpl-scroll" style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '7px', paddingRight: '3px' }}>
+                {PRACTICAL_CHIT_TEMPLATES.filter((t) => selectedCategory === 'ALL' || t.category === selectedCategory).map((tmpl) => {
+                  const isSelected = activeTemplate === tmpl.code;
+                  const tData = (d.templates as Record<string, { title?: string; badge?: string; desc?: string }> | undefined)?.[tmpl.code];
+                  const title = tData?.title || tmpl.defaultName;
+                  const badge = tData?.badge || tmpl.defaultBadge;
+                  return (
+                    <div
+                      key={tmpl.code}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(13, 148, 136, 0.08)' : 'var(--bg-hover, #f8fafc)',
+                        border: isSelected ? '1.5px solid #0d9488' : '1px solid var(--border)',
+                        boxShadow: isSelected ? '0 0 12px rgba(13, 148, 136, 0.2)' : 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '5px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px' }}>
+                        <strong style={{ fontSize: '.78rem', lineHeight: 1.25 }}>{title}</strong>
+                        {isSelected && <span className="badge badge-success" style={{ fontSize: '.62rem', padding: '1px 5px' }}>✓</span>}
+                      </div>
+                      <span className="badge badge-pending" style={{ fontSize: '.64rem', alignSelf: 'flex-start' }}>{badge}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.7rem', color: 'var(--text-secondary)', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
+                        <span>{currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')} · {tmpl.defaultTotalMembers}</span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '1px 6px', fontSize: '.68rem' }} onClick={() => setExplainerTemplate(tmpl)}>Info</button>
+                          <button type="button" className="btn btn-primary btn-sm" style={{ padding: '1px 8px', fontSize: '.68rem' }} onClick={() => applyTemplate(tmpl)}>
+                            {isSelected ? 'Applied' : 'Apply'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </aside>
+
+        {/* MAIN FORM PANEL ON THE RIGHT */}
+        <form onSubmit={handleSubmit} className="card chit-compact-form" style={{ padding: '14px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{d.createGroup}</h3>
             <p style={{ margin: '2px 0 0', fontSize: '.74rem', color: 'var(--text-secondary)' }}>
@@ -615,90 +797,19 @@ export default function ChitGroupForm({
             </p>
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: '.74rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{ui.templatesQuickTitle}:</span>
-            {PRACTICAL_CHIT_TEMPLATES.slice(0, 3).map((tmpl) => (
-              <button
-                key={tmpl.code}
-                type="button"
-                className={`btn btn-sm ${activeTemplate === tmpl.code ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '3px 9px', fontSize: '.72rem' }}
-                onClick={() => applyTemplate(tmpl)}
-              >
-                {(d.templates as any)?.[tmpl.code]?.title || tmpl.defaultName}
-              </button>
-            ))}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
               style={{ padding: '3px 10px', fontSize: '.72rem', fontWeight: 600 }}
-              onClick={() => setShowTemplatesDrawer((v) => !v)}
+              onClick={() => setShowTemplatesPanel((v) => !v)}
             >
-              {showTemplatesDrawer ? ui.hideTemplates : `${ui.showAllTemplates} (18)`}
+              {showTemplatesPanel ? ui.hideTemplates : `${ui.showAllTemplates} (18)`}
             </button>
             <Link href="/settings?tab=chittypes" className="btn btn-ghost btn-sm" style={{ padding: '3px 8px', fontSize: '.72rem' }}>
               Settings
             </Link>
           </div>
         </div>
-
-        {/* Expandable 18-Templates Drawer (keeps main form uncrowded & compact) */}
-        {showTemplatesDrawer && (
-          <div style={{ padding: '10px 12px', marginBottom: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-hover, #f8fafc)' }}>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-              {[
-                { id: 'ALL' as const, label: d.templateCatAll || 'All (18)' },
-                { id: 'AUCTION' as const, label: d.templateCatAuction || 'Auction (4)' },
-                { id: 'FIXED_CHART' as const, label: d.templateCatFixedChart || 'Fixed (7)' },
-                { id: 'MICRO_COMMODITY' as const, label: d.templateCatMicroCommodity || 'Daily/Gold (4)' },
-                { id: 'ENTERPRISE_HYBRID' as const, label: d.templateCatEnterpriseHybrid || 'Enterprise (3)' },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`btn btn-sm ${selectedCategory === cat.id ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '2px 9px', fontSize: '.72rem' }}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
-              {PRACTICAL_CHIT_TEMPLATES.filter((t) => selectedCategory === 'ALL' || t.category === selectedCategory).map((tmpl) => {
-                const tData = (d.templates as Record<string, { title?: string; badge?: string }> | undefined)?.[tmpl.code];
-                const title = tData?.title || tmpl.defaultName;
-                const badge = tData?.badge || tmpl.defaultBadge;
-                return (
-                  <div
-                    key={tmpl.code}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: '7px',
-                      background: '#fff',
-                      border: activeTemplate === tmpl.code ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '5px',
-                    }}
-                  >
-                    <div>
-                      <strong style={{ fontSize: '.79rem', display: 'block' }}>{title}</strong>
-                      <span className="badge badge-pending" style={{ fontSize: '.66rem', marginTop: '2px' }}>{badge}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.72rem', color: 'var(--text-secondary)' }}>
-                      <span>{currencySymbol}{tmpl.defaultChitValue.toLocaleString('en-IN')} · {tmpl.defaultTotalMembers}</span>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', fontSize: '.69rem' }} onClick={() => setExplainerTemplate(tmpl)}>Info</button>
-                        <button type="button" className="btn btn-primary btn-sm" style={{ padding: '2px 8px', fontSize: '.69rem' }} onClick={() => applyTemplate(tmpl)}>Apply</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {activeTemplate && (
           <div style={{ marginBottom: '10px', padding: '5px 10px', borderRadius: '6px', background: '#dcfce7', border: '1px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '.76rem' }}>
@@ -716,7 +827,7 @@ export default function ChitGroupForm({
         )}
 
         {/* SECTION 1: BASIC DETAILS — STRICTLY 3 COLUMNS PER ROW */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-1">
           <div className="chit-section-hdr">
             <h4>{ui.basicDetails}</h4>
             <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{ui.autoCalcHint}</span>
@@ -888,7 +999,7 @@ export default function ChitGroupForm({
         </div>
 
         {/* SECTION 2: CHIT STYLE, CADENCE & ENGINE PARAMETERS — 3 COLUMNS + TOOLTIPS */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-2">
           <div className="chit-section-hdr">
             <h4>{ui.chitStyleAndCadence}</h4>
             <code style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{selectedEngine}</code>
@@ -1512,7 +1623,7 @@ export default function ChitGroupForm({
         </div>
 
         {/* SECTION 3: FOREMEN (MULTIPLE) & COMMISSION — 3 COLUMNS + TOOLTIPS */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-3">
           <div className="chit-section-hdr">
             <h4>{ui.foremenAndCommission}</h4>
             <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>
@@ -1703,7 +1814,7 @@ export default function ChitGroupForm({
         </div>
 
         {/* SECTION 4: MULTI-TICKET CUSTOMER ENROLLMENT — FAST, COMPACT */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-4">
           <div className="chit-section-hdr">
             <h4>
               {ui.membersAndTickets} <FieldHelpIcon title="Multi-Ticket Enrollment" text={getChitFieldTooltip('multiTicketMembers', lang)} />
@@ -1819,7 +1930,7 @@ export default function ChitGroupForm({
         </div>
 
         {/* SECTION 5: COLLAPSIBLE BID LIMITS, DIVIDEND & DEFAULT RULES — 3 COLUMNS + TOOLTIPS */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-5">
           <div
             className="chit-section-hdr"
             style={{ marginBottom: openAdvanced ? '10px' : 0, borderBottom: openAdvanced ? '1px solid var(--border)' : 'none', paddingBottom: openAdvanced ? '6px' : 0, cursor: 'pointer' }}
@@ -2011,7 +2122,7 @@ export default function ChitGroupForm({
 
         {/* SECTION 6: REGISTERED CHITS COMPLIANCE (SHOWN ONLY FOR REGISTERED) */}
         {chitType === 'registered' && (
-          <div className="chit-section-box">
+          <div className="chit-section-box chit-sec-6">
             <div className="chit-section-hdr">
               <h4>{ui.registrationCompliance}</h4>
             </div>
@@ -2045,7 +2156,7 @@ export default function ChitGroupForm({
         )}
 
         {/* SECTION 7: COLLAPSIBLE SECURITY, LIVE ROOM & WINNER INTEREST — 3 COLUMNS + TOOLTIPS */}
-        <div className="chit-section-box">
+        <div className="chit-section-box chit-sec-7">
           <div
             className="chit-section-hdr"
             style={{ marginBottom: openSecurity ? '10px' : 0, borderBottom: openSecurity ? '1px solid var(--border)' : 'none', paddingBottom: openSecurity ? '6px' : 0, cursor: 'pointer' }}
@@ -2208,6 +2319,7 @@ export default function ChitGroupForm({
           </div>
         </div>
       </form>
+      </div>
 
       <ChitTemplateExplainerModal
         template={explainerTemplate}
