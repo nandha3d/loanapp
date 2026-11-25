@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { getSecurityTypeSpec } from '@/lib/chits/securityTypes';
 
 export async function GET(
   req: NextRequest,
@@ -65,13 +66,25 @@ export async function POST(
 
     const saved = await prisma.$transaction(async (tx) => {
       const existing = await tx.chitSecurity.findFirst({ where: { auctionId } });
+      const resolvedSecurityType = body?.securityType ?? existing?.securityType ?? 'INTERNAL_GUARANTOR_JAMEEN';
+      const spec = getSecurityTypeSpec(resolvedSecurityType);
       const data: any = {
-        securityType: body?.securityType ?? existing?.securityType ?? 'guarantor',
-        securityValue: body?.securityValue == null ? existing?.securityValue : Number(body.securityValue),
-        guarantorMemberId: guarantorMemberId !== undefined ? guarantorMemberId : existing?.guarantorMemberId,
-        guarantorName: body?.guarantorName ?? existing?.guarantorName,
-        guarantorPhone: body?.guarantorPhone ?? existing?.guarantorPhone,
-        details: body?.details ?? existing?.details,
+        securityType: resolvedSecurityType,
+        securityValue: spec.showValue
+          ? (body?.securityValue == null ? existing?.securityValue ?? null : Number(body.securityValue))
+          : null,
+        guarantorMemberId: spec.showGuarantorMember
+          ? (guarantorMemberId !== undefined ? guarantorMemberId : existing?.guarantorMemberId ?? null)
+          : null,
+        guarantorName: spec.showPartyName
+          ? (body?.guarantorName !== undefined ? body.guarantorName : existing?.guarantorName ?? null)
+          : null,
+        guarantorPhone: spec.showPartyPhone
+          ? (body?.guarantorPhone !== undefined ? body.guarantorPhone : existing?.guarantorPhone ?? null)
+          : null,
+        details: spec.showDetails
+          ? (body?.details !== undefined ? body.details : existing?.details ?? null)
+          : null,
         status,
         submittedAt: status === 'submitted' ? new Date() : existing?.submittedAt,
         verifiedById: status === 'verified' ? ctx.userId : existing?.verifiedById,

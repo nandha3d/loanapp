@@ -2,12 +2,9 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { ALLOWED_SECURITY_DOCUMENT_TYPES } from '@/lib/chits/securityTypes';
 
-const ALLOWED_DOCUMENT_TYPES = new Set([
-  'guarantor_photo',
-  'guarantor_kyc',
-  'security_cheque',
-]);
+const ALLOWED_DOCUMENT_TYPES = ALLOWED_SECURITY_DOCUMENT_TYPES;
 
 function fileNameFromUrl(fileUrl: string) {
   const clean = fileUrl.split('?')[0] ?? fileUrl;

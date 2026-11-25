@@ -366,10 +366,11 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
   }
 
   void _showSecuritySheet(ChitAuction auction) {
-    String securityType = 'guarantor';
+    String securityType = 'INTERNAL_GUARANTOR_JAMEEN';
     double? value;
     String guarantorName = '';
     String guarantorPhone = '';
+    String details = '';
     var documentsFuture =
         ref.read(chitServiceProvider).securityDocuments(widget.id, auction.id);
     showModalBottomSheet<void>(
@@ -380,6 +381,111 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        final showValue = securityType != 'INTERNAL_GUARANTOR_JAMEEN' &&
+            securityType != 'NONE';
+        final showParty = securityType == 'INTERNAL_GUARANTOR_JAMEEN' ||
+            securityType == 'PROMISSORY_NOTE';
+
+        final String partyNameLabel = securityType == 'PROMISSORY_NOTE'
+            ? 'Co-executant / witness name'
+            : 'Guarantor name';
+        final String partyPhoneLabel = securityType == 'PROMISSORY_NOTE'
+            ? 'Witness phone'
+            : 'Guarantor phone';
+        final String valueLabel = switch (securityType) {
+          'PROMISSORY_NOTE' => 'Promissory note amount',
+          'POST_DATED_CHEQUE' => 'Total cheque value',
+          'GOLD_PLEDGE' => 'Appraised gold value',
+          'PROPERTY_DOCUMENT' => 'Property valuation',
+          'FD_LIEN' => 'FD lien amount',
+          _ => 'Security value',
+        };
+        final String detailsLabel = switch (securityType) {
+          'INTERNAL_GUARANTOR_JAMEEN' => 'Guarantee notes / ticket reference',
+          'PROMISSORY_NOTE' => 'DPN number, stamp & execution date',
+          'POST_DATED_CHEQUE' => 'Bank name, branch & cheque numbers',
+          'GOLD_PLEDGE' => 'Ornament description, net grams & purity',
+          'PROPERTY_DOCUMENT' => 'Deed / survey no. & sub-registrar',
+          'FD_LIEN' => 'Bank name, FD account no. & maturity date',
+          _ => 'Waiver / release notes',
+        };
+        final List<({String type, String label, IconData icon})> docButtons =
+            switch (securityType) {
+          'INTERNAL_GUARANTOR_JAMEEN' => const [
+              (
+                type: 'guarantor_photo',
+                label: 'Guarantor photo',
+                icon: Icons.person_pin_circle_outlined,
+              ),
+              (
+                type: 'guarantor_kyc',
+                label: 'Guarantor KYC',
+                icon: Icons.badge_outlined,
+              ),
+            ],
+          'PROMISSORY_NOTE' => const [
+              (
+                type: 'promissory_note',
+                label: 'Promissory note scan',
+                icon: Icons.description_outlined,
+              ),
+              (
+                type: 'witness_kyc',
+                label: 'Witness KYC',
+                icon: Icons.badge_outlined,
+              ),
+            ],
+          'POST_DATED_CHEQUE' => const [
+              (
+                type: 'security_cheque',
+                label: 'Cheque image',
+                icon: Icons.receipt_long_outlined,
+              ),
+              (
+                type: 'bank_proof',
+                label: 'Bank passbook',
+                icon: Icons.account_balance_outlined,
+              ),
+            ],
+          'GOLD_PLEDGE' => const [
+              (
+                type: 'gold_photo',
+                label: 'Gold photo',
+                icon: Icons.diamond_outlined,
+              ),
+              (
+                type: 'gold_appraisal',
+                label: 'Assay receipt',
+                icon: Icons.verified_outlined,
+              ),
+            ],
+          'PROPERTY_DOCUMENT' => const [
+              (
+                type: 'property_deed',
+                label: 'Title deed',
+                icon: Icons.home_work_outlined,
+              ),
+              (
+                type: 'property_ec',
+                label: 'EC / tax receipt',
+                icon: Icons.article_outlined,
+              ),
+            ],
+          'FD_LIEN' => const [
+              (
+                type: 'fd_receipt',
+                label: 'FD receipt',
+                icon: Icons.savings_outlined,
+              ),
+              (
+                type: 'fd_lien_letter',
+                label: 'Lien letter',
+                icon: Icons.verified_user_outlined,
+              ),
+            ],
+          _ => const [],
+        };
+
         Future<void> uploadDocument(String documentType) async {
           final picked = await _picker.pickImage(
             source: ImageSource.gallery,
@@ -439,63 +545,70 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   decoration: const InputDecoration(labelText: 'Security type'),
                   items: const [
                     DropdownMenuItem(
-                        value: 'guarantor', child: Text('Guarantor'),),
+                        value: 'INTERNAL_GUARANTOR_JAMEEN',
+                        child: Text('Internal Guarantor (Jameen)'),),
                     DropdownMenuItem(
-                        value: 'property', child: Text('Property'),),
-                    DropdownMenuItem(value: 'gold', child: Text('Gold')),
-                    DropdownMenuItem(value: 'fd', child: Text('Fixed deposit')),
-                    DropdownMenuItem(value: 'salary', child: Text('Salary')),
-                    DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                        value: 'PROMISSORY_NOTE',
+                        child: Text('Promissory Note'),),
+                    DropdownMenuItem(
+                        value: 'POST_DATED_CHEQUE',
+                        child: Text('Post-Dated Cheque (PDC)'),),
+                    DropdownMenuItem(
+                        value: 'GOLD_PLEDGE', child: Text('Gold Pledge'),),
+                    DropdownMenuItem(
+                        value: 'PROPERTY_DOCUMENT',
+                        child: Text('Property Document'),),
+                    DropdownMenuItem(
+                        value: 'FD_LIEN', child: Text('FD Lien'),),
+                    DropdownMenuItem(
+                        value: 'NONE', child: Text('None (Waived)'),),
                   ],
-                  onChanged: (v) =>
-                      setLocal(() => securityType = v ?? 'guarantor'),
+                  onChanged: (v) => setLocal(
+                      () => securityType = v ?? 'INTERNAL_GUARANTOR_JAMEEN',),
                 ),
+                if (showValue) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: valueLabel),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => value = double.tryParse(v),
+                  ),
+                ],
+                if (showParty) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: partyNameLabel),
+                    onChanged: (v) => guarantorName = v,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: partyPhoneLabel),
+                    keyboardType: TextInputType.phone,
+                    onChanged: (v) => guarantorPhone = v,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Security value'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => value = double.tryParse(v),
+                  decoration: InputDecoration(labelText: detailsLabel),
+                  onChanged: (v) => details = v,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Guarantor name'),
-                  onChanged: (v) => guarantorName = v,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Guarantor phone'),
-                  keyboardType: TextInputType.phone,
-                  onChanged: (v) => guarantorPhone = v,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _runAction(() => uploadDocument('guarantor_photo')),
-                      icon: const Icon(Icons.person_pin_circle_outlined),
-                      label: const Text('Photo'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _runAction(() => uploadDocument('guarantor_kyc')),
-                      icon: const Icon(Icons.badge_outlined),
-                      label: const Text('KYC'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _runAction(() => uploadDocument('security_cheque')),
-                      icon: const Icon(Icons.receipt_long_outlined),
-                      label: const Text('Cheque'),
-                    ),
-                  ],
-                ),
+                if (docButtons.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: docButtons
+                        .map(
+                          (b) => OutlinedButton.icon(
+                            onPressed: () =>
+                                _runAction(() => uploadDocument(b.type)),
+                            icon: Icon(b.icon),
+                            label: Text(b.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 FutureBuilder<List<ChitSecurityDocument>>(
                   future: documentsFuture,
@@ -548,9 +661,11 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                             .read(chitServiceProvider)
                             .submitSecurity(widget.id, auction.id,
                                 securityType: securityType,
-                                securityValue: value,
-                                guarantorName: guarantorName,
-                                guarantorPhone: guarantorPhone,),);
+                                securityValue: showValue ? value : null,
+                                guarantorName: showParty ? guarantorName : null,
+                                guarantorPhone:
+                                    showParty ? guarantorPhone : null,
+                                details: details,),);
                       },
                       child: const Text('Submit'),
                     ),

@@ -73,6 +73,7 @@ import {
   storeTenantUpload,
   validateFileBytes,
 } from '@/lib/fileUpload';
+import { getSecurityTypeSpec } from '@/lib/chits/securityTypes';
 import { generateCode } from '@/lib/utils';
 
 function value(formData: FormData, key: string) {
@@ -103,11 +104,7 @@ function scheduledDateTime(baseDate: Date, auctionTime?: string | null) {
   return scheduled;
 }
 
-const SECURITY_DOCUMENT_FIELDS = [
-  { key: 'guarantorPhoto', type: 'guarantor_photo', label: 'Guarantor photo' },
-  { key: 'guarantorKyc', type: 'guarantor_kyc', label: 'Guarantor KYC' },
-  { key: 'securityCheque', type: 'security_cheque', label: 'Security cheque' },
-] as const;
+// Security document keys are resolved dynamically per securityType via lib/chits/securityTypes.ts
 
 async function saveChitDocumentFile(file: File, tenantId: string) {
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
@@ -905,16 +902,39 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
 
     await prisma.$transaction(async (tx) => {
       const security = await tx.chitSecurity.findFirst({ where: { auctionId: auction.id } });
-      // Preserve existing security fields when partial actions (reject / upload documents) run.
+      const resolvedSecurityType =
+        (formData.has('securityType') ? value(formData, 'securityType') : null) ??
+        security?.securityType ??
+        'INTERNAL_GUARANTOR_JAMEEN';
+      const spec = getSecurityTypeSpec(resolvedSecurityType);
+
+      if (guarantorMemberId && !spec.showGuarantorMember) {
+        throw new Error('Internal guarantor selection applies only to Guarantor security type');
+      }
+
+      // Preserve existing security fields on partial actions (reject / upload documents),
+      // while clearing fields that do not apply to the chosen securityType.
       const data: any = {
-        securityType: formData.has('securityType')
-          ? value(formData, 'securityType') ?? security?.securityType ?? 'guarantor'
-          : security?.securityType ?? 'guarantor',
-        ...(formData.has('securityValue') ? { securityValue: numberValue(formData, 'securityValue') } : {}),
-        ...(formData.has('guarantorMemberId') ? { guarantorMemberId: guarantorMemberId ?? null } : {}),
-        ...(formData.has('guarantorName') ? { guarantorName: value(formData, 'guarantorName') } : {}),
-        ...(formData.has('guarantorPhone') ? { guarantorPhone: value(formData, 'guarantorPhone') } : {}),
-        ...(formData.has('details') ? { details: value(formData, 'details') } : {}),
+        securityType: status === 'documents' ? (security?.securityType ?? resolvedSecurityType) : resolvedSecurityType,
+        ...(status !== 'documents'
+          ? {
+              securityValue: spec.showValue
+                ? (formData.has('securityValue') ? (numberValue(formData, 'securityValue') ?? null) : security?.securityValue ?? null)
+                : null,
+              guarantorMemberId: spec.showGuarantorMember
+                ? (formData.has('guarantorMemberId') ? (guarantorMemberId ?? null) : security?.guarantorMemberId ?? null)
+                : null,
+              guarantorName: spec.showPartyName
+                ? (formData.has('guarantorName') ? value(formData, 'guarantorName') : security?.guarantorName ?? null)
+                : null,
+              guarantorPhone: spec.showPartyPhone
+                ? (formData.has('guarantorPhone') ? value(formData, 'guarantorPhone') : security?.guarantorPhone ?? null)
+                : null,
+              details: spec.showDetails
+                ? (formData.has('details') ? value(formData, 'details') : security?.details ?? null)
+                : null,
+            }
+          : {}),
         status: status === 'documents' ? security?.status ?? 'submitted' : status,
         submittedAt: status === 'submitted' ? new Date() : security?.submittedAt,
         verifiedById: status === 'verified' ? scope.userId : security?.verifiedById,
@@ -935,8 +955,8 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
             ...data,
           },
         });
-      for (const spec of SECURITY_DOCUMENT_FIELDS) {
-        const file = formData.get(spec.key);
+      for (const docSpec of spec.documents) {
+        const file = formData.get(docSpec.key);
         if (!(file instanceof File) || file.size <= 0) continue;
         const saved = await saveChitDocumentFile(file, scope.tenantId);
         await tx.chitDocument.create({
@@ -946,7 +966,7 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
             appType: scope.appType,
             entityType: 'chit_security',
             entityId: savedSecurity.id,
-            documentType: spec.type,
+            documentType: docSpec.type,
             fileName: saved.fileName,
             fileUrl: saved.url,
             mimeType: file.type || null,

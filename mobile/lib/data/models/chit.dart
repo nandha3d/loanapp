@@ -371,8 +371,26 @@ class ChitSecurityDocument {
         return 'Guarantor photo';
       case 'guarantor_kyc':
         return 'Guarantor KYC';
+      case 'promissory_note':
+        return 'Signed promissory note';
+      case 'witness_kyc':
+        return 'Witness KYC';
       case 'security_cheque':
         return 'Security cheque';
+      case 'bank_proof':
+        return 'Bank passbook / cancelled cheque';
+      case 'gold_photo':
+        return 'Gold ornament photo';
+      case 'gold_appraisal':
+        return 'Gold appraisal slip';
+      case 'property_deed':
+        return 'Title / sale deed';
+      case 'property_ec':
+        return 'EC / tax receipt';
+      case 'fd_receipt':
+        return 'FD receipt';
+      case 'fd_lien_letter':
+        return 'Bank lien letter';
       default:
         return documentType.replaceAll('_', ' ');
     }

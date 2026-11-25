@@ -35,6 +35,12 @@ import {
   parseChitEngineConfig,
   resolveEngineTypeFromGroup,
 } from '@/lib/chits/engineTypes';
+import {
+  CANONICAL_SECURITY_OPTIONS,
+  SECURITY_DOCUMENT_LABELS,
+  getSecurityTypeSpec,
+  normalizeSecurityType,
+} from '@/lib/chits/securityTypes';
 
 interface Props {
   auction: any;
@@ -45,12 +51,6 @@ interface Props {
   currencySymbol: string;
   dict: any;
 }
-
-const securityDocumentLabels: Record<string, string> = {
-  guarantor_photo: 'Guarantor photo',
-  guarantor_kyc: 'Guarantor KYC',
-  security_cheque: 'Security cheque',
-};
 
 function timelineIcon(entry: any): string {
   if (entry.kind === 'message') return '💬';
@@ -119,6 +119,14 @@ export default function AuctionDetailClient({
   const [seatModal, setSeatModal] = useState<any>(null);
   const [payMode, setPayMode] = useState('cash');
   const [payRef, setPayRef] = useState('');
+  const [securityTypeInput, setSecurityTypeInput] = useState<string>(() =>
+    normalizeSecurityType(security?.securityType),
+  );
+  const [showDenoms, setShowDenoms] = useState(false);
+  const [denom500, setDenom500] = useState(0);
+  const [denom200, setDenom200] = useState(0);
+  const [denom100, setDenom100] = useState(0);
+  const [denom50, setDenom50] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollFailCountRef = useRef(0);
   const [clockNow, setClockNow] = useState<Date | null>(null);
@@ -130,6 +138,14 @@ export default function AuctionDetailClient({
   const timelinePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [winnerSummary, setWinnerSummary] = useState<any>(null);
   const activeBidBounds: AutomatedBidBounds = live?.bidBounds ?? initialBidBounds;
+  const activeSecuritySpec = getSecurityTypeSpec(securityTypeInput);
+  const savedSecuritySpec = getSecurityTypeSpec(security?.securityType);
+
+  useEffect(() => {
+    if (security?.securityType) {
+      setSecurityTypeInput(normalizeSecurityType(security.securityType));
+    }
+  }, [security?.securityType]);
 
   // Keep automated bid input synced cleanly to valid monotonic ceiling whenever bounds tighten
   useEffect(() => {
@@ -297,15 +313,83 @@ export default function AuctionDetailClient({
   const presentCount = auction.attendance.filter((entry: any) => ['present', 'proxy'].includes(entry.status)).length;
   const showNoticeAction = !locked && auction.status === 'pending' && auction.noticeStatus !== 'sent';
   const roomMessages = live?.latestMessages ?? initialMessages;
+  const periodReportUrl = (() => {
+    const qs = new URLSearchParams();
+    if (denom500 > 0) qs.set('d500', String(denom500));
+    if (denom200 > 0) qs.set('d200', String(denom200));
+    if (denom100 > 0) qs.set('d100', String(denom100));
+    if (denom50 > 0) qs.set('d50', String(denom50));
+    const q = qs.toString();
+    return `/api/chits/${group.id}/auctions/${auction.id}/report${q ? `?${q}` : ''}`;
+  })();
 
   return (
     <>
-      <div style={{ marginBottom: '16px' }}>
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <Link href={`/chits/${group.groupCode ?? group.id}`} className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
           Back to {group.name}
         </Link>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowDenoms((v) => !v)}
+          >
+            {showDenoms ? 'Hide Cash Notes' : '💵 Cash Note Counts'}
+          </button>
+          <a
+            href={periodReportUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-secondary btn-sm"
+          >
+            📄 Period {auction.periodNumber} Report PDF
+          </a>
+        </div>
       </div>
+
+      {showDenoms && (
+        <div
+          className="card"
+          style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', alignSelf: 'center', marginRight: '4px' }}>
+            Cash Denominations for Period PDF:
+          </div>
+          {[
+            { label: `${currencySymbol}500 notes`, val: denom500, set: setDenom500 },
+            { label: `${currencySymbol}200 notes`, val: denom200, set: setDenom200 },
+            { label: `${currencySymbol}100 notes`, val: denom100, set: setDenom100 },
+            { label: `${currencySymbol}50 notes`, val: denom50, set: setDenom50 },
+          ].map((item) => (
+            <div key={item.label} className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.72rem' }}>{item.label}</label>
+              <input
+                type="number"
+                min={0}
+                className="form-control"
+                value={item.val}
+                onChange={(e) => item.set(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                style={{ width: '96px', padding: '6px 8px' }}
+              />
+            </div>
+          ))}
+          <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--primary)', alignSelf: 'center' }}>
+            Cash Total: {formatCurrency(denom500 * 500 + denom200 * 200 + denom100 * 100 + denom50 * 50, currencySymbol)}
+          </div>
+          <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+            Download PDF with Notes
+          </a>
+        </div>
+      )}
 
       {error && (
         <div
@@ -707,7 +791,8 @@ export default function AuctionDetailClient({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text)' }}>🏆 Prize &amp; security</h3>
                 {winnerSummary && (
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">📄 Period PDF</a>
                     <button className="btn btn-secondary btn-sm" onClick={copyWinnerSummary}>Copy</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>Print</button>
                   </div>
@@ -798,9 +883,11 @@ export default function AuctionDetailClient({
                 </p>
               )}
 
-              <p style={{ margin: '0 0 12px' }}>
-                Security: <span className={`badge badge-${security?.status === 'approved' ? 'success' : security?.status === 'rejected' ? 'danger' : 'warning'}`}>{security?.status ?? 'pending'}</span>
-                {' '}· Payout: <span className={`badge badge-${auction.payoutStatus === 'paid' ? 'success' : auction.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{auction.payoutStatus}</span>
+              <p style={{ margin: '0 0 12px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>Security: <strong>{savedSecuritySpec.label}</strong></span>
+                <span className={`badge badge-${security?.status === 'approved' ? 'success' : security?.status === 'rejected' ? 'danger' : 'warning'}`}>{security?.status ?? 'pending'}</span>
+                <span>· Payout:</span>
+                <span className={`badge badge-${auction.payoutStatus === 'paid' ? 'success' : auction.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{auction.payoutStatus}</span>
               </p>
 
               {securityDocuments.length > 0 && (
@@ -817,7 +904,7 @@ export default function AuctionDetailClient({
                     <tbody>
                       {securityDocuments.map((doc) => (
                         <tr key={doc.id}>
-                          <td>{securityDocumentLabels[doc.documentType] ?? doc.documentType}</td>
+                          <td>{SECURITY_DOCUMENT_LABELS[doc.documentType] ?? doc.documentType}</td>
                           <td>
                             <a href={doc.fileUrl} target="_blank" rel="noreferrer">{doc.fileName}</a>
                             <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{doc.mimeType ?? 'file'}</div>
@@ -841,7 +928,7 @@ export default function AuctionDetailClient({
                 </div>
               )}
 
-              {security?.status === 'approved' && auction.payoutStatus !== 'paid' && (
+              {security?.status === 'approved' && auction.payoutStatus !== 'paid' && savedSecuritySpec.documents.length > 0 && (
                 <form
                   style={{ marginBottom: '14px', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', background: 'var(--surface)' }}
                   onSubmit={(e) => {
@@ -855,18 +942,12 @@ export default function AuctionDetailClient({
                   }}
                 >
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Guarantor photo</label>
-                      <input name="guarantorPhoto" type="file" accept="image/*" className="form-control" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Guarantor KYC</label>
-                      <input name="guarantorKyc" type="file" accept="image/*,.pdf" className="form-control" />
-                    </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Security cheque image</label>
-                      <input name="securityCheque" type="file" accept="image/*,.pdf" className="form-control" />
-                    </div>
+                    {savedSecuritySpec.documents.map((docSpec) => (
+                      <div key={docSpec.key} className="form-group">
+                        <label className="form-label">{docSpec.label}</label>
+                        <input name={docSpec.key} type="file" accept={docSpec.accept} className="form-control" />
+                      </div>
+                    ))}
                   </div>
                   <button type="submit" className="btn btn-secondary btn-sm" disabled={!!busy}>Upload documents</button>
                 </form>
@@ -887,64 +968,73 @@ export default function AuctionDetailClient({
                       }}
                     >
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                        <div className="form-group">
+                        <div className="form-group" style={{ gridColumn: !activeSecuritySpec.showGuarantorMember && !activeSecuritySpec.showValue ? '1 / -1' : undefined }}>
                           <label className="form-label">Security type</label>
-                          <select name="securityType" className="form-control" defaultValue={security?.securityType ?? 'INTERNAL_GUARANTOR_JAMEEN'}>
-                            <option value="INTERNAL_GUARANTOR_JAMEEN">Internal Guarantor (Jameen)</option>
-                            <option value="PROMISSORY_NOTE">Promissory Note</option>
-                            <option value="POST_DATED_CHEQUE">Post-Dated Cheque (PDC)</option>
-                            <option value="GOLD_PLEDGE">Gold Pledge</option>
-                            <option value="PROPERTY_DOCUMENT">Property Document</option>
-                            <option value="FD_LIEN">FD Lien</option>
-                            <option value="NONE">None</option>
-                            <option value="guarantor">Guarantor (legacy)</option>
-                            <option value="property">Property (legacy)</option>
-                            <option value="gold">Gold (legacy)</option>
-                            <option value="fd">Fixed deposit (legacy)</option>
-                            <option value="cheque">Cheque (legacy)</option>
+                          <select
+                            name="securityType"
+                            className="form-control"
+                            value={securityTypeInput}
+                            onChange={(e) => setSecurityTypeInput(e.target.value)}
+                          >
+                            {CANONICAL_SECURITY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
                           </select>
+                          <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            {activeSecuritySpec.hint}
+                          </div>
                         </div>
-                        <div className="form-group">
-                          <label className="form-label">Internal Guarantor Member (Jameen Lock)</label>
-                          <select name="guarantorMemberId" className="form-control" defaultValue={security?.guarantorMemberId ?? ''}>
-                            <option value="">None (external / non-member)</option>
-                            {group.members
-                              .filter((m: any) => m.id !== auction.winnerMemberId)
-                              .map((m: any) => (
-                                <option key={m.id} value={m.id}>
-                                  #{m.ticketNo ?? m.memberNumber} · {m.customer.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Value ({currencySymbol})</label>
-                          <input name="securityValue" type="number" className="form-control" defaultValue={security?.securityValue ? Number(security.securityValue) : ''} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Guarantor name</label>
-                          <input name="guarantorName" type="text" className="form-control" defaultValue={security?.guarantorName ?? ''} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Guarantor phone</label>
-                          <input name="guarantorPhone" type="tel" className="form-control" defaultValue={security?.guarantorPhone ?? ''} />
-                        </div>
-                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label className="form-label">Details</label>
-                          <input name="details" type="text" className="form-control" defaultValue={security?.details ?? ''} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Guarantor photo</label>
-                          <input name="guarantorPhoto" type="file" accept="image/*" className="form-control" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Guarantor KYC</label>
-                          <input name="guarantorKyc" type="file" accept="image/*,.pdf" className="form-control" />
-                        </div>
-                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label className="form-label">Security cheque image</label>
-                          <input name="securityCheque" type="file" accept="image/*,.pdf" className="form-control" />
-                        </div>
+                        {activeSecuritySpec.showGuarantorMember && (
+                          <div className="form-group">
+                            <label className="form-label">Internal Guarantor Member (Jameen Lock)</label>
+                            <select name="guarantorMemberId" className="form-control" defaultValue={security?.guarantorMemberId ?? ''}>
+                              <option value="">None (external / non-member)</option>
+                              {group.members
+                                .filter((m: any) => m.id !== auction.winnerMemberId)
+                                .map((m: any) => (
+                                  <option key={m.id} value={m.id}>
+                                    #{m.ticketNo ?? m.memberNumber} · {m.customer.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        )}
+                        {activeSecuritySpec.showValue && (
+                          <div className="form-group">
+                            <label className="form-label">{activeSecuritySpec.valueLabel} ({currencySymbol})</label>
+                            <input name="securityValue" type="number" className="form-control" defaultValue={security?.securityValue ? Number(security.securityValue) : ''} />
+                          </div>
+                        )}
+                        {activeSecuritySpec.showPartyName && (
+                          <div className="form-group">
+                            <label className="form-label">{activeSecuritySpec.partyNameLabel}</label>
+                            <input name="guarantorName" type="text" className="form-control" defaultValue={security?.guarantorName ?? ''} />
+                          </div>
+                        )}
+                        {activeSecuritySpec.showPartyPhone && (
+                          <div className="form-group">
+                            <label className="form-label">{activeSecuritySpec.partyPhoneLabel}</label>
+                            <input name="guarantorPhone" type="tel" className="form-control" defaultValue={security?.guarantorPhone ?? ''} />
+                          </div>
+                        )}
+                        {activeSecuritySpec.showDetails && (
+                          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label className="form-label">{activeSecuritySpec.detailsLabel}</label>
+                            <input
+                              name="details"
+                              type="text"
+                              className="form-control"
+                              defaultValue={security?.details ?? ''}
+                              placeholder={activeSecuritySpec.detailsPlaceholder}
+                            />
+                          </div>
+                        )}
+                        {activeSecuritySpec.documents.map((docSpec) => (
+                          <div key={docSpec.key} className="form-group">
+                            <label className="form-label">{docSpec.label}</label>
+                            <input name={docSpec.key} type="file" accept={docSpec.accept} className="form-control" />
+                          </div>
+                        ))}
                       </div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button type="submit" name="action" value="submit" className="btn btn-secondary btn-sm" disabled={!!busy}>Submit</button>

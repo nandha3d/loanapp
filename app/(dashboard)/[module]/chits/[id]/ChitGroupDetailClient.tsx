@@ -473,6 +473,16 @@ export default function ChitGroupDetailClient({
                     <td>{a.winnerMemberId ? <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{a.payoutStatus}</span> : '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
+                      <a
+                        href={`/api/chits/${group.id}/auctions/${a.id}/report`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginLeft: '4px' }}
+                        title={`Download Period ${a.periodNumber} Settlement & Ledger PDF`}
+                      >
+                        📄 PDF
+                      </a>
                       {group.auctionType === 'open_live' && (
                         <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-secondary btn-sm" style={{ marginLeft: '4px' }}>Enter room</Link>
                       )}
@@ -655,6 +665,20 @@ export default function ChitGroupDetailClient({
             >
               All Periods
             </button>
+            {selectedPeriod !== 'all' && (() => {
+              const periodAuction = group.auctions.find((a: any) => Number(a.periodNumber) === selectedPeriod);
+              return periodAuction ? (
+                <a
+                  href={`/api/chits/${group.id}/auctions/${periodAuction.id}/report`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-sm"
+                  style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+                >
+                  📄 Period {selectedPeriod} PDF Report
+                </a>
+              ) : null;
+            })()}
           </div>
         )}
         <div className="table-wrapper">
