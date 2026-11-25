@@ -57,6 +57,7 @@ next-env.d.ts
 /app/generated/prisma
 
 # local scratch/export artifacts
+archive/
 scratch/
 scratch.js
 database/

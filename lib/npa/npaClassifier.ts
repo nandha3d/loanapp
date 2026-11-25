@@ -207,48 +207,50 @@ async function classifyLoan(
           isSecured: loan.isSecured ?? false,
         },
       });
-    });
 
-    // Audit log the change
-    await prisma.auditLog.create({
-      data: {
-        tenantId,
-        action: 'npa_classification_change',
-        entityType: 'loan',
-        entityId: loan.id,
-        oldValue: JSON.stringify({ category: previousCategory }),
-        newValue: JSON.stringify({
-          category: newCategory,
-          daysOverdue: maxOverdueDays,
-          provisioningAmount: provisioning.amount,
-          triggeredBy,
-        }),
-      },
+      // Audit log the change inside the same transaction (SEC-2)
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          action: 'npa_classification_change',
+          entityType: 'loan',
+          entityId: loan.id,
+          oldValue: JSON.stringify({ category: previousCategory }),
+          newValue: JSON.stringify({
+            category: newCategory,
+            daysOverdue: maxOverdueDays,
+            provisioningAmount: provisioning.amount,
+            triggeredBy,
+          }),
+        },
+      });
     });
   } else {
-    // Even if not changed, update the daily review date and overdue days
-    await prisma.loan.update({
-      where: { id: loan.id },
-      data: {
-        npaDaysOverdue: maxOverdueDays,
-        lastNpaReviewDate: today,
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      // Even if not changed, update the daily review date and overdue days
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: {
+          npaDaysOverdue: maxOverdueDays,
+          lastNpaReviewDate: today,
+        },
+      });
 
-    // Always write today's provisioning snapshot
-    await prisma.loanProvisioning.upsert({
-      where: { loanId_snapshotDate: { loanId: loan.id, snapshotDate: today } },
-      update: { outstandingAmt: outstandingAmount, provisioningAmt: provisioning.amount },
-      create: {
-        tenantId,
-        loanId: loan.id,
-        snapshotDate: today,
-        category: newCategory,
-        outstandingAmt: outstandingAmount,
-        provisioningRate: provisioning.rate,
-        provisioningAmt: provisioning.amount,
-        isSecured: loan.isSecured ?? false,
-      },
+      // Always write today's provisioning snapshot
+      await tx.loanProvisioning.upsert({
+        where: { loanId_snapshotDate: { loanId: loan.id, snapshotDate: today } },
+        update: { outstandingAmt: outstandingAmount, provisioningAmt: provisioning.amount },
+        create: {
+          tenantId,
+          loanId: loan.id,
+          snapshotDate: today,
+          category: newCategory,
+          outstandingAmt: outstandingAmount,
+          provisioningRate: provisioning.rate,
+          provisioningAmt: provisioning.amount,
+          isSecured: loan.isSecured ?? false,
+        },
+      });
     });
   }
 

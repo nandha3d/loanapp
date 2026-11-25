@@ -965,8 +965,8 @@ Recorded so it is not mistaken for a pattern to copy. Items marked **VIOLATION**
 | GL duplicate suppression by narration scan | **Fixed.** All five `autoPost*` paths now write `sourceId` + `dedupKey` and rely on the UNIQUE index, with the narration scan kept only as a legacy pre-check (ACC-5, DB-10) |
 | `appScope()` helper with zero call sites | **Deleted.** The rule (SCOPE-2) is universal; the wrapper added nothing over `{ tenantId, appType }` and advertised a convention nobody followed (SCOPE-8) |
 | 24 orphaned test scripts | **Partly fixed.** The 9 money- and routing-critical ones are now in `test:ci` via `test:money-core` / `test:routing-core`. The rest (`test:ml-*`, `test:gps`, `test:dashboard-kpi`, `test:links`, e2e variants) are still unreferenced — wire or delete them (TEST-4) |
-| NPA audit rows written outside the transaction | **VIOLATION of SEC-2.** `npaClassifier.ts` and `npaUpgrade.ts` write `auditLog` after their `$transaction` commits, so a crash between the two loses the audit trail. Fix when next touched |
-| NPA unchanged-branch writes are non-transactional | **VIOLATION of DB-5.** The "nothing changed" path does two independent writes (loan review date, provisioning snapshot) outside a transaction |
+| NPA audit rows written outside the transaction | **Fixed (SEC-2).** `npaClassifier.ts` and `npaUpgrade.ts` now write `auditLog` via `tx` inside their `$transaction`, guarded by `tests/security.test.ts` |
+| NPA unchanged-branch writes are non-transactional | **Fixed (DB-5).** The unchanged branch in `npaClassifier.ts` now wraps `loan.update` and `loanProvisioning.upsert` in `prisma.$transaction`, guarded by `tests/security.test.ts` |
 | `notify()` customer messages exist only in en/ta/hi | `te`, `kn`, `ml` are accepted as languages but silently fall back to English in `MESSAGES`. DB templates can cover the gap per tenant |
 | Mobile i18n gaps (ta/hi/te/kn/ml) | CI check is non-blocking pending native-speaker translation |
 | Mixed `console.*` and `logger` | New code uses `logger` (LOG-1) |

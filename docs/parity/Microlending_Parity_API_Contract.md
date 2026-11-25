@@ -6,7 +6,7 @@ All v1 endpoints use bearer authentication, the active module and branch resolve
 
 `POST /api/v1/import/customers` accepts `Content-Type: application/json` and an array of `{ "name": "...", "phone": "...", "customerCode"?: "...", "aadhaar"?: "12 digits", "pan"?: "..." }`. Admin, superadmin, and developer may import into an active branch; agents receive 403, and an All Branches selection receives 400. The web Settings action uses the same `lib/imports/customers.ts` operation.
 
-The response data contains `total`, `success`, `failed`, and `errors: [{ row, message }]`. Rows are numbered from 1. Each successful customer and audit row commit together. Invalid or duplicate rows fail independently. Aadhaar is encrypted before storage and never returned in errors. `customer_import_max_rows` (default 1000) and `customer_import_max_bytes` (default 1048576) are tenant settings. The mobile app uses `file_picker` to select JSON because its existing media pickers cannot select documents.
+The response data contains `total`, `success`, `failed`, and `errors: [{ row, message }]`. Rows are numbered from 1. Each successful customer and audit row commit together. Invalid or duplicate rows fail independently. Aadhaar is encrypted before storage and never returned in errors. `customer_import_max_rows` (default 1000) and `customer_import_max_bytes` (default 1048576) are tenant settings. The Flutter import screen uses `file_picker` to select JSON. Staff cannot reach the screen from mobile navigation.
 
 The web collection import control remains disabled; its old action only counts rows. It is not a shipped collection capability and has no mobile import endpoint.
 
@@ -22,4 +22,4 @@ For staff roles, `currentCapital`, `totalDisbursed`, and `totalCollectedAllTime`
 
 ## Release status
 
-The code paths above have type, unit, analyzer, and Flutter test coverage. Live web/mobile data equivalence, Android release build, and iOS CI build remain release gates. See `microlending-feature-parity.json` for the current feature status.
+The 2026-11-25 review found feature gaps and incomplete release verification. Database-backed tests passed for staff dashboard book totals, mobile agent API flows, and scoped report checks. The report suite also records the existing branch-cash approval gap. Flutter analysis fails on the reviewed checkout. Full cross-surface data equivalence and Android and iOS release builds remain unverified. See `microlending-feature-parity.json` for the feature gaps.

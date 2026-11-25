@@ -1,6 +1,6 @@
 # Role-Based Web-to-Mobile UI Mapping
 
-Date: 2026-09-27
+Date: 2026-11-25
 
 This audit compares the web app against the Flutter mobile app at route/page level for `developer`, `superadmin`, `admin`, and `agent`. The web app remains the source of truth. A missing item means no mobile route exists for a web page available to that role. A partial item means mobile has a related route, but the page-level surface is still narrower than web.
 
@@ -17,7 +17,7 @@ npm run ui-map:roles
 | Role | Seed login | Web landing | Mobile landing | Missing | Partial |
 |---|---|---|---|---:|---:|
 | Developer | `developer / dev123` | `/admin` | `/admin` | 0 | 0 |
-| Superadmin | `superadmin / super123` | `/portal` | `/portal` | 0 | 1 |
+| Superadmin | `superadmin / super123` | `/portal` | `/portal` | 1 | 1 |
 | Admin | `admin / admin123` | `/portal` | `/portal` | 0 | 2 |
 | Agent | `karthik / agent123` | `/microlending/agent-dashboard` | `/dashboard` | 0 | 1 |
 
@@ -35,13 +35,13 @@ Mobile-only:
 
 ## Superadmin
 
-Mobile now covers the portal, billing/subscription, user and branch administration, module/branch request history, affiliate page, business operations, settings, reports, accounting, approvals, KYC, and notifications.
+Mobile covers the portal, billing, user and branch administration, the affiliate page, business operations, settings, reports, accounting, approvals, KYC, and notifications. Superadmins submit module requests and see their request history on web only.
 
 Partial on mobile:
 
 | Priority | Web page | Mobile page | Gap |
 |---|---|---|---|
-| P1 | `/microlending/settings` | `/settings` | Mobile covers customer JSON import, routes, packages, notification templates/log, 2FA and major settings. Other web tab depth needs action-level audit. |
+| P1 | `/microlending/settings` | `/settings` | The mobile customer JSON import screen has no navigation entry. Other settings still need action-level verification. |
 
 Mobile-only:
 
@@ -58,7 +58,7 @@ Partial on mobile:
 
 | Priority | Web page | Mobile page | Gap |
 |---|---|---|---|
-| P1 | `/microlending/settings` | `/settings` | Mobile covers customer JSON import, routes, packages, notification templates/log, 2FA and major settings. Other web tab depth needs action-level audit. |
+| P1 | `/microlending/settings` | `/settings` | The mobile customer JSON import screen has no navigation entry. Other settings still need action-level verification. |
 | P1 | `/microlending/approvals` | `/approvals` | Route exists, but existing parity notes still mark some request-type coverage as partial. |
 
 Mobile-only:

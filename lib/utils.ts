@@ -1,10 +1,31 @@
 import { Decimal } from '@prisma/client/runtime/library';
 
 // ─── Currency Formatting ──────────────────────
+/**
+ * Normalizes and sanitizes currency symbol input.
+ * Guards against corrupted/mojibake encodings of ₹ (U+20B9):
+ * UTF-8 bytes 0xE2 0x82 0xB9 decoded in Windows-1252 / ISO-8859-1 become "â‚¹" (or "â\u201A\u00B9", "â", etc.).
+ */
+export function cleanCurrencySymbol(symbol: unknown, fallback: string = '₹'): string {
+  if (typeof symbol !== 'string') return fallback;
+  const trimmed = symbol.trim();
+  if (
+    !trimmed ||
+    trimmed === '???' ||
+    trimmed === '?' ||
+    trimmed === '\uFFFD' ||
+    trimmed.includes('â') ||
+    trimmed.includes('\u00E2') ||
+    trimmed.includes('\u201A\u00B9')
+  ) {
+    return fallback;
+  }
+  return symbol;
+}
+
 export function formatCurrency(amount: number | Decimal | string, symbol: string = '₹'): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : typeof amount === 'number' ? amount : amount.toNumber();
-  const candidateSymbol = typeof symbol === 'string' ? symbol : '';
-  const safeSymbol = candidateSymbol.trim() && candidateSymbol.trim() !== '???' ? candidateSymbol : '₹';
+  const safeSymbol = cleanCurrencySymbol(symbol, '₹');
   // DEC-03: whole rupees on screen, same as mobile (decimalDigits: 0). Stored,
   // sent and document values keep paise — this is display only.
   return safeSymbol + num.toLocaleString('en-IN', { maximumFractionDigits: 0 });

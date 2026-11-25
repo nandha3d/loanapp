@@ -75,6 +75,7 @@ export async function cleanupRunData(runId = getRunId()) {
     () => prisma.userBranchModule.deleteMany({ where: { branch: { tenantId: { in: tenantIds } } } }),
     () => prisma.userModule.deleteMany({ where: { user: { tenantId: { in: tenantIds } } } }),
     () => prisma.loanPackage.deleteMany({ where: { tenantId: { in: tenantIds } } }),
+    () => prisma.journalEntry.deleteMany({ where: { tenantId: { in: tenantIds } } }),
     () => prisma.user.deleteMany({ where: { tenantId: { in: tenantIds } } }),
     () => prisma.branch.deleteMany({ where: { tenantId: { in: tenantIds } } }),
     () => prisma.appSetting.deleteMany({ where: { tenantId: { in: tenantIds } } }),

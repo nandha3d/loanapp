@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { authorizeCron } from '@/lib/cronAuth';
 import { sendEmail } from '@/lib/notify/channels/email';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { PLAN_LABELS } from '@/lib/plans';
@@ -10,11 +11,8 @@ const PAID = ['basic', 'business', 'enterprise'];
 // (in-app + push to superadmins + email to owners). 1-day window so each sub is
 // reminded once. Auth: `Authorization: Bearer <CRON_SECRET>`.
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return NextResponse.json({ error: 'CRON_SECRET not set' }, { status: 500 });
-  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = authorizeCron(req);
+  if (denied) return denied;
 
   const from = new Date();
   from.setDate(from.getDate() + 30);

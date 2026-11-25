@@ -40,6 +40,7 @@ const PUBLIC_PREFIXES = [
   '/api',
   '/assets',
   '/fonts',
+  '/.well-known',
 ];
 
 // Public marketing site (app/(marketing) route group). These pages live outside

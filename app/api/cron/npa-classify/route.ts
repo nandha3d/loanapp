@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import prisma from '@/lib/db';
+import { authorizeCron } from '@/lib/cronAuth';
 import { runNpaClassification } from '@/lib/npa/npaClassifier';
 import { apiError } from '@/lib/utils';
 
@@ -16,20 +16,8 @@ import { apiError } from '@/lib/utils';
  * Protect with CRON_SECRET via Authorization: Bearer <secret>
  */
 export async function GET(request: Request) {
-  // Validate cron secret
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return apiError('CRON_SECRET is not configured', 500);
-  }
-
-  const authHeader = request.headers.get('authorization');
-  const expectedToken = Buffer.from(cronSecret);
-  const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
-  const providedToken = Buffer.from(providedTokenStr);
-
-  if (expectedToken.length !== providedToken.length || !crypto.timingSafeEqual(expectedToken, providedToken)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = authorizeCron(request);
+  if (denied) return denied;
 
   try {
     // Cron locking to prevent concurrent NPA classification runs

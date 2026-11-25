@@ -1,25 +1,12 @@
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import prisma from '@/lib/db';
+import { authorizeCron } from '@/lib/cronAuth';
 import { getAffiliateConfig, computeAffiliateReward } from '@/lib/affiliate';
 import { apiSuccess, apiError } from '@/lib/utils';
 
 export async function GET(request: Request) {
-  // Same CRON_SECRET gate every other cron uses — this endpoint writes
-  // AffiliateReward records and mutates referral statuses, so it must not be
-  // publicly callable.
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET || '';
-  const expectedToken = Buffer.from(cronSecret);
-  const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
-  const providedToken = Buffer.from(providedTokenStr);
-  if (
-    !cronSecret ||
-    expectedToken.length !== providedToken.length ||
-    !crypto.timingSafeEqual(expectedToken, providedToken)
-  ) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = authorizeCron(request);
+  if (denied) return denied;
 
   try {
     // Dynamic config settings

@@ -5,6 +5,7 @@ import { cache } from 'react';
 import { assertTenantSubscriptionAccess } from './subscription';
 import { isModuleKey, parseModulePath } from '@/types/modules';
 import { appSettingCache, invalidateTenantCache } from './cache/tenantCache';
+import { cleanCurrencySymbol } from './utils';
 
 type SessionUserContext = {
   appType?: string | null;
@@ -272,14 +273,19 @@ export async function getTenantSettings(tenantId: string) {
 
 export async function getSetting(tenantId: string, key: string, fallback: string = ''): Promise<string> {
   const settings = await getTenantSettings(tenantId);
-  return settings[key] ?? fallback;
+  const val = settings[key] ?? fallback;
+  if (key === 'currency_symbol') {
+    return cleanCurrencySymbol(val, fallback || '₹');
+  }
+  return val;
 }
 
 export async function setSetting(tenantId: string, key: string, value: string, group: string = 'general') {
+  const sanitizedValue = key === 'currency_symbol' ? cleanCurrencySymbol(value, '₹') : value;
   const result = await prisma.appSetting.upsert({
     where: { tenantId_key: { tenantId, key } },
-    update: { value, group },
-    create: { tenantId, key, value, group }
+    update: { value: sanitizedValue, group },
+    create: { tenantId, key, value: sanitizedValue, group }
   });
   invalidateTenantCache(tenantId);
   return result;
@@ -296,7 +302,7 @@ export async function getBranding(tenantId: string) {
     primaryDark: settings['primary_dark'] || '#E8930C',
     timezone: settings['timezone'] || 'Asia/Kolkata',
     currency: settings['currency'] || 'INR',
-    currencySymbol: settings['currency_symbol'] || '₹',
+    currencySymbol: cleanCurrencySymbol(settings['currency_symbol'], '₹'),
     dateFormat: settings['date_format'] || 'dd MMM yyyy',
     midnightCutoff: settings['midnight_cutoff'] === 'true',
     allowWeekendCollection: settings['allow_weekend_collection'] === 'true',

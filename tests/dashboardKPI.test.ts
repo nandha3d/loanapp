@@ -16,6 +16,9 @@ assert.equal(formatCurrency(100000, 'Rs '), 'Rs 1,00,000', 'XM-D-011 Indian grou
 assert.equal(formatCurrency(9999999, 'Rs '), 'Rs 99,99,999', 'XM-D-011 Indian grouping — 7 digits');
 assert.equal(formatCurrency(10000000, 'Rs '), 'Rs 1,00,00,000', 'XM-D-011 Indian grouping — 8 digits');
 assert.equal(formatCurrency(1000, '\u20b9'), '\u20b91,000', 'XM-D-011 rupee symbol — 4 digits');
+assert.equal(formatCurrency(1000, 'â‚¹'), '₹1,000', 'mojibake currency symbol converts to rupee symbol');
+assert.equal(formatCurrency(1000, 'â'), '₹1,000', 'corrupted a-circumflex converts to rupee symbol');
+assert.equal(formatCurrency(1000, '???'), '₹1,000', 'question marks convert to rupee symbol');
 // DEC-03: whole rupees, half rounds away from zero (same as mobile NumberFormat).
 assert.equal(formatCurrency(0.5, 'Rs '), 'Rs 1');
 assert.equal(formatCurrency(2.5, 'Rs '), 'Rs 3');

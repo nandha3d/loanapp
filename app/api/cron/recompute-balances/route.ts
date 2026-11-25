@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { recomputeBalancesForPeriod } from '@/lib/accounting/balances';
 import { getPeriodKey } from '@/lib/accounting/premium';
@@ -14,14 +15,28 @@ import { authorizeCron } from '@/lib/cronAuth';
  * Also accepts x-cron-secret header for compatibility.
  */
 export async function GET(req: NextRequest) {
-  // Primary: use the project-standard authorizeCron (Bearer token)
+  // Primary: use the project-standard authorizeCron (Bearer token + IP allowlist).
   const denied = authorizeCron(req as unknown as Request);
   if (denied) {
-    // Fallback: check x-cron-secret header for alternate callers
-    const secret = req.headers.get('x-cron-secret');
-    if (secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Never bypass an explicit IP allowlist denial (403) or missing CRON_SECRET (500).
+    if (denied.status !== 401) return denied;
+    const cronSecret = process.env.CRON_SECRET ?? '';
+    const secret = req.headers.get('x-cron-secret') ?? '';
+    const a = Buffer.from(cronSecret);
+    const b = Buffer.from(secret);
+    if (!cronSecret || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return denied;
     }
+    // Re-run IP allowlist check for x-cron-secret callers via a synthetic Bearer header.
+    const allowlistCheck = authorizeCron(
+      new Request(req.url, {
+        headers: new Headers([
+          ...req.headers.entries(),
+          ['authorization', `Bearer ${cronSecret}`],
+        ]),
+      }),
+    );
+    if (allowlistCheck) return allowlistCheck;
   }
 
   const periodKey = getPeriodKey(new Date());

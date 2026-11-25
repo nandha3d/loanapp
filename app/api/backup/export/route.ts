@@ -1,13 +1,25 @@
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
+import { writeAudit } from '@/lib/audit';
+import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 import { apiError } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const authResult = await requireApiContext(['superadmin', 'developer']);
     if (authResult.response) return authResult.response;
     const { context } = authResult;
     const tenantId = context.tenantId;
+
+    const rateLimit = await checkRateLimit(routeKey('backup:export', context.userId), {
+      limit: 2,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return apiError('Rate limit exceeded. Maximum 2 backup exports per hour.', 429);
+    }
+
     // Active module + branch only (SCOPE-2, SCOPE-3); "All Branches" = whole module.
     const scope = { tenantId, appType: context.appType, ...scopedBranchWhere(context) };
 
@@ -100,6 +112,26 @@ export async function GET() {
       const agents = r.routeAgents.map((ra: any) => ra.agent?.name).filter(Boolean).join(', ');
       csv += `${esc(r.id)},${esc(r.name)},${esc(agents)},${esc(r.status)},${esc(r.createdAt.toISOString())}\n`;
     }
+
+    await writeAudit({
+      tenantId,
+      userId: context.userId,
+      action: 'backup_export',
+      entityType: 'tenant',
+      entityId: tenantId,
+      newValue: {
+        appType: context.appType,
+        branchId: context.branchId ?? 'all',
+        counts: {
+          customers: customers.length,
+          loans: loans.length,
+          accountEntries: accountEntries.length,
+          routes: routes.length,
+        },
+      },
+      ipAddress: getClientIp(request),
+      userAgent: request.headers.get('user-agent'),
+    });
 
     return new Response(csv, {
       headers: {

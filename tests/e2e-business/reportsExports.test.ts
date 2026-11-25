@@ -358,7 +358,7 @@ test('REP-001 daily collection report API and builder totals match DB', async ()
   assertReportTotal(report, 'dueAmount', dbDue, 'daily collection builder dueAmount');
 });
 
-test('REP-002 agent-wise collection report matches DB and agent filter', async () => {
+test('REP-002 agent reports use the requested agent and their respective data sources', async () => {
   const dbDaily = await getPrisma().dailyCollection.findMany({
     where: {
       tenantId: scenario.tenantA.id,
@@ -382,17 +382,25 @@ test('REP-002 agent-wise collection report matches DB and agent filter', async (
   const data = expectOk<any>(api, 'agent report API');
   assert.equal(data.agents.length, 1);
   assert.equal(data.agents[0].agentId, scenario.users.agentA1.id);
-  assertMoneyEqual(data.agents[0].collected, dbCollected, 'agent report API collected matches DB');
 
-  const { buildAgentWiseCollection } = await import('../../lib/reports/builders/agent-wise-collection');
-  const report = await buildAgentWiseCollection({
+  const filters = {
     tenantId: scenario.tenantA.id,
     appType: APP_TYPE,
     from: localDateString(),
     to: localDateString(),
     branchId: scenario.branchA1.id,
     agentId: scenario.users.agentA1.id,
-  });
+  };
+  const { buildAgentPerformance } = await import('../../lib/reports/builders/agent-performance');
+  const performance = await buildAgentPerformance(filters);
+  assert.equal(performance.rows.length, 1);
+  const webAgent = performance.rows[0]!;
+  assert.equal(data.agents[0].agentId, webAgent.agentId);
+  assertMoneyEqual(data.agents[0].collected, webAgent.collected, 'mobile and web agent performance collected');
+  assertMoneyEqual(data.agents[0].expected, webAgent.expected, 'mobile and web agent performance expected');
+
+  const { buildAgentWiseCollection } = await import('../../lib/reports/builders/agent-wise-collection');
+  const report = await buildAgentWiseCollection(filters);
   assertReportTotal(report, 'collected', dbCollected, 'agent-wise builder collected');
 });
 
@@ -557,9 +565,8 @@ test('REP-011/REP-012/REP-013 CSV, Excel, and PDF export utilities produce downl
   await assertPdfExport(report, expectedText);
 });
 
-knownGap(
-  'generic NextAuth-backed report/export routes need a web-session harness',
-  knownGapCatalog.genericReportExportNeedsWebSessionHarness,
+test(
+  'generic report export accepts mobile bearer authentication',
   async () => {
     const response = await routeRequest({
       importPath: routes.genericReportExport,
@@ -576,9 +583,8 @@ knownGap(
   },
 );
 
-knownGap(
+test(
   'collection dashboard should reconcile with report and DB totals for the same business date',
-  knownGapCatalog.dashboardBusinessDayMismatch,
   async () => {
     assert.ok(fixture.dailyCollectionId, 'fixture daily collection exists');
     const dbDaily = await getPrisma().dailyCollection.findUnique({ where: { id: fixture.dailyCollectionId } });
@@ -620,9 +626,8 @@ knownGap(
   },
 );
 
-knownGap(
+test(
   'handover approval route should settle wallet balances without a separate service call',
-  knownGapCatalog.handoverApprovalDoesNotSettleWallet,
   async () => {
     assert.ok(fixture.dailyCollectionId, 'fixture daily collection exists');
     await getPrisma().dailyCollection.update({ where: { id: fixture.dailyCollectionId }, data: { status: 'open' } });
@@ -659,9 +664,8 @@ knownGap(
   },
 );
 
-knownGap(
+test(
   'duplicate loan-level collection replay should be idempotent and not double-count money',
-  knownGapCatalog.duplicateCollectionReplayDoubleCounts,
   async () => {
     const customer = await createCustomerFixture(scenario, {
       key: 'rep-gap-duplicate-collection',
@@ -716,6 +720,8 @@ async function main() {
   const runId = getRunId();
   try {
     scenario = await seedZoloFundScenario(runId);
+    const { seedDefaultCoA } = await import('../../lib/accounting/seedDefaultCoA');
+    await seedDefaultCoA(scenario.tenantA.id);
     adminToken = await issueMobileTokenForSetup(scenario.users.adminA1);
     agentToken = await issueMobileTokenForSetup(scenario.users.agentA1);
     adminA2Token = await issueMobileTokenForSetup(scenario.users.adminA2);

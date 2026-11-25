@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "date": "2026-09-27",
+  "date": "2026-11-25",
   "comparisonLevel": "route/page parity",
   "sourceOfTruth": "web",
   "roles": {
@@ -15,7 +15,6 @@
           { "route": "/admin/billing/[tenantId]", "label": "Tenant subscription form", "source": "app/admin/billing/[tenantId]/page.tsx" },
           { "route": "/admin/users", "label": "User management", "source": "app/admin/users/page.tsx" },
           { "route": "/admin/branches", "label": "Branch management", "source": "app/admin/branches/page.tsx" },
-          { "route": "/admin/branch-requests", "label": "Branch requests", "source": "app/admin/branch-requests/page.tsx" },
           { "route": "/admin/module-requests", "label": "Module requests", "source": "app/admin/module-requests/page.tsx" },
           { "route": "/admin/settings", "label": "Platform settings", "source": "app/admin/settings/page.tsx" },
           { "route": "/admin/affiliates", "label": "Affiliate administration", "source": "app/admin/affiliates/page.tsx" },
@@ -25,7 +24,7 @@
       },
       "mobile": {
         "landing": "/admin",
-        "primaryRoutes": ["/admin", "/admin/users", "/admin/branches", "/admin/billing", "/admin/billing/pricing", "/admin/affiliates", "/admin/branch-requests", "/admin/module-requests", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/system", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/vehicles", "/notifications"]
+        "primaryRoutes": ["/admin", "/admin/users", "/admin/branches", "/admin/billing", "/admin/billing/pricing", "/admin/affiliates", "/admin/module-requests", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/system", "/settings/packages", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/vehicles", "/notifications"]
       },
       "gaps": [],
       "mobileOnly": [
@@ -41,7 +40,6 @@
           { "route": "/portal/billing", "label": "Portal billing", "source": "app/portal/billing/page.tsx" },
           { "route": "/admin/users", "label": "Tenant users", "source": "app/admin/users/page.tsx" },
           { "route": "/admin/branches", "label": "Branches", "source": "app/admin/branches/page.tsx" },
-          { "route": "/admin/branch-requests", "label": "Branch requests", "source": "app/admin/branch-requests/page.tsx" },
           { "route": "/microlending/dashboard", "label": "Dashboard", "source": "app/(dashboard)/[module]/dashboard/page.tsx" },
           { "route": "/microlending/collection", "label": "Collection", "source": "app/(dashboard)/[module]/collection/page.tsx" },
           { "route": "/microlending/customers", "label": "Customers", "source": "app/(dashboard)/[module]/customers/page.tsx" },
@@ -54,7 +52,6 @@
           { "route": "/microlending/settings", "label": "Settings", "source": "app/(dashboard)/[module]/settings/page.tsx" },
           { "route": "/microlending/profile", "label": "Superadmin profile", "source": "app/(dashboard)/[module]/profile/page.tsx" },
           { "route": "/microlending/subscription", "label": "Subscription", "source": "app/(dashboard)/[module]/subscription/page.tsx" },
-          { "route": "/microlending/branch-requests", "label": "Branch requests", "source": "app/(dashboard)/[module]/branch-requests/page.tsx" },
           { "route": "/microlending/module-requests", "label": "Module requests", "source": "app/(dashboard)/[module]/module-requests/page.tsx" },
           { "route": "/microlending/affiliate", "label": "Affiliate program", "source": "app/(dashboard)/[module]/affiliate/page.tsx" },
           { "route": "/microlending/notifications/log", "label": "Notification log", "source": "app/(dashboard)/[module]/notifications/log/page.tsx" }
@@ -62,10 +59,11 @@
       },
       "mobile": {
         "landing": "/portal",
-        "primaryRoutes": ["/dashboard", "/portal", "/profile", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+        "primaryRoutes": ["/dashboard", "/portal", "/profile", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branches", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile covers customer JSON import, packages, routes, notifications, 2FA, bulk settings, bureau, NPA and branding. Other web tab depth still needs action-level audit." }
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "The mobile customer import screen has no navigation entry. Other settings still need action-level verification." },
+        { "webRoute": "/microlending/module-requests", "label": "Submit and view module requests", "status": "missing", "priority": "P1", "source": "app/(dashboard)/[module]/module-requests/page.tsx", "notes": "Flutter has the developer review screen. The superadmin submission and request history are absent." }
       ],
       "mobileOnly": [
         { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
@@ -101,10 +99,10 @@
       },
       "mobile": {
         "landing": "/portal",
-        "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+        "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/settings/packages", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile covers customer JSON import, packages, routes, notifications, 2FA, bulk settings, bureau, NPA and branding. Other web tab depth still needs action-level audit." },
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "The mobile customer import screen has no navigation entry. Other settings still need action-level verification." },
         { "webRoute": "/microlending/approvals", "mobileRoute": "/approvals", "label": "All approval request types", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/approvals/page.tsx", "notes": "Route exists, but mobile covers only a subset of web request types." }
       ],
       "mobileOnly": [

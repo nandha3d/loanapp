@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   decryptAadharNumber,
   encryptAadharNumber,
@@ -120,5 +122,34 @@ process.env.TRUST_PROXY = 'true';
 // request.ip fallback when no proxy headers
 assert.equal(getClientIp(makeRequest({}, '10.10.10.10')), '10.10.10.10', 'TRUST_PROXY: request.ip used when no proxy headers');
 delete process.env.TRUST_PROXY;
+
+// ── Cron authorization (CRON-1 / SEC-13) ───────────────────────────────────
+const cronRoot = path.join(process.cwd(), 'app', 'api', 'cron');
+const cronDirs = readdirSync(cronRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
+assert.ok(cronDirs.length >= 13, 'expected at least 13 cron routes');
+for (const dir of cronDirs) {
+  const routeSrc = readFileSync(path.join(cronRoot, dir.name, 'route.ts'), 'utf8');
+  assert.match(routeSrc, /\bauthorizeCron\(/, `cron route ${dir.name} must call authorizeCron()`);
+}
+const recomputeSrc = readFileSync(path.join(cronRoot, 'recompute-balances', 'route.ts'), 'utf8');
+assert.match(recomputeSrc, /denied\.status !== 401/, 'recompute-balances must not bypass 403/500 from authorizeCron');
+
+// ── NPA transactional audit & snapshot integrity (SEC-2 / DB-5) ────────────
+const npaClassifierSrc = readFileSync(path.join(process.cwd(), 'lib', 'npa', 'npaClassifier.ts'), 'utf8');
+assert.doesNotMatch(npaClassifierSrc, /prisma\.auditLog\.create/, 'npaClassifier must write auditLog via tx inside $transaction');
+assert.doesNotMatch(npaClassifierSrc, /prisma\.loan\.update/, 'npaClassifier must update loan via tx inside $transaction');
+assert.doesNotMatch(npaClassifierSrc, /prisma\.loanProvisioning\.upsert/, 'npaClassifier must upsert provisioning via tx inside $transaction');
+
+const npaUpgradeSrc = readFileSync(path.join(process.cwd(), 'lib', 'npa', 'npaUpgrade.ts'), 'utf8');
+assert.doesNotMatch(npaUpgradeSrc, /prisma\.auditLog\.create/, 'npaUpgrade must write auditLog via tx inside $transaction');
+
+// ── Backup export rate limit + audit (SEC-15) & security.txt (SEC-18) ──────
+const backupExportSrc = readFileSync(path.join(process.cwd(), 'app', 'api', 'backup', 'export', 'route.ts'), 'utf8');
+assert.match(backupExportSrc, /checkRateLimit\(/, 'backup export must enforce rate limit');
+assert.match(backupExportSrc, /writeAudit\(/, 'backup export must write audit log');
+
+const securityTxtPath = path.join(process.cwd(), 'public', '.well-known', 'security.txt');
+assert.equal(existsSync(securityTxtPath), true, 'public/.well-known/security.txt must exist');
+assert.match(readFileSync(securityTxtPath, 'utf8'), /^Contact:/m, 'security.txt must include Contact');
 
 console.log('security helper tests passed');

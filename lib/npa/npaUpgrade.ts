@@ -98,16 +98,16 @@ export async function upgradeNpaToStandard(
         provisioningAmount: provisioning.amount,
       },
     });
-  });
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId: adminUserId,
-      action: 'npa_upgrade',
-      entityType: 'loan',
-      entityId: loanId,
-      newValue: JSON.stringify({ upgradedTo: 'standard', notes }),
-    },
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId: adminUserId,
+        action: 'npa_upgrade',
+        entityType: 'loan',
+        entityId: loanId,
+        newValue: JSON.stringify({ upgradedTo: 'standard', notes }),
+      },
+    });
   });
 }

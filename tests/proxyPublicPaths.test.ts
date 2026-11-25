@@ -14,6 +14,7 @@ assert.equal(isPublicPath('/privacy'), true);
 assert.equal(isPublicPath('/terms'), true);
 assert.equal(isPublicPath('/refund'), true);
 assert.equal(isPublicPath('/security'), true);
+assert.equal(isPublicPath('/.well-known/security.txt'), true);
 assert.equal(isPublicPath('/delete-account'), true);
 assert.equal(isPublicPath('/dashboard'), false);
 

@@ -1,16 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 import { cleanupRunData } from './helpers/cleanup';
 import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { loginMobile } from './helpers/authTokens';
-import { routeRequest, expectOk, routes, type Envelope } from './helpers/apiClient';
+import { expectError, expectOk, routes, type Envelope } from './helpers/apiClient';
 import { assertMoneyEqual } from './helpers/assertMoney';
 import { mobileRequest, type MobileClient } from './helpers/mobileApiClient';
-import { knownGap, run, test } from './helpers/harness';
-import { writeKnownGapEvidence } from './helpers/evidenceWriter';
-import { knownGapCatalog } from './helpers/knownGaps';
+import { run, test } from './helpers/harness';
 
 const runId = getRunId();
 const prisma = getPrisma();
@@ -181,40 +177,50 @@ test('MOB-005 GPS ping and wallet endpoints work through mobile bearer token', a
   assert.equal(Number(walletData.balance) >= 0, true);
 });
 
-test('MOB-006 logout route responds but token remains stateless until revocation exists', async () => {
+test('MOB-007 loan-level collection replay leaves the receipt, loan, and wallet unchanged', async () => {
+  const collect = () => mobileRequest<{ entryId: string | null; applied: number }>(agent, {
+    importPath: routes.collectionCollect,
+    method: 'POST',
+    path: '/api/v1/collection/collect',
+    body: { loanId: agentLoanId, amount: 1000, paymentMode: 'cash', idempotencyKey: `${runId}-loan-collection` },
+  });
+  const loanWhere = { loanId: agentLoanId };
+  const walletWhere = { tenantId: scenario.tenantA.id, appType: 'microlending', agentId: scenario.users.agentA1.id };
+  const readState = async () => {
+    const [entries, payments, allocations, loan, wallet] = await Promise.all([
+      prisma.collectionEntry.count({ where: loanWhere }),
+      prisma.payment.count({ where: loanWhere }),
+      prisma.paymentAllocation.count({ where: { payment: loanWhere } }),
+      prisma.loan.findUniqueOrThrow({ where: { id: agentLoanId }, select: { totalCollected: true } }),
+      prisma.agentAccount.findFirstOrThrow({ where: walletWhere, select: { balance: true } }),
+    ]);
+    return { entries, payments, allocations, totalCollected: loan.totalCollected, balance: wallet.balance };
+  };
+
+  const first = expectOk(await collect());
+  assert.ok(first.entryId);
+  assertMoneyEqual(first.applied, 1000, 'first loan-level collection posts the requested amount');
+  const afterFirst = await readState();
+
+  const replay = expectOk(await collect());
+  assert.equal(replay.entryId, first.entryId);
+  assertMoneyEqual(replay.applied, first.applied, 'replay returns the original amount');
+  assert.deepEqual(await readState(), afterFirst);
+});
+
+test('MOB-006 logout revokes the current mobile access token', async () => {
+  const me = () => mobileRequest<unknown>(agent, { importPath: routes.authMe, method: 'GET', path: '/api/v1/auth/me' });
+  expectOk(await me());
+
   const logout = await mobileRequest<{ ok: boolean }>(agent, { importPath: routes.authLogout, method: 'POST', path: '/api/v1/auth/logout' });
   assert.equal(expectOk(logout).ok, true);
-  const me = await mobileRequest<any>(agent, { importPath: routes.authMe, method: 'GET', path: '/api/v1/auth/me' });
-  assert.equal(me.status, 200, 'current code keeps JWT valid after logout because there is no server blocklist');
-});
-
-knownGap('MOB-GAP-002 logout/token invalidation is stateless', {
-  id: 'MOB-GAP-002',
-  classification: 'P2',
-  currentBehavior: 'POST /api/v1/auth/logout returns ok but does not revoke an already-issued mobile JWT.',
-  expectedBehavior: 'Logout should invalidate refresh/mobile tokens server-side when token revocation is a business requirement.',
-  evidenceSource: 'app/api/v1/auth/logout/route.ts returns ok and documents stateless JWT behavior.',
-  businessImpact: 'A stolen mobile bearer token can remain usable until expiry after logout.',
-  fixedAssertion: 'After logout, the same bearer token receives 401 from /api/v1/auth/me.',
-}, async () => {
-  const source = readFileSync(path.join(process.cwd(), 'app', 'api', 'v1', 'auth', 'logout', 'route.ts'), 'utf8');
-  assert.equal(/Stateless JWT|client clears its token|blocklist could be added later/i.test(source), false, 'logout route documents stateless token behavior and no server-side revocation');
-});
-
-knownGap('MOB-GAP-001 duplicate loan-level collection replay remains P0 tracked', knownGapCatalog.duplicateCollectionReplayDoubleCounts, async () => {
-  const source = readFileSync(path.join(process.cwd(), 'lib', 'collectionWrite.ts'), 'utf8');
-  assert.equal(
-    /baseKey.*instalment|idempotencyKey.*instalmentId|distributeCollectionAcrossLoan/s.test(source),
-    false,
-    'loan-level collection replay still derives per-instalment idempotency separately from instalment-level offline sync',
-  );
+  expectError(await me(), [401], 'logged-out mobile token');
 });
 
 async function main() {
   try {
     scenario = await seedZoloFundScenario(runId);
-    const summary = await run();
-    await writeKnownGapEvidence(runId, summary, 'tests/e2e-business/mobileAgentApiParity.test.ts');
+    await run();
   } finally {
     await cleanupRunData(runId);
     await disconnectTestDb();

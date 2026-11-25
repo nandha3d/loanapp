@@ -35,8 +35,13 @@ assert.match(
 const dashboardSrc = source('app/api/v1/dashboard/route.ts');
 assert.match(
   dashboardSrc,
-  /where:\s*\{\s*id:\s*topRepayer\[0\]\.customerId,\s*tenantId:\s*ctx\.tenantId\s*\}/,
-  'Dashboard bestPayer lookup must include tenantId: ctx.tenantId to prevent cross-tenant leak',
+  /prisma\.collectionEntry\.groupBy\(\{\s*by:\s*\['customerId'\],\s*where:\s*\{\s*tenantId:\s*ctx\.tenantId,\s*loan:\s*baseLoan\s*\}/,
+  'Dashboard best-payer ranking must use the scoped loan query',
+);
+assert.match(
+  dashboardSrc,
+  /const customerName = .*?prisma\.customer\.findFirst\(\{ where: \{ id: customerId, tenantId: ctx\.tenantId \}/s,
+  'Dashboard customer name lookup must retain tenant scope',
 );
 
 // mobile Auth Service & Repo
@@ -293,4 +298,4 @@ assert.match(
   'reports/[slug] must return standard v1 envelope (ok/fail)',
 );
 
-console.log('--- ALL DESKTOP VS MOBILE PARITY CHECKS PASSED (24/24) ---');
+console.log('--- ALL DESKTOP VS MOBILE PARITY CHECKS PASSED ---');
