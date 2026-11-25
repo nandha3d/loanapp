@@ -140,3 +140,7 @@ run_flutter.ps1
 # npm run test:calc / test:ml-report / test:cf-report.
 test-report/*
 !test-report/*.html
+
+# Archived unneeded files
+/archive/
+!archive/.gitignore

@@ -5,7 +5,7 @@ import {
   haversineDistance,
   normalizeGpsFormData,
   verifyGpsAgainstGeocode,
-} from './lib/gps/locationVerifier';
+} from '@/lib/gps/locationVerifier';
 
 function read(path: string) {
   return readFileSync(path, 'utf8');
@@ -89,7 +89,12 @@ const billingAction = read('app/admin/billing/billingActions.ts');
 assert.match(billingAction, /gpsTrackingEnabled/, 'billing action persists GPS add-on flag');
 
 const subscriptionForm = read('app/admin/billing/[tenantId]/SubscriptionForm.tsx');
-assert.match(subscriptionForm, /gpsTrackingEnabled/, 'developer billing form exposes GPS add-on toggle');
+const planFeatures = read('lib/planFeatures.ts');
+assert.ok(
+  subscriptionForm.includes('gpsTrackingEnabled') ||
+  (subscriptionForm.includes('PLAN_FEATURE_LIST') && planFeatures.includes('gpsTrackingEnabled')),
+  'developer billing form exposes GPS add-on toggle'
+);
 
 const collectionApi = read('app/api/collection/route.ts');
 assert.match(collectionApi, /normalizeGpsBody/, 'web collection API normalizes GPS payload');

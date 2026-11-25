@@ -171,8 +171,10 @@ function LoginForm() {
          const targetUrl = `${protocol}//${tenantSlug}.${hostname}${port}${callbackUrl === '/' ? '/portal' : callbackUrl}`;
          window.location.href = targetUrl;
        } else {
-         router.push(callbackUrl);
-         router.refresh();
+         const target = callbackUrl === '/' && (session?.user?.role === 'superadmin' || session?.user?.role === 'developer')
+           ? '/portal'
+           : callbackUrl;
+         window.location.href = target;
        }
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred');

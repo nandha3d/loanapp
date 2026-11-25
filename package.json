@@ -20,7 +20,7 @@
     "test:ml-1213-fixes": "tsx tests/ml1213Fixes.test.ts",
     "test:saas-subscription": "tsx tests/saasSubscription.test.ts && tsx tests/planCatalogView.test.ts && tsx tests/appLock.test.ts",
     "test:autofinance": "tsx tests/autoFinanceHp.test.ts",
-    "test:gps": "tsx gpsTracking.test.ts",
+    "test:gps": "tsx tests/gpsTracking.test.ts",
     "test:new-modules": "npx playwright test tests/e2e/new-modules",
     "test:ml": "npx playwright test -c tests/e2e/microlending/playwright.config.ts",
     "test:ml-report": "node scripts/build-ml-report.mjs",
