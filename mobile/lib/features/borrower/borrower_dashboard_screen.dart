@@ -70,7 +70,7 @@ class _BorrowerDashboardScreenState
     final hasLoans = p?.hasLoans ?? false;
     final loans = hasLoans
         ? ref.watch(_borrowerLoansProvider)
-        : const AsyncValue<List<dynamic>>.data(<dynamic>[]);
+        : const AsyncValue<List<BorrowerLoan>>.data(<BorrowerLoan>[]);
     final showChits = p != null && p.hasChits && (_chitTab ?? !p.hasLoans);
     final appBarTitle = p == null
         ? 'Member Portal'
@@ -99,9 +99,9 @@ class _BorrowerDashboardScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off_outlined, size: 42, color: AppColors.textSecondary),
+                Icon(Icons.cloud_off_outlined, size: 42, color: AppColors.textSecondary),
                 const SizedBox(height: 10),
-                const Text('Unable to load your account summary.', style: AppTypography.body),
+                Text('Unable to load your account summary.', style: AppTypography.body),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () => ref.invalidate(_borrowerPortalProvider),

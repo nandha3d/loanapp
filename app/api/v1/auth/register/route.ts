@@ -4,7 +4,7 @@ import prisma from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { generateTenantSlug } from '@/lib/slug';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 import { validateIndianMobile } from '@/lib/validation/contact';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       businessName,
       ownerName,
       ownerPhone,
+      ownerEmail,
       ownerUsername,
       ownerPassword,
       selectedPlan,
@@ -44,8 +45,14 @@ export async function POST(req: NextRequest) {
     const username = (typeof ownerUsername === 'string' && ownerUsername.trim())
       ? ownerUsername.trim().toLowerCase()
       : phone;
+    const rawEmail =
+      typeof ownerEmail === 'string' && ownerEmail.trim()
+        ? ownerEmail.trim().toLowerCase()
+        : username.includes('@')
+          ? username
+          : null;
 
-    const conflicts = await findUserUniqueConflicts({ username, phone });
+    const conflicts = await findUserUniqueConflicts({ username, phone, email: rawEmail });
     if (conflicts.length > 0) {
       return fail(conflicts[0].message, 409);
     }
@@ -140,6 +147,7 @@ export async function POST(req: NextRequest) {
           branchId: branch.id,
           name: ownerName,
           phone,
+          ...(rawEmail ? { email: rawEmail } : {}),
           username,
           passwordHash: hashedPassword,
           role: 'superadmin',
@@ -226,17 +234,22 @@ export async function POST(req: NextRequest) {
       return user;
     });
 
-    const token = await issueMobileToken({
-      userId: result.id,
-      tenantId: result.tenantId,
-      branchId: result.branchId,
-      role: result.role,
-      appType: result.appType,
-    });
+    const [token, refreshToken, verticals] = await Promise.all([
+      issueMobileToken({
+        userId: result.id,
+        tenantId: result.tenantId,
+        branchId: result.branchId,
+        role: result.role,
+        appType: result.appType,
+      }),
+      issueRefreshToken(result.id, result.tenantId).catch(() => null),
+      resolveUserVerticals(result),
+    ]);
 
     return ok({
       token,
-      user: serializeUser(result),
+      refreshToken,
+      user: serializeUser(result, verticals),
     });
   } catch (err: any) {
     console.error('[MOBILE_REGISTER_ERROR]', err);
@@ -253,7 +266,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function serializeUser(user: any) {
+function serializeUser(user: any, verticals: string[] = []) {
   const sub = user.tenant?.subscription;
   return {
     id: user.id,
@@ -275,10 +288,16 @@ function serializeUser(user: any) {
     whatsappSmsEnabled: Boolean(sub?.whatsappSmsEnabled),
     foreclosureEnabled: Boolean(sub?.foreclosureEnabled),
     enabledModules: enabledModulesForRole(user.role, user.appType),
+    verticals,
   };
 }
 
-function enabledModulesForRole(role: string, _appType: string): string[] {
+function enabledModulesForRole(role: string, appType: string): string[] {
+  if (appType === 'chitfunds') {
+    const chitBase = ['dashboard', 'customers', 'chits', 'collection'];
+    if (role === 'agent') return chitBase;
+    return [...chitBase, 'accounting', 'reports', 'settings'];
+  }
   const base = ['dashboard', 'customers', 'loans', 'collection'];
   if (role === 'agent') return base;
   return [...base, 'approvals', 'analytics', 'chits', 'reports', 'settings'];

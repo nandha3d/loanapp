@@ -62,7 +62,10 @@ export async function GET(
         id: true,
         senderName: true,
         visibility: true,
+        messageType: true,
         body: true,
+        audioUrl: true,
+        audioDurationSec: true,
         createdAt: true,
       },
     });
@@ -86,7 +89,16 @@ export async function POST(
     if (!auction) return fail('Auction not found', 404);
 
     const body = (await req.json().catch(() => null)) as any;
-    const text = String(body?.body ?? '').trim();
+    const rawAudioUrl =
+      typeof body?.audioUrl === 'string' && body.audioUrl.trim().startsWith(`/api/files/${ctx.tenantId}/`)
+        ? body.audioUrl.trim()
+        : null;
+    const messageType = rawAudioUrl ? 'voice' : 'text';
+    const audioDurationSec =
+      Number.isFinite(Number(body?.audioDurationSec)) && Number(body?.audioDurationSec) > 0
+        ? Math.min(300, Math.round(Number(body.audioDurationSec)))
+        : null;
+    const text = String(body?.body ?? (rawAudioUrl ? '🎤 Voice message' : '')).trim();
     if (!text) return fail('Message body required', 400);
     if (text.length > 500) return fail('Message too long (max 500 characters)', 400);
 
@@ -103,13 +115,19 @@ export async function POST(
         senderUserId: ctx.userId,
         senderName: sender?.name || sender?.username || 'Staff',
         visibility,
+        messageType,
         body: text,
+        audioUrl: rawAudioUrl,
+        audioDurationSec,
       },
       select: {
         id: true,
         senderName: true,
         visibility: true,
+        messageType: true,
         body: true,
+        audioUrl: true,
+        audioDurationSec: true,
         createdAt: true,
       },
     });

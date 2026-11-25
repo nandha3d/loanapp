@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/auth_repository.dart';
@@ -15,26 +17,36 @@ import 'package:zolofund/data/services/auth_service.dart';
 import 'package:zolofund/data/services/fcm_service.dart';
 import 'package:zolofund/features/collection/collection_screen.dart';
 import 'package:zolofund/features/loans/loans_screen.dart';
+import 'package:zolofund/shared/widgets/branch_switcher.dart';
 
 enum AuthStage { unknown, unauthenticated, pendingTotp, locked, authenticated }
 
 class AuthState {
-  const AuthState({required this.stage, this.user, this.error});
+  const AuthState({
+    required this.stage,
+    this.user,
+    this.error,
+    this.tenantChoices = const [],
+  });
 
   final AuthStage stage;
   final User? user;
   final String? error;
+  final List<Map<String, String>> tenantChoices;
 
   AuthState copyWith({
     AuthStage? stage,
     User? user,
     String? error,
+    List<Map<String, String>>? tenantChoices,
     bool clearError = false,
   }) {
     return AuthState(
       stage: stage ?? this.stage,
       user: user ?? this.user,
       error: clearError ? null : (error ?? this.error),
+      tenantChoices:
+          clearError ? const [] : (tenantChoices ?? this.tenantChoices),
     );
   }
 }
@@ -55,6 +67,8 @@ class AuthController extends StateNotifier<AuthState> {
   final LocalAuthentication _localAuth = LocalAuthentication();
   final Ref? _ref;
   late final StreamSubscription<void> _unauthorizedSub;
+  bool _loggingOut = false;
+  String? _pendingTotpTenantSlug;
 
   void clearDomainCaches() {
     DashboardRepository.clearCache();
@@ -64,8 +78,10 @@ class AuthController extends StateNotifier<AuthState> {
       r.invalidate(dashboardSummaryProvider);
       r.invalidate(chitDashboardSummaryProvider);
       r.invalidate(collectionDashboardProvider);
+      r.invalidate(collectionTodayProvider);
       r.invalidate(loansProvider);
       r.invalidate(customerListProvider);
+      r.invalidate(myBranchesProvider);
     }
   }
 
@@ -117,15 +133,20 @@ class AuthController extends StateNotifier<AuthState> {
         tenantSlug: tenantSlug,
       );
       if (user == null) {
+        _pendingTotpTenantSlug = tenantSlug;
         state = state.copyWith(stage: AuthStage.pendingTotp);
       } else {
+        _pendingTotpTenantSlug = null;
         clearDomainCaches();
         state = AuthState(stage: AuthStage.authenticated, user: user);
         _fcm.startTokenSync();
         unawaited(refreshUser());
       }
     } on Object catch (e) {
-      state = state.copyWith(error: _readable(e));
+      state = state.copyWith(
+        error: _readable(e),
+        tenantChoices: _extractTenantChoices(e),
+      );
     }
   }
 
@@ -167,7 +188,8 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> verifyTotp(String code) async {
     state = state.copyWith(clearError: true);
     try {
-      final user = await _repo.verify2fa(code);
+      final user = await _repo.verify2fa(code, tenantSlug: _pendingTotpTenantSlug);
+      _pendingTotpTenantSlug = null;
       clearDomainCaches();
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
@@ -177,18 +199,32 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<GoogleAuthResult?> loginWithGoogle(String idToken) async {
+  Future<GoogleAuthResult?> loginWithGoogle(String idToken, {String? tenantSlug}) async {
     state = state.copyWith(clearError: true);
     try {
-      final res = await _repo.authenticateWithGoogle(idToken: idToken);
+      final res = await _repo.authenticateWithGoogle(
+        idToken: idToken,
+        tenantSlug: tenantSlug,
+      );
+      if (res.requiresTenant) {
+        state = state.copyWith(
+          error: 'Multiple organizations found for this Google email. Please select your organization.',
+          tenantChoices: res.tenants,
+        );
+        return res;
+      }
       if (!res.needsRegistration && res.user != null) {
         clearDomainCaches();
         state = AuthState(stage: AuthStage.authenticated, user: res.user);
         _fcm.startTokenSync();
+        unawaited(refreshUser());
       }
       return res;
     } on Object catch (e) {
-      state = state.copyWith(error: _readable(e));
+      state = state.copyWith(
+        error: _readable(e),
+        tenantChoices: _extractTenantChoices(e),
+      );
       return null;
     }
   }
@@ -229,6 +265,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String businessName,
     required String ownerName,
     required String ownerPhone,
+    String? ownerEmail,
     required String ownerUsername,
     required String ownerPassword,
     required String selectedPlan,
@@ -242,6 +279,7 @@ class AuthController extends StateNotifier<AuthState> {
         businessName: businessName,
         ownerName: ownerName,
         ownerPhone: ownerPhone,
+        ownerEmail: ownerEmail,
         ownerUsername: ownerUsername,
         ownerPassword: ownerPassword,
         selectedPlan: selectedPlan,
@@ -252,6 +290,7 @@ class AuthController extends StateNotifier<AuthState> {
       clearDomainCaches();
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();
+      unawaited(refreshUser());
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
     }
@@ -333,10 +372,50 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    clearDomainCaches();
-    await _fcm.dispose();
-    await _repo.logout();
-    state = const AuthState(stage: AuthStage.unauthenticated);
+    if (_loggingOut) return;
+    _loggingOut = true;
+    try {
+      _pendingTotpTenantSlug = null;
+      final oldToken = await _repo.readStoredToken();
+      await _repo.clearLocalSession();
+      // Transition to unauthenticated BEFORE clearing caches or revoking
+      // remotely so active dashboard widgets do not refetch and trigger 401
+      // storms that race with the next login.
+      state = const AuthState(stage: AuthStage.unauthenticated);
+      clearDomainCaches();
+      try {
+        await _fcm.dispose();
+      } on Object catch (_) {}
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)) {
+        try {
+          await GoogleSignIn().signOut();
+        } on Object catch (_) {}
+      }
+      unawaited(_repo.revokeToken(oldToken));
+    } finally {
+      _loggingOut = false;
+    }
+  }
+
+  List<Map<String, String>> _extractTenantChoices(Object e) {
+    if (e is ApiException && e.code == 'TENANT_REQUIRED' && e.data is Map) {
+      final raw = (e.data as Map)['tenants'];
+      if (raw is List) {
+        return raw
+            .whereType<Map<dynamic, dynamic>>()
+            .map(
+              (m) => {
+                'slug': (m['slug'] ?? '').toString(),
+                'name': (m['name'] ?? m['slug'] ?? '').toString(),
+              },
+            )
+            .where((m) => m['slug']!.isNotEmpty)
+            .toList(growable: false);
+      }
+    }
+    return const [];
   }
 
   @override
@@ -346,6 +425,9 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   String _readable(Object e) {
+    if (e is ApiException) {
+      return e.message;
+    }
     // Turn raw Dio network failures into a short, actionable message instead
     // of the developer-facing "DioException [connection timeout]: ..." dump.
     if (e is DioException) {

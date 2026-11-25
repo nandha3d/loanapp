@@ -38,77 +38,83 @@ export async function POST(req: NextRequest) {
       tenantId = await getTenantIdFromHost(rawHost);
     }
 
+    const tenantInclude = {
+      tenant: {
+        select: {
+          name: true,
+          slug: true,
+          status: true,
+          subscription: {
+            select: {
+              gpsTrackingEnabled: true,
+              npaEnabled: true,
+              kycEnabled: true,
+              bureauEnabled: true,
+              premiumAccountingEnabled: true,
+              whatsappSmsEnabled: true,
+              foreclosureEnabled: true,
+            },
+          },
+        },
+      },
+    } as const;
+
     let user: any = null;
     if (tenantId) {
       user = await prisma.user.findFirst({
         where: {
           OR: [{ username }, { phone: username }, { email: username }],
-          status: 'active',
+          deletedAt: null,
           tenantId,
         },
-        include: {
-          tenant: {
-            select: {
-              slug: true,
-              status: true,
-              subscription: {
-                select: {
-                  gpsTrackingEnabled: true,
-                  npaEnabled: true,
-                  kycEnabled: true,
-                  bureauEnabled: true,
-                  premiumAccountingEnabled: true,
-                  whatsappSmsEnabled: true,
-                  foreclosureEnabled: true,
-                },
-              },
-            },
-          },
-        },
+        include: tenantInclude,
       });
     } else {
-      // If tenant was not specified, verify whether accounts exist across distinct tenants
+      // If tenant was not specified, verify matching active/pending accounts across tenants.
       const matchingUsers = await prisma.user.findMany({
         where: {
           OR: [{ username }, { phone: username }, { email: username }],
-          status: 'active',
+          deletedAt: null,
           tenant: { status: 'active' },
         },
-        include: {
-          tenant: {
-            select: {
-              slug: true,
-              status: true,
-              subscription: {
-                select: {
-                  gpsTrackingEnabled: true,
-                  npaEnabled: true,
-                  kycEnabled: true,
-                  bureauEnabled: true,
-                  premiumAccountingEnabled: true,
-                  whatsappSmsEnabled: true,
-                  foreclosureEnabled: true,
-                },
-              },
-            },
-          },
-        },
-        take: 5,
+        include: tenantInclude,
+        take: 10,
       });
 
       const distinctTenantIds = new Set(matchingUsers.map((u) => u.tenantId));
       if (distinctTenantIds.size > 1) {
-        return NextResponse.json(
-          {
-            data: null,
-            error: 'Multiple organizations found for this account. Please specify your organization ID or tenant slug.',
-            code: 'TENANT_REQUIRED',
-            pagination: null,
-          },
-          { status: 409 },
-        );
+        // Verify password across candidate rows first so another tenant with an
+        // unrelated password never triggers a false TENANT_REQUIRED blocker.
+        const verifiedCandidates: typeof matchingUsers = [];
+        for (const candidate of matchingUsers) {
+          if (candidate.passwordHash && (await compare(body.password, candidate.passwordHash))) {
+            verifiedCandidates.push(candidate);
+          }
+        }
+        if (verifiedCandidates.length === 0) {
+          return fail('Invalid credentials', 401);
+        }
+        if (verifiedCandidates.length === 1) {
+          user = verifiedCandidates[0];
+        } else {
+          return NextResponse.json(
+            {
+              data: {
+                tenants: verifiedCandidates.map((u) => ({
+                  slug: u.tenant.slug,
+                  name: u.tenant.name,
+                })),
+              },
+              error: 'Multiple organizations found for this account. Please select your organization.',
+              code: 'TENANT_REQUIRED',
+              pagination: null,
+            },
+            { status: 409 },
+          );
+        }
+      } else {
+        user = matchingUsers[0] ?? null;
       }
-      user = matchingUsers[0] ?? null;
     }
     if (!user || user.tenant.status !== 'active') {
       return fail('Invalid credentials', 401);
@@ -118,6 +124,21 @@ export async function POST(req: NextRequest) {
     }
     const valid = await compare(body.password, user.passwordHash);
     if (!valid) return fail('Invalid credentials', 401);
+
+    if (user.status === 'pending') {
+      return NextResponse.json(
+        {
+          data: null,
+          error: 'Please verify your email address before logging in.',
+          code: 'EMAIL_NOT_VERIFIED',
+          pagination: null,
+        },
+        { status: 403 },
+      );
+    }
+    if (user.status !== 'active') {
+      return fail('Account is inactive or suspended.', 403);
+    }
 
     const windowFailure = loginWindowFailure(user);
     if (windowFailure) return windowFailure;

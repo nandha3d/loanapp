@@ -304,6 +304,27 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
     });
   }
 
+  Future<void> _voiceMessage() async {
+    final ok = await Permission.microphone.request();
+    if (!ok.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is needed for voice chat')),
+        );
+      }
+      return;
+    }
+    final lang = ref.read(languageProvider).code;
+    await ref.read(voiceEntryProvider.notifier).listen(lang, onFinal: (spoken) {
+      final clean = spoken.trim();
+      if (clean.isEmpty || !mounted) return;
+      _messageCtrl.text = '🎙️ $clean';
+      _messageCtrl.selection = TextSelection.fromPosition(
+        TextPosition(offset: _messageCtrl.text.length),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final fmt = ref.watch(currencyFmtProvider);
@@ -420,7 +441,15 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
           _MyBidHistory(state: s, fmt: fmt, onViewAll: _showTimelineSheet),
         ],
         const SizedBox(height: 12),
-        _MessagesCard(state: s, controller: _messageCtrl, onSend: _sendMessage),
+        _MessagesCard(
+          state: s,
+          controller: _messageCtrl,
+          voiceListening: voice.listening,
+          onToggleVoice: voice.listening
+              ? () => ref.read(voiceEntryProvider.notifier).stop()
+              : _voiceMessage,
+          onSend: _sendMessage,
+        ),
       ],
     );
   }
@@ -1247,9 +1276,17 @@ class _WinnerCard extends StatelessWidget {
 }
 
 class _MessagesCard extends StatelessWidget {
-  const _MessagesCard({required this.state, required this.controller, required this.onSend});
+  const _MessagesCard({
+    required this.state,
+    required this.controller,
+    required this.voiceListening,
+    required this.onToggleVoice,
+    required this.onSend,
+  });
   final CustomerLiveAuctionState state;
   final TextEditingController controller;
+  final bool voiceListening;
+  final VoidCallback onToggleVoice;
   final VoidCallback onSend;
 
   @override
@@ -1264,7 +1301,7 @@ class _MessagesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Message organizer', style: AppTypography.sectionTitle),
+          Text('Members Live Chat (Voice & Text)', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
           for (final m in state.latestMessages)
             Padding(
@@ -1274,6 +1311,11 @@ class _MessagesCard extends StatelessWidget {
                   style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
                   children: [
                     TextSpan(text: '${m.senderName}: ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (m.hasAudio)
+                      TextSpan(
+                        text: '[Voice ${m.audioDurationSec ?? ''}s] ',
+                        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                      ),
                     TextSpan(text: m.body),
                   ],
                 ),
@@ -1282,10 +1324,21 @@ class _MessagesCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
+              IconButton(
+                tooltip: 'Voice to text',
+                onPressed: onToggleVoice,
+                icon: Icon(
+                  voiceListening ? Icons.mic : Icons.mic_none_rounded,
+                  color: voiceListening ? AppColors.danger : AppColors.primary,
+                ),
+              ),
               Expanded(
                 child: TextField(
                   controller: controller,
-                  decoration: const InputDecoration(hintText: 'Type a message…', border: OutlineInputBorder()),
+                  decoration: InputDecoration(
+                    hintText: voiceListening ? 'Listening…' : 'Message room or speak…',
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
               ),
               IconButton(onPressed: onSend, icon: const Icon(Icons.send)),

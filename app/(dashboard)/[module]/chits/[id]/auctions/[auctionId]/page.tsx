@@ -5,6 +5,9 @@ import Link from '@/components/layout/DashboardLink';
 import AuctionDetailClient from './AuctionDetailClient';
 import { getDictionary } from '@/lib/i18n';
 import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
+import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
+import { parseChitEngineConfig, resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
+import { computeAutomatedBidBounds } from '@/lib/chits/validation';
 
 export default async function ChitAuctionDetailPage({ params }: { params: Promise<{ id: string; auctionId: string; module: string }> }) {
   const { id, auctionId } = await params;
@@ -52,6 +55,60 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
       })
     : [];
 
+  const roomMessages = await prisma.chitRoomMessage.findMany({
+    where: { auctionId: auction.id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      senderName: true,
+      visibility: true,
+      messageType: true,
+      body: true,
+      audioUrl: true,
+      audioDurationSec: true,
+      createdAt: true,
+    },
+  });
+
+  const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
+  const engineCfg = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
+  const chitValueNum = Number(auction.chitGroup.chitValue);
+  const validBids = auction.bids.filter((b) => ['valid', 'winning'].includes(b.status));
+  const highestDiscount = validBids.reduce(
+    (max, b) => Math.max(max, Number(b.bidDiscount)),
+    0,
+  );
+  const reserveFloorPct =
+    engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
+      ? calculateReserveFloor({
+          chitValue: chitValueNum,
+          totalPeriods: auction.chitGroup.totalMembers,
+          periodNumber: auction.periodNumber,
+          reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+          maxDiscountPct: engineCfg.discountRules.uncapped
+            ? null
+            : auction.chitGroup.maxDiscountPct != null
+              ? Number(auction.chitGroup.maxDiscountPct)
+              : null,
+        }).reserveFloorPct
+      : null;
+  const groupIncrement = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+  const engineIncrement =
+    engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
+  const initialBidBounds = computeAutomatedBidBounds({
+    chitValue: chitValueNum,
+    maxDiscountPct: auction.chitGroup.maxDiscountPct != null ? Number(auction.chitGroup.maxDiscountPct) : null,
+    minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+    commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+    bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+    reserveFloorPct,
+    uncapped: engineType === 'AUCTION_UNCAPPED_ENTERPRISE' || engineCfg.discountRules.uncapped,
+    bidIncrement: groupIncrement > 0 ? groupIncrement : engineIncrement,
+    currentHighestDiscount: highestDiscount,
+    auctionType: auction.chitGroup.auctionType,
+  });
+
   return (
     <div>
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -65,6 +122,8 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
         auction={JSON.parse(JSON.stringify(auction))}
         security={security ? JSON.parse(JSON.stringify(security)) : null}
         securityDocuments={JSON.parse(JSON.stringify(securityDocuments))}
+        initialMessages={JSON.parse(JSON.stringify(roomMessages.reverse()))}
+        initialBidBounds={initialBidBounds}
         currencySymbol={currencySymbol}
         dict={dict}
       />

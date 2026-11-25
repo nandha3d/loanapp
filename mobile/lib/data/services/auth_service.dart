@@ -49,10 +49,15 @@ class AuthService {
   Future<LoginResult> verify2fa({
     required String username,
     required String code,
+    String? tenantSlug,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.verify2fa,
-      data: {'username': username, 'code': code},
+      data: {
+        'username': username,
+        'code': code,
+        if (tenantSlug != null && tenantSlug.isNotEmpty) 'tenantSlug': tenantSlug,
+      },
     );
     return unwrapEnvelope(res, (dynamic d) {
       final map = d as Map<String, dynamic>;
@@ -108,6 +113,7 @@ class AuthService {
     required String businessName,
     required String ownerName,
     required String ownerPhone,
+    String? ownerEmail,
     required String ownerUsername,
     required String ownerPassword,
     required String selectedPlan,
@@ -121,6 +127,8 @@ class AuthService {
         'businessName': businessName,
         'ownerName': ownerName,
         'ownerPhone': ownerPhone,
+        if (ownerEmail != null && ownerEmail.trim().isNotEmpty)
+          'ownerEmail': ownerEmail.trim().toLowerCase(),
         'ownerUsername': ownerUsername,
         'ownerPassword': ownerPassword,
         'selectedPlan': selectedPlan,
@@ -134,6 +142,7 @@ class AuthService {
       final map = d as Map<String, dynamic>;
       return LoginResult(
         token: map['token'] as String,
+        refreshToken: map['refreshToken'] as String?,
         user: User.fromJson(map['user'] as Map<String, dynamic>),
       );
     });
@@ -141,6 +150,7 @@ class AuthService {
 
   Future<GoogleAuthResult> authenticateWithGoogle({
     required String idToken,
+    String? tenantSlug,
     String? businessName,
     String? ownerPhone,
     String? selectedPlan,
@@ -151,6 +161,7 @@ class AuthService {
     final data = <String, dynamic>{
       'idToken': idToken,
     };
+    if (tenantSlug != null && tenantSlug.isNotEmpty) data['tenantSlug'] = tenantSlug;
     if (businessName != null) data['businessName'] = businessName;
     if (ownerPhone != null) data['ownerPhone'] = ownerPhone;
     if (selectedPlan != null) data['selectedPlan'] = selectedPlan;
@@ -174,8 +185,24 @@ class AuthService {
           name: map['name'] as String?,
         );
       }
+      if (map['requiresTenant'] == true) {
+        final rawTenants = map['tenants'] as List<dynamic>? ?? const [];
+        return GoogleAuthResult(
+          requiresTenant: true,
+          email: map['email'] as String?,
+          name: map['name'] as String?,
+          tenants: rawTenants
+              .whereType<Map<String, dynamic>>()
+              .map((t) => {
+                    'slug': (t['slug'] ?? '').toString(),
+                    'name': (t['name'] ?? t['slug'] ?? '').toString(),
+                  })
+              .toList(growable: false),
+        );
+      }
       return GoogleAuthResult(
         token: map['token'] as String?,
+        refreshToken: map['refreshToken'] as String?,
         user: map['user'] != null
             ? User.fromJson(map['user'] as Map<String, dynamic>)
             : null,
@@ -191,8 +218,17 @@ class AuthService {
     );
   }
 
-  Future<void> logout() async {
-    await _dio.post<Map<String, dynamic>>(Endpoints.logout);
+  Future<void> logout({String? bearerToken}) async {
+    await _dio.post<Map<String, dynamic>>(
+      Endpoints.logout,
+      options: bearerToken != null && bearerToken.isNotEmpty
+          ? Options(
+              headers: {'Authorization': 'Bearer $bearerToken'},
+              sendTimeout: const Duration(seconds: 4),
+              receiveTimeout: const Duration(seconds: 4),
+            )
+          : null,
+    );
   }
 
   Future<void> forgotPassword(String email) async {
@@ -219,15 +255,21 @@ class AuthService {
 class GoogleAuthResult {
   const GoogleAuthResult({
     this.token,
+    this.refreshToken,
     this.user,
     this.needsRegistration = false,
+    this.requiresTenant = false,
+    this.tenants = const [],
     this.email,
     this.name,
   });
 
   final String? token;
+  final String? refreshToken;
   final User? user;
   final bool needsRegistration;
+  final bool requiresTenant;
+  final List<Map<String, String>> tenants;
   final String? email;
   final String? name;
 }

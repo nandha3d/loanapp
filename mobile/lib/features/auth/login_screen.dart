@@ -34,6 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _password = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
+  String? _selectedTenantSlug;
 
   // WhatsApp OTP login state
   bool _useWhatsApp = false;
@@ -139,16 +140,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit([String? overrideTenantSlug]) async {
     if (_submitting) return;
     setState(() => _submitting = true);
     try {
       final activeUrl = (ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl).toLowerCase();
       final isSamurai = activeUrl.contains('samuraibuiness.in') || activeUrl.contains('samurai');
+      final slug = overrideTenantSlug ?? _selectedTenantSlug ?? (isSamurai ? 'samurai-ml-af-cf' : null);
       await ref.read(authControllerProvider.notifier).login(
             _username.text.trim(),
             _password.text,
-            tenantSlug: isSamurai ? 'samurai-ml-af-cf' : null,
+            tenantSlug: slug,
           );
     } finally {
       // On success the router redirects away; only reset if still mounted
@@ -157,9 +159,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
+  Future<void> _handleGoogleSignIn([String? tenantSlug]) async {
     if (_submitting) return;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _localError = null;
+    });
     try {
       // serverClientId = the Web OAuth client (client_type 3) from
       // google-services.json. Required on Android so account.authentication
@@ -169,6 +174,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         serverClientId:
             '895293019400-o8lov2voov7r173e3eltjm9a0lrqvq8v.apps.googleusercontent.com',
       );
+      // Clear previous cached Google session so switching mail accounts or
+      // signing back in after logout always prompts cleanly.
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
       final account = await googleSignIn.signIn();
       if (account == null) return; // User cancelled
 
@@ -176,17 +186,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final idToken = auth.idToken;
       if (idToken == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Failed to retrieve Google credentials')),
-          );
+          setState(() => _localError = 'Failed to retrieve Google credentials');
         }
         return;
       }
 
       final res = await ref
           .read(authControllerProvider.notifier)
-          .loginWithGoogle(idToken);
+          .loginWithGoogle(idToken, tenantSlug: tenantSlug ?? _selectedTenantSlug);
+      if (res != null && res.requiresTenant && res.tenants.isNotEmpty) {
+        if (!mounted) return;
+        final pickedSlug = await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: const Text('Select Organization'),
+            children: [
+              for (final org in res.tenants)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, org['slug']),
+                  child: Text('${org['name']} (${org['slug']})'),
+                ),
+            ],
+          ),
+        );
+        if (pickedSlug != null && pickedSlug.isNotEmpty) {
+          await ref
+              .read(authControllerProvider.notifier)
+              .loginWithGoogle(idToken, tenantSlug: pickedSlug);
+        }
+        return;
+      }
       if (res != null && res.needsRegistration) {
         if (kPlayRelease) {
           if (mounted) {
@@ -206,9 +235,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-In failed: $e')),
-        );
+        setState(() => _localError = 'Google Sign-In failed: $e');
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -534,6 +561,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               }),
                               error: _localError ?? auth.error,
                               loading: loading,
+                              tenantChoices: auth.tenantChoices,
+                              selectedTenantSlug: _selectedTenantSlug,
+                              onSelectTenant: (slug) {
+                                setState(() => _selectedTenantSlug = slug);
+                                _submit(slug);
+                              },
+                              onUsernameChanged: (_) {
+                                if (_selectedTenantSlug != null || _localError != null) {
+                                  setState(() {
+                                    _selectedTenantSlug = null;
+                                    _localError = null;
+                                  });
+                                }
+                              },
                               onSubmit: _submit,
                               onGoogleSignIn: _handleGoogleSignIn,
                               onConfigureServer: kPlayRelease ? null : _showServerConfigDialog,
@@ -570,6 +611,10 @@ class _LoginCard extends ConsumerWidget {
     required this.onResetOtp,
     required this.error,
     required this.loading,
+    required this.tenantChoices,
+    required this.selectedTenantSlug,
+    required this.onSelectTenant,
+    required this.onUsernameChanged,
     required this.onSubmit,
     required this.onGoogleSignIn,
     this.onConfigureServer,
@@ -590,6 +635,10 @@ class _LoginCard extends ConsumerWidget {
   final VoidCallback onResetOtp;
   final String? error;
   final bool loading;
+  final List<Map<String, String>> tenantChoices;
+  final String? selectedTenantSlug;
+  final ValueChanged<String> onSelectTenant;
+  final ValueChanged<String> onUsernameChanged;
   final Future<void> Function() onSubmit;
   final VoidCallback onGoogleSignIn;
   final VoidCallback? onConfigureServer;
@@ -708,7 +757,12 @@ class _LoginCard extends ConsumerWidget {
               label: t.x('login.username'),
               controller: username,
               prefixIcon: Icons.person_outline,
-              autofillHints: const [AutofillHints.username],
+              keyboardType: TextInputType.emailAddress,
+              onChanged: onUsernameChanged,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
             ),
             const SizedBox(height: 16),
             AppTextField(
@@ -728,6 +782,26 @@ class _LoginCard extends ConsumerWidget {
                 onPressed: onToggleObscure,
               ),
             ),
+            if (tenantChoices.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Select Organization',
+                style: AppTypography.label.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final org in tenantChoices)
+                    ChoiceChip(
+                      label: Text('${org['name']} (${org['slug']})'),
+                      selected: selectedTenantSlug == org['slug'],
+                      onSelected: loading ? null : (_) => onSelectTenant(org['slug']!),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               height: 48,

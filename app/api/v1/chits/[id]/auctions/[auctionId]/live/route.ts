@@ -7,7 +7,7 @@ import { syncRoom, buildBellState } from '@/lib/chits/bell';
 import { roundMoney } from '@/lib/chits/calculations';
 import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
 import { parseChitEngineConfig, resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
-import { startingDiscountAmount } from '@/lib/chits/validation';
+import { startingDiscountAmount, computeAutomatedBidBounds } from '@/lib/chits/validation';
 
 // Live auction room poll — clients call this every 2-3 seconds. Countdown must be
 // driven by serverTime/secondsRemaining, never the device clock. Sealed groups get
@@ -103,13 +103,19 @@ export async function GET(
     const engineIncrement =
       engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
     const increment = groupIncrement > 0 ? groupIncrement : engineIncrement;
-    const minNextDiscount = highestBid
-      ? roundMoney(Math.max(highestBid.bidDiscount + increment, floorDiscount))
-      : floorDiscount > 0
-        ? floorDiscount
-        : increment > 0
-          ? increment
-          : null;
+    const bidBounds = computeAutomatedBidBounds({
+      chitValue: chitValueNum,
+      maxDiscountPct: auction.chitGroup.maxDiscountPct != null ? Number(auction.chitGroup.maxDiscountPct) : null,
+      minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+      commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+      bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+      reserveFloorPct,
+      uncapped: engineType === 'AUCTION_UNCAPPED_ENTERPRISE' || engineCfg.discountRules.uncapped,
+      bidIncrement: increment,
+      currentHighestDiscount: highestBid?.bidDiscount ?? 0,
+      auctionType: auction.chitGroup.auctionType,
+    });
+    const minNextDiscount = bidBounds.canBidFurther ? bidBounds.nextValidDiscount : null;
 
     const waiting = auction.attendance
       .filter((entry) => entry.admissionStatus === 'waiting')
@@ -133,6 +139,7 @@ export async function GET(
       bids,
       highestBid,
       minNextDiscount,
+      bidBounds,
       attendance: auction.attendance.map((entry) => ({
         id: entry.id,
         memberId: entry.memberId,

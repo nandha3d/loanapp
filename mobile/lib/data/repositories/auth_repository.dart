@@ -36,12 +36,16 @@ class AuthRepository {
     return result.user;
   }
 
-  Future<User> verify2fa(String code) async {
+  Future<User> verify2fa(String code, {String? tenantSlug}) async {
     final username = await _storage.readPendingTotpUser();
     if (username == null) {
       throw StateError('No pending TOTP user');
     }
-    final result = await _service.verify2fa(username: username, code: code);
+    final result = await _service.verify2fa(
+      username: username,
+      code: code,
+      tenantSlug: tenantSlug,
+    );
     await _persist(
       result.token!,
       result.user!,
@@ -116,13 +120,23 @@ class AuthRepository {
     }
   }
 
-  Future<void> logout() async {
+  Future<void> revokeToken(String? token) async {
+    if (token == null || token.isEmpty) return;
     try {
-      await _service.logout();
+      await _service.logout(bearerToken: token);
     } on Object {
-      // ignore — clear local state regardless
+      // ignore network failure — local state is already cleared
     }
+  }
+
+  Future<String?> readStoredToken() => _storage.readToken();
+
+  Future<void> clearLocalSession() => _storage.clear();
+
+  Future<void> logout() async {
+    final token = await _storage.readToken();
     await _storage.clear();
+    await revokeToken(token);
   }
 
   Future<void> setActiveAppType(String appType) {
@@ -137,6 +151,7 @@ class AuthRepository {
     required String businessName,
     required String ownerName,
     required String ownerPhone,
+    String? ownerEmail,
     required String ownerUsername,
     required String ownerPassword,
     required String selectedPlan,
@@ -148,6 +163,7 @@ class AuthRepository {
       businessName: businessName,
       ownerName: ownerName,
       ownerPhone: ownerPhone,
+      ownerEmail: ownerEmail,
       ownerUsername: ownerUsername,
       ownerPassword: ownerPassword,
       selectedPlan: selectedPlan,
@@ -155,12 +171,17 @@ class AuthRepository {
       selectedAddons: selectedAddons,
       referralCode: referralCode,
     );
-    await _persist(result.token!, result.user!);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     return result.user!;
   }
 
   Future<GoogleAuthResult> authenticateWithGoogle({
     required String idToken,
+    String? tenantSlug,
     String? businessName,
     String? ownerPhone,
     String? selectedPlan,
@@ -170,6 +191,7 @@ class AuthRepository {
   }) async {
     final result = await _service.authenticateWithGoogle(
       idToken: idToken,
+      tenantSlug: tenantSlug,
       businessName: businessName,
       ownerPhone: ownerPhone,
       selectedPlan: selectedPlan,
@@ -178,9 +200,14 @@ class AuthRepository {
       referralCode: referralCode,
     );
     if (!result.needsRegistration &&
+        !result.requiresTenant &&
         result.token != null &&
         result.user != null) {
-      await _persist(result.token!, result.user!);
+      await _persist(
+        result.token!,
+        result.user!,
+        refreshToken: result.refreshToken,
+      );
     }
     return result;
   }

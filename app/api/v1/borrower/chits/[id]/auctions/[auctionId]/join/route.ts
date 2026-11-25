@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireBorrowerMobileContext } from '@/lib/api/borrower-mobile';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 import { findOwnLiveAuction } from '@/lib/chits/customerAuction';
+import { joinAuctionRoomAttendance } from '@/lib/chits/attendanceAuto';
 
 // Customer joins the live-room lobby for their own ticket. Parks them in
 // 'waiting' when the group requires organizer approval, else auto-admits —
@@ -33,36 +33,14 @@ export async function POST(
     }
     if (member.hasWon) return fail('This ticket has already won and cannot rejoin', 400);
 
-    const admissionStatus = auction.chitGroup.roomAdmission === 'approval' ? 'waiting' : 'admitted';
-    const existing = await prisma.chitAuctionAttendance.findUnique({
-      where: { auctionId_memberId: { auctionId, memberId: member.id } },
+    const { admissionStatus } = await joinAuctionRoomAttendance({
+      tenantId: borrower.tenantId,
+      branchId: auction.chitGroup.branchId,
+      auctionId,
+      memberId: member.id,
+      roomAdmission: auction.chitGroup.roomAdmission,
     });
-
-    let attendance;
-    if (!existing) {
-      attendance = await prisma.chitAuctionAttendance.create({
-        data: {
-          tenantId: borrower.tenantId,
-          branchId: auction.chitGroup.branchId,
-          auctionId,
-          memberId: member.id,
-          status: 'present',
-          admissionStatus,
-          markedVia: 'room_join',
-        },
-      });
-    } else if (existing.admissionStatus === 'none') {
-      // Doc 18: a login-only mark ('none') escalates to waiting/admitted on
-      // an actual room join — but a staff decision (waiting/admitted/denied)
-      // must never be touched here.
-      attendance = await prisma.chitAuctionAttendance.update({
-        where: { id: existing.id },
-        data: { admissionStatus, status: 'present', markedVia: 'room_join' },
-      });
-    } else {
-      attendance = existing;
-    }
-    return ok({ admissionStatus: attendance.admissionStatus });
+    return ok({ admissionStatus });
   } catch (e: any) {
     return fail(e?.message ?? 'Join failed', 500);
   }

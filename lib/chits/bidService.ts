@@ -3,7 +3,7 @@
 // way (eligibility, discount limits, reserve floor, anti-snipe, source/transcript audit).
 import { antiSnipeExtension, isRoomOpen } from './liveAuction';
 import { syncRoom } from './bell';
-import { assertValidPrizeAmount } from './validation';
+import { assertMonotonicBidDirection, assertValidPrizeAmount } from './validation';
 import { roundMoney } from './calculations';
 import { calculateReserveFloor } from './engineCalculator';
 import { isBiddingEnabledForPeriod, parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
@@ -116,27 +116,30 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     }
   }
 
-  // Bid increment step; exact-cap bids always accepted so cap ties can form.
+  // Automated monotonic direction + increment enforcement for non-sealed auctions.
+  // Exact-cap bids remain accepted so statutory cap ties can still resolve via tieBreakRule.
   const incrementStep = auction.chitGroup.bidIncrement
     ? Number(auction.chitGroup.bidIncrement)
     : config.discountRules.bidIncrementMultiple > 0
       ? config.discountRules.bidIncrementMultiple
       : 0;
-  if (incrementStep > 0) {
-    const capDiscount =
-      !uncapped && auction.chitGroup.maxDiscountPct
-        ? roundMoney((chitValueNum * Number(auction.chitGroup.maxDiscountPct)) / 100)
-        : null;
-    const highest = await tx.chitBid.aggregate({
-      where: { auctionId: auction.id, status: 'valid' },
-      _max: { bidDiscount: true },
-    });
-    const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
-    const atCap = capDiscount != null && bidDiscount === capDiscount;
-    if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + incrementStep) {
-      throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${incrementStep}`);
-    }
-  }
+  const capDiscount =
+    !uncapped && auction.chitGroup.maxDiscountPct
+      ? roundMoney((chitValueNum * Number(auction.chitGroup.maxDiscountPct)) / 100)
+      : null;
+  const highest = await tx.chitBid.aggregate({
+    where: { auctionId: auction.id, status: 'valid' },
+    _max: { bidDiscount: true },
+  });
+  const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
+  assertMonotonicBidDirection({
+    chitValue: chitValueNum,
+    bidDiscount,
+    currentHighestDiscount: currentHighest,
+    incrementStep,
+    maxDiscountCap: capDiscount,
+    auctionType: auction.chitGroup.auctionType,
+  });
 
   const created = await tx.chitBid.create({
     data: {

@@ -23,6 +23,9 @@ export type TimelineEntry = {
   senderName?: string | null;
   body?: string | null;
   visibility?: string;
+  messageType?: string;
+  audioUrl?: string | null;
+  audioDurationSec?: number | null;
   actorName?: string | null;
 };
 
@@ -114,6 +117,9 @@ export async function buildAuctionTimeline(
       senderName: m.senderName,
       body: m.body,
       visibility: m.visibility,
+      messageType: (m as any).messageType ?? 'text',
+      audioUrl: (m as any).audioUrl ?? null,
+      audioDurationSec: (m as any).audioDurationSec ?? null,
     });
   }
 

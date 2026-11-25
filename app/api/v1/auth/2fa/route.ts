@@ -12,12 +12,13 @@ import { checkRateLimit, getClientIp, routeKey, loginUserKey } from '@/lib/rateL
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => null)) as
-      | { username?: string; code?: string }
+      | { username?: string; code?: string; tenantSlug?: string }
       | null;
     if (!body?.username || !body?.code) {
       return fail('username and code are required', 400);
     }
     const username = body.username.trim().toLowerCase();
+    const explicitSlug = body.tenantSlug ? String(body.tenantSlug).trim().toLowerCase() : null;
     const ip = getClientIp(req);
 
     const [ipLimit, userLimit] = await Promise.all([
@@ -29,8 +30,10 @@ export async function POST(req: NextRequest) {
     }
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ username }, { phone: username }],
+        OR: [{ username }, { phone: username }, { email: username }],
         status: 'active',
+        deletedAt: null,
+        ...(explicitSlug ? { tenant: { OR: [{ slug: explicitSlug }, { customDomain: explicitSlug }] } } : {}),
       },
       include: {
         tenant: {
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
         totpEnabled: true,
         tenantSlug: user.tenant.slug,
         gpsTrackingEnabled: Boolean(user.tenant?.subscription?.gpsTrackingEnabled),
-        enabledModules: enabledModulesForRole(user.role),
+        enabledModules: enabledModulesForRole(user.role, user.appType),
         verticals,
       },
     });
@@ -82,7 +85,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function enabledModulesForRole(role: string): string[] {
+function enabledModulesForRole(role: string, appType: string): string[] {
+  if (appType === 'chitfunds') {
+    const chitBase = ['dashboard', 'customers', 'chits', 'collection'];
+    if (role === 'agent') return chitBase;
+    return [...chitBase, 'accounting', 'reports', 'settings'];
+  }
   const base = ['dashboard', 'customers', 'loans', 'collection'];
   if (role === 'agent') return base;
   return [...base, 'approvals', 'analytics', 'chits', 'reports', 'settings'];

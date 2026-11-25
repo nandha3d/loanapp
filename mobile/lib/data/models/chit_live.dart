@@ -201,20 +201,30 @@ class RoomMessage {
     required this.visibility,
     required this.body,
     required this.createdAt,
+    this.messageType = 'text',
+    this.audioUrl,
+    this.audioDurationSec,
   });
   final String id;
   final String senderName;
   final String visibility; // public | organizer
+  final String messageType; // text | voice
   final String body;
+  final String? audioUrl;
+  final int? audioDurationSec;
   final DateTime createdAt;
 
   bool get isPrivate => visibility == 'organizer';
+  bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
   factory RoomMessage.fromJson(Map<String, dynamic> j) => RoomMessage(
         id: (j['id'] as String?) ?? '',
         senderName: (j['senderName'] as String?) ?? '—',
         visibility: (j['visibility'] as String?) ?? 'public',
+        messageType: (j['messageType'] as String?) ?? 'text',
         body: (j['body'] as String?) ?? '',
+        audioUrl: j['audioUrl'] as String?,
+        audioDurationSec: (j['audioDurationSec'] as num?)?.toInt(),
         createdAt:
             DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ??
                 DateTime.now(),

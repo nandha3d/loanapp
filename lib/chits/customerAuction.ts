@@ -8,7 +8,7 @@ import { syncRoom, buildBellState } from './bell';
 import { roundMoney } from './calculations';
 import { calculateReserveFloor } from './engineCalculator';
 import { parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
-import { startingDiscountAmount } from './validation';
+import { startingDiscountAmount, computeAutomatedBidBounds } from './validation';
 
 export async function findOwnLiveAuction(customerId: string, tenantId: string, groupId: string, auctionId: string) {
   const member = await prisma.chitMember.findFirst({
@@ -116,13 +116,19 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   const engineIncrement =
     engineCfg.discountRules.bidIncrementMultiple > 0 ? engineCfg.discountRules.bidIncrementMultiple : 0;
   const increment = groupIncrement > 0 ? groupIncrement : engineIncrement;
-  const minNextDiscount = highestBid
-    ? roundMoney(Math.max(Number(highestBid.bidDiscount) + increment, floorDiscount))
-    : floorDiscount > 0
-      ? floorDiscount
-      : increment > 0
-        ? increment
-        : null;
+  const bidBounds = computeAutomatedBidBounds({
+    chitValue: chitValueNum,
+    maxDiscountPct: auction.chitGroup.maxDiscountPct != null ? Number(auction.chitGroup.maxDiscountPct) : null,
+    minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+    commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+    bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+    reserveFloorPct,
+    uncapped: engineType === 'AUCTION_UNCAPPED_ENTERPRISE' || engineCfg.discountRules.uncapped,
+    bidIncrement: increment,
+    currentHighestDiscount: highestBid ? Number(highestBid.bidDiscount) : 0,
+    auctionType: auction.chitGroup.auctionType,
+  });
+  const minNextDiscount = bidBounds.canBidFurther ? bidBounds.nextValidDiscount : null;
 
   const myBids = bids
     .filter((bid) => bid.memberId === memberId)
@@ -137,8 +143,17 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   const messageRows = await prisma.chitRoomMessage.findMany({
     where: { auctionId, visibility: 'public' },
     orderBy: { createdAt: 'desc' },
-    take: 30,
-    select: { id: true, senderName: true, body: true, createdAt: true },
+    take: 50,
+    select: {
+      id: true,
+      senderName: true,
+      visibility: true,
+      messageType: true,
+      body: true,
+      audioUrl: true,
+      audioDurationSec: true,
+      createdAt: true,
+    },
   });
 
   const bell = await buildBellState(auction);
@@ -158,6 +173,7 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
     maxDiscountPct: auction.chitGroup.maxDiscountPct != null ? Number(auction.chitGroup.maxDiscountPct) : null,
     bidIncrement: increment || null,
     minNextDiscount,
+    bidBounds,
     currentHighestBid: highestBid
       ? { ticketNo: highestBid.member.ticketNo, bidAmount: Number(highestBid.bidAmount), bidDiscount: Number(highestBid.bidDiscount) }
       : null,

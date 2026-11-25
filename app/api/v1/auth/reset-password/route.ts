@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { email, status: 'active' },
+      where: { email, status: 'active', deletedAt: null },
       select: { id: true },
     });
     if (!user) return fail('Invalid or expired code', 400);

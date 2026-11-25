@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken, loginWindowFailure } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, loginWindowFailure, resolveUserVerticals } from '@/lib/api/v1-auth';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 export async function POST(req: NextRequest) {
@@ -34,25 +34,32 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = await tokenResponse.json();
-    const googleId = payload.sub;
-    const email = payload.email;
+    const googleId = payload.sub ? String(payload.sub) : '';
+    const email = payload.email ? String(payload.email).trim().toLowerCase() : '';
     const name = payload.name || 'Google User';
 
     if (!googleId || !email) {
       return fail('Failed to retrieve Google profile details', 400);
     }
 
+    const explicitSlug =
+      (body?.tenantSlug ? String(body.tenantSlug).trim().toLowerCase() : null) ||
+      req.headers.get('x-tenant-slug')?.trim().toLowerCase() ||
+      null;
+
     // ── 2. Check if user already exists ──────────────────────────────────────
-    const existingUser = await prisma.user.findFirst({
+    const matchingUsers = await prisma.user.findMany({
       where: {
-        OR: [
-          { googleId },
-          { email }
-        ]
+        OR: [{ googleId }, { email }],
+        deletedAt: null,
+        ...(explicitSlug
+          ? { tenant: { OR: [{ slug: explicitSlug }, { customDomain: explicitSlug }], status: 'active' } }
+          : { tenant: { status: 'active' } }),
       },
       include: {
         tenant: {
           select: {
+            name: true,
             slug: true,
             status: true,
             subscription: {
@@ -69,28 +76,56 @@ export async function POST(req: NextRequest) {
           },
         },
       },
+      take: 10,
     });
+
+    const distinctTenantIds = new Set(matchingUsers.map((u) => u.tenantId));
+    if (distinctTenantIds.size > 1) {
+      return ok({
+        requiresTenant: true,
+        tenants: matchingUsers.map((u) => ({ slug: u.tenant.slug, name: u.tenant.name })),
+        email,
+        name,
+      });
+    }
+
+    const existingUser =
+      matchingUsers.find((u) => u.googleId === googleId) ?? matchingUsers[0] ?? null;
 
     if (existingUser) {
       if (existingUser.tenant.status !== 'active') {
         return fail('Account tenant is inactive', 403);
       }
 
+      if (existingUser.status !== 'active' && existingUser.status !== 'pending') {
+        return fail('Account is inactive or suspended.', 403);
+      }
+
       const windowFailure = loginWindowFailure(existingUser);
       if (windowFailure) return windowFailure;
 
-      // If user exists, this is a LOGIN flow. Complete the login and return token.
-      const token = await issueMobileToken({
-        userId: existingUser.id,
-        tenantId: existingUser.tenantId,
-        branchId: existingUser.branchId,
-        role: existingUser.role,
-        appType: existingUser.appType,
-      });
+      // Activate pending account + link Google ID when email matches.
+      const patch: Record<string, unknown> = { lastLoginAt: new Date() };
+      if (existingUser.status === 'pending') patch.status = 'active';
+      if (!existingUser.googleId) patch.googleId = googleId;
+      await prisma.user.update({ where: { id: existingUser.id }, data: patch }).catch(() => {});
+
+      const [token, refreshToken, verticals] = await Promise.all([
+        issueMobileToken({
+          userId: existingUser.id,
+          tenantId: existingUser.tenantId,
+          branchId: existingUser.branchId,
+          role: existingUser.role,
+          appType: existingUser.appType,
+        }),
+        issueRefreshToken(existingUser.id, existingUser.tenantId).catch(() => null),
+        resolveUserVerticals(existingUser),
+      ]);
 
       return ok({
         token,
-        user: serializeUser(existingUser)
+        refreshToken,
+        user: serializeUser(existingUser, verticals),
       });
     }
 
@@ -282,17 +317,22 @@ export async function POST(req: NextRequest) {
       return user;
     });
 
-    const token = await issueMobileToken({
-      userId: result.id,
-      tenantId: result.tenantId,
-      branchId: result.branchId,
-      role: result.role,
-      appType: result.appType,
-    });
+    const [token, refreshToken, verticals] = await Promise.all([
+      issueMobileToken({
+        userId: result.id,
+        tenantId: result.tenantId,
+        branchId: result.branchId,
+        role: result.role,
+        appType: result.appType,
+      }),
+      issueRefreshToken(result.id, result.tenantId).catch(() => null),
+      resolveUserVerticals(result),
+    ]);
 
     return ok({
       token,
-      user: serializeUser(result),
+      refreshToken,
+      user: serializeUser(result, verticals),
     });
   } catch (err: any) {
     console.error('[MOBILE_GOOGLE_AUTH_ERROR]', err);
@@ -306,7 +346,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function serializeUser(user: any) {
+function serializeUser(user: any, verticals: string[] = []) {
   const sub = user.tenant?.subscription;
   return {
     id: user.id,
@@ -328,10 +368,16 @@ function serializeUser(user: any) {
     whatsappSmsEnabled: Boolean(sub?.whatsappSmsEnabled),
     foreclosureEnabled: Boolean(sub?.foreclosureEnabled),
     enabledModules: enabledModulesForRole(user.role, user.appType),
+    verticals,
   };
 }
 
-function enabledModulesForRole(role: string, _appType: string): string[] {
+function enabledModulesForRole(role: string, appType: string): string[] {
+  if (appType === 'chitfunds') {
+    const chitBase = ['dashboard', 'customers', 'chits', 'collection'];
+    if (role === 'agent') return chitBase;
+    return [...chitBase, 'accounting', 'reports', 'settings'];
+  }
   const base = ['dashboard', 'customers', 'loans', 'collection'];
   if (role === 'agent') return base;
   return [...base, 'approvals', 'analytics', 'chits', 'reports', 'settings'];

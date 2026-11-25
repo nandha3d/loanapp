@@ -105,6 +105,7 @@ export async function getMyChitMemberships(customerId: string, tenantId: string)
         chitValue: Number(m.chitGroup.chitValue),
         monthlyContrib: Number(m.chitGroup.monthlyContrib),
         durationMonths: m.chitGroup.durationMonths,
+        auctionType: m.chitGroup.auctionType,
         status: m.chitGroup.status,
       },
       nextAuction: m.chitGroup.auctions[0]

@@ -63,17 +63,23 @@ export async function issueBorrowerMobileToken(claims: BorrowerMobileClaims) {
     .sign(getSecret());
 }
 
+export async function verifyBorrowerMobileToken(token: string): Promise<BorrowerMobileClaims> {
+  const { payload } = await jwtVerify(token, getSecret(), {
+    issuer: ISSUER,
+    audience: BORROWER_AUDIENCE,
+  });
+  if (payload.role !== 'borrower') {
+    throw new Error('Invalid borrower token role');
+  }
+  return payload as BorrowerMobileClaims;
+}
+
 export async function requireBorrowerMobileContext(req: NextRequest) {
   const header = req.headers.get('authorization') || req.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) return null;
 
   try {
-    const { payload } = await jwtVerify(header.slice('Bearer '.length).trim(), getSecret(), {
-      issuer: ISSUER,
-      audience: BORROWER_AUDIENCE,
-    });
-    if (payload.role !== 'borrower') return null;
-    return payload as BorrowerMobileClaims;
+    return await verifyBorrowerMobileToken(header.slice('Bearer '.length).trim());
   } catch {
     return null;
   }

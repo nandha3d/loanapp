@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { fail } from './v1-envelope';
 import { checkLoginWindow } from '../autofinance/operations';
@@ -55,6 +56,7 @@ export function loginWindowFailure(
 export async function issueMobileToken(claims: MobileTokenClaims): Promise<string> {
   return await new SignJWT({ ...claims })
     .setProtectedHeader({ alg: ALG })
+    .setJti(randomUUID())
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)

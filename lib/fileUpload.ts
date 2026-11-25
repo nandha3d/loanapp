@@ -27,6 +27,7 @@ const UPLOAD_EXTENSIONS: Record<string, string> = {
   'audio/aac': '.aac',
   'audio/webm': '.webm',
   'audio/mpeg': '.mp3',
+  'audio/ogg': '.ogg',
 };
 
 function assertSafeUploadSegment(value: string, label: string): void {
@@ -35,8 +36,12 @@ function assertSafeUploadSegment(value: string, label: string): void {
   }
 }
 
+export function normalizeUploadMime(mimeType: string): string {
+  return mimeType.split(';')[0].trim().toLowerCase();
+}
+
 export function uploadExtensionForMime(mimeType: string): string {
-  const extension = UPLOAD_EXTENSIONS[mimeType];
+  const extension = UPLOAD_EXTENSIONS[normalizeUploadMime(mimeType)];
   if (!extension) throw new UploadValidationError('File type not allowed');
   return extension;
 }
@@ -95,6 +100,7 @@ export const ALLOWED_UPLOAD_MIME_TYPES: string[] = [
   'audio/aac',
   'audio/webm',
   'audio/mpeg',
+  'audio/ogg',
 ];
 
 export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB (images/PDF)
@@ -102,7 +108,7 @@ export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB (images/PDF)
 export const MAX_AUDIO_UPLOAD_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
 
 export function isAudioMime(mimeType: string): boolean {
-  return mimeType.startsWith('audio/');
+  return normalizeUploadMime(mimeType).startsWith('audio/');
 }
 
 /** Size cap for a given MIME type (audio is tighter than images/PDF). */
@@ -117,7 +123,7 @@ export function maxUploadSizeFor(mimeType: string): number {
 export function validateFileBytes(buffer: Buffer, mimeType: string): boolean {
   const hex = buffer.subarray(0, 12).toString('hex').toUpperCase();
 
-  switch (mimeType) {
+  switch (normalizeUploadMime(mimeType)) {
     case 'image/jpeg':
       return hex.startsWith('FFD8FF');
     case 'image/png':
@@ -143,6 +149,9 @@ export function validateFileBytes(buffer: Buffer, mimeType: string): boolean {
     case 'audio/mpeg':
       // MP3: ID3 tag or an MPEG frame sync (0xFFEx/0xFFFx).
       return hex.startsWith('494433') || hex.startsWith('FFF') || hex.startsWith('FFE');
+    case 'audio/ogg':
+      // Ogg container: "OggS" at byte offset 0.
+      return hex.startsWith('4F676753');
     default:
       return false;
   }
@@ -157,6 +166,7 @@ export function detectMimeTypeFromBytes(buffer: Buffer): string | null {
   if (hex.substring(8, 16) === '66747970' || hex.startsWith('FFF1') || hex.startsWith('FFF9')) return 'audio/mp4';
   if (hex.startsWith('1A45DFA3')) return 'audio/webm';
   if (hex.startsWith('494433') || hex.startsWith('FFF') || hex.startsWith('FFE')) return 'audio/mpeg';
+  if (hex.startsWith('4F676753')) return 'audio/ogg';
   return null;
 }
 
@@ -167,7 +177,7 @@ export async function storeTenantUpload(input: {
   scopes?: string[];
   prefix?: string;
 }): Promise<{ fileName: string; url: string }> {
-  let effectiveMime = input.mimeType;
+  let effectiveMime = normalizeUploadMime(input.mimeType);
 
   if (!validateFileBytes(input.buffer, effectiveMime)) {
     const detected = detectMimeTypeFromBytes(input.buffer);

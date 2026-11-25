@@ -84,6 +84,25 @@ export default function ChitGroupDetailClient({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [subTab, setSubTab] = useState<'current' | 'overdue' | 'all'>('current');
+  const periodNumbers = Array.from(
+    new Set<number>(
+      group.members.flatMap((m: any) =>
+        (m.subscriptions ?? []).map((s: any) => Number(s.periodNumber)),
+      ),
+    ),
+  ).sort((a, b) => a - b);
+  const defaultPeriod = (() => {
+    for (const p of periodNumbers) {
+      const hasUnpaid = group.members.some((m: any) =>
+        (m.subscriptions ?? []).some(
+          (s: any) => Number(s.periodNumber) === p && s.status !== 'paid',
+        ),
+      );
+      if (hasUnpaid) return p;
+    }
+    return periodNumbers[0] ?? 'all';
+  })();
+  const [selectedPeriod, setSelectedPeriod] = useState<number | 'all'>(defaultPeriod);
 
   const isDrawType = !engineCatalog.supportsBidding || ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const completedAuctions = group.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
@@ -571,19 +590,73 @@ export default function ChitGroupDetailClient({
 
       {/* Subscription Payments */}
       <div className="card">
-        <div className="card-header"><h3>💳 {d.memberPayments}</h3></div>
-        <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px' }}>
-          {(['current', 'overdue', 'all'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              className={`btn btn-sm ${subTab === tab ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setSubTab(tab)}
-            >
-              {tab === 'current' ? 'Current' : tab === 'overdue' ? 'Overdue' : 'All'}
-            </button>
-          ))}
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <h3 style={{ margin: 0 }}>💳 {d.memberPayments}</h3>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {(['current', 'overdue', 'all'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={`btn btn-sm ${subTab === tab ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSubTab(tab)}
+              >
+                {tab === 'current' ? 'Current' : tab === 'overdue' ? 'Overdue' : 'All'}
+              </button>
+            ))}
+          </div>
         </div>
+        {periodNumbers.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              padding: '0 16px 12px',
+              overflowX: 'auto',
+              alignItems: 'center',
+            }}
+          >
+            {periodNumbers.map((p) => {
+              const active = selectedPeriod === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setSelectedPeriod(p)}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: '999px',
+                    fontSize: '0.8rem',
+                    fontWeight: active ? 700 : 600,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    border: active ? '1px solid var(--primary)' : '1px solid var(--border)',
+                    background: active ? 'var(--primary)' : 'var(--bg)',
+                    color: active ? '#fff' : 'var(--text-secondary)',
+                  }}
+                >
+                  Period {p}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSelectedPeriod('all')}
+              style={{
+                padding: '5px 14px',
+                borderRadius: '999px',
+                fontSize: '0.8rem',
+                fontWeight: selectedPeriod === 'all' ? 700 : 600,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                border: selectedPeriod === 'all' ? '1px solid var(--primary)' : '1px solid var(--border)',
+                background: selectedPeriod === 'all' ? 'var(--primary)' : 'var(--bg)',
+                color: selectedPeriod === 'all' ? '#fff' : 'var(--text-secondary)',
+              }}
+            >
+              All Periods
+            </button>
+          </div>
+        )}
         <div className="table-wrapper">
           <table>
             <thead>
@@ -606,6 +679,9 @@ export default function ChitGroupDetailClient({
               {group.members.flatMap((m: any) =>
                 m.subscriptions
                   .filter((s: any) => {
+                    if (selectedPeriod !== 'all' && Number(s.periodNumber) !== selectedPeriod) {
+                      return false;
+                    }
                     if (subTab === 'all') return true;
                     if (s.status === 'paid') return false;
                     const freq = parseFrequency(group);

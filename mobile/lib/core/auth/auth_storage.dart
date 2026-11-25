@@ -33,6 +33,9 @@ class AuthStorage {
   static String? _memTenantSlug;
   static String? _memBranchId;
   static String? _memAppType;
+  static int _sessionEpoch = 0;
+
+  int get sessionEpoch => _sessionEpoch;
 
   Future<void> saveSession({
     required String token,
@@ -41,19 +44,28 @@ class AuthStorage {
     String? branchId,
     String? refreshToken,
   }) async {
+    _sessionEpoch++;
     _memToken = token;
     _memTenantSlug = tenantSlug;
     _memAppType = appType;
     _memBranchId = branchId;
     _memRefreshToken = refreshToken;
 
-    await Future.wait([
-      _storage.write(key: _kToken, value: token),
-      _storage.write(key: _kTenantSlug, value: tenantSlug),
-      _storage.write(key: _kAppType, value: appType),
-      if (branchId != null) _storage.write(key: _kBranchId, value: branchId),
-      if (refreshToken != null) _storage.write(key: _kRefreshToken, value: refreshToken),
-    ]);
+    // Sequential writes avoid Android EncryptedSharedPreferences SharedPreferences
+    // concurrent apply() races right after deleteAll()/logout.
+    await _storage.write(key: _kToken, value: token);
+    await _storage.write(key: _kTenantSlug, value: tenantSlug);
+    await _storage.write(key: _kAppType, value: appType);
+    if (branchId != null) {
+      await _storage.write(key: _kBranchId, value: branchId);
+    } else {
+      await _storage.delete(key: _kBranchId);
+    }
+    if (refreshToken != null) {
+      await _storage.write(key: _kRefreshToken, value: refreshToken);
+    } else {
+      await _storage.delete(key: _kRefreshToken);
+    }
   }
 
   Future<void> updateTokens({
@@ -129,12 +141,26 @@ class AuthStorage {
       _storage.delete(key: _kPendingTotpUser);
 
   Future<void> clear() async {
+    _sessionEpoch++;
     _memToken = null;
     _memRefreshToken = null;
     _memTenantSlug = null;
     _memBranchId = null;
     _memAppType = null;
-    await _storage.deleteAll();
+    try {
+      await _storage.deleteAll();
+    } on Object {
+      // Fallback per-key delete in case deleteAll hits a keystore blip
+      await Future.wait([
+        _storage.delete(key: _kToken),
+        _storage.delete(key: _kRefreshToken),
+        _storage.delete(key: _kTenantSlug),
+        _storage.delete(key: _kBranchId),
+        _storage.delete(key: _kAppType),
+        _storage.delete(key: _kPendingTotpUser),
+        _storage.delete(key: _kUserJson),
+      ]);
+    }
   }
 }
 

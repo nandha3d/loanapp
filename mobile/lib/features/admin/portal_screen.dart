@@ -16,7 +16,8 @@ import 'package:zolofund/shared/widgets/app_logo.dart';
 /// one glassmorphic card per subscribed vertical, plus Quick Access and
 /// System Administration shortcuts. Picking a card sets the active appType
 /// and drops into that module.
-final _verticalsProvider = FutureProvider<List<String>>((ref) async {
+final _verticalsProvider = FutureProvider.autoDispose<List<String>>((ref) async {
+  ref.watch(authControllerProvider.select((s) => s.user?.id));
   final dio = ref.watch(dioProvider);
   try {
     final res = await dio.get<Map<String, dynamic>>(Endpoints.me);
@@ -185,7 +186,7 @@ class PortalScreen extends ConsumerWidget {
                             subtitle: 'View assigned customers',
                             onTap: () => context.go('/customers'),
                           ),
-                          if (cols.any((c) => AppType.normalize(c.id) != AppType.chitfunds))
+                          if (cachedVerticals.any((v) => AppType.normalize(v) != AppType.chitfunds))
                             _ActionTile(
                               icon: Icons.account_balance_wallet_rounded,
                               color: const Color(0xFFF5A623),
@@ -193,7 +194,7 @@ class PortalScreen extends ConsumerWidget {
                               subtitle: 'View loan details',
                               onTap: () => context.go('/loans'),
                             )
-                          else if (cols.any((c) => AppType.normalize(c.id) == AppType.chitfunds))
+                          else if (cachedVerticals.any((v) => AppType.normalize(v) == AppType.chitfunds))
                             _ActionTile(
                               icon: Icons.savings_rounded,
                               color: const Color(0xFFF5A623),

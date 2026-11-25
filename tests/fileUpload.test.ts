@@ -9,6 +9,11 @@ import {
 assert.equal(uploadExtensionForMime('image/jpeg'), '.jpg');
 assert.equal(uploadExtensionForMime('application/pdf'), '.pdf');
 assert.equal(uploadExtensionForMime('audio/webm'), '.webm');
+assert.equal(uploadExtensionForMime('audio/webm;codecs=opus'), '.webm');
+assert.equal(uploadExtensionForMime('audio/mp4'), '.m4a');
+assert.equal(uploadExtensionForMime('audio/aac'), '.aac');
+assert.equal(uploadExtensionForMime('audio/mpeg'), '.mp3');
+assert.equal(uploadExtensionForMime('audio/ogg'), '.ogg');
 assert.throws(() => uploadExtensionForMime('application/javascript'), /not allowed/i);
 
 assert.equal(

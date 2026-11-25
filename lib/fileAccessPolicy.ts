@@ -32,7 +32,7 @@ export async function isBorrowerFileAllowed(
     return true;
   }
 
-  const [kycDoc, paymentApproval, chitDoc] = await Promise.all([
+  const [kycDoc, paymentApproval, chitDoc, voiceRoomMsg] = await Promise.all([
     prisma.kycDocument.findFirst({
       where: { customerId, filePath: { endsWith: suffix } },
       select: { id: true },
@@ -47,8 +47,23 @@ export async function isBorrowerFileAllowed(
       where: { tenantId, fileUrl: { endsWith: suffix } },
       select: { entityType: true, entityId: true },
     }),
+    // Public voice notes posted in a live auction room are accessible to
+    // subscribers enrolled in that chit group.
+    prisma.chitRoomMessage.findFirst({
+      where: {
+        tenantId,
+        visibility: 'public',
+        audioUrl: { endsWith: suffix },
+        auction: {
+          chitGroup: {
+            members: { some: { customerId } },
+          },
+        },
+      },
+      select: { id: true },
+    }),
   ]);
-  if (kycDoc || paymentApproval) return true;
+  if (kycDoc || paymentApproval || voiceRoomMsg) return true;
 
   if (chitDoc) {
     if (chitDoc.entityType === 'payment_intent') {

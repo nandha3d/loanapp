@@ -1806,15 +1806,18 @@ model ChitAuctionAttendance {
 // 'organizer' messages are private between the sender and staff. senderName is
 // denormalized so the hot poll can render without joins.
 model ChitRoomMessage {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  auctionId      String   @map("auction_id")
-  senderUserId   String?  @map("sender_user_id") // staff/organizer sender
-  senderMemberId String?  @map("sender_member_id") // subscriber sender (M3)
-  senderName     String   @map("sender_name")
-  visibility     String   @default("public") // public | organizer
-  body           String   @db.Text
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  auctionId        String   @map("auction_id")
+  senderUserId     String?  @map("sender_user_id") // staff/organizer sender
+  senderMemberId   String?  @map("sender_member_id") // subscriber sender (M3)
+  senderName       String   @map("sender_name")
+  visibility       String   @default("public") // public | organizer
+  messageType      String   @default("text") @map("message_type") // text | voice
+  body             String   @db.Text
+  audioUrl         String?  @map("audio_url")
+  audioDurationSec Int?     @map("audio_duration_sec")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   auction ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 

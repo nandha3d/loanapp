@@ -190,8 +190,11 @@ Three independent authentication families. Do not blur them.
 ### 6.2 Mobile / API — `lib/api/v1-auth.ts`
 
 - HS256 JWT, issuer `zolofund`, audience `mobile`, **1 hour** access token; opaque refresh token, 30 days, stored in `MobileRefreshToken` and **rotated on every use** (old token revoked).
+- `issueMobileToken()` sets a unique `jti` (`randomUUID()`) per token so rapid logout → same-second re-login never shares a SHA-256 `revoked_jwt:<hash>` key.
 - Claims: `userId`, `tenantId`, `branchId`, `role`, `appType`.
 - Headers: `Authorization: Bearer <jwt>`, plus `X-Tenant-Slug`, `X-Branch-Id`, `X-App-Type`.
+- Auth routes (`login`, `2fa`, `google`, `forgot-password`, `reset-password`, `register`) filter `deletedAt: null`, support `{ username } | { phone } | { email }`, surface `409 TENANT_REQUIRED` with `tenants[]` choices after password verification when multiple tenants match, and return `refreshToken` + `verticals` consistently (`2fa` and `google` included).
+- Mobile client `AuthStorage` increments a monotonic `sessionEpoch` on `saveTokens`/`clear` and serializes `EncryptedSharedPreferences` writes; `DioClient` ignores `401` refreshes/logout callbacks from stale epochs or `/auth/*` routes so a prior session's late failure never wipes a fresh login.
 - The Auto Finance login-window check runs **when a token is minted** (login, 2FA, Google, refresh), not per request — bounded by the 1h token life.
 
 ### 6.3 Cron — `lib/cronAuth.ts`
@@ -567,7 +570,9 @@ The single entry point for both the staff web action and the mobile route. Check
 6. Live rooms only: sync bells, require an open room, apply anti-snipe extension.
 7. Bid increment: must exceed the current highest by `bidIncrement`, **except** an exact-at-cap bid, which is always accepted so cap ties can form.
 
-- **CHIT-6** — The bid floor is `effectiveMinDiscountPct()`: an explicit `minDiscountPct` always wins; otherwise the floor is `commissionPct` unless `bidStartAtCommission === false`. This is the single source of truth and has three consumers — the hard validator, the customer live-state builder, and the staff live-room poll. If they disagree, staff and customers see different "starting bid" numbers for the same auction.
+- **CHIT-6** — The bid floor is `effectiveMinDiscountPct()`: an explicit `minDiscountPct` always wins; otherwise the floor is `commissionPct` unless `bidStartAtCommission === false`. This is the single source of truth and has four consumers — the hard validator, automated floor/template computation (`computeAutomatedBidBounds`), the customer live-state builder, and the staff live-room poll. If they disagree, staff and customers see different "starting bid" numbers for the same auction.
+- **CHIT-35 (Automated Reverse Bid Bounds & Monotonic Direction)** — `computeAutomatedBidBounds()` (`lib/chits/validation.ts`) computes `startingDiscount`, `startingPrize`, strictly downward `nextValidPrize`, and premade quick-bid options; `placeChitBid()` enforces `assertMonotonicBidDirection()` on all non-sealed auctions even when `bidIncrement` is `0`/`null` (allowing exact cap ties). Web auction server actions (`app/(dashboard)/[module]/chits/actions.ts`) execute via `wrapChitAction()` and strip `Decimal`s to numbers so expected rejections return `{ ok: false, error }` cleanly instead of triggering Next.js production `Minified React error #441`.
+- **CHIT-36 (Live Room Voice & Text Chat)** — `ChitRoomMessage` stores `messageType` (`'text' | 'voice'`), `audioUrl`, and `audioDurationSec`. Both staff (`postRoomVoiceMessage`, `/api/v1/chits/[id]/auctions/[auctionId]/messages`) and enrolled borrower routes (`/api/v1/borrower/chits/[id]/auctions/[auctionId]/messages`, `/borrower/chits/[id]/auctions/[auctionId]`) stream voice notes and live transcripts; `/api/files/[...path]` authorizes borrower bearer/cookie access only for `visibility === 'public'` `ChitRoomMessage.audioUrl` records in enrolled chit groups (`lib/fileAccessPolicy.ts`).
 - **CHIT-7** — Bids are placed only through `placeChitBid()`. Never write a `ChitBid` row directly.
 - **CHIT-8** — Mobile and web bid submissions MUST carry an `idempotencyKey`. Retrying a bid on a flaky connection must not create a second bid.
 
@@ -942,6 +947,8 @@ Each of these has shipped a bug in this repository.
 - **X-28** — Allowing historical collections (`cYesterday`) or cumulative lifetime collections (`cTotal`) to spill over into today's instalment (`dueDate === today`) or future instalments in payment distribution helpers (`getDistributedInstalmentsAndMetrics`), which falsely causes unpaid today instalments to appear 'paid' and inflates 'collected today' metrics on Collection Entry and the Dashboard when zero payment was collected today (MONEY-22).
 - **X-29** — Computing or comparing money/float figures in a client (Flutter or web component) instead of rendering the API's server-computed value (STABLE-8).
 - **X-30** — Writing a staff notification with a bare `prisma.systemNotification.create` (no push, often invisible), sending an FCM `imageUrl` that is not an `https://` URL (kills the batch and prunes the tokens), or deciding "show Approve/Reject" from the words in a title instead of the server's `canAct` (NOTIF-14, NOTIF-15, NOTIF-16).
+- **X-31** — Letting Next.js `'use server'` actions throw expected business-rule errors directly across the RSC/Client boundary or return raw Prisma `Decimal` values, which Next.js production redacts into `Minified React error #441` (`CHIT-35`).
+- **X-32** — Signing mobile JWTs without a unique `jti` (causing same-second logout → re-login tokens to hit the prior `revoked_jwt:<hash>`), or firing provider invalidations during logout *before* switching auth state and incrementing `sessionEpoch` (`§6.2`).
 
 ---
 

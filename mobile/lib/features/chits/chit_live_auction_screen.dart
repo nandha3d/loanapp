@@ -1947,8 +1947,8 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
     }
   }
 
-  Future<void> _send() async {
-    final text = _ctrl.text.trim();
+  Future<void> _send([String? customText]) async {
+    final text = (customText ?? _ctrl.text).trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
@@ -1958,7 +1958,7 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
             body: text,
             toOrganizer: _toOrganizer,
           );
-      _ctrl.clear();
+      if (customText == null) _ctrl.clear();
       await _load();
     } catch (e) {
       if (mounted) {
@@ -1966,6 +1966,16 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
       }
     }
     if (mounted) setState(() => _sending = false);
+  }
+
+  Future<void> _voiceChat() async {
+    final lang = ref.read(languageProvider).code;
+    await ref.read(voiceEntryProvider.notifier).listen(lang, onFinal: (spoken) {
+      final clean = spoken.trim();
+      if (clean.isEmpty || !mounted) return;
+      _ctrl.text = '🎙️ $clean';
+      _ctrl.selection = TextSelection.fromPosition(TextPosition(offset: _ctrl.text.length));
+    });
   }
 
   @override
@@ -2038,6 +2048,15 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                                               .copyWith(
                                                   fontWeight: FontWeight.w700,),
                                         ),
+                                        if (msg.hasAudio)
+                                          TextSpan(
+                                            text:
+                                                '[Voice ${msg.audioDurationSec ?? ''}s] ',
+                                            style: AppTypography.caption
+                                                .copyWith(
+                                                    color: AppColors.primary,
+                                                    fontWeight: FontWeight.w700),
+                                          ),
                                         TextSpan(text: msg.body),
                                       ],
                                     ),
@@ -2061,6 +2080,22 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                   children: [
                     Row(
                       children: [
+                        IconButton(
+                          tooltip: 'Voice to text',
+                          onPressed: _sending
+                              ? null
+                              : (ref.watch(voiceEntryProvider).listening
+                                  ? () => ref.read(voiceEntryProvider.notifier).stop()
+                                  : _voiceChat),
+                          icon: Icon(
+                            ref.watch(voiceEntryProvider).listening
+                                ? Icons.mic
+                                : Icons.mic_none_rounded,
+                            color: ref.watch(voiceEntryProvider).listening
+                                ? AppColors.danger
+                                : AppColors.primary,
+                          ),
+                        ),
                         Expanded(
                           child: TextField(
                             controller: _ctrl,
@@ -2068,10 +2103,12 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
                             maxLines: 3,
                             textInputAction: TextInputAction.send,
                             onSubmitted: (_) => _send(),
-                            decoration: const InputDecoration(
-                              hintText: 'Message the room…',
+                            decoration: InputDecoration(
+                              hintText: ref.watch(voiceEntryProvider).listening
+                                  ? 'Listening…'
+                                  : 'Message the room…',
                               isDense: true,
-                              border: OutlineInputBorder(),
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),

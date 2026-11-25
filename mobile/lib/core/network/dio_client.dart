@@ -85,6 +85,7 @@ class _AuthInterceptor extends Interceptor {
     }
 
     if (!isAuthEndpoint) {
+      options.extra['_authEpoch'] = _storage.sessionEpoch;
       final token = await _storage.readToken();
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';
@@ -110,8 +111,24 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    final path = err.requestOptions.path;
     if (err.response?.statusCode != 401 ||
-        err.requestOptions.path.contains('/auth/refresh')) {
+        path.contains('/auth/refresh') ||
+        path.contains('/auth/logout') ||
+        path.contains('/borrower/auth/')) {
+      handler.next(err);
+      return;
+    }
+
+    // Ignore 401s belonging to a previous session (e.g. an in-flight request
+    // finishing after logout or after re-login with a brand new token).
+    final reqEpoch = err.requestOptions.extra['_authEpoch'] as int?;
+    if (reqEpoch != null && reqEpoch != _storage.sessionEpoch) {
+      handler.next(err);
+      return;
+    }
+    final activeToken = await _storage.readToken();
+    if (activeToken == null || activeToken.isEmpty) {
       handler.next(err);
       return;
     }

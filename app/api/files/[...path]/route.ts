@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getBorrowerSession } from '@/lib/borrowerAuth';
 import { verifyMobileToken } from '@/lib/api/v1-auth';
+import { verifyBorrowerMobileToken } from '@/lib/api/borrower-mobile';
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/db';
@@ -18,6 +19,11 @@ const MIME_MAP: Record<string, string> = {
   '.webp': 'image/webp',
   '.pdf': 'application/pdf',
   '.gif': 'image/gif',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.webm': 'audio/webm',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
 };
 
 export async function GET(
@@ -35,14 +41,22 @@ export async function GET(
     role = (session.user as any).role as string;
     userId = session.user.id;
   } else if (bearerHeader?.startsWith('Bearer ')) {
-    // Mobile app — same JWT as the /api/v1 routes
+    const rawToken = bearerHeader.slice('Bearer '.length).trim();
+    // Mobile app — try staff JWT first, then borrower-mobile JWT
     try {
-      const claims = await verifyMobileToken(bearerHeader.slice('Bearer '.length).trim());
+      const claims = await verifyMobileToken(rawToken);
       sessionTenantId = claims.tenantId;
       role = claims.role;
       userId = claims.userId;
     } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      try {
+        const bClaims = await verifyBorrowerMobileToken(rawToken);
+        sessionTenantId = bClaims.tenantId;
+        role = 'borrower';
+        userId = bClaims.customerId;
+      } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
   } else {
     const borrowerSession = await getBorrowerSession();

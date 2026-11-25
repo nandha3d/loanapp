@@ -52,3 +52,45 @@ export async function markAttendanceOnLogin(customerId: string, tenantId: string
     console.error('[markAttendanceOnLogin] failed', err);
   }
 }
+
+/**
+ * Joins an eligible subscriber into a live chit room while preserving any prior
+ * staff waiting-room decision (`waiting`/`admitted`/`denied`) over login-only marks.
+ */
+export async function joinAuctionRoomAttendance(params: {
+  tenantId: string;
+  branchId: string | null;
+  auctionId: string;
+  memberId: string;
+  roomAdmission: string;
+}): Promise<{ admissionStatus: string }> {
+  const targetStatus = params.roomAdmission === 'approval' ? 'waiting' : 'admitted';
+  const existing = await prisma.chitAuctionAttendance.findUnique({
+    where: { auctionId_memberId: { auctionId: params.auctionId, memberId: params.memberId } },
+  });
+
+  if (!existing) {
+    const created = await prisma.chitAuctionAttendance.create({
+      data: {
+        tenantId: params.tenantId,
+        branchId: params.branchId,
+        auctionId: params.auctionId,
+        memberId: params.memberId,
+        status: 'present',
+        admissionStatus: targetStatus,
+        markedVia: 'room_join',
+      },
+    });
+    return { admissionStatus: created.admissionStatus };
+  }
+
+  if (existing.admissionStatus === 'none') {
+    const updated = await prisma.chitAuctionAttendance.update({
+      where: { id: existing.id },
+      data: { admissionStatus: targetStatus, status: 'present', markedVia: 'room_join' },
+    });
+    return { admissionStatus: updated.admissionStatus };
+  }
+
+  return { admissionStatus: existing.admissionStatus };
+}

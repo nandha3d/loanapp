@@ -128,8 +128,13 @@ class BorrowerService {
 
   /// Logout the borrower session.
   Future<void> logout() async {
-    await _dio.post<Map<String, dynamic>>(Endpoints.borrowerLogout);
-    await _storage?.clear();
+    try {
+      await _dio.post<Map<String, dynamic>>(Endpoints.borrowerLogout);
+    } on Object {
+      // ignore network/401 failures — local session MUST still clear
+    } finally {
+      await _storage?.clear();
+    }
   }
 }
 

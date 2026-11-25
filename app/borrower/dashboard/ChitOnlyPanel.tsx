@@ -130,6 +130,26 @@ export default function ChitOnlyPanel({
                   <div style={{ fontWeight: 600, color: '#0f172a' }}>
                     Period {m.nextAuction.periodNumber} · {formatDate(m.nextAuction.scheduledAt ?? m.nextAuction.auctionDate)}
                   </div>
+                  {(m.group as any).auctionType === 'open_live' && (
+                    <Link
+                      href={`/borrower/chits/${m.group.id}/auctions/${m.nextAuction.id}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '6px',
+                        padding: '5px 12px',
+                        borderRadius: '999px',
+                        background: '#7D287E',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      Join Live Auction &amp; Voice Chat →
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

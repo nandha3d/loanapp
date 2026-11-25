@@ -65,6 +65,168 @@ export function startingDiscountAmount(
   return pct != null ? Math.round(((chitValue * pct) / 100) * 100) / 100 : 0;
 }
 
+export type AutomatedBidTemplateOption = {
+  label: string;
+  discountStepDelta: number;
+  prizeAmount: number;
+  discountAmount: number;
+  discountPct: number;
+};
+
+export type AutomatedBidBounds = {
+  direction: 'reverse_prize';
+  chitValue: number;
+  startingDiscount: number;
+  startingPrize: number;
+  minDiscount: number;
+  maxDiscount: number | null;
+  minPrize: number;
+  step: number;
+  effectiveStep: number;
+  currentHighestDiscount: number;
+  currentLowestPrize: number | null;
+  nextValidDiscount: number;
+  nextValidPrize: number;
+  canBidFurther: boolean;
+  templatePrizes: AutomatedBidTemplateOption[];
+};
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+/** Computes server-authoritative starting floor, monotonic next bid ceiling, and premade template buttons. */
+export function computeAutomatedBidBounds(params: {
+  chitValue: number;
+  maxDiscountPct?: number | null;
+  minDiscountPct?: number | null;
+  commissionPct?: number | null;
+  bidStartAtCommission?: boolean | null;
+  reserveFloorPct?: number | null;
+  uncapped?: boolean;
+  bidIncrement?: number | null;
+  currentHighestDiscount?: number | null;
+  auctionType?: string | null;
+}): AutomatedBidBounds {
+  const chitValue = Math.max(1, round2(params.chitValue));
+  const startingDiscount = startingDiscountAmount(chitValue, {
+    minDiscountPct: params.minDiscountPct,
+    bidStartAtCommission: params.bidStartAtCommission,
+    commissionPct: params.commissionPct,
+    reserveFloorPct: params.reserveFloorPct,
+  });
+  const maxDiscount =
+    !params.uncapped && params.maxDiscountPct != null
+      ? Math.min(round2(chitValue - 1), round2((chitValue * params.maxDiscountPct) / 100))
+      : null;
+  const minPrize = maxDiscount != null ? Math.max(1, round2(chitValue - maxDiscount)) : 1;
+  const minDiscount = Math.min(maxDiscount ?? chitValue - 1, startingDiscount);
+  const startingPrize = Math.max(minPrize, round2(chitValue - minDiscount));
+
+  const step = params.bidIncrement && params.bidIncrement > 0 ? round2(params.bidIncrement) : 0;
+  const rawAutoStep = Math.max(100, Math.round((chitValue * 0.005) / 100) * 100 || 100);
+  const effectiveStep = step > 0 ? step : Math.min(Math.max(1, round2(chitValue - 1)), rawAutoStep);
+
+  const currentHighestDiscount = Math.max(0, round2(params.currentHighestDiscount ?? 0));
+  const currentLowestPrize =
+    currentHighestDiscount > 0 ? Math.max(1, round2(chitValue - currentHighestDiscount)) : null;
+
+  const isSealed = params.auctionType === 'sealed';
+  const minAdvance = isSealed ? 0 : step > 0 ? step : 1;
+  const capCeiling = maxDiscount ?? round2(chitValue - 1);
+
+  let nextValidDiscount: number;
+  if (currentHighestDiscount > 0 && !isSealed) {
+    nextValidDiscount = Math.min(capCeiling, round2(currentHighestDiscount + minAdvance));
+  } else {
+    nextValidDiscount = Math.min(capCeiling, minDiscount > 0 ? minDiscount : step > 0 ? step : effectiveStep);
+  }
+  const nextValidPrize = Math.max(minPrize, round2(chitValue - nextValidDiscount));
+
+  const canBidFurther =
+    isSealed ||
+    maxDiscount == null ||
+    currentHighestDiscount < maxDiscount;
+
+  // Build crisp premade template price buttons strictly moving in valid direction (prize down, discount up)
+  const uiAnchorDiscount =
+    currentHighestDiscount > 0 && !isSealed
+      ? Math.min(capCeiling, Math.max(nextValidDiscount, round2(currentHighestDiscount + effectiveStep)))
+      : nextValidDiscount;
+
+  const multipliers = currentHighestDiscount > 0 && !isSealed ? [0, 1, 2, 4, 9] : [0, 1, 2, 5, 10];
+  const seenPrizes = new Set<number>();
+  const templatePrizes: AutomatedBidTemplateOption[] = [];
+
+  if (canBidFurther) {
+    for (const mult of multipliers) {
+      const candidateDiscount = Math.min(capCeiling, round2(uiAnchorDiscount + effectiveStep * mult));
+      if (candidateDiscount < nextValidDiscount) continue;
+      const candidatePrize = Math.max(minPrize, round2(chitValue - candidateDiscount));
+      if (candidatePrize < minPrize || candidatePrize > nextValidPrize || seenPrizes.has(candidatePrize)) {
+        continue;
+      }
+      seenPrizes.add(candidatePrize);
+      const deltaFromStart = round2(candidateDiscount - (currentHighestDiscount > 0 && !isSealed ? currentHighestDiscount : minDiscount));
+      const isStartFloor = currentHighestDiscount === 0 && candidateDiscount === nextValidDiscount;
+      const label = isStartFloor
+        ? 'Start Floor'
+        : deltaFromStart > 0
+          ? `+₹${deltaFromStart.toLocaleString('en-IN')} disc`
+          : 'Min Next';
+      templatePrizes.push({
+        label,
+        discountStepDelta: round2(candidateDiscount - nextValidDiscount),
+        prizeAmount: candidatePrize,
+        discountAmount: candidateDiscount,
+        discountPct: chitValue > 0 ? round2((candidateDiscount / chitValue) * 100) : 0,
+      });
+    }
+  }
+
+  return {
+    direction: 'reverse_prize',
+    chitValue,
+    startingDiscount: minDiscount,
+    startingPrize,
+    minDiscount,
+    maxDiscount,
+    minPrize,
+    step,
+    effectiveStep,
+    currentHighestDiscount,
+    currentLowestPrize,
+    nextValidDiscount,
+    nextValidPrize,
+    canBidFurther,
+    templatePrizes,
+  };
+}
+
+/** Rejects backward/stale bids in open reverse auctions (even when bidIncrement is 0/null). */
+export function assertMonotonicBidDirection(params: {
+  chitValue: number;
+  bidDiscount: number;
+  currentHighestDiscount: number;
+  incrementStep: number;
+  maxDiscountCap?: number | null;
+  auctionType?: string | null;
+}) {
+  if (params.auctionType === 'sealed') return;
+  const { chitValue, bidDiscount, currentHighestDiscount, incrementStep, maxDiscountCap } = params;
+  if (currentHighestDiscount <= 0) return;
+
+  const atCap = maxDiscountCap != null && round2(bidDiscount) === round2(maxDiscountCap);
+  const minAdvance = incrementStep > 0 ? incrementStep : 1;
+  const minRequiredDiscount = round2(currentHighestDiscount + minAdvance);
+  if (!atCap && bidDiscount + 1e-9 < minRequiredDiscount) {
+    const maxNextPrize = Math.max(1, round2(chitValue - minRequiredDiscount));
+    throw new Error(
+      `Reverse bidding only decreases prize: prize must be <= ${maxNextPrize} (discount >= ${minRequiredDiscount})`,
+    );
+  }
+}
+
 export function assertValidPrizeAmount(params: {
   chitValue: number;
   prizeAmount: number;

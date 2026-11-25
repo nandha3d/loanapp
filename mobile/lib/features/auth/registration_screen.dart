@@ -47,6 +47,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _businessNameCtrl = TextEditingController();
   final _ownerNameCtrl = TextEditingController();
   final _ownerPhoneCtrl = TextEditingController();
+  final _ownerEmailCtrl = TextEditingController();
   final _ownerUsernameCtrl = TextEditingController();
   final _ownerPasswordCtrl = TextEditingController();
   final _referralCtrl = TextEditingController();
@@ -61,6 +62,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _ownerNameCtrl.text = widget.googleName ?? '';
     _referralCtrl.text = widget.referralCode ?? '';
     if (widget.googleEmail != null) {
+      _ownerEmailCtrl.text = widget.googleEmail!;
       final emailPrefix = widget.googleEmail!.split('@')[0];
       _ownerUsernameCtrl.text = emailPrefix.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
     }
@@ -72,6 +74,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _businessNameCtrl.dispose();
     _ownerNameCtrl.dispose();
     _ownerPhoneCtrl.dispose();
+    _ownerEmailCtrl.dispose();
     _ownerUsernameCtrl.dispose();
     _ownerPasswordCtrl.dispose();
     _referralCtrl.dispose();
@@ -165,6 +168,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               businessName: _businessNameCtrl.text,
               ownerName: _ownerNameCtrl.text,
               ownerPhone: _ownerPhoneCtrl.text,
+              ownerEmail: _ownerEmailCtrl.text.trim().isEmpty
+                  ? null
+                  : _ownerEmailCtrl.text.trim().toLowerCase(),
               ownerUsername: _ownerUsernameCtrl.text,
               ownerPassword: _ownerPasswordCtrl.text,
               selectedPlan: _selectedPlan,
@@ -178,7 +184,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final authState = ref.read(authControllerProvider);
       if (authState.stage == AuthStage.authenticated) {
         if (mounted) {
-          context.go('/dashboard');
+          context.go('/portal');
         }
       } else if (authState.error != null) {
         if (mounted) {
@@ -398,6 +404,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             prefixIcon: Icons.phone_android,
             keyboardType: TextInputType.phone,
           ),
+          if (!_isGoogleRegister) ...[
+            const SizedBox(height: 16),
+            AppTextField(
+              label: 'Email Address (optional)',
+              controller: _ownerEmailCtrl,
+              prefixIcon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
           const SizedBox(height: 16),
           AppTextField(
             label: 'Login Username',
