@@ -79,38 +79,6 @@ export default function ChitTemplateExplainerModal({
   onApply: (template: ChitTemplateDefinition, customOverrides?: ChitTemplateApplyOverrides) => void;
   onClose: () => void;
 }) {
-  if (!template) return null;
-  return (
-    <ChitTemplateExplainerModalContent
-      key={template.code}
-      template={template}
-      currencySymbol={currencySymbol}
-      lang={lang}
-      dict={dict}
-      isApplied={isApplied}
-      onApply={onApply}
-      onClose={onClose}
-    />
-  );
-}
-
-function ChitTemplateExplainerModalContent({
-  template,
-  currencySymbol,
-  lang,
-  dict,
-  isApplied,
-  onApply,
-  onClose,
-}: {
-  template: ChitTemplateDefinition;
-  currencySymbol: string;
-  lang: string;
-  dict?: Record<string, unknown>;
-  isApplied: boolean;
-  onApply: (template: ChitTemplateDefinition, customOverrides?: ChitTemplateApplyOverrides) => void;
-  onClose: () => void;
-}) {
   const validLocales: SupportedLocale[] = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];
   const locale: SupportedLocale = validLocales.includes(lang as SupportedLocale)
     ? (lang as SupportedLocale)
@@ -121,47 +89,87 @@ function ChitTemplateExplainerModalContent({
   const templatesMap = (chitsDict.templates ?? {}) as Record<string, LocalizedTemplateCopy | undefined>;
 
   const [activeTab, setActiveTab] = useState<TabId>('process');
-  const [simInput, setSimInput] = useState<ChitSimulationInput>(() =>
-    buildDefaultSimulationInput(template),
-  );
+  const [simInput, setSimInput] = useState<ChitSimulationInput | null>(null);
   const [simResult, setSimResult] = useState<ChitSimulationResult | null>(null);
   const [isCustomized, setIsCustomized] = useState(false);
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
 
   const requestSeqRef = useRef(0);
-  const hasLoadedOnceRef = useRef(false);
+  const lastTemplateCodeRef = useRef<string | null>(null);
 
-  // Execute server simulation whenever simInput changes (debounced 150ms on edits, immediate on mount)
+  // Initialize simulator input when template opens or changes
   useEffect(() => {
-    const seq = ++requestSeqRef.current;
-    const delay = hasLoadedOnceRef.current ? 150 : 0;
+    if (!template) {
+      lastTemplateCodeRef.current = null;
+      setSimInput(null);
+      setSimResult(null);
+      setSimError(null);
+      setIsCustomized(false);
+      return;
+    }
+    if (lastTemplateCodeRef.current !== template.code) {
+      lastTemplateCodeRef.current = template.code;
+      const defaults = buildDefaultSimulationInput(template);
+      setActiveTab('process');
+      setSimInput(defaults);
+      setSimResult(null);
+      setIsCustomized(false);
+      setSimError(null);
+    }
+  }, [template]);
 
-    const timer = setTimeout(async () => {
-      if (requestSeqRef.current !== seq) return;
-      setSimLoading(true);
-      try {
-        const result = await simulateChitTemplateAction(simInput);
-        if (requestSeqRef.current !== seq) return;
-        hasLoadedOnceRef.current = true;
-        setSimResult(result);
-        setSimError(null);
-      } catch (err: unknown) {
-        if (requestSeqRef.current !== seq) return;
-        const msg = err instanceof Error ? err.message : 'Simulation failed';
-        setSimError(msg);
-      } finally {
-        if (requestSeqRef.current === seq) {
-          setSimLoading(false);
+  // Execute server simulation whenever simInput changes (debounced 150ms on edits, immediate on first open)
+  useEffect(() => {
+    if (!simInput) return;
+    const seq = ++requestSeqRef.current;
+    const isInitialLoad = simResult === null;
+    setSimLoading(true);
+
+    const timer = setTimeout(
+      async () => {
+        try {
+          const result = await simulateChitTemplateAction(simInput);
+          if (requestSeqRef.current !== seq) return;
+          setSimResult(result);
+          setSimError(null);
+        } catch (err: unknown) {
+          if (requestSeqRef.current !== seq) return;
+          const msg = err instanceof Error ? err.message : 'Simulation failed';
+          setSimError(msg);
+        } finally {
+          if (requestSeqRef.current === seq) {
+            setSimLoading(false);
+          }
         }
-      }
-    }, delay);
+      },
+      isInitialLoad ? 0 : 150,
+    );
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simInput]);
+
+  if (!template || !simInput) return null;
+
+  const catalog = CHIT_ENGINE_CATALOG[template.engineType];
+  const guide = OPERATIONAL_GUIDES[template.engineType] ?? OPERATIONAL_GUIDES.AUCTION_STANDARD;
+  const localizedTmpl = templatesMap[template.code];
+  const templateTitle = localizedTmpl?.title || template.defaultName;
+  const templateBadge = localizedTmpl?.badge || template.defaultBadge;
+
+  const freqLabelMap: Record<string, string> = {
+    monthly: labels.freqMonthly || 'monthly',
+    daily: labels.freqDaily || 'daily',
+    weekly: labels.freqWeekly || 'weekly',
+    fortnightly: labels.freqFortnightly || 'fortnightly',
+    custom: labels.freqCustom || 'custom',
+  };
+  const localizedFreq = freqLabelMap[simInput.frequency || template.defaultFrequency] || template.defaultFrequency;
 
   const updateInput = (patch: Partial<ChitSimulationInput>, markEdited = true) => {
     setSimInput((prev) => {
+      if (!prev) return prev;
       const next: ChitSimulationInput = { ...prev, ...patch };
       // Auto-sync monthlyContrib when strict pot value / members change unless user specifically edited monthlyContrib directly
       if (
@@ -188,6 +196,7 @@ function ChitTemplateExplainerModalContent({
 
   const updateCycleOverride = (periodNumber: number, patch: Partial<ChitCycleOverride>) => {
     setSimInput((prev) => {
+      if (!prev) return prev;
       const existing = prev.cycleOverrides ?? {};
       return {
         ...prev,
@@ -203,21 +212,6 @@ function ChitTemplateExplainerModalContent({
     });
     setIsCustomized(true);
   };
-
-  const catalog = CHIT_ENGINE_CATALOG[template.engineType];
-  const guide = OPERATIONAL_GUIDES[template.engineType] ?? OPERATIONAL_GUIDES.AUCTION_STANDARD;
-  const localizedTmpl = templatesMap[template.code];
-  const templateTitle = localizedTmpl?.title || template.defaultName;
-  const templateBadge = localizedTmpl?.badge || template.defaultBadge;
-
-  const freqLabelMap: Record<string, string> = {
-    monthly: labels.freqMonthly || 'monthly',
-    daily: labels.freqDaily || 'daily',
-    weekly: labels.freqWeekly || 'weekly',
-    fortnightly: labels.freqFortnightly || 'fortnightly',
-    custom: labels.freqCustom || 'custom',
-  };
-  const localizedFreq = freqLabelMap[simInput.frequency || template.defaultFrequency] || template.defaultFrequency;
 
   const handleReset = () => {
     const defaults = buildDefaultSimulationInput(template);
