@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,6 +114,69 @@ class BorrowerChitService {
       res,
       (dynamic d) => RoomMessage.fromJson(d as Map<String, dynamic>),
     );
+  }
+
+  Future<Map<String, dynamic>> groupRoomState(
+    String groupId, {
+    String? sinceMessageId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.borrowerChitGroupRoom(groupId),
+      queryParameters: sinceMessageId == null ? null : {'since': sinceMessageId},
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<void> joinGroupRoom(String groupId) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.borrowerChitGroupRoom(groupId),
+      data: {'action': 'join'},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> placeGroupRoomBid(
+    String groupId, {
+    required double prizeAmount,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.borrowerChitGroupRoom(groupId),
+      data: {
+        'action': 'bid',
+        'prizeAmount': prizeAmount,
+        'idempotencyKey': _newIdempotencyKey(),
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> sendGroupRoomMessage(
+    String groupId, {
+    required String body,
+    String? replyToId,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.borrowerChitGroupRoom(groupId),
+      data: {
+        'action': 'message',
+        'body': body,
+        if (replyToId != null && replyToId.isNotEmpty) 'replyToId': replyToId,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<Uint8List> downloadPeriodReportPdf(
+    String groupId,
+    String auctionId, {
+    String lang = 'en',
+  }) async {
+    final res = await _dio.get<List<int>>(
+      Endpoints.borrowerChitAuctionReport(groupId, auctionId),
+      queryParameters: {'lang': lang},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(res.data ?? const <int>[]);
   }
 
   /// Doc 22b — current/overdue/upcoming/history grouped contributions +

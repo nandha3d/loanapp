@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -308,7 +310,13 @@ class ChitService {
     String paymentMode = 'cash',
     String? referenceNo,
     String? notes,
+    Map<String, int>? cashDenominations,
   }) async {
+    final cleanDenoms = cashDenominations == null
+        ? null
+        : Map<String, int>.fromEntries(
+            cashDenominations.entries.where((e) => e.value > 0),
+          );
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitAuctionPayout(groupId, auctionId),
       data: {
@@ -316,9 +324,77 @@ class ChitService {
         if (referenceNo != null && referenceNo.trim().isNotEmpty)
           'referenceNo': referenceNo.trim(),
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (cleanDenoms != null && cleanDenoms.isNotEmpty)
+          'cashDenominations': cleanDenoms,
       },
     );
     unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<Map<String, dynamic>> groupRoomState(
+    String groupId, {
+    String? sinceMessageId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitGroupRoom(groupId),
+      queryParameters: sinceMessageId == null ? null : {'since': sinceMessageId},
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<void> sendGroupRoomMessage(
+    String groupId, {
+    required String body,
+    bool toOrganizer = false,
+    String? replyToId,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitGroupRoom(groupId),
+      data: {
+        'action': 'message',
+        'body': body,
+        'visibility': toOrganizer ? 'organizer' : 'public',
+        if (replyToId != null && replyToId.isNotEmpty) 'replyToId': replyToId,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> sendGroupRoomReminder(String groupId, String body) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitGroupRoom(groupId),
+      data: {'action': 'reminder', 'body': body},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> updateGroupRoomSettings(
+    String groupId, {
+    required String roomChatMode,
+    String? pinnedAnnouncement,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitGroupRoom(groupId),
+      data: {
+        'action': 'settings',
+        'roomChatMode': roomChatMode,
+        'pinnedAnnouncement': pinnedAnnouncement,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<Uint8List> downloadPeriodReportPdf(
+    String groupId,
+    String auctionId, {
+    String lang = 'en',
+  }) async {
+    final res = await _dio.get<List<int>>(
+      Endpoints.chitAuctionReport(groupId, auctionId),
+      queryParameters: {'lang': lang},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(res.data ?? const <int>[]);
   }
 
   Future<void> collectContribution(

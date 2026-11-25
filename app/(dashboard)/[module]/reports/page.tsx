@@ -10,8 +10,9 @@ export default async function ReportsPage({
 }) {
   const session = await auth();
   const role = (session?.user as any)?.role;
+  const staffPermissions = (session?.user as any)?.staffPermissions;
   const appType = await getUserAppType();
-  if (!role || role === 'agent') redirect(modulePath(appType, '/dashboard'));
+  if (!role || (role === 'agent' && !staffPermissions?.canViewReports)) redirect(modulePath(appType, '/dashboard'));
 
   const resolvedParams = await searchParams;
   const q = new URLSearchParams();

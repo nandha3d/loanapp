@@ -286,6 +286,7 @@ export const ta = {
     pendingTasks: 'நிலுவைப் பணிகள்',
     financePartners: 'தரகர்கள் & விற்பனையாளர்கள்',
     chits: 'சீட்டு குழுக்கள்',
+    foremanPortal: 'போர்மேன் போர்ட்டல்',
     penalties: 'அபராதங்கள்',
     approvals: 'அங்கீகாரங்கள்',
     reports: 'அறிக்கைகள்',

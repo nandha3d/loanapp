@@ -7,6 +7,7 @@ import { assertMonotonicBidDirection, assertValidPrizeAmount } from './validatio
 import { roundMoney } from './calculations';
 import { calculateReserveFloor } from './engineCalculator';
 import { isBiddingEnabledForPeriod, parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
+import { postRoomBidEvent } from './groupRoom';
 
 export type ChitBidSource = 'tap' | 'voice' | 'remote';
 
@@ -167,5 +168,25 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
       ...(auction.chitGroup.auctionType === 'open_live' ? { bellAnchorAt: new Date(), bellsRung: 0 } : {}),
     },
   });
+
+  if (params.tenantId) {
+    const memberInfo = await tx.chitMember.findUnique({
+      where: { id: member.id },
+      select: { ticketNo: true, memberNumber: true, customer: { select: { name: true } } },
+    });
+    await postRoomBidEvent(tx, {
+      tenantId: params.tenantId,
+      chitGroupId: auction.chitGroupId,
+      auctionId: auction.id,
+      periodNumber,
+      ticketNo: memberInfo?.ticketNo ?? (memberInfo ? String(memberInfo.memberNumber) : null),
+      memberId: member.id,
+      memberName: memberInfo?.customer?.name ?? 'Member',
+      prizeAmount,
+      bidDiscount,
+      source,
+    });
+  }
+
   return created;
 }

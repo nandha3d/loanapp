@@ -16,7 +16,8 @@ export default async function NewChitGroupPage() {
   if (!session?.user) redirect('/login');
   const appType = await getUserAppType();
   const role = (session.user as any)?.role as string | undefined;
-  if (!canAdminChits(role)) redirect(modulePath(appType, '/collection'));
+  const staffPermissions = (session.user as any)?.staffPermissions ?? null;
+  if (!canAdminChits(role, staffPermissions)) redirect(modulePath(appType, '/collection'));
 
   const tenantId = await getDefaultTenantId();
   try {
@@ -40,19 +41,40 @@ export default async function NewChitGroupPage() {
   // SCOPE-12: the member picker is branch work. Tenant-wide, a superadmin on
   // one branch could enrol another branch's customers into a chit group.
   const activeBranchId = await getActiveBranchId();
-  const [customers, chitTypeSettings] = await Promise.all([
+  const [customers, chitTypeSettings, staffUsers] = await Promise.all([
     prisma.customer.findMany({
       where: { tenantId, appType, status: 'active', deletedAt: null, ...branchScopeWhere(activeBranchId) },
       select: { id: true, name: true, customerCode: true },
       orderBy: { name: 'asc' },
     }),
     getChitTypeSettings(tenantId),
+    prisma.user.findMany({
+      where: {
+        tenantId,
+        status: 'active',
+        deletedAt: null,
+        OR: [
+          { role: { in: ['admin', 'superadmin'] } },
+          { role: 'agent', appType, ...branchScopeWhere(activeBranchId) },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        role: true,
+        customRoleName: true,
+        customRole: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
   ]);
 
   return (
     <div>
       <ChitGroupForm
         customers={customers}
+        staffUsers={staffUsers}
         currencySymbol={currencySymbol}
         dict={dict}
         lang={lang}

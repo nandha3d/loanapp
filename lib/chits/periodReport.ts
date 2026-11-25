@@ -17,7 +17,10 @@ import {
   resolveEngineTypeFromGroup,
 } from './engineTypes';
 import { generateAuctionMinutes } from './auction';
+import { formatCashDenominationsSummary, normalizeCashDenominations } from './payout';
 import { SECURITY_DOCUMENT_LABELS, getSecurityTypeSpec } from './securityTypes';
+import { ensurePdfFonts, resolvePdfLang, type PdfLang } from '../reports/pdfFonts';
+import { getPeriodReportCopy } from './periodReportI18n';
 import type { ChitScope } from './types';
 
 export interface CashDenominationEntry {
@@ -59,6 +62,7 @@ export interface ChitPeriodMemberRow {
 }
 
 export interface ChitPeriodReportData {
+  lang?: PdfLang;
   tenantName: string;
   branchName: string;
   currencySymbol: string;
@@ -261,7 +265,7 @@ const ENGINE_SECTION_TITLES: Record<string, string> = {
 };
 
 function fmtInr(n: number, sym: string): string {
-  const safeSym = !sym || sym === '₹' ? 'Rs.' : sym;
+  const safeSym = !sym || sym === '₹' ? (ensurePdfFonts() ? '₹' : 'Rs.') : sym;
   return `${safeSym} ${roundMoney(n).toLocaleString('en-IN')}`;
 }
 
@@ -453,8 +457,13 @@ export async function buildChitPeriodReportData(params: {
   tenantName: string;
   currencySymbol: string;
   cashDenominations?: Record<number, number>;
+  lang?: string | null;
 }): Promise<ChitPeriodReportData | null> {
-  const { chitGroupId, auctionId, scope, tenantName, currencySymbol, cashDenominations } = params;
+  const { chitGroupId, auctionId, scope, tenantName, currencySymbol, cashDenominations, lang } = params;
+  const resolvedLang = resolvePdfLang(lang);
+  const copy = getPeriodReportCopy(resolvedLang);
+  const effectiveSym =
+    !currencySymbol || currencySymbol === '₹' ? (ensurePdfFonts() ? '₹' : 'Rs.') : currencySymbol;
 
   const auction = await prisma.chitAuction.findFirst({
     where: {
@@ -869,21 +878,31 @@ export async function buildChitPeriodReportData(params: {
     hybridPhase,
     reserveFloorAmount,
     breakdown,
-    sym: currencySymbol,
+    sym: effectiveSym,
   });
 
-  // Build Payout / Disbursement settlement rows
+  // Build Payout / Disbursement settlement rows & aggregate saved cash denominations
+  const savedDenoms: Record<number, number> = {};
   const payoutRows: ChitPeriodSettlementRow[] = [];
   if (payoutReceipts.length > 0) {
     payoutReceipts.forEach((pr, idx) => {
       const issuer = pr.issuedById ? userNameMap.get(pr.issuedById) : null;
       const modeDesc = labelMode(pr.paymentMode);
+      const prDenoms = normalizeCashDenominations((pr as any).cashDenominationsJson);
+      if (prDenoms) {
+        for (const [k, v] of Object.entries(prDenoms)) {
+          const d = Number(k);
+          savedDenoms[d] = (savedDenoms[d] ?? 0) + Number(v);
+        }
+      }
+      const denomSummary = formatCashDenominationsSummary(prDenoms, effectiveSym);
+      const baseRef = pr.referenceNo ? `${modeDesc} · ${pr.referenceNo}` : `${modeDesc} · ${pr.receiptNo}`;
       payoutRows.push({
         slNo: idx + 1,
         description: pr.notes
           ? pr.notes
           : `${modeDesc} Prize Payout${issuer ? ` (${issuer})` : ''}`,
-        modeOrRef: pr.referenceNo ? `${modeDesc} · ${pr.referenceNo}` : `${modeDesc} · ${pr.receiptNo}`,
+        modeOrRef: denomSummary ? `${baseRef} · ${denomSummary}` : baseRef,
         amount: Number(pr.amount),
       });
     });
@@ -901,16 +920,18 @@ export async function buildChitPeriodReportData(params: {
   const targetPayout = prizePayoutTotal;
   const remainingPayoutBalance = Math.max(0, roundMoney(targetPayout - totalDisbursedToWinner));
 
-  // Cash denomination breakdown (defaults to 500, 200, 100 at 0 unless passed in query params)
-  const defaultDenoms = [500, 200, 100, 50];
-  const suppliedKeys = cashDenominations
-    ? Object.keys(cashDenominations).map(Number).filter((d) => d > 0)
+  // Hydrate cash denominations: query-param override takes precedence if non-empty, else saved receipt denominations
+  const explicitDenoms = normalizeCashDenominations(cashDenominations);
+  const effectiveDenoms = explicitDenoms ?? (Object.keys(savedDenoms).length > 0 ? savedDenoms : undefined);
+  const defaultDenoms = [500, 200, 100, 50, 20, 10];
+  const suppliedKeys = effectiveDenoms
+    ? Object.keys(effectiveDenoms).map(Number).filter((d) => d > 0)
     : [];
   const denomList = Array.from(new Set([...defaultDenoms, ...suppliedKeys])).sort((a, b) => b - a);
   const denominations: CashDenominationEntry[] = denomList
-    .filter((d) => d === 500 || d === 200 || d === 100 || (cashDenominations?.[d] ?? 0) > 0)
+    .filter((d) => d === 500 || d === 200 || d === 100 || (effectiveDenoms?.[d] ?? 0) > 0)
     .map((d) => {
-      const count = Math.max(0, Math.floor(cashDenominations?.[d] ?? 0));
+      const count = Math.max(0, Math.floor(effectiveDenoms?.[d] ?? 0));
       return { denomination: d, count, amount: roundMoney(d * count) };
     });
   const denominationCashTotal = roundMoney(denominations.reduce((s, d) => s + d.amount, 0));
@@ -935,14 +956,15 @@ export async function buildChitPeriodReportData(params: {
           presentCount: presentCount + proxyCount,
           totalMembers: group.totalMembers,
         })
-      : 'Auction not yet finalized — figures reflect scheduled parameters.');
+      : copy.notFinalizedMinutes);
 
   const secSpec = security ? getSecurityTypeSpec(security.securityType) : null;
 
   return {
+    lang: resolvedLang,
     tenantName,
     branchName: group.branch?.name ?? 'Main Branch',
-    currencySymbol,
+    currencySymbol: effectiveSym,
     generatedAt: new Date().toISOString(),
     templateSectionTitle: statementCopy.sectionTitle,
     group: {

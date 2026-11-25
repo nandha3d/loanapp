@@ -465,6 +465,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
       return true;
     },
     async jwt({ token, user }: any) {
+      // Always read user's current role/permissions/customRole from DB on JWT issue or 15-min refresh
       if (user) {
         // Only store minimal essential data in JWT for authorization
         // Sensitive data (tenantId, branchId, phone, username) are fetched server-side in session callback
@@ -476,22 +477,35 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         let appType = (user as AuthorizedUser).appType;
 
         // If these are missing (e.g. Google OAuth login), fetch them from the database
-        if (!role || !tenantId) {
-          try {
-            const prisma = (await import('./db')).default;
-            const dbUser = await prisma.user.findUnique({
-              where: { id: user.id },
-              select: { role: true, tenantId: true, branchId: true, appType: true }
-            });
-            if (dbUser) {
-              role = dbUser.role;
-              tenantId = dbUser.tenantId;
-              branchId = dbUser.branchId;
-              appType = dbUser.appType;
-            }
-          } catch (e) {
-            console.error('[AUTH_JWT_DB_LOOKUP_ERROR]', e);
+        try {
+          const prisma = (await import('./db')).default;
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              role: true,
+              tenantId: true,
+              branchId: true,
+              appType: true,
+              customRoleName: true,
+              staffPermissions: true,
+              customRole: { select: { name: true, permissionsJson: true, status: true } },
+            },
+          });
+          if (dbUser) {
+            role = dbUser.role;
+            tenantId = dbUser.tenantId;
+            branchId = dbUser.branchId;
+            appType = dbUser.appType;
+            const { mergeStaffPermissions, encodePermissionClaims } = await import('./staffPermissions');
+            const effPerms = mergeStaffPermissions(
+              dbUser.customRole?.status === 'active' ? dbUser.customRole.permissionsJson : null,
+              dbUser.staffPermissions,
+            );
+            token.staffPerms = encodePermissionClaims(effPerms);
+            token.customRoleName = dbUser.customRoleName || dbUser.customRole?.name || null;
           }
+        } catch (e) {
+          console.error('[AUTH_JWT_DB_LOOKUP_ERROR]', e);
         }
 
         token.role = role;
@@ -570,9 +584,25 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           const prisma = (await import('./db')).default;
           const fresh = await prisma.user.findUnique({
             where: { id: token.userId },
-            select: { branchId: true },
+            select: {
+              branchId: true,
+              role: true,
+              customRoleName: true,
+              staffPermissions: true,
+              customRole: { select: { name: true, permissionsJson: true, status: true } },
+            },
           });
-          if (fresh) token.branchId = fresh.branchId;
+          if (fresh) {
+            token.branchId = fresh.branchId;
+            token.role = fresh.role;
+            const { mergeStaffPermissions, encodePermissionClaims } = await import('./staffPermissions');
+            const effPerms = mergeStaffPermissions(
+              fresh.customRole?.status === 'active' ? fresh.customRole.permissionsJson : null,
+              fresh.staffPermissions,
+            );
+            token.staffPerms = encodePermissionClaims(effPerms);
+            token.customRoleName = fresh.customRoleName || fresh.customRole?.name || null;
+          }
 
           const { issueMobileToken } = await import('@/lib/api/v1-auth');
           const apiToken = await issueMobileToken({
@@ -607,6 +637,16 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
               tenantId: true,
               phone: true,
               username: true,
+              customRoleId: true,
+              customRoleName: true,
+              staffPermissions: true,
+              customRole: {
+                select: {
+                  name: true,
+                  permissionsJson: true,
+                  status: true,
+                }
+              },
               tenant: {
                 select: {
                   slug: true
@@ -663,6 +703,11 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           // Re-assert non-null: the monitor block above performs awaits and may
           // reassign dbUser, which loses the earlier narrowing.
           if (!dbUser) return null;
+          const { mergeStaffPermissions } = await import('./staffPermissions');
+          const effStaffPerms = mergeStaffPermissions(
+            (dbUser as any).customRole?.status === 'active' ? (dbUser as any).customRole.permissionsJson : null,
+            (dbUser as any).staffPermissions,
+          );
           (session.user as any).role = dbUser.role;
           (session.user as any).isPrimaryAdmin = dbUser.isPrimaryAdmin;
           (session.user as any).appType = dbUser.appType;
@@ -671,6 +716,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           (session.user as any).phone = dbUser.phone;
           (session.user as any).username = dbUser.username;
           (session.user as any).tenantSlug = dbUser.tenant?.slug || null;
+          (session.user as any).customRoleId = (dbUser as any).customRoleId || null;
+          (session.user as any).customRoleName = (dbUser as any).customRoleName || (dbUser as any).customRole?.name || null;
+          (session.user as any).staffPermissions = effStaffPerms;
           (session.user as any).isMonitoring = isMonitoring;
           (session.user as any).monitorTargetName = monitorTargetName;
 

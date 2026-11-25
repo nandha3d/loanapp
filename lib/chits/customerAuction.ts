@@ -10,13 +10,21 @@ import { calculateReserveFloor } from './engineCalculator';
 import { parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
 import { startingDiscountAmount, computeAutomatedBidBounds } from './validation';
 
-export async function findOwnLiveAuction(customerId: string, tenantId: string, groupId: string, auctionId: string) {
+export async function findOwnLiveAuction(
+  customerId: string,
+  tenantId: string,
+  groupId: string,
+  auctionId: string,
+  memberId?: string,
+) {
   const member = await prisma.chitMember.findFirst({
     where: {
       customerId,
       chitGroupId: groupId,
+      ...(memberId ? { id: memberId } : {}),
       chitGroup: { tenantId, appType: 'chitfunds', deletedAt: null },
     },
+    orderBy: [{ hasWon: 'asc' }, { memberNumber: 'asc' }],
   });
   if (!member) return null;
 

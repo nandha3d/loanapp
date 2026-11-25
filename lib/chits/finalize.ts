@@ -8,6 +8,7 @@ import {
   type ChitPeriodCalculationBreakdown,
 } from './engineCalculator';
 import { parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
+import { postRoomSettlementCard } from './groupRoom';
 
 type FinalizeScope = { tenantId: string; appType: string; userId?: string | null };
 
@@ -500,6 +501,20 @@ export async function finalizeAuctionInTx(
       winnerInterestValue: group.winnerInterestValue != null ? Number(group.winnerInterestValue) : null,
       winnerInterestPeriods: group.winnerInterestPeriods,
     },
+  });
+
+  await postRoomSettlementCard(tx, {
+    tenantId: scope.tenantId,
+    chitGroupId: auction.chitGroupId,
+    auctionId: auction.id,
+    periodNumber: auction.periodNumber,
+    winnerName: params.winnerName,
+    winnerTicketNo: params.winnerTicketNo ?? null,
+    prizeAmount: calc.prizeAmount,
+    bidDiscount: calc.bidDiscount,
+    commission: calc.commission,
+    dividendPerTicket: calc.dividend,
+    monthlyContrib: Number(group.monthlyContrib),
   });
 
   await createChitAudit(tx, {

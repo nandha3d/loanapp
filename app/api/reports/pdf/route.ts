@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { requireApiContext } from '@/lib/apiAuth';
+import { getCurrentLanguage, getDictionarySync } from '@/lib/i18n';
 import { CollectionReportPDF } from '@/lib/reports/pdf';
+import { resolvePdfLang } from '@/lib/reports/pdfFonts';
 import { getBranding, getSetting } from '@/lib/tenant';
 import { buildReportData } from '@/lib/reports/data';
 
@@ -13,34 +15,47 @@ export async function GET(req: NextRequest) {
   const { tenantId, appType, branchId } = context;
 
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  const to   = searchParams.get('to')   || new Date().toISOString().slice(0, 10);
+  const from =
+    searchParams.get('from') ||
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const to = searchParams.get('to') || new Date().toISOString().slice(0, 10);
 
-  const reportData = await buildReportData({
-    tenantId,
-    appType,
-    from,
-    to,
-    branchId,
-  });
+  const [reportData, branding, currencySymbol, tenantLang] = await Promise.all([
+    buildReportData({
+      tenantId,
+      appType,
+      from,
+      to,
+      branchId,
+    }),
+    getBranding(tenantId),
+    getSetting(tenantId, 'currency_symbol', '₹'),
+    getCurrentLanguage(tenantId),
+  ]);
 
-  const branding   = await getBranding(tenantId);
-  const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const lang = resolvePdfLang(searchParams.get('lang') ?? tenantLang);
+  const dict = getDictionarySync(lang);
 
-  const buffer = await renderToBuffer(createElement(CollectionReportPDF, {
-    data: {
-      ...reportData,
-      from, to,
-      appName:    branding.appName,
-      branchName: branding.appTagline,
-      currencySymbol,
-    },
-  }) as any);
+  const buffer = await renderToBuffer(
+    createElement(CollectionReportPDF, {
+      data: {
+        ...reportData,
+        from,
+        to,
+        appName: branding.appName,
+        branchName: branding.appTagline,
+        currencySymbol,
+      },
+      dict,
+      lang,
+    }) as any,
+  );
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      'Content-Type':        'application/pdf',
-      'Content-Disposition': `attachment; filename="report-${from}-to-${to}.pdf"`,
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="report-${from}-to-${to}-${lang}.pdf"`,
+      'Cache-Control': 'no-store',
     },
   });
 }

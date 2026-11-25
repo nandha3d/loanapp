@@ -75,6 +75,7 @@ model Tenant {
   gstSummaries        GstSummary[]
   budgets             Budget[]
   exportRuns          AccountingExportRun[]
+  customRoles         CustomRole[]
 
   @@map("tenants")
 }
@@ -111,6 +112,7 @@ model Branch {
   goldCollaterals       GoldLoanCollateral[]
   financePartners       FinancePartner[]
   dayClosingLogs        DayClosingLog[]
+  customRoles           CustomRole[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -169,6 +171,11 @@ model User {
   // "HH:MM" in tenant-local time. Both null (the default) = no restriction.
   allowedLoginStart        String?            @map("allowed_login_start")
   allowedLoginEnd          String?            @map("allowed_login_end")
+  customRoleId             String?            @map("custom_role_id")
+  customRoleName           String?            @map("custom_role_name")
+  staffPermissions         String?            @map("staff_permissions") @db.Text
+  customRole               CustomRole?        @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  chitForemanAssignments   ChitGroupForeman[]
   approvalRequestsMade     ApprovalRequest[]  @relation("Requester")
   approvalRequestsReviewed ApprovalRequest[]  @relation("Reviewer")
   auditLogs                AuditLog[]
@@ -224,6 +231,7 @@ model User {
   @@unique([tenantId, email])
   @@index([branchId], map: "users_branch_id_fkey")
   @@index([tenantId, isPrimaryAdmin], map: "users_tenant_id_is_primary_admin_idx")
+  @@index([customRoleId], map: "users_custom_role_id_fkey")
   @@map("users")
 }
 
@@ -1549,6 +1557,8 @@ model ChitGroup {
   bellCount               Int           @default(3) @map("bell_count")
   bellAutoClose           Boolean       @default(true) @map("bell_auto_close")
   hasForemanTicket        Boolean       @default(false) @map("has_foreman_ticket")
+  roomChatMode            String        @default("open") @map("room_chat_mode")
+  pinnedAnnouncement      String?       @map("pinned_announcement") @db.Text
   chitEngineType          String        @default("AUCTION_STANDARD") @map("chit_engine_type")
   engineConfig            String?       @map("engine_config") @db.Text
   createdAt               DateTime      @default(now()) @map("created_at")
@@ -1558,7 +1568,9 @@ model ChitGroup {
   branch                  Branch?       @relation(fields: [branchId], references: [id])
   tenant                  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members                 ChitMember[]
+  foremen                 ChitGroupForeman[]
   poolTransactions        ChitPoolTransaction[]
+  roomMessages            ChitRoomMessage[]
 
   @@unique([tenantId, groupCode])
   @@index([tenantId, appType, status])
@@ -1596,7 +1608,7 @@ model ChitMember {
   customer             Customer                @relation(fields: [customerId], references: [id])
   subscriptions        ChitSubscription[]
 
-  @@unique([chitGroupId, customerId])
+  @@index([chitGroupId, customerId], map: "chit_members_chit_group_id_customer_id_idx")
   @@unique([chitGroupId, memberNumber])
   @@index([customerId], map: "chit_members_customer_id_fkey")
   @@index([chitGroupId, ticketNo])
@@ -1802,25 +1814,31 @@ model ChitAuctionAttendance {
   @@map("chit_auction_attendance")
 }
 
-// Live-room chat. 'public' messages are visible to everyone in the room;
-// 'organizer' messages are private between the sender and staff. senderName is
-// denormalized so the hot poll can render without joins.
+// Persistent multi-member chit group & live-auction room chat.
+// 'public' messages are visible to all group members; 'organizer' messages stay between staff.
 model ChitRoomMessage {
-  id               String   @id @default(cuid())
-  tenantId         String   @map("tenant_id")
-  auctionId        String   @map("auction_id")
-  senderUserId     String?  @map("sender_user_id") // staff/organizer sender
-  senderMemberId   String?  @map("sender_member_id") // subscriber sender (M3)
-  senderName       String   @map("sender_name")
-  visibility       String   @default("public") // public | organizer
-  messageType      String   @default("text") @map("message_type") // text | voice
-  body             String   @db.Text
-  audioUrl         String?  @map("audio_url")
-  audioDurationSec Int?     @map("audio_duration_sec")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id               String       @id @default(cuid())
+  tenantId         String       @map("tenant_id")
+  chitGroupId      String?      @map("chit_group_id")
+  auctionId        String?      @map("auction_id")
+  senderUserId     String?      @map("sender_user_id") // staff/organizer sender
+  senderMemberId   String?      @map("sender_member_id") // subscriber sender (M3)
+  senderName       String       @map("sender_name")
+  visibility       String       @default("public") // public | organizer
+  messageType      String       @default("text") @map("message_type") // text | voice | bid_event | settlement_card | payment_reminder | system_notice
+  body             String       @db.Text
+  audioUrl         String?      @map("audio_url")
+  audioDurationSec Int?         @map("audio_duration_sec")
+  replyToId        String?      @map("reply_to_id")
+  replyToSender    String?      @map("reply_to_sender")
+  replyToBody      String?      @map("reply_to_body")
+  metadataJson     String?      @map("metadata_json") @db.Text
+  createdAt        DateTime     @default(now()) @map("created_at")
 
-  auction ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  chitGroup ChitGroup?   @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  auction   ChitAuction? @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 
+  @@index([chitGroupId, createdAt])
   @@index([auctionId, createdAt])
   @@map("chit_room_messages")
 }
@@ -1857,14 +1875,15 @@ model ChitReceipt {
   tenantId       String    @map("tenant_id")
   branchId       String?   @map("branch_id")
   appType        String    @default("chitfunds") @map("app_type")
-  receiptNo      String    @map("receipt_no")
-  receiptType    String    @map("receipt_type")
-  entityType     String    @map("entity_type")
-  entityId       String    @map("entity_id")
-  amount         Decimal   @db.Decimal(14, 2)
-  paymentMode    String    @default("cash") @map("payment_mode")
-  referenceNo    String?   @map("reference_no")
-  idempotencyKey String?   @map("idempotency_key")
+  receiptNo            String    @map("receipt_no")
+  receiptType          String    @map("receipt_type")
+  entityType           String    @map("entity_type")
+  entityId             String    @map("entity_id")
+  amount               Decimal   @db.Decimal(14, 2)
+  paymentMode          String    @default("cash") @map("payment_mode")
+  referenceNo          String?   @map("reference_no")
+  cashDenominationsJson String?  @map("cash_denominations_json") @db.Text
+  idempotencyKey       String?   @map("idempotency_key")
   notes          String?   @db.Text
   status         String    @default("active")
   issuedById     String?   @map("issued_by_id")
@@ -3367,5 +3386,47 @@ model AnnouncementRecipient {
   @@index([userId, isRead])
   @@index([userId, isDismissed])
   @@map("announcement_recipients")
+}
+
+model CustomRole {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  branchId        String?  @map("branch_id")
+  appType         String   @default("chitfunds") @map("app_type")
+  name            String
+  description     String?  @db.Text
+  baseRole        String   @default("agent") @map("base_role")
+  permissionsJson String   @map("permissions_json") @db.Text
+  isSystem        Boolean  @default(false) @map("is_system")
+  status          String   @default("active")
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  users  User[]
+
+  @@unique([tenantId, appType, name])
+  @@index([tenantId, appType, status])
+  @@index([branchId], map: "custom_roles_branch_id_fkey")
+  @@map("custom_roles")
+}
+
+model ChitGroupForeman {
+  id           String   @id @default(cuid())
+  chitGroupId  String   @map("chit_group_id")
+  userId       String   @map("user_id")
+  roleLabel    String   @default("Foreman") @map("role_label")
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  assignedById String?  @map("assigned_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  chitGroup ChitGroup @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chitGroupId, userId])
+  @@index([userId])
+  @@map("chit_group_foremen")
 }
 

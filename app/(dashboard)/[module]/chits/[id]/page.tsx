@@ -3,7 +3,7 @@ import { getSetting } from '@/lib/tenant';
 import { notFound } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
-import { getDictionary } from '@/lib/i18n';
+import { getCurrentLanguage, getDictionary } from '@/lib/i18n';
 import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
 import { buildChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
 import { resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
@@ -13,7 +13,7 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
   const scope = await getWebChitScope();
   const tenantId = scope.tenantId;
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
-  const dict = await getDictionary(tenantId);
+  const [dict, lang] = await Promise.all([getDictionary(tenantId), getCurrentLanguage(tenantId)]);
 
   let group: any = null;
   try {
@@ -25,6 +25,21 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
           include: {
             customer: { select: { id: true, name: true, customerCode: true } },
             subscriptions: { orderBy: { periodNumber: 'asc' } },
+          },
+        },
+        foremen: {
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                role: true,
+                customRoleName: true,
+                customRole: { select: { name: true } },
+              },
+            },
           },
         },
         auctions: {
@@ -41,7 +56,7 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
 
   if (!group) notFound();
 
-  const [dividendLedger, poolTransactions] = await Promise.all([
+  const [dividendLedger, poolTransactions, staffUsers, branchCustomers] = await Promise.all([
     buildChitGroupDividendLedger(group.id, scope),
     resolveEngineTypeFromGroup(group) === 'ASCA_SHG_REVOLVING'
       ? prisma.chitPoolTransaction.findMany({
@@ -49,6 +64,37 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
           orderBy: { txnDate: 'desc' },
         })
       : Promise.resolve([]),
+    prisma.user.findMany({
+      where: {
+        tenantId,
+        status: 'active',
+        deletedAt: null,
+        OR: [
+          { role: { in: ['admin', 'superadmin'] } },
+          { role: 'agent', appType: 'chitfunds', ...(scope.branchId ? { branchId: scope.branchId } : {}) },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        role: true,
+        customRoleName: true,
+        customRole: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.customer.findMany({
+      where: {
+        tenantId,
+        appType: scope.appType,
+        status: 'active',
+        deletedAt: null,
+        ...(scope.branchId ? { branchId: scope.branchId } : {}),
+      },
+      select: { id: true, name: true, customerCode: true },
+      orderBy: { name: 'asc' },
+    }),
   ]);
 
   return (
@@ -67,7 +113,10 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
         group={JSON.parse(JSON.stringify(group))}
         dividendLedger={dividendLedger}
         poolTransactions={JSON.parse(JSON.stringify(poolTransactions))}
+        staffUsers={JSON.parse(JSON.stringify(staffUsers))}
+        customers={JSON.parse(JSON.stringify(branchCustomers))}
         currencySymbol={currencySymbol}
+        lang={lang}
         dict={dict}
       />
     </div>

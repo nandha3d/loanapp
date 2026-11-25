@@ -1737,7 +1737,7 @@ export default async function DashboardPage() {
 
 
 
-  if (userRole === 'agent') {
+  if (userRole === 'agent' && !(session.user as any)?.staffPermissions?.canViewDashboard) {
     const agentData = await getAgentDashboardData(tenantId, appType, session.user.id as string);
     const progressPct = agentData.todayExpected > 0 
       ? Math.min(100, Math.round((agentData.todayCollected / agentData.todayExpected) * 100))

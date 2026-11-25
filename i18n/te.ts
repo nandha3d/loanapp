@@ -286,6 +286,7 @@ export const te = {
     pendingTasks: 'పెండింగ్ పనులు',
     financePartners: 'బ్రోకర్లు & డీలర్లు',
     chits: 'చిట్ గ్రూపులు',
+    foremanPortal: 'ఫోర్‌మ్యాన్ పోర్టల్',
     penalties: 'జరిమానాలు',
     approvals: 'ఆమోదాలు',
     team: 'ఏజెంట్‌లను నిర్వహించండి',

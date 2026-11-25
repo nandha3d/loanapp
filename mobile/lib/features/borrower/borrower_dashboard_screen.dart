@@ -15,6 +15,7 @@ import 'package:zolofund/data/models/borrower.dart';
 import 'package:zolofund/data/services/borrower_service.dart';
 import 'package:zolofund/features/borrower/borrower_chit_live_screen.dart';
 import 'package:zolofund/features/borrower/borrower_chit_contributions_screen.dart';
+import 'package:zolofund/features/chits/chit_group_room_screen.dart';
 
 final _borrowerLoansProvider =
     FutureProvider.autoDispose<List<BorrowerLoan>>((ref) {
@@ -904,6 +905,26 @@ class _ChitMembershipCard extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ChitGroupRoomScreen(
+                      groupId: m.groupId,
+                      isStaff: false,
+                      groupName: m.groupName,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: const Text('Group Chat & Live Room'),
+            ),
           ),
         ],
       ),

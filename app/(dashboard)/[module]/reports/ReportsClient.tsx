@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { PDF_LANGUAGES } from '@/lib/reports/pdfLanguages';
 import { formatCurrency, calcPercentage } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -34,6 +36,7 @@ export default function ReportsClient({
   subscription: any;
 }) {
   const d = dict.reports;
+  const [pdfLang, setPdfLang] = useState<string>('en');
   const setPreset = (preset: string) => {
     const today = new Date();
     let from: string;
@@ -110,16 +113,29 @@ export default function ReportsClient({
             {d.defaultersCSV}
           </a>
           {subscription?.receiptPdfAllowed ? (
-            <a
-              href={`/api/reports/pdf?from=${filters.from}&to=${filters.to}`}
-              className="btn btn-primary btn-sm"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>picture_as_pdf</span>
-              Export PDF Report
-            </a>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <select
+                aria-label="PDF Language"
+                className="form-control"
+                style={{ width: 'auto', padding: '4px 8px', fontSize: '0.82rem' }}
+                value={pdfLang}
+                onChange={(e) => setPdfLang(e.target.value)}
+              >
+                {PDF_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>{l.nativeName}</option>
+                ))}
+              </select>
+              <a
+                href={`/api/reports/pdf?from=${filters.from}&to=${filters.to}&lang=${pdfLang}`}
+                className="btn btn-primary btn-sm"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>picture_as_pdf</span>
+                Export PDF Report
+              </a>
+            </div>
           ) : (
             <button
               type="button"

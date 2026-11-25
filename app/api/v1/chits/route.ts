@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
   const totalMembers = Number(body?.totalMembers);
   const durationMonths = Number(body?.durationMonths ?? totalMembers);
   const commissionPct = Number(body?.commissionPct ?? 5);
-  const memberIds = Array.from(new Set((body?.memberIds ?? []) as string[]));
+  const memberIds = ((body?.memberIds ?? []) as string[]).map(String).filter(Boolean);
+  const rawForemen = Array.isArray(body?.foremen) ? (body.foremen as Array<{ userId?: string; roleLabel?: string; isPrimary?: boolean }>) : [];
 
   if (!name) return fail('name is required', 400);
   if (!Number.isFinite(chitValue) || chitValue <= 0) return fail('chitValue must be greater than zero', 400);
@@ -109,6 +110,34 @@ export async function POST(req: NextRequest) {
     // SCOPE-7: stamp the branch the caller is actually working, resolved and
     // tenant-validated.
     const branchId = await resolveWriteBranchId(ctx);
+    const validForemenUsers = rawForemen.length
+      ? await prisma.user.findMany({
+          where: {
+            id: { in: rawForemen.map((f) => String(f.userId || '')).filter(Boolean) },
+            tenantId: ctx.tenantId,
+            status: 'active',
+            deletedAt: null,
+          },
+          select: { id: true, name: true },
+        })
+      : [];
+    const foremanNameById = new Map(validForemenUsers.map((u) => [u.id, u.name]));
+    const foremanEntries = rawForemen
+      .filter((f) => f?.userId && foremanNameById.has(String(f.userId)))
+      .reduce<Array<{ userId: string; roleLabel: string; isPrimary: boolean }>>((acc, f) => {
+        const uid = String(f.userId);
+        if (acc.some((x) => x.userId === uid)) return acc;
+        acc.push({
+          userId: uid,
+          roleLabel: (f.roleLabel || 'Foreman').trim().slice(0, 60) || 'Foreman',
+          isPrimary: Boolean(f.isPrimary) || acc.length === 0,
+        });
+        return acc;
+      }, []);
+    const computedForemanName =
+      body?.foremanName ??
+      (foremanEntries.length ? foremanEntries.map((f) => foremanNameById.get(f.userId)).filter(Boolean).join(', ') : null);
+
     const group = await prisma.$transaction(async (tx) => {
       const existingCount = await tx.chitGroup.count({ where: { tenantId: ctx.tenantId } });
       const groupCode = generateCode('CF', existingCount + 1, 5);
@@ -144,7 +173,7 @@ export async function POST(req: NextRequest) {
           commencementCertificate: body?.commencementCertificate ?? null,
           approvedBankName: body?.approvedBankName ?? null,
           approvedBankAccountNo: body?.approvedBankAccountNo ?? null,
-          foremanName: body?.foremanName ?? null,
+          foremanName: computedForemanName,
           foremanCommissionCapPct: body?.foremanCommissionCapPct == null ? null : Number(body.foremanCommissionCapPct),
           maxDiscountPct: body?.maxDiscountPct == null ? null : Number(body.maxDiscountPct),
           minDiscountPct: body?.minDiscountPct == null ? null : Number(body.minDiscountPct),
@@ -187,6 +216,17 @@ export async function POST(req: NextRequest) {
             ticketNo: String(idx + 1),
             ticketShare: 1,
           },
+        });
+      }
+      if (foremanEntries.length > 0) {
+        await tx.chitGroupForeman.createMany({
+          data: foremanEntries.map((f) => ({
+            chitGroupId: created.id,
+            userId: f.userId,
+            roleLabel: f.roleLabel,
+            isPrimary: f.isPrimary,
+            assignedById: ctx.userId,
+          })),
         });
       }
       return created;

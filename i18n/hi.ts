@@ -286,6 +286,7 @@ export const hi = {
     pendingTasks: 'लंबित कार्य',
     financePartners: 'ब्रोकर और डीलर',
     chits: 'चिट फंड',
+    foremanPortal: 'फोरमैन पोर्टल',
     penalties: 'दंड',
     approvals: 'अनुमोदन',
     reports: 'रिपोर्ट',

@@ -23,7 +23,14 @@ import {
   reviewChitSecurityDocument,
   ringLiveBell,
   submitChitSecurity,
+  updatePayoutDenominationsAction,
 } from '../../../actions';
+import {
+  formatCashDenominationsSummary,
+  normalizeCashDenominations,
+  sumCashDenominations,
+} from '@/lib/chits/denominations';
+import { PDF_LANGUAGES, resolvePdfLang } from '@/lib/reports/pdfLanguages';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 import DividendBreakdown from '@/components/chits/DividendBreakdown';
@@ -46,9 +53,11 @@ interface Props {
   auction: any;
   security: any | null;
   securityDocuments: any[];
+  payoutReceipt?: any | null;
   initialMessages?: any[];
   initialBidBounds: AutomatedBidBounds;
   currencySymbol: string;
+  lang?: string;
   dict: any;
 }
 
@@ -83,9 +92,11 @@ export default function AuctionDetailClient({
   auction,
   security,
   securityDocuments,
+  payoutReceipt = null,
   initialMessages = [],
   initialBidBounds,
   currencySymbol,
+  lang,
   dict,
 }: Props) {
   const d = dict.chits;
@@ -122,11 +133,16 @@ export default function AuctionDetailClient({
   const [securityTypeInput, setSecurityTypeInput] = useState<string>(() =>
     normalizeSecurityType(security?.securityType),
   );
+  const savedReceiptDenoms = normalizeCashDenominations(payoutReceipt?.cashDenominationsJson);
+  const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(lang));
+  const [includeCashNotes, setIncludeCashNotes] = useState<boolean>(() => Boolean(savedReceiptDenoms));
   const [showDenoms, setShowDenoms] = useState(false);
-  const [denom500, setDenom500] = useState(0);
-  const [denom200, setDenom200] = useState(0);
-  const [denom100, setDenom100] = useState(0);
-  const [denom50, setDenom50] = useState(0);
+  const [denom500, setDenom500] = useState<number>(() => savedReceiptDenoms?.[500] ?? 0);
+  const [denom200, setDenom200] = useState<number>(() => savedReceiptDenoms?.[200] ?? 0);
+  const [denom100, setDenom100] = useState<number>(() => savedReceiptDenoms?.[100] ?? 0);
+  const [denom50, setDenom50] = useState<number>(() => savedReceiptDenoms?.[50] ?? 0);
+  const [denom20, setDenom20] = useState<number>(() => savedReceiptDenoms?.[20] ?? 0);
+  const [denom10, setDenom10] = useState<number>(() => savedReceiptDenoms?.[10] ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollFailCountRef = useRef(0);
   const [clockNow, setClockNow] = useState<Date | null>(null);
@@ -313,14 +329,33 @@ export default function AuctionDetailClient({
   const presentCount = auction.attendance.filter((entry: any) => ['present', 'proxy'].includes(entry.status)).length;
   const showNoticeAction = !locked && auction.status === 'pending' && auction.noticeStatus !== 'sent';
   const roomMessages = live?.latestMessages ?? initialMessages;
+  const currentDenomMap: Record<number, number> = {
+    500: denom500,
+    200: denom200,
+    100: denom100,
+    50: denom50,
+    20: denom20,
+    10: denom10,
+  };
+  const currentDenomTotal = sumCashDenominations(currentDenomMap);
+  const denomFields = [
+    { denom: 500, val: denom500, set: setDenom500 },
+    { denom: 200, val: denom200, set: setDenom200 },
+    { denom: 100, val: denom100, set: setDenom100 },
+    { denom: 50, val: denom50, set: setDenom50 },
+    { denom: 20, val: denom20, set: setDenom20 },
+    { denom: 10, val: denom10, set: setDenom10 },
+  ];
+
   const periodReportUrl = (() => {
     const qs = new URLSearchParams();
-    if (denom500 > 0) qs.set('d500', String(denom500));
-    if (denom200 > 0) qs.set('d200', String(denom200));
-    if (denom100 > 0) qs.set('d100', String(denom100));
-    if (denom50 > 0) qs.set('d50', String(denom50));
-    const q = qs.toString();
-    return `/api/chits/${group.id}/auctions/${auction.id}/report${q ? `?${q}` : ''}`;
+    qs.set('lang', pdfLang);
+    if (showDenoms && currentDenomTotal > 0) {
+      for (const f of denomFields) {
+        if (f.val > 0) qs.set(`d${f.denom}`, String(f.val));
+      }
+    }
+    return `/api/chits/${group.id}/auctions/${auction.id}/report?${qs.toString()}`;
   })();
 
   return (
@@ -338,6 +373,19 @@ export default function AuctionDetailClient({
           >
             {showDenoms ? 'Hide Cash Notes' : '💵 Cash Note Counts'}
           </button>
+          <select
+            aria-label="Report PDF Language"
+            className="form-control"
+            style={{ width: 'auto', padding: '4px 8px', fontSize: '0.82rem' }}
+            value={pdfLang}
+            onChange={(e) => setPdfLang(e.target.value)}
+          >
+            {PDF_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.nativeName} ({l.englishName})
+              </option>
+            ))}
+          </select>
           <a
             href={periodReportUrl}
             target="_blank"
@@ -364,27 +412,32 @@ export default function AuctionDetailClient({
           <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', alignSelf: 'center', marginRight: '4px' }}>
             Cash Denominations for Period PDF:
           </div>
-          {[
-            { label: `${currencySymbol}500 notes`, val: denom500, set: setDenom500 },
-            { label: `${currencySymbol}200 notes`, val: denom200, set: setDenom200 },
-            { label: `${currencySymbol}100 notes`, val: denom100, set: setDenom100 },
-            { label: `${currencySymbol}50 notes`, val: denom50, set: setDenom50 },
-          ].map((item) => (
-            <div key={item.label} className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.72rem' }}>{item.label}</label>
+          {denomFields.map((item) => (
+            <div key={item.denom} className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.72rem' }}>{currencySymbol}{item.denom} notes</label>
               <input
                 type="number"
                 min={0}
                 className="form-control"
                 value={item.val}
                 onChange={(e) => item.set(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-                style={{ width: '96px', padding: '6px 8px' }}
+                style={{ width: '88px', padding: '6px 8px' }}
               />
             </div>
           ))}
           <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--primary)', alignSelf: 'center' }}>
-            Cash Total: {formatCurrency(denom500 * 500 + denom200 * 200 + denom100 * 100 + denom50 * 50, currencySymbol)}
+            Cash Total: {formatCurrency(currentDenomTotal, currencySymbol)}
           </div>
+          {auction.payoutStatus === 'paid' && payoutReceipt && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy === 'save-denoms'}
+              onClick={() => run('save-denoms', () => updatePayoutDenominationsAction(auction.id, JSON.stringify(currentDenomMap)))}
+            >
+              {busy === 'save-denoms' ? 'Saving…' : 'Save Note Breakdown'}
+            </button>
+          )}
           <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
             Download PDF with Notes
           </a>
@@ -1060,7 +1113,7 @@ export default function AuctionDetailClient({
                   )}
 
                   {security?.status === 'approved' && auction.payoutStatus === 'ready' && (
-                    <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                    <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                         <div className="form-group">
                           <label className="form-label">Payout mode</label>
@@ -1082,17 +1135,95 @@ export default function AuctionDetailClient({
                             const fd = new FormData();
                             fd.set('paymentMode', payMode);
                             if (payRef) fd.set('referenceNo', payRef);
+                            if ((payMode === 'cash' || includeCashNotes) && currentDenomTotal > 0) {
+                              fd.set('cashDenominationsJson', JSON.stringify(currentDenomMap));
+                            }
                             run('payout', () => releasePrizePayout(auction.id, fd));
                           }}
                         >
                           {busy === 'payout' ? 'Releasing…' : `Release ${formatCurrency(Number(auction.prizeAmount), currencySymbol)}`}
                         </button>
                       </div>
+
+                      {payMode !== 'cash' && (
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <input
+                            type="checkbox"
+                            checked={includeCashNotes}
+                            onChange={(e) => setIncludeCashNotes(e.target.checked)}
+                          />
+                          Include physical cash denomination breakdown (for split cash + digital payout)
+                        </label>
+                      )}
+
+                      {(payMode === 'cash' || includeCashNotes) && (
+                        <div style={{ background: 'var(--bg)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                            <strong style={{ fontSize: '0.82rem' }}>💵 Cash Note Denomination Breakdown</strong>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: currentDenomTotal > Number(auction.prizeAmount) ? 'var(--danger)' : 'var(--primary)' }}>
+                              Notes Total: {formatCurrency(currentDenomTotal, currencySymbol)} / {formatCurrency(Number(auction.prizeAmount), currencySymbol)}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {denomFields.map((item) => (
+                              <div key={item.denom} className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.72rem' }}>{currencySymbol}{item.denom}</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="form-control"
+                                  value={item.val}
+                                  onChange={(e) => item.set(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                                  style={{ width: '78px', padding: '5px 8px' }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
               )}
-              {auction.payoutStatus === 'paid' && <p style={{ margin: 0, color: 'var(--success)' }}>Prize payout released.</p>}
+              {auction.payoutStatus === 'paid' && (
+                <div style={{ marginTop: '8px', padding: '12px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ color: '#166534', fontWeight: 700 }}>
+                      ✓ Prize payout released
+                      {payoutReceipt ? ` · Receipt ${payoutReceipt.receiptNo} (${payoutReceipt.paymentMode.toUpperCase()}${payoutReceipt.referenceNo ? ` · ${payoutReceipt.referenceNo}` : ''})` : ''}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: '#15803d', fontWeight: 700 }}>
+                      {formatCashDenominationsSummary(savedReceiptDenoms, currencySymbol) ?? 'No cash note counts saved yet'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    {denomFields.map((item) => (
+                      <div key={item.denom} className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.7rem', color: '#166534' }}>{currencySymbol}{item.denom} notes</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="form-control"
+                          value={item.val}
+                          onChange={(e) => item.set(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                          style={{ width: '74px', padding: '4px 6px', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                    ))}
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#166534', alignSelf: 'center' }}>
+                      = {formatCurrency(currentDenomTotal, currencySymbol)}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={busy === 'save-denoms'}
+                      onClick={() => run('save-denoms', () => updatePayoutDenominationsAction(auction.id, JSON.stringify(currentDenomMap)))}
+                    >
+                      {busy === 'save-denoms' ? 'Saving…' : 'Save Cash Note Counts'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -286,6 +286,7 @@ export const kn = {
     pendingTasks: 'ಬಾಕಿ ಕಾರ್ಯಗಳು',
     financePartners: 'ಬ್ರೋಕರ್ ಮತ್ತು ಡೀಲರ್',
     chits: 'ಚಿಟ್ ಗುಂಪುಗಳು',
+    foremanPortal: 'ಫೋರ್‌ಮ್ಯಾನ್ ಪೋರ್ಟಲ್',
     penalties: 'ದಂಡಗಳು',
     approvals: 'ಅನುಮೋದನೆಗಳು',
     team: 'ಏಜೆಂಟ್‌ಗಳನ್ನು ನಿರ್ವಹಿಸಿ',

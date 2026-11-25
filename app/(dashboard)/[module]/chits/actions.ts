@@ -8,10 +8,13 @@ import { calculateFixedDiscountPrize, roundMoney } from '@/lib/chits/calculation
 import { collectChitSubscriptionPayment } from '@/lib/chits/collections';
 import { createChitAudit } from '@/lib/chits/audit';
 import {
+  assertChitCapability,
   assertChitRole,
   canAdminChits,
   canApproveChitSecurity,
   canCollectChits,
+  canConductChitAuction,
+  canReleaseChitPayout,
   getWebChitScope,
   scopedChitGroupWhere,
 } from '@/lib/chits/access';
@@ -34,6 +37,7 @@ import { syncRoom, ringBellManually, buildBellState } from '@/lib/chits/bell';
 import { buildAuctionTimeline } from '@/lib/chits/timeline';
 import { buildWinnerSummary } from '@/lib/chits/winnerSummary';
 import { placeChitBid } from '@/lib/chits/bidService';
+import { normalizeCashDenominations, sumCashDenominations } from '@/lib/chits/denominations';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
 import {
@@ -61,6 +65,20 @@ import {
   type ChitSimulationResult,
 } from '@/lib/chits/simulator';
 import {
+  extractWhatsAppTxtFromUpload,
+  importRunningChitGroup,
+  parseChitRosterText,
+  parseWhatsAppChatExport,
+  type ImportRunningChitInput,
+} from '@/lib/chits/whatsappImport';
+import {
+  buildChitJoinUrl,
+  buildWhatsAppShareUrl,
+  createChitInviteToken,
+} from '@/lib/chits/inviteToken';
+import { normalizeRoomChatMode } from '@/lib/chits/groupRoom';
+import { headers } from 'next/headers';
+import {
   activateChitGroupInTx,
   assertMemberSubstitutionAllowed,
   confirmMultiDivisionAuctionInTx,
@@ -74,6 +92,7 @@ import {
   validateFileBytes,
 } from '@/lib/fileUpload';
 import { getSecurityTypeSpec } from '@/lib/chits/securityTypes';
+import { nextPeriodDate, parseFrequency } from '@/lib/chits/frequency';
 import { generateCode } from '@/lib/utils';
 
 function value(formData: FormData, key: string) {
@@ -137,7 +156,7 @@ async function loadScopedGroup(idOrCode: string) {
 
 export async function createChitGroup(formData: FormData) {
   const scope = await getWebChitScope();
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
 
   const name = value(formData, 'name');
   const chitValue = numberValue(formData, 'chitValue');
@@ -146,7 +165,18 @@ export async function createChitGroup(formData: FormData) {
   const durationMonths = numberValue(formData, 'durationMonths', totalMembers);
   const commissionPct = numberValue(formData, 'commissionPct', 5) ?? 5;
   const startDate = dateValue(formData, 'startDate') ?? new Date();
-  const memberIds = Array.from(new Set(formData.getAll('memberIds').map(String).filter(Boolean)));
+  // Preserve duplicate customerIds: a single member can hold multiple tickets in the same chit group
+  const memberIds = formData.getAll('memberIds').map(String).filter(Boolean);
+  const foremenJsonRaw = value(formData, 'foremenJson');
+  let rawForemen: Array<{ userId: string; roleLabel?: string; isPrimary?: boolean }> = [];
+  if (foremenJsonRaw) {
+    try {
+      const parsed = JSON.parse(foremenJsonRaw);
+      if (Array.isArray(parsed)) rawForemen = parsed;
+    } catch {
+      rawForemen = [];
+    }
+  }
 
   if (!name) throw new Error('Chit group name is required');
   if (!chitValue || chitValue <= 0) throw new Error('Chit value must be greater than zero');
@@ -214,10 +244,11 @@ export async function createChitGroup(formData: FormData) {
   });
   assertValidCommissionPct({ commissionPct, foremanCommissionCapPct });
 
-  const validCustomers = memberIds.length
+  const uniqueMemberIds = Array.from(new Set(memberIds));
+  const validCustomers = uniqueMemberIds.length
     ? await prisma.customer.findMany({
         where: {
-          id: { in: memberIds },
+          id: { in: uniqueMemberIds },
           tenantId: scope.tenantId,
           appType: scope.appType,
           status: 'active',
@@ -227,9 +258,42 @@ export async function createChitGroup(formData: FormData) {
         select: { id: true },
       })
     : [];
-  if (validCustomers.length !== memberIds.length) {
+  if (validCustomers.length !== uniqueMemberIds.length) {
     throw new Error('One or more chit members are invalid or inactive for this tenant/app/branch.');
   }
+
+  const foremanUserIds = Array.from(
+    new Set(rawForemen.map((f) => String(f?.userId || '').trim()).filter(Boolean)),
+  );
+  const validForemen = foremanUserIds.length
+    ? await prisma.user.findMany({
+        where: {
+          id: { in: foremanUserIds },
+          tenantId: scope.tenantId,
+          status: 'active',
+          deletedAt: null,
+        },
+        select: { id: true, name: true },
+      })
+    : [];
+  if (validForemen.length !== foremanUserIds.length) {
+    throw new Error('One or more selected foremen are invalid or belong to another tenant.');
+  }
+  const foremanNameById = new Map(validForemen.map((u) => [u.id, u.name]));
+  const normalizedForemen = foremanUserIds.map((uid, i) => {
+    const match = rawForemen.find((f) => String(f?.userId || '').trim() === uid);
+    return {
+      userId: uid,
+      roleLabel: (match?.roleLabel || (i === 0 ? 'Primary Foreman' : 'Co-Foreman')).trim().slice(0, 60),
+      isPrimary: Boolean(match?.isPrimary) || (i === 0 && !rawForemen.some((x) => x?.isPrimary)),
+    };
+  });
+  const explicitForemanName = value(formData, 'foremanName');
+  const resolvedForemanName =
+    explicitForemanName ||
+    (normalizedForemen.length > 0
+      ? normalizedForemen.map((f) => foremanNameById.get(f.userId)).filter(Boolean).join(', ')
+      : null);
 
   const group = await prisma.$transaction(async (tx) => {
     const resolvedBranchId =
@@ -276,7 +340,7 @@ export async function createChitGroup(formData: FormData) {
         commencementCertificate: value(formData, 'commencementCertificate'),
         approvedBankName: value(formData, 'approvedBankName'),
         approvedBankAccountNo: value(formData, 'approvedBankAccountNo'),
-        foremanName: value(formData, 'foremanName'),
+        foremanName: resolvedForemanName,
         foremanCommissionCapPct,
         maxDiscountPct,
         minDiscountPct,
@@ -315,6 +379,18 @@ export async function createChitGroup(formData: FormData) {
       });
     }
 
+    if (normalizedForemen.length > 0) {
+      await tx.chitGroupForeman.createMany({
+        data: normalizedForemen.map((f) => ({
+          chitGroupId: created.id,
+          userId: f.userId,
+          roleLabel: f.roleLabel,
+          isPrimary: f.isPrimary,
+          assignedById: scope.userId || null,
+        })),
+      });
+    }
+
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -332,7 +408,7 @@ export async function createChitGroup(formData: FormData) {
 
 export async function autoAssignChitTicketNumbers(groupId: string) {
   const { scope, group } = await loadScopedGroup(groupId);
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
   if (group.status !== 'draft') {
     throw new Error('Ticket numbers can only be auto-assigned while the group is in draft');
   }
@@ -377,7 +453,7 @@ export async function autoAssignChitTicketNumbers(groupId: string) {
 export async function activateChitGroup(groupId: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const { scope, group } = await loadScopedGroup(groupId);
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
     if (group.status === 'active') {
       return { ok: false, error: 'Chit group is already active' };
     }
@@ -529,7 +605,7 @@ export async function verifyChitAgreement(memberId: string) {
 
 export async function rejectChitAgreement(memberId: string, reason: string) {
   const scope = await getWebChitScope();
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
   const member = await prisma.chitMember.findFirst({
     where: { id: memberId, chitGroup: scopedChitGroupWhere(scope) },
   });
@@ -563,7 +639,7 @@ async function wrapChitAction<T>(fn: () => Promise<T>): Promise<ChitActionResult
 export async function markAuctionNoticeSent(auctionId: string) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
     });
@@ -580,7 +656,7 @@ export async function markAuctionNoticeSent(auctionId: string) {
 
 export async function rescheduleAuction(auctionId: string, scheduledAtIso: string) {
   const scope = await getWebChitScope();
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
   const scheduledAt = new Date(scheduledAtIso);
   if (Number.isNaN(scheduledAt.getTime())) throw new Error('Invalid schedule date/time');
   const auction = await prisma.chitAuction.findFirst({
@@ -607,7 +683,7 @@ export async function rescheduleAuction(auctionId: string, scheduledAtIso: strin
 export async function markAuctionAttendance(auctionId: string, memberId: string, status = 'present', proxyName?: string | null) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     if (status === 'proxy' && !proxyName) throw new Error('Proxy name is required');
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
@@ -646,7 +722,7 @@ export async function addAuctionBid(
 ) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -691,7 +767,7 @@ export async function addAuctionBid(
 export async function retractLiveMemberBid(auctionId: string, memberId: string) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -743,7 +819,7 @@ export async function retractLiveMemberBid(auctionId: string, memberId: string) 
 export async function confirmAuction(auctionId: string, winningBidId?: string | null, minutesText?: string | null) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: {
@@ -834,7 +910,7 @@ export async function drawAuctionWinner(
 ) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: { include: { branch: true } }, attendance: true },
@@ -870,7 +946,7 @@ export async function recordAuctionWinner(auctionId: string, winnerMemberId: str
 export async function submitChitSecurity(auctionId: string, formData: FormData) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions) || canApproveChitSecurity(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -886,7 +962,7 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
           : requestedAction === 'documents'
             ? 'documents'
             : 'submitted';
-    if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
+    if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role, scope.staffPermissions)) throw new Error('Forbidden');
 
     const guarantorMemberId = value(formData, 'guarantorMemberId');
     if (guarantorMemberId) {
@@ -997,9 +1073,9 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
 export async function reviewChitSecurityDocument(auctionId: string, documentId: string, action: 'verify' | 'approve' | 'reject') {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions) || canApproveChitSecurity(scope.role, scope.staffPermissions));
     const status = action === 'verify' ? 'verified' : action === 'approve' ? 'approved' : 'rejected';
-    if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
+    if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role, scope.staffPermissions)) throw new Error('Forbidden');
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -1041,7 +1117,7 @@ export async function reviewChitSecurityDocument(auctionId: string, documentId: 
 export async function releasePrizePayout(auctionId: string, formData?: FormData) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    if (!canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
+    if (!canReleaseChitPayout(scope.role, scope.staffPermissions)) throw new Error('Forbidden');
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -1075,6 +1151,7 @@ export async function releasePrizePayout(auctionId: string, formData?: FormData)
         paymentMode: formData ? value(formData, 'paymentMode') ?? 'cash' : 'cash',
         referenceNo: formData ? value(formData, 'referenceNo') : null,
         notes: formData ? value(formData, 'notes') : null,
+        cashDenominations: formData ? value(formData, 'cashDenominationsJson') : null,
       });
       await tx.chitAuction.update({ where: { id: auction.id }, data: { payoutStatus: 'paid', status: 'paid' } });
       await createChitAudit(tx, {
@@ -1086,6 +1163,56 @@ export async function releasePrizePayout(auctionId: string, formData?: FormData)
         newValue: result,
       });
     });
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
+    return {};
+  });
+}
+
+export async function updatePayoutDenominationsAction(auctionId: string, cashDenominationsJson: string) {
+  return wrapChitAction(async () => {
+    const scope = await getWebChitScope();
+    if (!canReleaseChitPayout(scope.role, scope.staffPermissions)) throw new Error('Forbidden');
+
+    const auction = await prisma.chitAuction.findFirst({
+      where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+      include: { chitGroup: true },
+    });
+    if (!auction) throw new Error('Auction not found');
+
+    const receipt = await prisma.chitReceipt.findFirst({
+      where: {
+        tenantId: scope.tenantId,
+        entityType: 'auction',
+        entityId: auction.id,
+        receiptType: 'payout',
+        status: 'active',
+      },
+      orderBy: { issuedAt: 'desc' },
+    });
+    if (!receipt) throw new Error('No prize payout receipt posted yet');
+
+    const clean = normalizeCashDenominations(cashDenominationsJson);
+    const cashTotal = sumCashDenominations(clean);
+    if (clean && cashTotal > Number(receipt.amount) + 0.01) {
+      throw new Error(`Cash denominations total (${cashTotal}) cannot exceed payout amount (${Number(receipt.amount)}).`);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.chitReceipt.update({
+        where: { id: receipt.id },
+        data: { cashDenominationsJson: clean ? JSON.stringify(clean) : null },
+      });
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'update_payout_denominations',
+        entityType: 'chit_receipt',
+        entityId: receipt.id,
+        newValue: { cashDenominations: clean },
+      });
+    });
+
     revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
     revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
     return {};
@@ -1151,7 +1278,7 @@ export async function recordChitPayment(
 export async function openLiveRoom(auctionId: string, durationMinutes = 30, autoExtendSeconds = 0) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
       include: { chitGroup: true },
@@ -1183,7 +1310,7 @@ export async function openLiveRoom(auctionId: string, durationMinutes = 30, auto
 export async function closeLiveRoom(auctionId: string) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
     });
@@ -1210,7 +1337,7 @@ export async function closeLiveRoom(auctionId: string) {
 export async function ringLiveBell(auctionId: string) {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
     });
@@ -1418,7 +1545,7 @@ export async function postRoomMessage(auctionId: string, body: string, visibilit
 
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
-      select: { id: true },
+      select: { id: true, chitGroupId: true },
     });
     if (!auction) throw new Error('Auction not found');
 
@@ -1431,6 +1558,7 @@ export async function postRoomMessage(auctionId: string, body: string, visibilit
     await prisma.chitRoomMessage.create({
       data: {
         tenantId: scope.tenantId,
+        chitGroupId: auction.chitGroupId,
         auctionId,
         senderUserId: scope.userId,
         senderName: sender?.name || sender?.username || 'Staff',
@@ -1449,7 +1577,7 @@ export async function postRoomVoiceMessage(auctionId: string, formData: FormData
     const scope = await getWebChitScope();
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
-      select: { id: true },
+      select: { id: true, chitGroupId: true },
     });
     if (!auction) throw new Error('Auction not found');
 
@@ -1492,6 +1620,7 @@ export async function postRoomVoiceMessage(auctionId: string, formData: FormData
     await prisma.chitRoomMessage.create({
       data: {
         tenantId: scope.tenantId,
+        chitGroupId: auction.chitGroupId,
         auctionId,
         senderUserId: scope.userId,
         senderName: sender?.name || sender?.username || 'Staff',
@@ -1510,10 +1639,10 @@ export async function postRoomVoiceMessage(auctionId: string, formData: FormData
 export async function decideRoomAdmission(auctionId: string, memberId: string, decision: 'admit' | 'deny') {
   return wrapChitAction(async () => {
     const scope = await getWebChitScope();
-    assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
     const auction = await prisma.chitAuction.findFirst({
       where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
-      select: { id: true },
+      select: { id: true, chitGroupId: true },
     });
     if (!auction) throw new Error('Auction not found');
 
@@ -1543,7 +1672,7 @@ export async function decideRoomAdmission(auctionId: string, memberId: string, d
 
 export async function markPaymentMissed(subscriptionId: string) {
   const scope = await getWebChitScope();
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
   const sub = await prisma.chitSubscription.findFirst({
     where: { id: subscriptionId, member: { chitGroup: scopedChitGroupWhere(scope) } },
     include: { member: true },
@@ -1567,7 +1696,7 @@ export async function markPaymentMissed(subscriptionId: string) {
 
 export async function cancelChitGroup(id: string) {
   const { scope, group } = await loadScopedGroup(id);
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
   if (group.status === 'cancelled') throw new Error('Already cancelled');
 
   await prisma.$transaction(async (tx) => {
@@ -1588,8 +1717,8 @@ export async function cancelChitGroup(id: string) {
 
 export async function updateChitGroup(id: string, formData: FormData) {
   const { scope, group } = await loadScopedGroup(id);
-  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
-  if (group.status === 'active' && scope.role === 'admin') {
+  assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
+  if (group.status === 'active' && (scope.role === 'admin' || scope.role === 'agent')) {
     throw new Error('Only superadmin/developer can edit active compliance metadata');
   }
 
@@ -1772,4 +1901,265 @@ export async function simulateChitTemplateAction(
   const scope = await getWebChitScope();
   assertChitRole(scope.role, ['admin', 'superadmin', 'developer', 'agent']);
   return simulateChitLifecycle(input);
+}
+
+/** Parse a WhatsApp exported `.txt`/`.zip` chat file or pasted member roster cleanly on the server. */
+export async function parseWhatsAppImportAction(formData: FormData) {
+  return wrapChitAction(async () => {
+    const scope = await getWebChitScope();
+    assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
+    const mode = value(formData, 'mode') === 'roster' ? 'roster' : 'chat_file';
+    if (mode === 'roster') {
+      const rosterText = String(formData.get('rosterText') ?? '');
+      if (!rosterText.trim()) throw new Error('Paste member names and phone numbers or CSV rows first.');
+      return { preview: parseChitRosterText(rosterText) };
+    }
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size <= 0) {
+      throw new Error('Select a WhatsApp chat export (.txt or .zip) file.');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('WhatsApp export file must be smaller than 10 MB.');
+    }
+    const buf = Buffer.from(await file.arrayBuffer());
+    const text = extractWhatsAppTxtFromUpload(buf);
+    return { preview: parseWhatsAppChatExport(text) };
+  });
+}
+
+/** Import a mid-running or fresh WhatsApp chit group into ZoloFund inside a scoped transaction. */
+export async function importRunningChitGroupAction(input: ImportRunningChitInput) {
+  return wrapChitAction(async () => {
+    const scope = await getWebChitScope();
+    assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
+    const result = await importRunningChitGroup(
+      {
+        tenantId: scope.tenantId,
+        appType: scope.appType,
+        branchId: scope.branchId ?? null,
+        userId: scope.userId || 'system',
+        role: scope.role,
+      },
+      input,
+    );
+    revalidatePath(modulePath(scope.appType, '/chits'));
+    return { imported: result };
+  });
+}
+
+/** Generate a signed invite URL & prefilled WhatsApp share link for an active/draft chit group. */
+export async function getChitWhatsAppInviteAction(groupId: string) {
+  return wrapChitAction(async () => {
+    const { scope, group } = await loadScopedGroup(groupId);
+    assertChitRole(scope.role, ['admin', 'superadmin', 'developer', 'agent']);
+    const h = await headers();
+    const proto = h.get('x-forwarded-proto') || 'https';
+    const host = h.get('x-forwarded-host') || h.get('host') || 'app.zolofunds.com';
+    const origin = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`;
+    const code = group.groupCode || group.id;
+    const token = createChitInviteToken({
+      tenantId: scope.tenantId,
+      groupId: group.id,
+      groupCode: code,
+    });
+    const joinUrl = buildChitJoinUrl({ origin, groupCode: code, token });
+    const shareUrl = buildWhatsAppShareUrl({
+      groupName: group.name,
+      chitValue: Number(group.chitValue),
+      monthlyContrib: Number(group.monthlyContrib),
+      totalMembers: group.totalMembers,
+      joinUrl,
+    });
+    return { joinUrl, shareUrl };
+  });
+}
+
+/** Update persistent group room chat mode ('open' | 'announcements_only') and pinned banner. */
+export async function updateChitRoomSettingsAction(
+  groupId: string,
+  roomChatMode: string,
+  pinnedAnnouncement: string | null,
+) {
+  return wrapChitAction(async () => {
+    const { scope, group } = await loadScopedGroup(groupId);
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
+    const nextMode = normalizeRoomChatMode(roomChatMode);
+    const nextPin = pinnedAnnouncement?.trim() ? pinnedAnnouncement.trim().slice(0, 500) : null;
+    await prisma.chitGroup.update({
+      where: { id: group.id },
+      data: {
+        roomChatMode: nextMode,
+        pinnedAnnouncement: nextPin,
+      },
+    });
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}/room`));
+    return { roomChatMode: nextMode, pinnedAnnouncement: nextPin };
+  });
+}
+
+/** Update assigned Foremen list (1 or more) for a chit group. */
+export async function updateChitGroupForemenAction(
+  groupId: string,
+  foremen: Array<{ userId: string; roleLabel?: string; isPrimary?: boolean }>,
+) {
+  return wrapChitAction(async () => {
+    const { scope, group } = await loadScopedGroup(groupId);
+    assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
+
+    const uniqueUserIds = Array.from(
+      new Set((foremen || []).map((f) => String(f?.userId || '').trim()).filter(Boolean)),
+    );
+    const validUsers = uniqueUserIds.length
+      ? await prisma.user.findMany({
+          where: {
+            id: { in: uniqueUserIds },
+            tenantId: scope.tenantId,
+            status: 'active',
+            deletedAt: null,
+          },
+          select: { id: true, name: true },
+        })
+      : [];
+    if (validUsers.length !== uniqueUserIds.length) {
+      throw new Error('One or more selected foremen are invalid or inactive for this tenant.');
+    }
+    const nameById = new Map(validUsers.map((u) => [u.id, u.name]));
+    const normalized = uniqueUserIds.map((uid, idx) => {
+      const m = foremen.find((f) => String(f?.userId || '').trim() === uid);
+      return {
+        userId: uid,
+        roleLabel: (m?.roleLabel || (idx === 0 ? 'Primary Foreman' : 'Co-Foreman')).trim().slice(0, 60),
+        isPrimary: Boolean(m?.isPrimary) || (idx === 0 && !foremen.some((x) => x?.isPrimary)),
+      };
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.chitGroupForeman.deleteMany({ where: { chitGroupId: group.id } });
+      if (normalized.length > 0) {
+        await tx.chitGroupForeman.createMany({
+          data: normalized.map((f) => ({
+            chitGroupId: group.id,
+            userId: f.userId,
+            roleLabel: f.roleLabel,
+            isPrimary: f.isPrimary,
+            assignedById: scope.userId || null,
+          })),
+        });
+      }
+      await tx.chitGroup.update({
+        where: { id: group.id },
+        data: {
+          foremanName:
+            normalized.length > 0
+              ? normalized.map((f) => nameById.get(f.userId)).filter(Boolean).join(', ')
+              : group.foremanName,
+        },
+      });
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'update_foremen',
+        entityType: 'chit_group',
+        entityId: group.id,
+        newValue: { foremen: normalized },
+      });
+    });
+
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
+    revalidatePath(modulePath(scope.appType, '/foreman'));
+    return { count: normalized.length };
+  });
+}
+
+/** Add 1 or more tickets for a customer to an existing chit group (supports repeat customer tickets). */
+export async function addChitMemberTicketsAction(
+  groupId: string,
+  customerId: string,
+  count = 1,
+) {
+  return wrapChitAction(async () => {
+    const { scope, group } = await loadScopedGroup(groupId);
+    assertChitCapability(canAdminChits(scope.role, scope.staffPermissions));
+    if (group.status === 'cancelled' || group.status === 'completed') {
+      throw new Error('Cannot add tickets to a completed or cancelled chit group.');
+    }
+    const qty = Math.max(1, Math.min(50, Math.floor(Number(count) || 1)));
+
+    const customer = await prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        tenantId: scope.tenantId,
+        appType: scope.appType,
+        status: 'active',
+        deletedAt: null,
+        ...(scope.branchId ? { branchId: scope.branchId } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    if (!customer) throw new Error('Customer is invalid or inactive in this branch.');
+
+    await prisma.$transaction(async (tx) => {
+      const existingMembers = await tx.chitMember.findMany({
+        where: { chitGroupId: group.id },
+        select: { memberNumber: true, ticketNo: true },
+        orderBy: { memberNumber: 'asc' },
+      });
+      if (existingMembers.length + qty > group.totalMembers) {
+        throw new Error(
+          `Only ${Math.max(0, group.totalMembers - existingMembers.length)} seat(s) left in this ${group.totalMembers}-member chit group.`,
+        );
+      }
+      const usedNumbers = new Set(existingMembers.map((m) => m.memberNumber));
+      const freq = parseFrequency(group);
+      const baseContrib = roundMoney(Number(group.monthlyContrib));
+
+      let cursor = 1;
+      for (let i = 0; i < qty; i++) {
+        while (usedNumbers.has(cursor)) cursor += 1;
+        usedNumbers.add(cursor);
+
+        const createdMember = await tx.chitMember.create({
+          data: {
+            chitGroupId: group.id,
+            customerId: customer.id,
+            memberNumber: cursor,
+            ticketNo: String(cursor),
+            ticketShare: 1,
+            subscriberStatus: 'active',
+            agreementStatus: group.chitType === 'registered' ? 'pending' : 'signed',
+            agreementSignedAt: group.chitType === 'registered' ? null : new Date(),
+          },
+        });
+
+        if (group.status === 'active') {
+          const subsData = Array.from({ length: group.totalMembers }, (_, idx) => {
+            const periodNumber = idx + 1;
+            return {
+              memberId: createdMember.id,
+              periodNumber,
+              dueDate: nextPeriodDate(group.startDate, idx, freq),
+              baseDueAmount: baseContrib,
+              dueAmount: baseContrib,
+              status: 'upcoming' as const,
+            };
+          });
+          await tx.chitSubscription.createMany({ data: subsData });
+        }
+      }
+
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'add_member_tickets',
+        entityType: 'chit_group',
+        entityId: group.id,
+        newValue: { customerId: customer.id, customerName: customer.name, addedTickets: qty },
+      });
+    });
+
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
+    revalidatePath(modulePath(scope.appType, `/chits/${group.id}/room`));
+    return { addedTickets: qty };
+  });
 }

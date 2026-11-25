@@ -2,7 +2,15 @@
 
 import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
-import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus } from './actions';
+import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus, saveCustomRole, deleteCustomRole } from './actions';
+import {
+  DEFAULT_ROLE_TEMPLATES,
+  EMPTY_STAFF_PERMISSIONS,
+  STAFF_PERMISSION_META,
+  parseStaffPermissions,
+  type StaffPermissionKey,
+  type StaffPermissions,
+} from '@/lib/staffPermissions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -17,11 +25,11 @@ import { TEMPLATE_PLACEHOLDER_KEYS } from '@/lib/notify/templateRenderer';
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
   viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null,
-  chitTypeSettings = null, notificationTemplates = [], branches = [], planMaxBranches = 1
+  chitTypeSettings = null, notificationTemplates = [], branches = [], customRoles = [], planMaxBranches = 1
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
   viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any,
-  chitTypeSettings?: any, notificationTemplates?: any[], branches?: any[], planMaxBranches?: number
+  chitTypeSettings?: any, notificationTemplates?: any[], branches?: any[], customRoles?: any[], planMaxBranches?: number
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
@@ -104,8 +112,59 @@ export default function SettingsClient({
     bypassCustomerApproval?: boolean;
     autoReleaseFloat?: boolean;
     feeConfirmationMandatory?: boolean;
+    customRoleId?: string;
+    customRoleName?: string;
+    staffPermissions?: StaffPermissions;
   } | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
+
+  const [roleModal, setRoleModal] = useState<{
+    id?: string;
+    name: string;
+    description: string;
+    permissions: StaffPermissions;
+  } | null>(null);
+  const [roleBusy, setRoleBusy] = useState(false);
+
+  const submitCustomRole = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!roleModal) return;
+    setRoleBusy(true);
+    const fd = new FormData();
+    if (roleModal.id) fd.set('id', roleModal.id);
+    fd.set('appType', effAppType);
+    fd.set('name', roleModal.name);
+    fd.set('description', roleModal.description);
+    fd.set('permissionsJson', JSON.stringify(roleModal.permissions));
+    const res = await saveCustomRole(fd);
+    setRoleBusy(false);
+    if (res?.success) {
+      setRoleModal(null);
+      router.refresh();
+    } else {
+      alert(res?.error || 'Failed to save custom role');
+    }
+  };
+
+  const quickSeedPresetRole = async (tpl: (typeof DEFAULT_ROLE_TEMPLATES)[number]) => {
+    setRoleBusy(true);
+    const fd = new FormData();
+    fd.set('appType', effAppType);
+    fd.set('name', tpl.name);
+    fd.set('description', tpl.description);
+    fd.set('permissionsJson', JSON.stringify(parseStaffPermissions(tpl.permissions)));
+    const res = await saveCustomRole(fd);
+    setRoleBusy(false);
+    if (res?.success) router.refresh();
+    else alert(res?.error || 'Failed to add role preset');
+  };
+
+  const removeCustomRole = async (roleId: string, roleName: string) => {
+    if (!confirm(`Delete custom role "${roleName}"? Assigned staff will keep their custom name and permissions snapshot.`)) return;
+    const res = await deleteCustomRole(roleId, effAppType);
+    if (res?.success) router.refresh();
+    else alert(res?.error || 'Failed to delete custom role');
+  };
 
   const submitAgent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -114,6 +173,9 @@ export default function SettingsClient({
     fd.set('appType', effAppType);
     if (manageBranchId) fd.set('branchId', manageBranchId);
     if (agentModal?.id) fd.set('id', agentModal.id);
+    fd.set('customRoleId', agentModal?.customRoleId || '');
+    fd.set('customRoleName', agentModal?.customRoleName || '');
+    fd.set('staffPermissionsJson', JSON.stringify(agentModal?.staffPermissions || EMPTY_STAFF_PERMISSIONS));
     const res = await manageBranchAgent(fd);
     setAgentBusy(false);
     if (res?.success) { setAgentModal(null); router.refresh(); }
@@ -289,9 +351,90 @@ export default function SettingsClient({
         </div>
       </div>
 
-      {/* Users (scoped agent management) Tab */}
+      {/* Users (scoped agent & role customization) Tab */}
       {canManageAgents && (
       <div className={`tab-content ${activeTab === 'users' ? 'active' : ''}`}>
+        {/* Custom Roles & Permissions Matrix (Foreman / Co-Foreman / Chit Staff / etc.) */}
+        <div className="card" style={{ padding: '14px', marginBottom: '16px', boxShadow: 'none', border: '1px solid var(--border)', background: 'var(--bg-hover, #f8fafc)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '.92rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>badge</span>
+                Custom Staff &amp; Foreman Roles
+              </h4>
+              <p style={{ margin: '2px 0 0', fontSize: '.74rem', color: 'var(--text-secondary)' }}>
+                Create reusable roles (e.g. Foreman, Co-Foreman, Auctioneer, Staff) with tailored permissions. You can also customize permissions per staff member below.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {customRoles.length === 0 && DEFAULT_ROLE_TEMPLATES.slice(0, 3).map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={roleBusy}
+                  onClick={() => quickSeedPresetRole(tpl)}
+                  style={{ fontSize: '.74rem' }}
+                >
+                  + {tpl.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setRoleModal({ name: '', description: '', permissions: { ...EMPTY_STAFF_PERMISSIONS, canAccessForemanPortal: true, canViewChits: true } })}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Create Custom Role
+              </button>
+            </div>
+          </div>
+          {customRoles.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
+              {customRoles.map((cr: any) => {
+                const parsed = parseStaffPermissions(cr.permissionsJson);
+                const enabledCount = STAFF_PERMISSION_META.filter((m) => parsed[m.key]).length;
+                return (
+                  <div key={cr.id} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '6px' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                        <strong style={{ fontSize: '.84rem' }}>{cr.name}</strong>
+                        <span className="badge badge-info" style={{ fontSize: '.68rem' }}>{cr._count?.users ?? 0} staff</span>
+                      </div>
+                      {cr.description && <p style={{ margin: '3px 0 0', fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>{cr.description}</p>}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{enabledCount} permissions active</span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '2px 6px', fontSize: '.72rem' }}
+                          onClick={() => setRoleModal({
+                            id: cr.id,
+                            name: cr.name,
+                            description: cr.description || '',
+                            permissions: parsed,
+                          })}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '2px 6px', fontSize: '.72rem', color: 'var(--danger)' }}
+                          onClick={() => removeCustomRole(cr.id, cr.name)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="card-header">
           <div>
             <h3>👥 {d.agentsTitle}</h3>
@@ -300,7 +443,7 @@ export default function SettingsClient({
             </p>
           </div>
           {manageBranchId && (
-            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
+            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false, customRoleId: '', customRoleName: '', staffPermissions: { ...EMPTY_STAFF_PERMISSIONS } })}>
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.addAgent}
             </button>
           )}
@@ -311,16 +454,26 @@ export default function SettingsClient({
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>{d.agentName}</th><th>{d.username}</th><th>{d.phone}</th><th>{d.permissions}</th><th>{d.status}</th><th style={{ textAlign: 'right' }}>{d.actions}</th></tr>
+                <tr><th>{d.agentName}</th><th>Role / Designation</th><th>{d.username}</th><th>{d.phone}</th><th>{d.permissions}</th><th>{d.status}</th><th style={{ textAlign: 'right' }}>{d.actions}</th></tr>
               </thead>
               <tbody>
-                {branchAgents.map((a: any) => (
+                {branchAgents.map((a: any) => {
+                  const resolvedRoleLabel = a.customRoleName || a.customRole?.name || 'Agent';
+                  const resolvedPerms = parseStaffPermissions(a.staffPermissions || a.customRole?.permissionsJson);
+                  const activePerms = STAFF_PERMISSION_META.filter((m) => resolvedPerms[m.key]);
+                  return (
                   <tr key={a.id}>
                     <td>{a.name}</td>
+                    <td><span className="badge badge-info" style={{ fontSize: '11px' }}>{resolvedRoleLabel}</span></td>
                     <td>{a.username}</td>
                     <td>{a.phone}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {activePerms.map((pm) => (
+                          <span key={pm.key} className="badge" style={{ background: '#ECFDF5', color: '#047857', fontSize: '10px', padding: '2px 7px' }} title={pm.description}>
+                            {pm.label}
+                          </span>
+                        ))}
                         {a.bypassCustomerApproval && (
                           <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassCustomerApproval}>{d.badgeAutoCustomer}</span>
                         )}
@@ -333,7 +486,7 @@ export default function SettingsClient({
                         {effAppType !== 'chitfunds' && a.feeConfirmationMandatory && (
                           <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title={d.feeConfirmationMandatory}>{d.badgeFeeConfirm}</span>
                         )}
-                        {!a.bypassCustomerApproval && (effAppType === 'chitfunds' || (!a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory)) && (
+                        {activePerms.length === 0 && !a.bypassCustomerApproval && (effAppType === 'chitfunds' || (!a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory)) && (
                           <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>{d.badgeStandard}</span>
                         )}
                       </div>
@@ -355,15 +508,19 @@ export default function SettingsClient({
                         bypassCustomerApproval: !!a.bypassCustomerApproval,
                         autoReleaseFloat: !!a.autoReleaseFloat,
                         feeConfirmationMandatory: !!a.feeConfirmationMandatory,
+                        customRoleId: a.customRoleId || '',
+                        customRoleName: a.customRoleName || a.customRole?.name || '',
+                        staffPermissions: resolvedPerms,
                       })}>{d.edit}</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
                         {a.status === 'active' ? d.deactivate : d.activate}
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {branchAgents.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>{d.noAgentsYet}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>{d.noAgentsYet}</td></tr>
                 )}
               </tbody>
             </table>
@@ -371,6 +528,77 @@ export default function SettingsClient({
         )}
       </div>
       )}
+
+      <Modal isOpen={!!roleModal} onClose={() => setRoleModal(null)} title={roleModal?.id ? 'Edit Custom Role' : 'Create Custom Role'}>
+        {roleModal && (
+          <form onSubmit={submitCustomRole}>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <span style={{ fontSize: '.74rem', color: 'var(--text-secondary)', alignSelf: 'center' }}>Presets:</span>
+              {DEFAULT_ROLE_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '.72rem', padding: '2px 8px' }}
+                  onClick={() => setRoleModal((prev) => prev ? {
+                    ...prev,
+                    name: prev.name || tpl.name,
+                    description: prev.description || tpl.description,
+                    permissions: parseStaffPermissions(tpl.permissions),
+                  } : prev)}
+                >
+                  {tpl.name}
+                </button>
+              ))}
+            </div>
+            <div className="form-group" style={{ marginBottom: '10px' }}>
+              <label className="form-label">Role Name *</label>
+              <input
+                className="form-control"
+                value={roleModal.name}
+                onChange={(e) => setRoleModal({ ...roleModal, name: e.target.value })}
+                placeholder="e.g. Foreman, Co-Foreman, Chit Staff"
+                required
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: '12px' }}>
+              <label className="form-label">Description</label>
+              <input
+                className="form-control"
+                value={roleModal.description}
+                onChange={(e) => setRoleModal({ ...roleModal, description: e.target.value })}
+                placeholder="Optional description for admins"
+              />
+            </div>
+            <div style={{ marginBottom: '14px' }}>
+              <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Permissions</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '260px', overflowY: 'auto', padding: '6px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                {STAFF_PERMISSION_META.map((pm) => (
+                  <label key={pm.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '.78rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(roleModal.permissions[pm.key])}
+                      onChange={(e) => setRoleModal({
+                        ...roleModal,
+                        permissions: { ...roleModal.permissions, [pm.key]: e.target.checked },
+                      })}
+                      style={{ marginTop: '2px' }}
+                    />
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '.78rem' }}>{pm.label}</strong>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-secondary)' }}>{pm.description}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setRoleModal(null)}>{d.cancel}</button>
+              <button type="submit" className="btn btn-primary" disabled={roleBusy}>{roleBusy ? d.saving : d.save}</button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? d.editAgent : d.addAgent}>
         <form onSubmit={submitAgent}>
@@ -419,6 +647,93 @@ export default function SettingsClient({
               <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
               {d.agentPermissionsTitle}
             </h4>
+
+            {/* Role Customization & Foreman / Staff Designation */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px', padding: '10px', borderRadius: '8px', background: 'var(--bg-hover, #f8fafc)', border: '1px solid var(--border)' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '.78rem' }}>Role Template / Preset</label>
+                <select
+                  className="form-control"
+                  value={agentModal?.customRoleId || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setAgentModal((prev) => prev ? { ...prev, customRoleId: '', staffPermissions: { ...EMPTY_STAFF_PERMISSIONS } } : prev);
+                      return;
+                    }
+                    if (val.startsWith('preset:')) {
+                      const key = val.slice('preset:'.length);
+                      const tpl = DEFAULT_ROLE_TEMPLATES.find((t) => t.key === key);
+                      if (tpl) {
+                        setAgentModal((prev) => prev ? {
+                          ...prev,
+                          customRoleId: '',
+                          customRoleName: tpl.name,
+                          staffPermissions: parseStaffPermissions(tpl.permissions),
+                        } : prev);
+                      }
+                      return;
+                    }
+                    const cr = customRoles.find((r: any) => r.id === val);
+                    if (cr) {
+                      setAgentModal((prev) => prev ? {
+                        ...prev,
+                        customRoleId: cr.id,
+                        customRoleName: cr.name,
+                        staffPermissions: parseStaffPermissions(cr.permissionsJson),
+                      } : prev);
+                    }
+                  }}
+                >
+                  <option value="">— Standard Collection Agent —</option>
+                  {customRoles.map((cr: any) => (
+                    <option key={cr.id} value={cr.id}>{cr.name} (Custom Role)</option>
+                  ))}
+                  {DEFAULT_ROLE_TEMPLATES.map((tpl) => (
+                    <option key={tpl.key} value={`preset:${tpl.key}`}>{tpl.name} (Preset)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '.78rem' }}>Display Designation / Role Title</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={agentModal?.customRoleName || ''}
+                  onChange={(e) => setAgentModal((prev) => prev ? { ...prev, customRoleName: e.target.value } : prev)}
+                  placeholder="e.g. Foreman, Co-Foreman, Chit Staff"
+                />
+              </div>
+            </div>
+
+            {effAppType === 'chitfunds' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                {STAFF_PERMISSION_META.map((pm) => (
+                  <label key={pm.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', cursor: 'pointer', fontSize: '.78rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(agentModal?.staffPermissions?.[pm.key])}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAgentModal((prev) => prev ? {
+                          ...prev,
+                          staffPermissions: {
+                            ...(prev.staffPermissions || EMPTY_STAFF_PERMISSIONS),
+                            [pm.key]: checked,
+                          } as StaffPermissions,
+                        } : prev);
+                      }}
+                      style={{ marginTop: '2px' }}
+                    />
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '.78rem' }}>{pm.label}</strong>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-secondary)' }}>{pm.description}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
                 <input 

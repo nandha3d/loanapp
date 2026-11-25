@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { parseModulePath } from '@/types/modules';
 import { corsHeadersFor } from '@/lib/cors';
+import {
+  canStaffVisitPage,
+  decodePermissionClaims,
+  type StaffPermissions,
+} from '@/lib/staffPermissions';
 
 const AGENT_BLOCKED = [
   '/dashboard',
@@ -20,6 +25,7 @@ const AGENT_BLOCKED = [
 // `[module]` segment captures the page name and 404s. Map them to their owner.
 const BARE_EXCLUSIVE: Record<string, string> = {
   '/chits': 'chitfunds',
+  '/foreman': 'chitfunds',
   '/vehicles': 'autofinance',
   '/finance-partners': 'autofinance',
   '/pending-tasks': 'autofinance',
@@ -119,6 +125,7 @@ export function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/auth/exchange') ||
     pathname.startsWith('/r/') ||
+    pathname.startsWith('/join/') ||
     pathname === '/affiliate' ||
     pathname.startsWith('/borrower') ||
     MARKETING_PATHS.includes(pathname) ||
@@ -138,6 +145,7 @@ export function getRoleRedirectTarget(
   pathname: string,
   role: string,
   hasEditSearch = false,
+  staffPerms?: StaffPermissions | null,
 ): string | null {
   const { module, page } = parseModulePath(pathname);
 
@@ -192,6 +200,12 @@ export function getRoleRedirectTarget(
   }
 
   if (role === 'agent') {
+    if (module && canStaffVisitPage(page, staffPerms)) {
+      return null;
+    }
+    if (!module && canStaffVisitPage(pathname, staffPerms)) {
+      return null;
+    }
     if (module && (page === '/reports' || page.startsWith('/reports/'))) {
       return `/${module}/collection`;
     }
@@ -390,10 +404,12 @@ export async function proxy(request: NextRequest) {
     role = 'superadmin';
   }
 
+  const staffPerms = decodePermissionClaims((token as any).staffPerms);
   const redirectTarget = getRoleRedirectTarget(
     pathname,
     role,
     request.nextUrl.searchParams.has('edit'),
+    staffPerms,
   );
   if (redirectTarget) {
     return NextResponse.redirect(publicUrl(request, redirectTarget));

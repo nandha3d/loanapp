@@ -938,3 +938,134 @@ export async function toggleBranchStatus(branchId: string, currentStatus: string
   return { success: true, status: newStatus };
 }
 
+/**
+ * Create or update an Admin-customized Staff/Foreman role template scoped to the
+ * tenant & module (e.g. "Head Foreman", "Co-Foreman", "Staff").
+ */
+export async function saveCustomRole(formData: FormData) {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+
+  const {
+    ALL_STAFF_PERMISSION_KEYS,
+    serializeStaffPermissions,
+  } = await import('@/lib/staffPermissions');
+
+  const id = ((formData.get('id') as string | null) ?? '').trim() || null;
+  const name = ((formData.get('name') as string | null) ?? '').trim();
+  const description = ((formData.get('description') as string | null) ?? '').trim() || null;
+  const appType = ((formData.get('appType') as string | null) ?? (await getUserAppType())).trim() || 'chitfunds';
+  if (!name) return { success: false, error: 'Role name is required.' };
+  if (name.length > 60) return { success: false, error: 'Role name is too long (max 60 characters).' };
+
+  const permsJsonInput = (formData.get('permissionsJson') as string | null) ?? null;
+  let permissionsJson: string;
+  if (permsJsonInput !== null) {
+    const parsed = JSON.parse(permsJsonInput || '{}');
+    permissionsJson = serializeStaffPermissions(parsed);
+  } else {
+    const obj: Record<string, boolean> = {};
+    for (const k of ALL_STAFF_PERMISSION_KEYS) {
+      const val = formData.get(`perm_${k}`);
+      obj[k] = val === 'true' || val === 'on' || val === '1';
+    }
+    permissionsJson = serializeStaffPermissions(obj);
+  }
+
+  const branchId = await getActiveBranchId();
+
+  const conflict = await prisma.customRole.findFirst({
+    where: {
+      tenantId: actor.tenantId,
+      appType,
+      name,
+      ...(id ? { id: { not: id } } : {}),
+    },
+    select: { id: true },
+  });
+  if (conflict) {
+    return { success: false, error: `A role named "${name}" already exists in this module.` };
+  }
+
+  if (id) {
+    const existing = await prisma.customRole.findFirst({
+      where: { id, tenantId: actor.tenantId },
+      select: { id: true },
+    });
+    if (!existing) return { success: false, error: 'Custom role not found.' };
+
+    await prisma.customRole.update({
+      where: { id },
+      data: { name, description, permissionsJson },
+    });
+    await prisma.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'custom_role',
+        entityId: id,
+        newValue: JSON.stringify({ name, appType, permissionsJson }),
+      },
+    }).catch(() => {});
+  } else {
+    const created = await prisma.customRole.create({
+      data: {
+        tenantId: actor.tenantId,
+        branchId: branchId && branchId !== 'all' ? branchId : null,
+        appType,
+        name,
+        description,
+        baseRole: 'agent',
+        permissionsJson,
+        createdById: actor.userId,
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'create',
+        entityType: 'custom_role',
+        entityId: created.id,
+        newValue: JSON.stringify({ name, appType, permissionsJson }),
+      },
+    }).catch(() => {});
+  }
+
+  revalidatePath(`/${appType}/settings`);
+  return { success: true };
+}
+
+export async function deleteCustomRole(roleId: string, appType = 'chitfunds') {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+
+  const existing = await prisma.customRole.findFirst({
+    where: { id: roleId, tenantId: actor.tenantId },
+    select: { id: true, name: true },
+  });
+  if (!existing) return { success: false, error: 'Custom role not found.' };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.updateMany({
+      where: { customRoleId: roleId, tenantId: actor.tenantId },
+      data: { customRoleId: null },
+    });
+    await tx.customRole.delete({ where: { id: roleId } });
+    await tx.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'delete',
+        entityType: 'custom_role',
+        entityId: roleId,
+        newValue: JSON.stringify({ name: existing.name }),
+      },
+    });
+  });
+
+  revalidatePath(`/${appType}/settings`);
+  return { success: true };
+}
+

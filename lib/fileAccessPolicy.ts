@@ -47,18 +47,27 @@ export async function isBorrowerFileAllowed(
       where: { tenantId, fileUrl: { endsWith: suffix } },
       select: { entityType: true, entityId: true },
     }),
-    // Public voice notes posted in a live auction room are accessible to
-    // subscribers enrolled in that chit group.
+    // Public voice notes posted in a persistent group room or live auction room
+    // are accessible to subscribers enrolled in that chit group.
     prisma.chitRoomMessage.findFirst({
       where: {
         tenantId,
         visibility: 'public',
         audioUrl: { endsWith: suffix },
-        auction: {
-          chitGroup: {
-            members: { some: { customerId } },
+        OR: [
+          {
+            chitGroup: {
+              members: { some: { customerId } },
+            },
           },
-        },
+          {
+            auction: {
+              chitGroup: {
+                members: { some: { customerId } },
+              },
+            },
+          },
+        ],
       },
       select: { id: true },
     }),

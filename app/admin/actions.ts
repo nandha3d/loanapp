@@ -9,6 +9,13 @@ import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } f
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 import { canManageAdmins, canManageUser, isPrimaryAdmin } from '@/lib/roles';
+import {
+  ALL_STAFF_PERMISSION_KEYS,
+  hasAnyCustomStaffPermission,
+  parseStaffPermissions,
+  serializeStaffPermissions,
+  type StaffPermissions,
+} from '@/lib/staffPermissions';
 
 // The mobile v1 API authenticates with a Bearer token (no NextAuth cookie),
 // so `auth()` is empty there. Routes that reuse these actions pass the
@@ -113,6 +120,44 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
   const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
   const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
+
+  // Custom role & granular staff/foreman permissions (ROLE-3 additive flags)
+  const rawCustomRoleId = ((formData.get('customRoleId') as string | null) ?? '').trim() || null;
+  const rawCustomRoleName = ((formData.get('customRoleName') as string | null) ?? '').trim() || null;
+  const rawStaffPermJson = (formData.get('staffPermissionsJson') as string | null) ?? null;
+
+  let customRoleId: string | null = null;
+  if (rawCustomRoleId) {
+    const foundRole = await prisma.customRole.findFirst({
+      where: { id: rawCustomRoleId, tenantId, status: 'active' },
+      select: { id: true },
+    });
+    if (foundRole) customRoleId = foundRole.id;
+  }
+
+  let parsedPerms: StaffPermissions | null = null;
+  if (rawStaffPermJson !== null) {
+    parsedPerms = parseStaffPermissions(rawStaffPermJson);
+  } else {
+    const fromCheckboxes: Partial<StaffPermissions> = {};
+    let sawField = false;
+    for (const k of ALL_STAFF_PERMISSION_KEYS) {
+      if (formData.has(`perm_${k}`)) {
+        sawField = true;
+        const v = formData.get(`perm_${k}`);
+        fromCheckboxes[k] = v === 'true' || v === 'on' || v === '1';
+      }
+    }
+    if (sawField) parsedPerms = parseStaffPermissions(fromCheckboxes);
+  }
+  const staffPermissionsToSave =
+    parsedPerms && hasAnyCustomStaffPermission(parsedPerms)
+      ? serializeStaffPermissions(parsedPerms)
+      : rawStaffPermJson !== null
+        ? null
+        : undefined;
+  const effectiveBypassCustomer =
+    bypassCustomerApproval || Boolean(parsedPerms?.canManageCustomers);
   // Only meaningful on an admin, and only a superadmin may set it (guarded below).
   const wantsPrimaryAdmin =
     formData.get('isPrimaryAdmin') === 'true' || formData.get('isPrimaryAdmin') === 'on';
@@ -243,10 +288,13 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       experience,
       age,
       bypassLoanApproval,
-      bypassCustomerApproval,
+      bypassCustomerApproval: effectiveBypassCustomer,
       bypassVehicleApproval,
       autoReleaseFloat,
       feeConfirmationMandatory,
+      customRoleId,
+      customRoleName: rawCustomRoleName,
+      ...(staffPermissionsToSave !== undefined ? { staffPermissions: staffPermissionsToSave } : {}),
       ...(actorIsPrimaryAdmin ? {} : { isPrimaryAdmin: nextIsPrimaryAdmin }),
     };
     if (password) {
@@ -297,10 +345,13 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
           experience,
           age,
           bypassLoanApproval,
-          bypassCustomerApproval,
+          bypassCustomerApproval: effectiveBypassCustomer,
           bypassVehicleApproval,
           autoReleaseFloat,
           feeConfirmationMandatory,
+          customRoleId,
+          customRoleName: rawCustomRoleName,
+          ...(staffPermissionsToSave !== undefined ? { staffPermissions: staffPermissionsToSave } : {}),
           isPrimaryAdmin: actorIsPrimaryAdmin ? false : nextIsPrimaryAdmin,
         }
       });
@@ -911,6 +962,44 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
   const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
   const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
+  // Custom role & granular staff/foreman permissions (ROLE-3 additive flags)
+  const rawCustomRoleId = ((formData.get('customRoleId') as string | null) ?? '').trim() || null;
+  const rawCustomRoleName = ((formData.get('customRoleName') as string | null) ?? '').trim() || null;
+  const rawStaffPermJson = (formData.get('staffPermissionsJson') as string | null) ?? null;
+
+  let customRoleId: string | null = null;
+  if (rawCustomRoleId) {
+    const foundRole = await prisma.customRole.findFirst({
+      where: { id: rawCustomRoleId, tenantId, status: 'active' },
+      select: { id: true },
+    });
+    if (foundRole) customRoleId = foundRole.id;
+  }
+
+  let parsedPerms: StaffPermissions | null = null;
+  if (rawStaffPermJson !== null) {
+    parsedPerms = parseStaffPermissions(rawStaffPermJson);
+  } else {
+    const fromCheckboxes: Partial<StaffPermissions> = {};
+    let sawField = false;
+    for (const k of ALL_STAFF_PERMISSION_KEYS) {
+      if (formData.has(`perm_${k}`)) {
+        sawField = true;
+        const v = formData.get(`perm_${k}`);
+        fromCheckboxes[k] = v === 'true' || v === 'on' || v === '1';
+      }
+    }
+    if (sawField) parsedPerms = parseStaffPermissions(fromCheckboxes);
+  }
+  const staffPermissionsToSave =
+    parsedPerms && hasAnyCustomStaffPermission(parsedPerms)
+      ? serializeStaffPermissions(parsedPerms)
+      : rawStaffPermJson !== null
+        ? null
+        : undefined;
+  const effectiveBypassCustomer =
+    bypassCustomerApproval || Boolean(parsedPerms?.canManageCustomers);
+
   if (!name || !username || !phone) {
     return { success: false, error: 'Name, username and phone are required.' };
   }
@@ -961,12 +1050,17 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
     const data: any = { name, username, phone, email, status,
       aadharNumber, dob, experience, age,
-      bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory };
+      bypassLoanApproval, bypassCustomerApproval: effectiveBypassCustomer, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory,
+      customRoleId,
+      customRoleName: rawCustomRoleName };
+    if (staffPermissionsToSave !== undefined) {
+      data.staffPermissions = staffPermissionsToSave;
+    }
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
       data: { tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: id,
-        newValue: JSON.stringify({ name, username, status, scope: 'branch_agent' }) },
+        newValue: JSON.stringify({ name, username, status, customRoleId, customRoleName: rawCustomRoleName, scope: 'branch_agent' }) },
     }).catch(() => {});
   } else {
     if (!password) return { success: false, error: 'Password is required for a new agent.' };
@@ -980,12 +1074,15 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
           passwordHash: await bcrypt.hash(password, 10),
           role: 'agent', appType, status, canCreateLoan: true,
           aadharNumber, dob, experience, age,
-          bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory },
+          bypassLoanApproval, bypassCustomerApproval: effectiveBypassCustomer, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory,
+          customRoleId,
+          customRoleName: rawCustomRoleName,
+          ...(staffPermissionsToSave !== undefined ? { staffPermissions: staffPermissionsToSave } : {}) },
       });
       savedUserId = created.id;
       await prisma.auditLog.create({
         data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
-          newValue: JSON.stringify({ name, username, role: 'agent', appType, status, scope: 'branch_agent' }) },
+          newValue: JSON.stringify({ name, username, role: 'agent', customRoleId, customRoleName: rawCustomRoleName, appType, status, scope: 'branch_agent' }) },
       }).catch(() => {});
     } catch (err: any) {
       if (err.code === 'P2002') {

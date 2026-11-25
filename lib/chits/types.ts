@@ -1,3 +1,5 @@
+import type { StaffPermissions } from '../staffPermissions';
+
 export type ChitDividendPolicy = 'ALL_MEMBERS' | 'NON_WINNERS_ONLY' | 'NON_PRIZED_ONLY' | 'NONE';
 export type ChitDividendDistribution =
   | 'ADJUST_NEXT_DUE'
@@ -55,4 +57,6 @@ export type ChitScope = {
   branchId?: string | null;
   role: string;
   userId?: string | null;
+  customRoleName?: string | null;
+  staffPermissions?: StaffPermissions | null;
 };

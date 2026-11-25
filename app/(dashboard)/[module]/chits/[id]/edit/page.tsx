@@ -15,7 +15,8 @@ export default async function EditChitGroupPage({ params }: { params: Promise<{ 
   if (!session?.user) redirect('/login');
   const appType = await getUserAppType();
   const role = (session.user as any)?.role as string | undefined;
-  if (!canAdminChits(role)) redirect(modulePath(appType, '/collection'));
+  const staffPermissions = (session.user as any)?.staffPermissions ?? null;
+  if (!canAdminChits(role, staffPermissions)) redirect(modulePath(appType, '/collection'));
 
   const tenantId = await getDefaultTenantId();
   await requireModule(tenantId, 'chitfunds');

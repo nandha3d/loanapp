@@ -286,6 +286,7 @@ export const en = {
     pendingTasks: 'Pending Tasks',
     financePartners: 'Brokers & Dealers',
     chits: 'Chit Groups',
+    foremanPortal: 'Foreman Portal',
     penalties: 'Penalties',
     approvals: 'Approvals',
     team: 'Manage Agents',

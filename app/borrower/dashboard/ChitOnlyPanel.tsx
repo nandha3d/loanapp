@@ -147,11 +147,30 @@ export default function ChitOnlyPanel({
                         textDecoration: 'none',
                       }}
                     >
-                      Join Live Auction &amp; Voice Chat →
+                      Join Live Auction Table →
                     </Link>
                   )}
                 </div>
               )}
+              <div style={{ gridColumn: '1 / -1', marginTop: '4px' }}>
+                <Link
+                  href={`/borrower/chits/${m.group.id}/room`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 14px',
+                    borderRadius: '999px',
+                    background: '#075e54',
+                    color: '#fff',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                  }}
+                >
+                  💬 Open Group Chat &amp; Live Room →
+                </Link>
+              </div>
             </div>
           </div>
         ))

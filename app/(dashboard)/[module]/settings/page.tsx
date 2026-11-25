@@ -67,6 +67,12 @@ export default async function SettingsPage() {
     }),
   ]);
 
+  const customRoles = await prisma.customRole.findMany({
+    where: { tenantId, appType, status: 'active' },
+    include: { _count: { select: { users: true } } },
+    orderBy: { name: 'asc' },
+  });
+
   const packages = rawPackages.map(p => ({
     ...p,
     principal: p.principal.toString(),
@@ -108,6 +114,7 @@ export default async function SettingsPage() {
     name: string;
     username: string;
     phone: string;
+    email?: string | null;
     status: string;
     aadharNumber?: string | null;
     dob?: Date | null;
@@ -117,6 +124,10 @@ export default async function SettingsPage() {
     bypassCustomerApproval?: boolean;
     autoReleaseFloat?: boolean;
     feeConfirmationMandatory?: boolean;
+    customRoleId?: string | null;
+    customRoleName?: string | null;
+    staffPermissions?: string | null;
+    customRole?: { id: string; name: string; permissionsJson: string } | null;
   }[] = [];
   let manageBranchName: string | null = null;
   if (manageBranchId) {
@@ -128,6 +139,7 @@ export default async function SettingsPage() {
           name: true,
           username: true,
           phone: true,
+          email: true,
           status: true,
           aadharNumber: true,
           dob: true,
@@ -137,6 +149,10 @@ export default async function SettingsPage() {
           bypassCustomerApproval: true,
           autoReleaseFloat: true,
           feeConfirmationMandatory: true,
+          customRoleId: true,
+          customRoleName: true,
+          staffPermissions: true,
+          customRole: { select: { id: true, name: true, permissionsJson: true } },
         },
         orderBy: { name: 'asc' },
       }),
@@ -207,6 +223,7 @@ export default async function SettingsPage() {
       manageBranchName={manageBranchName}
       notificationTemplates={notificationTemplates}
       branches={branches}
+      customRoles={JSON.parse(JSON.stringify(customRoles))}
       planMaxBranches={subscription?.maxBranches ?? 1}
     />
   );

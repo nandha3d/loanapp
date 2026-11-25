@@ -300,6 +300,10 @@ class Endpoints {
   // Staff waiting-room admit/deny, auction-cuid based (canonical live-room family).
   static String chitAuctionAdmission(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/admission';
+  // Persistent group chat room + per-period PDF settlement report.
+  static String chitGroupRoom(String id) => '/chits/$id/room';
+  static String chitAuctionReport(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/report';
 
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';
@@ -325,6 +329,10 @@ class Endpoints {
       '/borrower/chits/$groupId/auctions/$auctionId/timeline';
   static String borrowerChitAuctionSummary(String groupId, String auctionId) =>
       '/borrower/chits/$groupId/auctions/$auctionId/summary';
+  static String borrowerChitGroupRoom(String groupId) =>
+      '/borrower/chits/$groupId/room';
+  static String borrowerChitAuctionReport(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/report';
 
   // Doc 22b/19: grouped contributions + payment proof intents, borrower upload.
   static const String borrowerUpload = '/borrower/upload';

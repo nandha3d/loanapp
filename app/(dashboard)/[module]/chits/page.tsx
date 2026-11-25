@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
+import { canAdminChits, canViewChits } from '@/lib/chits/access';
 import { modulePath } from '@/types/modules';
 
 export default async function ChitsPage({
@@ -16,11 +17,13 @@ export default async function ChitsPage({
 }) {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
+  const staffPermissions = (session?.user as any)?.staffPermissions ?? null;
   if (!session) redirect('/login');
 
   const tenantId = await getDefaultTenantId();
   const appType = 'chitfunds';
-  if (userRole === 'agent') redirect(modulePath(appType, '/collection'));
+  if (userRole === 'agent' && !canViewChits(userRole, staffPermissions)) redirect(modulePath(appType, '/collection'));
+  const canManageChits = canAdminChits(userRole, staffPermissions);
   const dict = await getDictionary(tenantId);
   try {
     await requireModule(tenantId, 'chitfunds');
@@ -100,15 +103,22 @@ export default async function ChitsPage({
       <div className="card">
         <div className="card-header">
           <h3>💰 {dict.chits.chitFundGroups}</h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {userRole !== 'agent' && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {(userRole !== 'agent' || staffPermissions?.canCollectChits) && (
               <Link href="/chits/payments" className="btn btn-ghost btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Payment proofs
               </Link>
             )}
-            <Link href="/chits/new" className="btn btn-primary btn-sm">
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
-            </Link>
+            {canManageChits && (
+              <>
+                <Link href="/chits/import" className="btn btn-secondary btn-sm">
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>chat</span> Import from WhatsApp
+                </Link>
+                <Link href="/chits/new" className="btn btn-primary btn-sm">
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -160,9 +170,10 @@ export default async function ChitsPage({
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
                     <Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm" style={{ flex: 1, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>{dict.chits.view}</Link>
+                    <Link href={`/chits/${g.id}/room`} className="btn btn-secondary btn-sm" style={{ flex: 1.1, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>💬 Chat Room</Link>
                     {nextAuction && (
-                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm" style={{ flex: 1.4, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>
-                        {g.auctionType === 'open_live' ? 'Enter room' : 'Manage'}
+                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm" style={{ flex: 1.2, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>
+                        {g.auctionType === 'open_live' ? 'Live Bid' : 'Manage'}
                       </Link>
                     )}
                   </div>

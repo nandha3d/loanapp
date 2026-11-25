@@ -3,7 +3,7 @@ import { getSetting } from '@/lib/tenant';
 import { notFound } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 import AuctionDetailClient from './AuctionDetailClient';
-import { getDictionary } from '@/lib/i18n';
+import { getCurrentLanguage, getDictionary } from '@/lib/i18n';
 import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
 import { calculateReserveFloor } from '@/lib/chits/engineCalculator';
 import { parseChitEngineConfig, resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
@@ -14,7 +14,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
   const scope = await getWebChitScope();
   const tenantId = scope.tenantId;
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
-  const dict = await getDictionary(tenantId);
+  const [dict, lang] = await Promise.all([getDictionary(tenantId), getCurrentLanguage(tenantId)]);
 
   const auction = await prisma.chitAuction.findFirst({
     where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope, { OR: [{ id }, { groupCode: id }] }) },
@@ -71,6 +71,17 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
     },
   });
 
+  const payoutReceipt = await prisma.chitReceipt.findFirst({
+    where: {
+      tenantId,
+      entityType: 'auction',
+      entityId: auction.id,
+      receiptType: 'payout',
+      status: 'active',
+    },
+    orderBy: { issuedAt: 'desc' },
+  });
+
   const engineType = resolveEngineTypeFromGroup(auction.chitGroup);
   const engineCfg = parseChitEngineConfig(auction.chitGroup.engineConfig, engineType);
   const chitValueNum = Number(auction.chitGroup.chitValue);
@@ -122,9 +133,11 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
         auction={JSON.parse(JSON.stringify(auction))}
         security={security ? JSON.parse(JSON.stringify(security)) : null}
         securityDocuments={JSON.parse(JSON.stringify(securityDocuments))}
+        payoutReceipt={payoutReceipt ? JSON.parse(JSON.stringify(payoutReceipt)) : null}
         initialMessages={JSON.parse(JSON.stringify(roomMessages.reverse()))}
         initialBidBounds={initialBidBounds}
         currencySymbol={currencySymbol}
+        lang={lang}
         dict={dict}
       />
     </div>

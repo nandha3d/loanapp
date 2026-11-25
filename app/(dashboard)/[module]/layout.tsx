@@ -42,7 +42,7 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const user = session.user as { id?: string; name?: string | null; role?: string };
+  const user = session.user as { id?: string; name?: string | null; role?: string; staffPermissions?: any; customRoleName?: string | null };
   const role = user.role as string;
   const userId = user.id as string;
   const { module } = await params;
@@ -201,6 +201,8 @@ export default async function DashboardLayout({
         modulePrefix={`/${requestedModule}`}
         subscription={sub}
         pendingApprovals={pendingApprovals}
+        staffPermissions={user.staffPermissions ?? null}
+        customRoleName={user.customRoleName ?? null}
       />
       <main className="main-content">
         <BreadcrumbLabelProvider>

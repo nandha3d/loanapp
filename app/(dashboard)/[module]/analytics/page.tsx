@@ -22,8 +22,11 @@ export default async function AnalyticsPage({
 }) {
   const session = await auth();
   const role = (session?.user as any)?.role;
+  const staffPermissions = (session?.user as any)?.staffPermissions;
   const appType = await getUserAppType();
-  if (!role || role === 'agent') redirect(modulePath(appType, '/dashboard'));
+  if (!role || (role === 'agent' && !staffPermissions?.canViewReports && !staffPermissions?.canViewDashboard)) {
+    redirect(modulePath(appType, '/dashboard'));
+  }
 
   const tenantId = await getDefaultTenantId();
   const branding = await getBranding(tenantId);

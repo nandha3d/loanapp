@@ -1,4 +1,17 @@
 import { generateChitReceiptNo } from './receipts';
+import {
+  STANDARD_CASH_DENOMINATIONS,
+  formatCashDenominationsSummary,
+  normalizeCashDenominations,
+  sumCashDenominations,
+} from './denominations';
+
+export {
+  STANDARD_CASH_DENOMINATIONS,
+  formatCashDenominationsSummary,
+  normalizeCashDenominations,
+  sumCashDenominations,
+};
 
 export async function releaseChitPrizePayout(tx: any, input: {
   tenantId: string;
@@ -11,6 +24,7 @@ export async function releaseChitPrizePayout(tx: any, input: {
   paymentMode?: string;
   referenceNo?: string | null;
   notes?: string | null;
+  cashDenominations?: Record<string | number, unknown> | string | null;
 }) {
   const existingEntry = await tx.accountEntry.findFirst({
     where: {
@@ -21,6 +35,12 @@ export async function releaseChitPrizePayout(tx: any, input: {
     },
   });
   if (existingEntry) throw new Error('Prize payout already posted for this auction');
+
+  const cleanDenoms = normalizeCashDenominations(input.cashDenominations);
+  const cashTotal = sumCashDenominations(cleanDenoms);
+  if (cleanDenoms && cashTotal > input.amount + 0.01) {
+    throw new Error(`Cash denominations total (${cashTotal}) cannot exceed payout amount (${input.amount}).`);
+  }
 
   const receiptNo = await generateChitReceiptNo(tx, {
     tenantId: input.tenantId,
@@ -55,6 +75,7 @@ export async function releaseChitPrizePayout(tx: any, input: {
       amount: input.amount,
       paymentMode: input.paymentMode || 'cash',
       referenceNo: input.referenceNo || undefined,
+      cashDenominationsJson: cleanDenoms ? JSON.stringify(cleanDenoms) : undefined,
       notes: input.notes || undefined,
       issuedById: input.userId,
     },
@@ -73,5 +94,5 @@ export async function releaseChitPrizePayout(tx: any, input: {
     });
   }
 
-  return { receiptNo };
+  return { receiptNo, cashDenominations: cleanDenoms };
 }

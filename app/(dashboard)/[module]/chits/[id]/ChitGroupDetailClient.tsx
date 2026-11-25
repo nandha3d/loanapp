@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   activateChitGroup,
+  addChitMemberTicketsAction,
   autoAssignChitTicketNumbers,
   cancelChitGroup,
   drawAuctionWinner,
   markPaymentMissed,
   recordChitPayment,
+  updateChitGroupForemenAction,
   updateChitMemberDetails,
   markChitAgreementSigned,
   recordAscaPoolTransaction,
@@ -16,6 +18,7 @@ import {
   verifyChitAgreement,
 } from '../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { PDF_LANGUAGES, resolvePdfLang } from '@/lib/reports/pdfLanguages';
 import Link from '@/components/layout/DashboardLink';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 import { parseFrequency, frequencyLabel, periodWindow } from '@/lib/chits/frequency';
@@ -34,7 +37,10 @@ interface ChitGroupDetailClientProps {
   group: any;
   dividendLedger?: ChitGroupDividendLedger | null;
   poolTransactions?: any[];
+  staffUsers?: Array<{ id: string; name: string; phone: string; role: string; customRoleName?: string | null; customRole?: { name: string } | null }>;
+  customers?: Array<{ id: string; name: string; customerCode: string }>;
   currencySymbol: string;
+  lang?: string;
   dict: any;
 }
 
@@ -58,12 +64,16 @@ export default function ChitGroupDetailClient({
   group,
   dividendLedger = null,
   poolTransactions = [],
+  staffUsers = [],
+  customers = [],
   currencySymbol,
+  lang,
   dict,
 }: ChitGroupDetailClientProps) {
   const d = dict.chits;
   const router = useRouter();
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
+  const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(lang));
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [memberModal, setMemberModal] = useState<any>(null);
   const [payAmount, setPayAmount] = useState(0);
@@ -80,6 +90,18 @@ export default function ChitGroupDetailClient({
   const [lastReceipt, setLastReceipt] = useState('');
   const [rescheduleModal, setRescheduleModal] = useState<any>(null);
   const [rescheduleValue, setRescheduleValue] = useState('');
+  const [foremenModal, setForemenModal] = useState<boolean>(false);
+  const [foremenDraft, setForemenDraft] = useState<Array<{ userId: string; roleLabel: string; isPrimary: boolean }>>(() =>
+    (group.foremen ?? []).map((f: any) => ({
+      userId: f.userId,
+      roleLabel: f.roleLabel || 'Foreman',
+      isPrimary: Boolean(f.isPrimary),
+    })),
+  );
+  const [pickForemanId, setPickForemanId] = useState('');
+  const [pickForemanRole, setPickForemanRole] = useState('Co-Foreman');
+  const [addCustId, setAddCustId] = useState('');
+  const [addQty, setAddQty] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -238,7 +260,10 @@ export default function ChitGroupDetailClient({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <Link href={`/chits/${group.id}/room`} className="btn btn-primary btn-sm">
+          💬 Group Chat &amp; Live Room
+        </Link>
         <Link href={`/chits/${group.id}/edit`} className="btn btn-secondary btn-sm">Edit</Link>
         {group.status === 'draft' && membersMissingTicketNo > 0 && (
           <button
@@ -314,12 +339,48 @@ export default function ChitGroupDetailClient({
                     {engineCfg.regulatoryTier} · {engineCfg.scaleTier} · Asset: {engineCfg.payoutAssetType} · Cadence: {engineCfg.collectionFrequency}
                   </td>
                 </tr>
-                <tr>
-                  <td>Commission</td>
+                <tr><td>Commission</td>
                   <td>
                     {engineCfg.foremanCompensation.mode} · {Number(group.commissionPct)}% of {group.commissionBasis === 'CHIT_VALUE' ? 'chit value' : 'bid discount'}
                     {engineCfg.foremanCompensation.flatFeeAmount > 0 ? ` / flat ${formatCurrency(engineCfg.foremanCompensation.flatFeeAmount, currencySymbol)}` : ''}
                     {group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Foremen</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {(group.foremen ?? []).length > 0 ? (
+                        (group.foremen ?? []).map((f: any) => (
+                          <span key={f.id} className="badge badge-info" style={{ fontSize: '.72rem' }}>
+                            {f.user?.name || 'Foreman'} · {f.roleLabel}{f.isPrimary ? ' ★' : ''}
+                          </span>
+                        ))
+                      ) : group.foremanName ? (
+                        <span>{group.foremanName}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-light)' }}>Not assigned</span>
+                      )}
+                      {staffUsers.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '.72rem' }}
+                          onClick={() => {
+                            setForemenDraft(
+                              (group.foremen ?? []).map((f: any) => ({
+                                userId: f.userId,
+                                roleLabel: f.roleLabel || 'Foreman',
+                                isPrimary: Boolean(f.isPrimary),
+                              })),
+                            );
+                            setForemenModal(true);
+                          }}
+                        >
+                          Manage Foremen
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 <tr><td>Dividend</td><td>{group.dividendPolicy} · {DISTRIBUTION_LABELS[group.dividendDistribution] ?? group.dividendDistribution}{group.dividendRounding ? ` · rounded to ${currencySymbol}${group.dividendRounding}` : ''}</td></tr>
@@ -440,7 +501,23 @@ export default function ChitGroupDetailClient({
 
       {/* Auctions */}
       <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="card-header"><h3>🔨 {d.auctionHistory}</h3></div>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <h3 style={{ margin: 0 }}>🔨 {d.auctionHistory}</h3>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>PDF Language:</span>
+            <select
+              aria-label="Period PDF Language"
+              className="form-control"
+              style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }}
+              value={pdfLang}
+              onChange={(e) => setPdfLang(e.target.value)}
+            >
+              {PDF_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{l.nativeName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         {group.auctions.length === 0 ? (
           <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{group.status === 'draft' ? 'Auctions are generated when the group is activated.' : d.noAuctions}</p>
         ) : (
@@ -474,12 +551,12 @@ export default function ChitGroupDetailClient({
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
                       <a
-                        href={`/api/chits/${group.id}/auctions/${a.id}/report`}
+                        href={`/api/chits/${group.id}/auctions/${a.id}/report?lang=${pdfLang}`}
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-secondary btn-sm"
                         style={{ marginLeft: '4px' }}
-                        title={`Download Period ${a.periodNumber} Settlement & Ledger PDF`}
+                        title={`Download Period ${a.periodNumber} Settlement & Ledger PDF (${pdfLang})`}
                       >
                         📄 PDF
                       </a>
@@ -523,25 +600,60 @@ export default function ChitGroupDetailClient({
       {/* Members */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <h3 style={{ margin: 0 }}>👥 {d.members}</h3>
-          {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={busy === 'verify-all-agreements'}
-              onClick={() =>
-                run('verify-all-agreements', async () => {
-                  for (const m of group.members) {
-                    if (m.agreementStatus !== 'verified') {
-                      await verifyChitAgreement(m.id);
+          <h3 style={{ margin: 0 }}>👥 {d.members} ({group.members.length}/{group.totalMembers})</h3>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {customers.length > 0 && group.members.length < group.totalMembers && !['completed', 'cancelled'].includes(group.status) && (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <select
+                  className="form-control"
+                  value={addCustId}
+                  onChange={(e) => setAddCustId(e.target.value)}
+                  style={{ width: '175px', padding: '4px 8px', fontSize: '.78rem' }}
+                >
+                  <option value="">+ Select customer ticket</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.customerCode})</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  className="form-control"
+                  min={1}
+                  max={Math.max(1, group.totalMembers - group.members.length)}
+                  value={addQty}
+                  onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))}
+                  style={{ width: '56px', padding: '4px 6px', fontSize: '.78rem' }}
+                  title="Tickets to add"
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={!addCustId || !!busy}
+                  onClick={() => run('add-tickets', () => addChitMemberTicketsAction(group.id, addCustId, addQty))}
+                >
+                  {busy === 'add-tickets' ? 'Adding…' : '+ Add Ticket'}
+                </button>
+              </div>
+            )}
+            {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy === 'verify-all-agreements'}
+                onClick={() =>
+                  run('verify-all-agreements', async () => {
+                    for (const m of group.members) {
+                      if (m.agreementStatus !== 'verified') {
+                        await verifyChitAgreement(m.id);
+                      }
                     }
-                  }
-                })
-              }
-            >
-              {busy === 'verify-all-agreements' ? 'Verifying…' : '✓ Sign & Verify All Agreements'}
-            </button>
-          )}
+                  })
+                }
+              >
+                {busy === 'verify-all-agreements' ? 'Verifying…' : '✓ Sign & Verify All Agreements'}
+              </button>
+            )}
+          </div>
         </div>
         {group.members.length === 0 ? (
           <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noMembers}</p>
@@ -582,7 +694,21 @@ export default function ChitGroupDetailClient({
                     <td><span className={`badge badge-${m.subscriberStatus === 'active' ? 'success' : 'secondary'}`}>{m.subscriberStatus}</span></td>
                     <td>{m.hasWon ? <span className="badge badge-success">{d.won} {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">{d.pending}</span>}</td>
                     <td>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setMemberModal(m); setError(''); }}>Edit</button>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => { setMemberModal(m); setError(''); }}>Edit</button>
+                        {group.members.length < group.totalMembers && !['completed', 'cancelled'].includes(group.status) && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '.7rem', padding: '2px 6px' }}
+                            disabled={!!busy}
+                            title="Add another ticket for this customer"
+                            onClick={() => run(`dup-${m.id}`, () => addChitMemberTicketsAction(group.id, m.customerId, 1))}
+                          >
+                            +1 Ticket
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -932,6 +1058,112 @@ export default function ChitGroupDetailClient({
               <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>{loading ? d.saving : 'Save'}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {foremenModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '520px', padding: '18px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '12px' }}>🏛️ Assign Foremen ({foremenDraft.length})</h3>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <select
+                className="form-control"
+                style={{ flex: 1, minWidth: '170px' }}
+                value={pickForemanId}
+                onChange={(e) => {
+                  const uid = e.target.value;
+                  setPickForemanId(uid);
+                  const found = staffUsers.find((u) => u.id === uid);
+                  if (found) {
+                    setPickForemanRole(found.customRoleName || found.customRole?.name || (foremenDraft.length === 0 ? 'Primary Foreman' : 'Co-Foreman'));
+                  }
+                }}
+              >
+                <option value="">Select staff / foreman…</option>
+                {staffUsers
+                  .filter((u) => !foremenDraft.some((d) => d.userId === u.id))
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.customRoleName || u.customRole?.name || u.role})
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="text"
+                className="form-control"
+                style={{ width: '140px' }}
+                value={pickForemanRole}
+                onChange={(e) => setPickForemanRole(e.target.value)}
+                placeholder="Role label"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!pickForemanId}
+                onClick={() => {
+                  if (!pickForemanId) return;
+                  setForemenDraft((prev) => [
+                    ...prev,
+                    { userId: pickForemanId, roleLabel: pickForemanRole || 'Foreman', isPrimary: prev.length === 0 },
+                  ]);
+                  setPickForemanId('');
+                }}
+              >
+                + Add
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+              {foremenDraft.map((f, idx) => {
+                const u = staffUsers.find((s) => s.id === f.userId);
+                return (
+                  <div key={f.userId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '.82rem' }}>
+                    <span>
+                      <strong>{u?.name || f.userId}</strong> · {f.roleLabel} {f.isPrimary && <span className="badge badge-info">Primary</span>}
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {!f.isPrimary && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: '.72rem' }}
+                          onClick={() => setForemenDraft((prev) => prev.map((x, i) => ({ ...x, isPrimary: i === idx })))}
+                        >
+                          Make Primary
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--danger)', fontSize: '.72rem' }}
+                        onClick={() => setForemenDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {foremenDraft.length === 0 && (
+                <p style={{ margin: 0, fontSize: '.8rem', color: 'var(--text-secondary)' }}>No foremen assigned.</p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setForemenModal(false)}>{d.cancel}</button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={!!busy}
+                onClick={async () => {
+                  await run('save-foremen', () => updateChitGroupForemenAction(group.id, foremenDraft));
+                  setForemenModal(false);
+                }}
+              >
+                {busy === 'save-foremen' ? 'Saving…' : 'Save Foremen'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

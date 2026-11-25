@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/api_exception.dart';
@@ -19,6 +20,7 @@ import 'package:zolofund/data/models/chit.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/chit_service.dart';
 import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/features/chits/chit_group_room_screen.dart';
 import 'package:zolofund/features/chits/chit_live_auction_screen.dart';
 import 'package:zolofund/features/chits/chit_payment_intents_screen.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
@@ -905,17 +907,177 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               ListTile(
                 leading: const Icon(Icons.payments, color: AppColors.success),
                 title: const Text('Release prize payout'),
-                subtitle: const Text('Requires approved security'),
+                subtitle: const Text('Mode, reference & cash denominations'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _runAction(() => ref
-                      .read(chitServiceProvider)
-                      .releasePayout(widget.id, auction.id),);
+                  _showPayoutReleaseSheet(auction);
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('Download Period Settlement PDF'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final lang = ref.read(languageProvider).name;
+                final bytes = await ref
+                    .read(chitServiceProvider)
+                    .downloadPeriodReportPdf(
+                      widget.id,
+                      auction.id,
+                      lang: lang,
+                    );
+                await Printing.sharePdf(
+                  bytes: bytes,
+                  filename: 'period-${auction.periodNumber}-$lang-report.pdf',
+                );
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showPayoutReleaseSheet(ChitAuction auction) async {
+    String paymentMode = 'cash';
+    final refCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    final denomCtrls = <int, TextEditingController>{
+      500: TextEditingController(),
+      200: TextEditingController(),
+      100: TextEditingController(),
+      50: TextEditingController(),
+      20: TextEditingController(),
+      10: TextEditingController(),
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          int noteTotal = 0;
+          denomCtrls.forEach((denom, ctrl) {
+            final c = int.tryParse(ctrl.text.trim()) ?? 0;
+            if (c > 0) noteTotal += denom * c;
+          });
+          return SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Release Payout — Period ${auction.periodNumber}',
+                  style: AppTypography.sectionTitle,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: paymentMode,
+                  decoration: const InputDecoration(labelText: 'Payment Mode'),
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'upi', child: Text('UPI')),
+                    DropdownMenuItem(value: 'bank', child: Text('Bank Transfer')),
+                    DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                  ],
+                  onChanged: (v) =>
+                      setLocal(() => paymentMode = v ?? 'cash'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: refCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Reference No (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Cash Note Counts', style: AppTypography.body),
+                    Text(
+                      'Notes Total: ₹$noteTotal',
+                      style: AppTypography.caption
+                          .copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: denomCtrls.entries.map((entry) {
+                    return SizedBox(
+                      width: 96,
+                      child: TextField(
+                        controller: entry.value,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setLocal(() {}),
+                        decoration: InputDecoration(
+                          labelText: '₹${entry.key}',
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        final denoms = <String, int>{};
+                        denomCtrls.forEach((denom, ctrl) {
+                          final c = int.tryParse(ctrl.text.trim()) ?? 0;
+                          if (c > 0) denoms['$denom'] = c;
+                        });
+                        Navigator.pop(ctx);
+                        _runAction(
+                          () => ref.read(chitServiceProvider).releasePayout(
+                                widget.id,
+                                auction.id,
+                                paymentMode: paymentMode,
+                                referenceNo: refCtrl.text,
+                                notes: notesCtrl.text,
+                                cashDenominations:
+                                    denoms.isEmpty ? null : denoms,
+                              ),
+                        );
+                      },
+                      child: const Text('Confirm Release'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -940,6 +1102,23 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         title: Text(t.x('title.chit_detail')),
         centerTitle: true,
         actions: [
+          if (detail.valueOrNull != null)
+            IconButton(
+              icon: const Icon(Icons.forum_outlined),
+              tooltip: 'Group Chat & Live Room',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ChitGroupRoomScreen(
+                      groupId: widget.id,
+                      isStaff: true,
+                      groupName: detail.valueOrNull?['name'] as String?,
+                    ),
+                  ),
+                );
+              },
+            ),
           if (detail.valueOrNull != null)
             PopupMenuButton<String>(
               onSelected: (v) {

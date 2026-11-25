@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import FilterBar, { FilterValues } from './FilterBar';
+import { PDF_LANGUAGES } from '@/lib/reports/pdfLanguages';
 import { ReportPayload, getReportLabel } from '@/lib/reports/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ export default function ReportShell({
   const d = dict?.reports ?? {};
   
   const [filters, setFilters] = useState<FilterValues>(initialFilters);
+  const [pdfLang, setPdfLang] = useState<string>('en');
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export default function ReportShell({
       if (val) q.set(key, val);
     });
     if (appType) q.set('appType', appType);
+    if (format === 'pdf') q.set('lang', pdfLang);
     q.set('format', format);
     return `/api/v1/reports/${slug}/export?${q.toString()}`;
   };
@@ -169,6 +172,17 @@ export default function ReportShell({
                   <span className="material-icons-outlined" style={{ fontSize: '14px', marginRight: '4px' }}>download</span>
                   {d.excelExport || 'Export Excel'}
                 </a>
+                <select
+                  aria-label="Export PDF Language"
+                  className="form-control"
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: '0.82rem' }}
+                  value={pdfLang}
+                  onChange={(e) => setPdfLang(e.target.value)}
+                >
+                  {PDF_LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>{l.nativeName}</option>
+                  ))}
+                </select>
                 <a href={getExportUrl('pdf')} className="btn btn-primary btn-sm" target="_blank" rel="noopener noreferrer">
                   <span className="material-icons-outlined" style={{ fontSize: '14px', marginRight: '4px' }}>picture_as_pdf</span>
                   {d.pdfExport || 'Export PDF'}

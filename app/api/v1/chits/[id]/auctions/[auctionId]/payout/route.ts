@@ -51,6 +51,7 @@ export async function POST(
         paymentMode: body?.paymentMode ?? 'cash',
         referenceNo: body?.referenceNo ?? null,
         notes: body?.notes ?? null,
+        cashDenominations: body?.cashDenominations ?? null,
       });
       const updated = await tx.chitAuction.update({ where: { id: auctionId }, data: { payoutStatus: 'paid', status: 'paid' } });
       return { ...payout, auction: updated };

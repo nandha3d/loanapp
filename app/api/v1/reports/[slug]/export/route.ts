@@ -7,7 +7,8 @@ import type { AppType } from '@/lib/appConfig';
 import { toCSV } from '@/lib/reports/csv';
 import { toWorkbook } from '@/lib/reports/excel';
 import { TableReportPDF } from '@/lib/reports/pdf';
-import { getDictionary } from '@/lib/i18n';
+import { resolvePdfLang } from '@/lib/reports/pdfFonts';
+import { getCurrentLanguage, getDictionarySync } from '@/lib/i18n';
 import { getBranding, getSetting } from '@/lib/tenant';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 import prisma from '@/lib/db';
@@ -92,7 +93,9 @@ export async function GET(
       groupId,
     });
 
-    const dict = await getDictionary(context.tenantId);
+    const tenantLang = await getCurrentLanguage(context.tenantId);
+    const lang = resolvePdfLang(searchParams.get('lang') ?? tenantLang);
+    const dict = getDictionarySync(lang);
     const branding = await getBranding(context.tenantId);
     const currencySymbol = await getSetting(context.tenantId, 'currency_symbol', '₹');
 
@@ -127,12 +130,13 @@ export async function GET(
 
     if (format === 'pdf') {
       const pdfBuffer = await renderToBuffer(
-        createElement(TableReportPDF, { payload, dict }) as any
+        createElement(TableReportPDF, { payload, dict, lang }) as any
       );
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${slug}-${from}-to-${to}.pdf"`,
+          'Content-Disposition': `attachment; filename="${slug}-${from}-to-${to}-${lang}.pdf"`,
+          'Cache-Control': 'no-store',
         },
       });
     }

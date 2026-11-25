@@ -286,6 +286,7 @@ export const ml = {
     pendingTasks: 'തീർപ്പാക്കാത്ത ജോലികൾ',
     financePartners: 'ബ്രോക്കർമാരും ഡീലർമാരും',
     chits: 'ചിറ്റ് ഗ്രൂപ്പുകൾ',
+    foremanPortal: 'ഫോർമാൻ പോർട്ടൽ',
     penalties: 'പിഴകൾ',
     approvals: 'അംഗീകാരങ്ങൾ',
     team: 'ഏജന്റുമാരെ കൈകാര്യം ചെയ്യുക',

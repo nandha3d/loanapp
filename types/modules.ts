@@ -30,7 +30,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
   autofinance: ['/vehicles', '/finance-partners', '/pending-tasks', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
-  chitfunds: ['/chits', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
+  chitfunds: ['/chits', '/foreman', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
   goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
   // Property + product finance reuse the generic loan lifecycle. Their
   // collateral-specific pages (/property, /products) ship with the gated

@@ -96,6 +96,7 @@ export async function POST(
       const message = await prisma.chitRoomMessage.create({
         data: {
           tenantId: session.tenantId,
+          chitGroupId: auction.chitGroupId,
           auctionId,
           senderMemberId: member.id,
           senderName: customer?.name || 'Member',
@@ -161,6 +162,7 @@ export async function POST(
       const message = await prisma.chitRoomMessage.create({
         data: {
           tenantId: session.tenantId,
+          chitGroupId: auction.chitGroupId,
           auctionId,
           senderMemberId: member.id,
           senderName: customer?.name || 'Member',

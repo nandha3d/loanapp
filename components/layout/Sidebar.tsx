@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
 import { MODULE_ROUTES, parseModulePath, prefixDashboardHref, type ModuleKey } from '@/types/modules';
 import AppLogo from '@/components/ui/AppLogo';
+import type { StaffPermissions } from '@/lib/staffPermissions';
 
 interface NavItem {
   section?: string;
@@ -18,6 +19,7 @@ interface NavItem {
   developerOnly?: boolean;
   superadminOnly?: boolean;
   appTypes?: string[];
+  allowAgentIf?: (perms?: StaffPermissions | null) => boolean;
 }
 
 function getInitials(name: string): string {
@@ -33,6 +35,8 @@ export default function Sidebar({
   modulePrefix,
   subscription,
   pendingApprovals = 0,
+  staffPermissions = null,
+  customRoleName = null,
 }: {
   appType?: string;
   enabledModules?: string[];
@@ -46,6 +50,8 @@ export default function Sidebar({
     premiumAccountingEnabled?: boolean;
   } | null;
   pendingApprovals?: number;
+  staffPermissions?: StaffPermissions | null;
+  customRoleName?: string | null;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -61,7 +67,8 @@ export default function Sidebar({
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
     { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canViewDashboard), appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'foreman', icon: 'badge', label: (dict.sidebar as any).foremanPortal || 'Foreman Portal', href: '/foreman', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canAccessForemanPortal || p?.canViewChits || p?.canManageChits || p?.canConductAuction), appTypes: ['chitfunds'] },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection', appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.management },
@@ -70,14 +77,14 @@ export default function Sidebar({
     { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', appTypes: ['autofinance'] },
     { id: 'pending-tasks', icon: 'fact_check', label: dict.sidebar.pendingTasks, href: '/pending-tasks', adminOnly: true, appTypes: ['autofinance'] },
     { id: 'finance-partners', icon: 'handshake', label: dict.sidebar.financePartners, href: '/finance-partners', adminOnly: true, appTypes: ['autofinance'] },
-    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
+    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canViewChits || p?.canManageChits || p?.canConductAuction || p?.canCollectChits), appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'wallet', icon: 'payments', label: ((dict.sidebar as any).wallet || 'Agent Wallet'), href: '/wallet', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.insights },
-    { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canViewReports || p?.canViewDashboard), appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { id: 'payment-gateway', icon: 'account_balance', label: 'Payments Gateway', href: '/settings/payment-gateway', developerOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
@@ -99,7 +106,9 @@ export default function Sidebar({
 
   const filteredNav = navItems.filter(item => {
     if (item.section) return false; // sections evaluated separately below
-    if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
+    if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
+      if (!(role === 'agent' && item.allowAgentIf?.(staffPermissions))) return false;
+    }
     if (item.agentOnly && role !== 'agent') return false;
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
@@ -228,7 +237,7 @@ export default function Sidebar({
                 {userName}
                 <span className="material-icons-outlined user-name-edit-icon">edit</span>
               </div>
-              <div className="user-role">{getRoleName(role)}</div>
+              <div className="user-role">{customRoleName || getRoleName(role)}</div>
             </div>
           </Link>
           {role !== 'developer' && (role === 'superadmin' || (role === 'admin' && enabledModules.length > 1)) && (

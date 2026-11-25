@@ -67,12 +67,12 @@ export async function getMyChitMemberships(customerId: string, tenantId: string)
     buildMemberChitDividendStatement(customerId, tenantId),
   ]);
 
-  const stmtByGroupId = new Map(statements.map((s) => [s.groupId, s]));
+  const stmtByMemberId = new Map(statements.map((s) => [s.myStatement.memberId, s]));
 
   return members.map((m) => {
     const engineType = resolveEngineTypeFromGroup(m.chitGroup);
     const cfg = parseChitEngineConfig(m.chitGroup.engineConfig, engineType);
-    const stmt = stmtByGroupId.get(m.chitGroup.id);
+    const stmt = stmtByMemberId.get(m.id);
     const nextSubBal = m.subscriptions[0]
       ? computeSubscriptionBalances(m.subscriptions[0], m.chitGroup.dividendDistribution)
       : null;
@@ -132,9 +132,19 @@ export async function getMyChitMemberships(customerId: string, tenantId: string)
   });
 }
 
-export async function getMyChitAuctionStatus(customerId: string, groupId: string, auctionId: string) {
+export async function getMyChitAuctionStatus(
+  customerId: string,
+  groupId: string,
+  auctionId: string,
+  memberId?: string,
+) {
   const member = await prisma.chitMember.findFirst({
-    where: { customerId, chitGroupId: groupId },
+    where: {
+      customerId,
+      chitGroupId: groupId,
+      ...(memberId ? { id: memberId } : {}),
+    },
+    orderBy: [{ hasWon: 'asc' }, { memberNumber: 'asc' }],
     select: { id: true, hasWon: true, subscriberStatus: true },
   });
   if (!member) throw new Error('You are not a member of this chit group');
@@ -201,6 +211,7 @@ export async function getMyChitContributions(customerId: string, tenantId: strin
     const bal = computeSubscriptionBalances(s, member.chitGroup.dividendDistribution);
     return {
       subscriptionId: s.id,
+      memberId: member.id,
       groupId: member.chitGroup.id,
       groupName: member.chitGroup.name,
       ticketNo: member.ticketNo,
