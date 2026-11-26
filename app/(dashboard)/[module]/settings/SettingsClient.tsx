@@ -4,13 +4,14 @@ import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
 import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus, saveCustomRole, deleteCustomRole } from './actions';
 import {
+  ALL_STAFF_PERMISSION_KEYS,
   DEFAULT_ROLE_TEMPLATES,
   EMPTY_STAFF_PERMISSIONS,
   STAFF_PERMISSION_META,
   parseStaffPermissions,
-  type StaffPermissionKey,
   type StaffPermissions,
 } from '@/lib/staffPermissions';
+import ElementPrivilegeSelector from '@/components/settings/ElementPrivilegeSelector';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -351,199 +352,507 @@ export default function SettingsClient({
         </div>
       </div>
 
-      {/* Users (scoped agent & role customization) Tab */}
+      {/* Users (Staff Management, Role Settings & Element-Level Privileges) Tab */}
       {canManageAgents && (
       <div className={`tab-content ${activeTab === 'users' ? 'active' : ''}`}>
-        {/* Custom Roles & Permissions Matrix (Foreman / Co-Foreman / Chit Staff / etc.) */}
-        <div className="card" style={{ padding: '14px', marginBottom: '16px', boxShadow: 'none', border: '1px solid var(--border)', background: 'var(--bg-hover, #f8fafc)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+        <div
+          style={{
+            backgroundColor: '#EEF2F6',
+            border: '1px solid #CBD5E1',
+            borderRadius: '16px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+        >
+          {/* Top Banner: Staff Management & Role Access Control */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%)',
+              color: '#FFFFFF',
+              borderRadius: '14px',
+              padding: '18px 20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '14px',
+              boxShadow: '0 8px 24px -8px var(--primary-glow, rgba(15, 23, 42, 0.25))',
+            }}
+          >
             <div>
-              <h4 style={{ margin: 0, fontSize: '.92rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>badge</span>
-                Custom Staff &amp; Foreman Roles
-              </h4>
-              <p style={{ margin: '2px 0 0', fontSize: '.74rem', color: 'var(--text-secondary)' }}>
-                Create reusable roles (e.g. Foreman, Co-Foreman, Auctioneer, Staff) with tailored permissions. You can also customize permissions per staff member below.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '22px' }}>manage_accounts</span>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#FFFFFF' }}>
+                  Staff Management &amp; Role Access Control
+                </h3>
+                {manageBranchName && (
+                  <span
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '999px',
+                      backgroundColor: 'rgba(255,255,255,0.18)',
+                      color: '#FFFFFF',
+                      fontSize: '.74rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {manageBranchName} · {effAppType}
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '5px 0 0', fontSize: '.82rem', color: 'rgba(255,255,255,0.86)' }}>
+                Assign staff &amp; foreman roles with element-level toggle switches for every portal page, auction control, payment proof, and report.
               </p>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                <span style={{ padding: '3px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.15)', fontSize: '.74rem', fontWeight: 600 }}>
+                  {branchAgents.length} Staff Members
+                </span>
+                <span style={{ padding: '3px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.15)', fontSize: '.74rem', fontWeight: 600 }}>
+                  {customRoles.length} Custom Roles
+                </span>
+                <span style={{ padding: '3px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.15)', fontSize: '.74rem', fontWeight: 600 }}>
+                  {ALL_STAFF_PERMISSION_KEYS.length} Controllable Elements
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {customRoles.length === 0 && DEFAULT_ROLE_TEMPLATES.slice(0, 3).map((tpl) => (
-                <button
-                  key={tpl.key}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  disabled={roleBusy}
-                  onClick={() => quickSeedPresetRole(tpl)}
-                  style={{ fontSize: '.74rem' }}
-                >
-                  + {tpl.name}
-                </button>
-              ))}
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => setRoleModal({ name: '', description: '', permissions: { ...EMPTY_STAFF_PERMISSIONS, canAccessForemanPortal: true, canViewChits: true } })}
+                className="btn btn-sm"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  color: '#FFFFFF',
+                  border: '1px solid rgba(255,255,255,0.34)',
+                  fontWeight: 600,
+                }}
+                onClick={() =>
+                  setRoleModal({
+                    name: '',
+                    description: '',
+                    permissions: parseStaffPermissions(DEFAULT_ROLE_TEMPLATES[2].permissions),
+                  })
+                }
               >
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Create Custom Role
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>tune</span>
+                Role Settings
               </button>
+              {manageBranchId && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    color: 'var(--primary-dark)',
+                    border: 'none',
+                    fontWeight: 700,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                  onClick={() =>
+                    setAgentModal({
+                      name: '',
+                      username: '',
+                      phone: '',
+                      email: '',
+                      status: 'active',
+                      aadharNumber: '',
+                      dob: '',
+                      experience: '',
+                      age: null,
+                      bypassLoanApproval: false,
+                      bypassCustomerApproval: false,
+                      autoReleaseFloat: false,
+                      feeConfirmationMandatory: false,
+                      customRoleId: '',
+                      customRoleName: '',
+                      staffPermissions: { ...EMPTY_STAFF_PERMISSIONS },
+                    })
+                  }
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>person_add</span>
+                  {d.addAgent}
+                </button>
+              )}
             </div>
           </div>
-          {customRoles.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
-              {customRoles.map((cr: any) => {
-                const parsed = parseStaffPermissions(cr.permissionsJson);
-                const enabledCount = STAFF_PERMISSION_META.filter((m) => parsed[m.key]).length;
-                return (
-                  <div key={cr.id} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '6px' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-                        <strong style={{ fontSize: '.84rem' }}>{cr.name}</strong>
-                        <span className="badge badge-info" style={{ fontSize: '.68rem' }}>{cr._count?.users ?? 0} staff</span>
-                      </div>
-                      {cr.description && <p style={{ margin: '3px 0 0', fontSize: '.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>{cr.description}</p>}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
-                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{enabledCount} permissions active</span>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '2px 6px', fontSize: '.72rem' }}
-                          onClick={() => setRoleModal({
-                            id: cr.id,
-                            name: cr.name,
-                            description: cr.description || '',
-                            permissions: parsed,
-                          })}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '2px 6px', fontSize: '.72rem', color: 'var(--danger)' }}
-                          onClick={() => removeCustomRole(cr.id, cr.name)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
-        <div className="card-header">
-          <div>
-            <h3>👥 {d.agentsTitle}</h3>
-            <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-              {manageBranchName ? <>{d.branchWord} <strong>{manageBranchName}</strong> · {effAppType} {d.moduleWord}</> : d.noBranchAvailable}
-            </p>
-          </div>
-          {manageBranchId && (
-            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false, customRoleId: '', customRoleName: '', staffPermissions: { ...EMPTY_STAFF_PERMISSIONS } })}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.addAgent}
-            </button>
-          )}
-        </div>
-        {!manageBranchId ? (
-          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noBranchAssigned}</p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr><th>{d.agentName}</th><th>Role / Designation</th><th>{d.username}</th><th>{d.phone}</th><th>{d.permissions}</th><th>{d.status}</th><th style={{ textAlign: 'right' }}>{d.actions}</th></tr>
-              </thead>
-              <tbody>
-                {branchAgents.map((a: any) => {
-                  const resolvedRoleLabel = a.customRoleName || a.customRole?.name || 'Agent';
-                  const resolvedPerms = parseStaffPermissions(a.staffPermissions || a.customRole?.permissionsJson);
-                  const activePerms = STAFF_PERMISSION_META.filter((m) => resolvedPerms[m.key]);
+          {/* Role Settings & Templates Card */}
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #DCE3EC',
+              borderRadius: '14px',
+              padding: '16px',
+              boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #EEF2F6' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '.96rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '19px', color: 'var(--primary)' }}>badge</span>
+                  Role Settings &amp; Privilege Templates
+                </h4>
+                <p style={{ margin: '3px 0 0', fontSize: '.76rem', color: '#64748B' }}>
+                  Use instant presets or create custom roles (Head Foreman, Co-Foreman, Chit Staff, Accounts Staff) and toggle every UI element they can access.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {DEFAULT_ROLE_TEMPLATES.slice(0, 4).map((tpl) => {
+                  const alreadyExists = customRoles.some((cr: any) => cr.name.toLowerCase() === tpl.name.toLowerCase());
                   return (
-                  <tr key={a.id}>
-                    <td>{a.name}</td>
-                    <td><span className="badge badge-info" style={{ fontSize: '11px' }}>{resolvedRoleLabel}</span></td>
-                    <td>{a.username}</td>
-                    <td>{a.phone}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                        {activePerms.map((pm) => (
-                          <span key={pm.key} className="badge" style={{ background: '#ECFDF5', color: '#047857', fontSize: '10px', padding: '2px 7px' }} title={pm.description}>
-                            {pm.label}
-                          </span>
-                        ))}
-                        {a.bypassCustomerApproval && (
-                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassCustomerApproval}>{d.badgeAutoCustomer}</span>
-                        )}
-                        {effAppType !== 'chitfunds' && a.bypassLoanApproval && (
-                          <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassLoanApproval}>{d.badgeAutoLoan}</span>
-                        )}
-                        {effAppType !== 'chitfunds' && a.autoReleaseFloat && (
-                          <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title={d.autoReleaseFloat}>{d.badgeAutoDisburse}</span>
-                        )}
-                        {effAppType !== 'chitfunds' && a.feeConfirmationMandatory && (
-                          <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title={d.feeConfirmationMandatory}>{d.badgeFeeConfirm}</span>
-                        )}
-                        {activePerms.length === 0 && !a.bypassCustomerApproval && (effAppType === 'chitfunds' || (!a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory)) && (
-                          <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>{d.badgeStandard}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td><span className={`badge ${a.status === 'active' ? 'badge-success' : 'badge-danger'}`}>{a.status}</span></td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({
-                        id: a.id,
-                        name: a.name,
-                        username: a.username,
-                        phone: a.phone,
-                        email: a.email || '',
-                        status: a.status,
-                        aadharNumber: a.aadharNumber || '',
-                        dob: a.dob ? new Date(a.dob).toISOString().split('T')[0] : '',
-                        experience: a.experience || '',
-                        age: a.age || null,
-                        bypassLoanApproval: !!a.bypassLoanApproval,
-                        bypassCustomerApproval: !!a.bypassCustomerApproval,
-                        autoReleaseFloat: !!a.autoReleaseFloat,
-                        feeConfirmationMandatory: !!a.feeConfirmationMandatory,
-                        customRoleId: a.customRoleId || '',
-                        customRoleName: a.customRoleName || a.customRole?.name || '',
-                        staffPermissions: resolvedPerms,
-                      })}>{d.edit}</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
-                        {a.status === 'active' ? d.deactivate : d.activate}
-                      </button>
-                    </td>
-                  </tr>
+                    <button
+                      key={tpl.key}
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={roleBusy || alreadyExists}
+                      onClick={() => quickSeedPresetRole(tpl)}
+                      style={{
+                        fontSize: '.74rem',
+                        backgroundColor: alreadyExists ? '#F1F5F9' : '#FFFFFF',
+                        borderColor: '#CBD5E1',
+                        opacity: alreadyExists ? 0.65 : 1,
+                      }}
+                      title={alreadyExists ? 'Role already added below' : `Quick-add ${tpl.name} preset`}
+                    >
+                      {alreadyExists ? `✓ ${tpl.name}` : `+ ${tpl.name}`}
+                    </button>
                   );
                 })}
-                {branchAgents.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>{d.noAgentsYet}</td></tr>
-                )}
-              </tbody>
-            </table>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() =>
+                    setRoleModal({
+                      name: '',
+                      description: '',
+                      permissions: { ...EMPTY_STAFF_PERMISSIONS, canAccessForemanPortal: true, canViewChits: true },
+                    })
+                  }
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>add</span> Create Custom Role
+                </button>
+              </div>
+            </div>
+
+            {customRoles.length === 0 ? (
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px dashed #CBD5E1',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                  fontSize: '.8rem',
+                  color: '#475569',
+                }}
+              >
+                <span>No custom roles created yet. Click any preset above (like <strong>+ Head Foreman</strong>) or create your own role with custom element privileges.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '10px' }}>
+                {customRoles.map((cr: any) => {
+                  const parsed = parseStaffPermissions(cr.permissionsJson);
+                  const activeList = STAFF_PERMISSION_META.filter((m) => parsed[m.key]);
+                  return (
+                    <div
+                      key={cr.id}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '11px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#F8FAFC',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ fontSize: '.88rem', color: '#0F172A' }}>{cr.name}</strong>
+                          <span className="badge badge-info" style={{ fontSize: '.7rem' }}>{cr._count?.users ?? 0} staff</span>
+                        </div>
+                        {cr.description && (
+                          <p style={{ margin: '4px 0 0', fontSize: '.74rem', color: '#64748B', lineHeight: 1.35 }}>{cr.description}</p>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px' }}>
+                          {activeList.slice(0, 3).map((pm) => (
+                            <span
+                              key={pm.key}
+                              style={{
+                                fontSize: '.68rem',
+                                padding: '2px 7px',
+                                borderRadius: '999px',
+                                backgroundColor: 'var(--primary-light)',
+                                color: 'var(--primary-dark)',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {pm.label}
+                            </span>
+                          ))}
+                          {activeList.length > 3 && (
+                            <span style={{ fontSize: '.68rem', padding: '2px 7px', borderRadius: '999px', backgroundColor: '#E2E8F0', color: '#334155', fontWeight: 600 }}>
+                              +{activeList.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
+                        <span style={{ fontSize: '.73rem', fontWeight: 600, color: '#475569' }}>
+                          {activeList.length} / {ALL_STAFF_PERMISSION_KEYS.length} elements
+                        </span>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 9px', fontSize: '.72rem', backgroundColor: '#FFFFFF' }}
+                            onClick={() =>
+                              setRoleModal({
+                                id: cr.id,
+                                name: cr.name,
+                                description: cr.description || '',
+                                permissions: parsed,
+                              })
+                            }
+                          >
+                            Edit Privileges
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '3px 8px', fontSize: '.72rem', color: 'var(--danger)' }}
+                            onClick={() => removeCustomRole(cr.id, cr.name)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Staff Directory Card */}
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #DCE3EC',
+              borderRadius: '14px',
+              padding: '16px',
+              boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #EEF2F6' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '.96rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '19px', color: 'var(--primary)' }}>groups</span>
+                  Staff Directory ({branchAgents.length})
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: '.76rem', color: '#64748B' }}>
+                  {manageBranchName ? <>{d.branchWord} <strong>{manageBranchName}</strong> · {effAppType} {d.moduleWord}</> : d.noBranchAvailable}
+                </p>
+              </div>
+              {manageBranchId && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() =>
+                    setAgentModal({
+                      name: '',
+                      username: '',
+                      phone: '',
+                      email: '',
+                      status: 'active',
+                      aadharNumber: '',
+                      dob: '',
+                      experience: '',
+                      age: null,
+                      bypassLoanApproval: false,
+                      bypassCustomerApproval: false,
+                      autoReleaseFloat: false,
+                      feeConfirmationMandatory: false,
+                      customRoleId: '',
+                      customRoleName: '',
+                      staffPermissions: { ...EMPTY_STAFF_PERMISSIONS },
+                    })
+                  }
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>add</span> {d.addAgent}
+                </button>
+              )}
+            </div>
+
+            {!manageBranchId ? (
+              <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noBranchAssigned}</p>
+            ) : branchAgents.length === 0 ? (
+              <div
+                style={{
+                  padding: '28px 18px',
+                  borderRadius: '12px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px dashed #CBD5E1',
+                  textAlign: 'center',
+                }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--primary)' }}>badge</span>
+                <p style={{ margin: '8px 0 12px', fontSize: '.86rem', fontWeight: 600, color: '#334155' }}>
+                  {d.noAgentsYet}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() =>
+                    setAgentModal({
+                      name: '',
+                      username: '',
+                      phone: '',
+                      email: '',
+                      status: 'active',
+                      aadharNumber: '',
+                      dob: '',
+                      experience: '',
+                      age: null,
+                      bypassLoanApproval: false,
+                      bypassCustomerApproval: false,
+                      autoReleaseFloat: false,
+                      feeConfirmationMandatory: false,
+                      customRoleId: '',
+                      customRoleName: '',
+                      staffPermissions: parseStaffPermissions(DEFAULT_ROLE_TEMPLATES[2].permissions),
+                    })
+                  }
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>person_add</span> {d.addAgent}
+                </button>
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{d.agentName}</th>
+                      <th>Role / Designation</th>
+                      <th>{d.username}</th>
+                      <th>{d.phone}</th>
+                      <th>{d.permissions}</th>
+                      <th>{d.status}</th>
+                      <th style={{ textAlign: 'right' }}>{d.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchAgents.map((a: any) => {
+                      const resolvedRoleLabel = a.customRoleName || a.customRole?.name || 'Staff (Standard)';
+                      const resolvedPerms = parseStaffPermissions(a.staffPermissions || a.customRole?.permissionsJson);
+                      const activePerms = STAFF_PERMISSION_META.filter((m) => resolvedPerms[m.key]);
+                      return (
+                        <tr key={a.id}>
+                          <td style={{ fontWeight: 600, color: '#0F172A' }}>{a.name}</td>
+                          <td><span className="badge badge-info" style={{ fontSize: '11px' }}>{resolvedRoleLabel}</span></td>
+                          <td><code>{a.username}</code></td>
+                          <td>{a.phone}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              {activePerms.length > 0 && (
+                                <span
+                                  className="badge"
+                                  style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', fontSize: '11px', fontWeight: 700, padding: '2px 8px' }}
+                                >
+                                  {activePerms.length}/{ALL_STAFF_PERMISSION_KEYS.length} elements
+                                </span>
+                              )}
+                              {activePerms.slice(0, 3).map((pm) => (
+                                <span key={pm.key} className="badge" style={{ background: '#ECFDF5', color: '#047857', fontSize: '10px', padding: '2px 7px' }} title={pm.description}>
+                                  {pm.label}
+                                </span>
+                              ))}
+                              {activePerms.length > 3 && (
+                                <span style={{ fontSize: '.7rem', color: '#64748B', fontWeight: 600 }}>+{activePerms.length - 3} more</span>
+                              )}
+                              {a.bypassCustomerApproval && (
+                                <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassCustomerApproval}>{d.badgeAutoCustomer}</span>
+                              )}
+                              {effAppType !== 'chitfunds' && a.bypassLoanApproval && (
+                                <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassLoanApproval}>{d.badgeAutoLoan}</span>
+                              )}
+                              {effAppType !== 'chitfunds' && a.autoReleaseFloat && (
+                                <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title={d.autoReleaseFloat}>{d.badgeAutoDisburse}</span>
+                              )}
+                              {effAppType !== 'chitfunds' && a.feeConfirmationMandatory && (
+                                <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title={d.feeConfirmationMandatory}>{d.badgeFeeConfirm}</span>
+                              )}
+                              {activePerms.length === 0 && !a.bypassCustomerApproval && (effAppType === 'chitfunds' || (!a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory)) && (
+                                <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>{d.badgeStandard}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td><span className={`badge ${a.status === 'active' ? 'badge-success' : 'badge-danger'}`}>{a.status}</span></td>
+                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ marginRight: '6px', backgroundColor: '#FFFFFF', padding: '4px 10px' }}
+                              onClick={() =>
+                                setAgentModal({
+                                  id: a.id,
+                                  name: a.name,
+                                  username: a.username,
+                                  phone: a.phone,
+                                  email: a.email || '',
+                                  status: a.status,
+                                  aadharNumber: a.aadharNumber || '',
+                                  dob: a.dob ? new Date(a.dob).toISOString().split('T')[0] : '',
+                                  experience: a.experience || '',
+                                  age: a.age || null,
+                                  bypassLoanApproval: !!a.bypassLoanApproval,
+                                  bypassCustomerApproval: !!a.bypassCustomerApproval,
+                                  autoReleaseFloat: !!a.autoReleaseFloat,
+                                  feeConfirmationMandatory: !!a.feeConfirmationMandatory,
+                                  customRoleId: a.customRoleId || '',
+                                  customRoleName: a.customRoleName || a.customRole?.name || '',
+                                  staffPermissions: resolvedPerms,
+                                })
+                              }
+                            >
+                              Privileges &amp; {d.edit}
+                            </button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
+                              {a.status === 'active' ? d.deactivate : d.activate}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       )}
 
-      <Modal isOpen={!!roleModal} onClose={() => setRoleModal(null)} title={roleModal?.id ? 'Edit Custom Role' : 'Create Custom Role'}>
+      <Modal isOpen={!!roleModal} onClose={() => setRoleModal(null)} title={roleModal?.id ? 'Role Settings & Element Privileges' : 'Create Custom Staff Role'} maxWidth="780px">
         {roleModal && (
           <form onSubmit={submitCustomRole}>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-              <span style={{ fontSize: '.74rem', color: 'var(--text-secondary)', alignSelf: 'center' }}>Presets:</span>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '.76rem', color: '#475569', fontWeight: 600 }}>Quick Presets:</span>
               {DEFAULT_ROLE_TEMPLATES.map((tpl) => (
                 <button
                   key={tpl.key}
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '.72rem', padding: '2px 8px' }}
+                  style={{ fontSize: '.74rem', padding: '4px 10px', backgroundColor: '#FFFFFF' }}
                   onClick={() => setRoleModal((prev) => prev ? {
                     ...prev,
-                    name: prev.name || tpl.name,
-                    description: prev.description || tpl.description,
+                    name: tpl.name,
+                    description: tpl.description,
                     permissions: parseStaffPermissions(tpl.permissions),
                   } : prev)}
                 >
@@ -551,46 +860,32 @@ export default function SettingsClient({
                 </button>
               ))}
             </div>
-            <div className="form-group" style={{ marginBottom: '10px' }}>
-              <label className="form-label">Role Name *</label>
-              <input
-                className="form-control"
-                value={roleModal.name}
-                onChange={(e) => setRoleModal({ ...roleModal, name: e.target.value })}
-                placeholder="e.g. Foreman, Co-Foreman, Chit Staff"
-                required
-              />
-            </div>
-            <div className="form-group" style={{ marginBottom: '12px' }}>
-              <label className="form-label">Description</label>
-              <input
-                className="form-control"
-                value={roleModal.description}
-                onChange={(e) => setRoleModal({ ...roleModal, description: e.target.value })}
-                placeholder="Optional description for admins"
-              />
-            </div>
-            <div style={{ marginBottom: '14px' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Permissions</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '260px', overflowY: 'auto', padding: '6px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                {STAFF_PERMISSION_META.map((pm) => (
-                  <label key={pm.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '.78rem', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(roleModal.permissions[pm.key])}
-                      onChange={(e) => setRoleModal({
-                        ...roleModal,
-                        permissions: { ...roleModal.permissions, [pm.key]: e.target.checked },
-                      })}
-                      style={{ marginTop: '2px' }}
-                    />
-                    <div>
-                      <strong style={{ display: 'block', fontSize: '.78rem' }}>{pm.label}</strong>
-                      <span style={{ fontSize: '.68rem', color: 'var(--text-secondary)' }}>{pm.description}</span>
-                    </div>
-                  </label>
-                ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Role Name *</label>
+                <input
+                  className="form-control"
+                  value={roleModal.name}
+                  onChange={(e) => setRoleModal({ ...roleModal, name: e.target.value })}
+                  placeholder="e.g. Head Foreman, Co-Foreman, Chit Staff"
+                  required
+                />
               </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Description</label>
+                <input
+                  className="form-control"
+                  value={roleModal.description}
+                  onChange={(e) => setRoleModal({ ...roleModal, description: e.target.value })}
+                  placeholder="Optional summary of responsibilities"
+                />
+              </div>
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <ElementPrivilegeSelector
+                value={roleModal.permissions}
+                onChange={(nextPerms) => setRoleModal({ ...roleModal, permissions: nextPerms })}
+              />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button type="button" className="btn btn-ghost" onClick={() => setRoleModal(null)}>{d.cancel}</button>
@@ -600,7 +895,7 @@ export default function SettingsClient({
         )}
       </Modal>
 
-      <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? d.editAgent : d.addAgent}>
+      <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? d.editAgent : d.addAgent} maxWidth="780px">
         <form onSubmit={submitAgent}>
           <div className="form-group">
             <label className="form-label">{d.agentName}</label>
@@ -706,33 +1001,16 @@ export default function SettingsClient({
               </div>
             </div>
 
-            {effAppType === 'chitfunds' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                {STAFF_PERMISSION_META.map((pm) => (
-                  <label key={pm.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', cursor: 'pointer', fontSize: '.78rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(agentModal?.staffPermissions?.[pm.key])}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setAgentModal((prev) => prev ? {
-                          ...prev,
-                          staffPermissions: {
-                            ...(prev.staffPermissions || EMPTY_STAFF_PERMISSIONS),
-                            [pm.key]: checked,
-                          } as StaffPermissions,
-                        } : prev);
-                      }}
-                      style={{ marginTop: '2px' }}
-                    />
-                    <div>
-                      <strong style={{ display: 'block', fontSize: '.78rem' }}>{pm.label}</strong>
-                      <span style={{ fontSize: '.68rem', color: 'var(--text-secondary)' }}>{pm.description}</span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
+            <div style={{ marginBottom: '14px' }}>
+              <ElementPrivilegeSelector
+                value={agentModal?.staffPermissions || EMPTY_STAFF_PERMISSIONS}
+                onChange={(nextPerms) =>
+                  setAgentModal((prev) => (prev ? { ...prev, staffPermissions: nextPerms } : prev))
+                }
+                title="Individual Staff Element Privileges"
+                subtitle="Fine-tune individual pages, chit controls, live room actions, and reports for this login."
+              />
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>

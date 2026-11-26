@@ -85,24 +85,35 @@ function isInternalHost(host: string): boolean {
 }
 
 export function getPublicOrigin(request: NextRequest): string {
-  const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
-  const requestHost =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    request.nextUrl.host;
+  const parsedReqUrl = request.nextUrl ?? (request.url ? new URL(request.url) : null);
+  const proto = request.headers.get('x-forwarded-proto') || parsedReqUrl?.protocol.replace(':', '') || 'https';
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const directHost = request.headers.get('host');
+  const requestHost = forwardedHost || directHost || parsedReqUrl?.host || '';
 
   if (requestHost && !isInternalHost(requestHost)) {
     return `${proto}://${requestHost}`;
   }
 
-  const configured =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.WEB_APP_URL ||
-    process.env.APP_URL ||
-    '';
-  if (configured) {
-    const parsed = new URL(configured);
-    return parsed.origin;
+  const isProxiedInternalRequest =
+    process.env.NODE_ENV === 'production' &&
+    Boolean(
+      forwardedHost ||
+      request.headers.get('x-forwarded-for') ||
+      request.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-proto'),
+    );
+
+  if (isProxiedInternalRequest) {
+    const configured =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.WEB_APP_URL ||
+      process.env.APP_URL ||
+      '';
+    if (configured) {
+      const parsed = new URL(configured);
+      return parsed.origin;
+    }
   }
 
   return `${proto}://${requestHost}`;

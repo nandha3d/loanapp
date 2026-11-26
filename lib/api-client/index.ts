@@ -16,17 +16,19 @@ export interface ApiFetchOptions extends RequestInit {
   tenantSlug?: string;
   branchId?: string | null;
   appType?: string | null;
+  baseOrigin?: string;
 }
 
-function apiUrl(path: string): string {
+function apiUrl(path: string, baseOrigin?: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const prefix = `${API_BASE}/api/v1`;
 
   if (typeof window === 'undefined' && !prefix.startsWith('http')) {
     const appUrl = (
+      baseOrigin ||
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000'
+      `http://127.0.0.1:${process.env.PORT || '3000'}`
     ).replace(/\/+$/, '');
     return `${appUrl}/api/v1${normalizedPath}`;
   }
@@ -42,7 +44,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<T> {
-  const { token, tenantSlug, branchId, appType, ...fetchOptions } = options;
+  const { token, tenantSlug, branchId, appType, baseOrigin, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers);
 
@@ -63,7 +65,7 @@ export async function apiFetch<T = unknown>(
     headers.set('X-App-Type', appType);
   }
 
-  const res = await fetch(apiUrl(path), {
+  const res = await fetch(apiUrl(path, baseOrigin), {
     ...fetchOptions,
     headers,
     cache: fetchOptions.cache ?? 'no-store',

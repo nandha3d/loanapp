@@ -5,9 +5,11 @@ import { useState } from 'react';
 export default function FieldHelpIcon({
   text,
   title,
+  inverted = false,
 }: {
   text: string;
   title?: string;
+  inverted?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -42,9 +44,9 @@ export default function FieldHelpIcon({
           width: '15px',
           height: '15px',
           borderRadius: '999px',
-          border: '1px solid #94a3b8',
-          background: open ? '#0ea5e9' : '#f1f5f9',
-          color: open ? '#ffffff' : '#475569',
+          border: inverted ? '1px solid rgba(255,255,255,0.45)' : '1px solid #94a3b8',
+          background: open ? '#0ea5e9' : inverted ? 'rgba(255,255,255,0.2)' : '#f1f5f9',
+          color: open || inverted ? '#ffffff' : '#475569',
           fontSize: '10px',
           fontWeight: 700,
           lineHeight: 1,

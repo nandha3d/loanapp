@@ -22,8 +22,11 @@ export default async function AccountingPage({
   const range = { from: isDay(sp.from), to: isDay(sp.to) };
   const session = await auth();
   const role = (session?.user as any)?.role;
+  const staffPermissions = (session?.user as any)?.staffPermissions ?? null;
   const appType = await getUserAppType();
-  if (!role || role === 'agent') redirect(modulePath(appType, '/collection'));
+  if (!role || (role === 'agent' && !staffPermissions?.canViewAccounting)) {
+    redirect(modulePath(appType, '/collection'));
+  }
 
   const tenantId = await getDefaultTenantId();
   const premiumEnabled = await isPremiumAccountingEnabled(tenantId);

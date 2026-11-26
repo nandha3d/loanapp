@@ -25,3 +25,9 @@ reference for this project. It is binding, not advisory.
 - §17 "Forbidden patterns" lists what has already shipped a bug here. Do not reintroduce them.
 - If a change makes a rule false, update `ENGINEERING_REFERENCE.md` in the same commit (rule DOC-1).
 - Where any other document (`docs/**`, `.planning/**`, older specs) disagrees with it, it wins.
+
+# Strict UI/UX Design Rule (No Default AI Styling)
+
+- **NEVER ship generic "AI default" layouts** (plain stacked white boxes, monotonous grey borders, unstyled `form-control` grids, or cookie-cutter SaaS cards).
+- **Always design fresh, purposeful, and innovative UI** that harmonizes with ZoloFund's active tenant theme (`--primary`, `--primary-dark`, `--primary-light`, `--accent`) and module templates.
+- **Visual hierarchy & polish are mandatory**: use intentional depth (layered shadows, subtle ambient glows, crisp accent borders, tinted header strips), clean responsive grids, compact scannable density, and clear interactive states — tailored to the specific workflow rather than generic boilerplate.

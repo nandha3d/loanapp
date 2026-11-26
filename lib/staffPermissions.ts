@@ -1,5 +1,5 @@
 /**
- * Role customization & fine-grained staff / foreman permissions.
+ * Role customization & element-level staff / foreman privileges.
  *
  * Per ENGINEERING_REFERENCE.md ROLE-3 and STABLE-2:
  * - Base `User.role` remains one of `agent | admin | superadmin | developer`.
@@ -10,102 +10,251 @@
  */
 
 export type StaffPermissionKey =
+  // Portal & Navigation Elements
   | 'canAccessForemanPortal'
+  | 'canViewDashboard'
   | 'canViewChits'
+  | 'canViewAccounting'
+  | 'canViewReports'
+  // Chit Group & Member Elements
   | 'canManageChits'
+  | 'canImportChits'
+  | 'canEnrollMembers'
+  | 'canVerifyAgreements'
+  | 'canAssignForemen'
+  // Live Room, Chat & Auction Controls
   | 'canConductAuction'
+  | 'canEnterBidsOnBehalf'
+  | 'canModerateGroupRoom'
+  | 'canRescheduleAuction'
+  // Collections, Security & Payouts
   | 'canCollectChits'
+  | 'canVerifyPaymentProofs'
   | 'canApproveSecurity'
   | 'canReleasePayout'
-  | 'canViewReports'
-  | 'canViewDashboard'
-  | 'canManageCustomers';
+  // Customers, Exports & Alerts
+  | 'canManageCustomers'
+  | 'canExportPdfStatements'
+  | 'canSendNotifications';
+
+export type StaffPermissionGroupKey =
+  | 'portal'
+  | 'chits'
+  | 'auction'
+  | 'finance'
+  | 'general';
 
 export type StaffPermissions = Record<StaffPermissionKey, boolean>;
 
 export const EMPTY_STAFF_PERMISSIONS: StaffPermissions = {
   canAccessForemanPortal: false,
+  canViewDashboard: false,
   canViewChits: false,
+  canViewAccounting: false,
+  canViewReports: false,
   canManageChits: false,
+  canImportChits: false,
+  canEnrollMembers: false,
+  canVerifyAgreements: false,
+  canAssignForemen: false,
   canConductAuction: false,
+  canEnterBidsOnBehalf: false,
+  canModerateGroupRoom: false,
+  canRescheduleAuction: false,
   canCollectChits: false,
+  canVerifyPaymentProofs: false,
   canApproveSecurity: false,
   canReleasePayout: false,
-  canViewReports: false,
-  canViewDashboard: false,
   canManageCustomers: false,
+  canExportPdfStatements: false,
+  canSendNotifications: false,
 };
 
 export const ALL_STAFF_PERMISSION_KEYS: StaffPermissionKey[] = Object.keys(
   EMPTY_STAFF_PERMISSIONS,
 ) as StaffPermissionKey[];
 
+export interface StaffPermissionGroupMeta {
+  id: StaffPermissionGroupKey;
+  title: string;
+  icon: string;
+  description: string;
+}
+
+export const STAFF_PERMISSION_GROUPS: StaffPermissionGroupMeta[] = [
+  {
+    id: 'portal',
+    title: 'Portal & Navigation Elements',
+    icon: 'space_dashboard',
+    description: 'Control which screens and sidebar sections appear for this staff role.',
+  },
+  {
+    id: 'chits',
+    title: 'Chit Group & Member Elements',
+    icon: 'savings',
+    description: 'Enable creating groups, importing WhatsApp plans, enrolling tickets, and verifying agreements.',
+  },
+  {
+    id: 'auction',
+    title: 'Live Room, Chat & Auction Controls',
+    icon: 'gavel',
+    description: 'Manage auction rounds, proxy bidding, chat moderation, bells, and cycle schedules.',
+  },
+  {
+    id: 'finance',
+    title: 'Collections, Security & Payouts',
+    icon: 'payments',
+    description: 'Control installment collections, payment proof verification, security approvals, and prize payout release.',
+  },
+  {
+    id: 'general',
+    title: 'Customers, PDFs & Notifications',
+    icon: 'people',
+    description: 'Toggle direct customer management, 6-language PDF exports, and outbound notices.',
+  },
+];
+
 export interface StaffPermissionMeta {
   key: StaffPermissionKey;
   label: string;
   description: string;
-  group: 'portal' | 'chits' | 'finance' | 'general';
+  group: StaffPermissionGroupKey;
 }
 
 export const STAFF_PERMISSION_META: StaffPermissionMeta[] = [
+  // 1. Portal & Navigation Elements
   {
     key: 'canAccessForemanPortal',
     label: 'Foreman / Staff Portal',
-    description: 'Access the dedicated Foreman & Staff portal to view assigned chit groups and daily operations.',
+    description: 'Show the Foreman & Staff Portal nav link and assigned chit workspace.',
+    group: 'portal',
+  },
+  {
+    key: 'canViewDashboard',
+    label: 'Main Dashboard & KPIs',
+    description: 'View executive summary cards, collection velocity, and branch KPIs.',
     group: 'portal',
   },
   {
     key: 'canViewChits',
-    label: 'View Chit Groups',
-    description: 'Open Chit Groups list, member tickets, live auction rooms, and schedules.',
-    group: 'chits',
+    label: 'Chit Groups Directory',
+    description: 'Open Chit Groups list, group cards, schedules, and member ledgers.',
+    group: 'portal',
   },
+  {
+    key: 'canViewAccounting',
+    label: 'Accounting & P&L Ledger',
+    description: 'Access capital flow, payouts, dividends, and P&L accounting view.',
+    group: 'portal',
+  },
+  {
+    key: 'canViewReports',
+    label: 'Reports & Analytics',
+    description: 'View analytics charts, commission statements, and period ledgers.',
+    group: 'portal',
+  },
+
+  // 2. Chit Group & Member Elements
   {
     key: 'canManageChits',
-    label: 'Create & Manage Chit Groups',
-    description: 'Create/edit chit groups, enroll members (including multi-ticket), assign tickets, and verify agreements.',
+    label: 'Create & Edit Chit Groups',
+    description: 'Create new chit groups, edit settings, activate drafts, or cancel groups.',
     group: 'chits',
   },
+  {
+    key: 'canImportChits',
+    label: 'WhatsApp / Bulk Chit Import',
+    description: 'Import chit schedules and member lists directly from WhatsApp text.',
+    group: 'chits',
+  },
+  {
+    key: 'canEnrollMembers',
+    label: 'Enroll Tickets & Edit Members',
+    description: 'Add single or multi-ticket seats for customers and edit nominee details.',
+    group: 'chits',
+  },
+  {
+    key: 'canVerifyAgreements',
+    label: 'Verify Subscriber Agreements',
+    description: 'Sign off and verify chit subscriber agreements before group activation.',
+    group: 'chits',
+  },
+  {
+    key: 'canAssignForemen',
+    label: 'Assign Group Foremen',
+    description: 'Add/remove co-foremen and promote primary foremen on groups.',
+    group: 'chits',
+  },
+
+  // 3. Live Room, Chat & Auction Controls
   {
     key: 'canConductAuction',
-    label: 'Conduct Auctions & Moderate Room',
-    description: 'Open/close live auction rooms, record bids, finalize or draw winners, and moderate group chat.',
-    group: 'chits',
+    label: 'Start / Finalize Auctions & Draws',
+    description: 'Open auction sessions, draw lottery winners, and confirm winning bids.',
+    group: 'auction',
   },
   {
+    key: 'canEnterBidsOnBehalf',
+    label: 'Record Proxy Bids & Retract Bids',
+    description: 'Place floor/agent bids for present subscribers or retract erroneous bids.',
+    group: 'auction',
+  },
+  {
+    key: 'canModerateGroupRoom',
+    label: 'Group Chat & Pinned Notices',
+    description: 'Post pinned announcements and toggle member chat mode inside group rooms.',
+    group: 'auction',
+  },
+  {
+    key: 'canRescheduleAuction',
+    label: 'Reschedule Cycles & Ring Bell',
+    description: 'Change upcoming auction date/time and trigger 3-bell countdowns.',
+    group: 'auction',
+  },
+
+  // 4. Collections, Security & Payouts
+  {
     key: 'canCollectChits',
-    label: 'Collect Subscriptions & Verify Proofs',
-    description: 'Record member installment collections and approve/reject customer payment proofs.',
+    label: 'Record Member Subscriptions',
+    description: 'Collect chit installments in cash/UPI/bank and issue digital receipts.',
+    group: 'finance',
+  },
+  {
+    key: 'canVerifyPaymentProofs',
+    label: 'Approve / Reject Payment Proofs',
+    description: 'Review subscriber-uploaded UPI screenshots and mark dues settled.',
     group: 'finance',
   },
   {
     key: 'canApproveSecurity',
-    label: 'Approve Winner Security / Guarantors',
-    description: 'Review and approve prized subscriber collateral/guarantor verification before payout.',
+    label: 'Approve Winner Collateral / Guarantors',
+    description: 'Verify prized member guarantor documents and release payout holds.',
     group: 'finance',
   },
   {
     key: 'canReleasePayout',
-    label: 'Release Prize Payouts',
-    description: 'Record prize disbursement receipts and cash denomination breakdowns.',
+    label: 'Release Prize Payout & Denominations',
+    description: 'Disburse net prize money and record cash note denomination slips.',
     group: 'finance',
   },
-  {
-    key: 'canViewReports',
-    label: 'View & Download Reports',
-    description: 'Access Reports, dividend ledgers, and multi-language period PDF statements.',
-    group: 'general',
-  },
-  {
-    key: 'canViewDashboard',
-    label: 'View Dashboard & Analytics',
-    description: 'Open the main module Dashboard and Analytics overview.',
-    group: 'general',
-  },
+
+  // 5. Customers, PDFs & Notifications
   {
     key: 'canManageCustomers',
-    label: 'Manage Customers Directly',
-    description: 'Add and update customer profiles directly without waiting for approval.',
+    label: 'Create & Edit Customers Directly',
+    description: 'Add and update customer profiles directly without admin approval queue.',
+    group: 'general',
+  },
+  {
+    key: 'canExportPdfStatements',
+    label: 'Download 6-Language PDF Statements',
+    description: 'Generate settlement PDFs and member ledgers in EN/TA/HI/TE/KN/ML.',
+    group: 'general',
+  },
+  {
+    key: 'canSendNotifications',
+    label: 'Send Auction Notices & Reminders',
+    description: 'Trigger WhatsApp/SMS auction invitations and due reminders.',
     group: 'general',
   },
 ];
@@ -124,15 +273,26 @@ export const DEFAULT_ROLE_TEMPLATES: DefaultRoleTemplate[] = [
     description: 'Full chit operations: manage groups, conduct auctions, verify security, release payouts, and view reports.',
     permissions: {
       canAccessForemanPortal: true,
+      canViewDashboard: true,
       canViewChits: true,
+      canViewAccounting: true,
+      canViewReports: true,
       canManageChits: true,
+      canImportChits: true,
+      canEnrollMembers: true,
+      canVerifyAgreements: true,
+      canAssignForemen: true,
       canConductAuction: true,
+      canEnterBidsOnBehalf: true,
+      canModerateGroupRoom: true,
+      canRescheduleAuction: true,
       canCollectChits: true,
+      canVerifyPaymentProofs: true,
       canApproveSecurity: true,
       canReleasePayout: true,
-      canViewReports: true,
-      canViewDashboard: true,
       canManageCustomers: true,
+      canExportPdfStatements: true,
+      canSendNotifications: true,
     },
   },
   {
@@ -142,37 +302,47 @@ export const DEFAULT_ROLE_TEMPLATES: DefaultRoleTemplate[] = [
     permissions: {
       canAccessForemanPortal: true,
       canViewChits: true,
-      canConductAuction: true,
-      canCollectChits: true,
       canViewReports: true,
+      canConductAuction: true,
+      canEnterBidsOnBehalf: true,
+      canModerateGroupRoom: true,
+      canRescheduleAuction: true,
+      canCollectChits: true,
+      canVerifyPaymentProofs: true,
       canManageCustomers: true,
+      canExportPdfStatements: true,
     },
   },
   {
     key: 'chit_staff',
     name: 'Chit Staff / Coordinator',
-    description: 'Views assigned chit groups in the Foreman Portal, collects dues, and updates customer records.',
+    description: 'Views assigned chit groups in the Foreman Portal, enrolls tickets, collects dues, and updates customer records.',
     permissions: {
       canAccessForemanPortal: true,
       canViewChits: true,
+      canEnrollMembers: true,
       canCollectChits: true,
+      canVerifyPaymentProofs: true,
       canManageCustomers: true,
+      canSendNotifications: true,
     },
   },
   {
     key: 'accounts_staff',
     name: 'Accounts & Reports Staff',
-    description: 'Views chit groups, financial dashboards, dividend ledgers, and printable PDF reports.',
+    description: 'Views chit groups, accounting P&L, financial dashboards, dividend ledgers, and printable PDF reports.',
     permissions: {
       canAccessForemanPortal: true,
-      canViewChits: true,
-      canViewReports: true,
       canViewDashboard: true,
+      canViewChits: true,
+      canViewAccounting: true,
+      canViewReports: true,
+      canExportPdfStatements: true,
     },
   },
   {
     key: 'collection_agent',
-    name: 'Collection Agent (Standard)',
+    name: 'Collection Staff (Standard)',
     description: 'Standard field collection role restricted to Collections and Customers.',
     permissions: {},
   },
@@ -206,6 +376,9 @@ export function parseStaffPermissions(
   if (out.canManageChits || out.canConductAuction || out.canApproveSecurity || out.canReleasePayout) {
     out.canViewChits = true;
     out.canAccessForemanPortal = true;
+  }
+  if (out.canImportChits || out.canEnrollMembers || out.canVerifyAgreements || out.canAssignForemen || out.canModerateGroupRoom) {
+    out.canViewChits = true;
   }
   return out;
 }
@@ -275,7 +448,7 @@ export function canStaffVisitPage(
       return Boolean(perms.canManageChits);
     }
     if (page === '/chits/import' || page.startsWith('/chits/import/')) {
-      return Boolean(perms.canManageChits);
+      return Boolean(perms.canManageChits || perms.canImportChits);
     }
     return Boolean(
       perms.canViewChits ||
@@ -283,6 +456,9 @@ export function canStaffVisitPage(
         perms.canConductAuction ||
         perms.canCollectChits,
     );
+  }
+  if (page === '/accounting' || page.startsWith('/accounting/')) {
+    return Boolean(perms.canViewAccounting);
   }
   if (page === '/reports' || page.startsWith('/reports/')) {
     return Boolean(perms.canViewReports);
@@ -298,21 +474,17 @@ export function canStaffVisitPage(
 
 /** Compact string list of granted permission keys for JWT claims. */
 export function encodePermissionClaims(perms: StaffPermissions): StaffPermissionKey[] {
-  return ALL_STAFF_PERMISSION_KEYS.filter((k) => perms[k]);
+  return ALL_STAFF_PERMISSION_KEYS.filter((k) => Boolean(perms[k]));
 }
 
-export function decodePermissionClaims(claims: unknown): StaffPermissions {
-  const out: StaffPermissions = { ...EMPTY_STAFF_PERMISSIONS };
-  if (Array.isArray(claims)) {
-    for (const c of claims) {
-      if (typeof c === 'string' && c in out) {
-        out[c as StaffPermissionKey] = true;
-      }
-    }
-    return parseStaffPermissions(out);
+/** Rebuilds normalized `StaffPermissions` from JWT claim array. */
+export function decodePermissionClaims(claims?: string[] | null): StaffPermissions {
+  if (!Array.isArray(claims) || claims.length === 0) {
+    return { ...EMPTY_STAFF_PERMISSIONS };
   }
-  if (claims && typeof claims === 'object') {
-    return parseStaffPermissions(claims as Record<string, unknown>);
+  const obj: Partial<StaffPermissions> = {};
+  for (const key of ALL_STAFF_PERMISSION_KEYS) {
+    if (claims.includes(key)) obj[key] = true;
   }
-  return out;
+  return parseStaffPermissions(obj);
 }

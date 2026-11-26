@@ -38,6 +38,18 @@ const samuraiRequest = new Request('http://localhost:3000/portal', {
   },
 }) as any;
 assert.equal(getPublicOrigin(samuraiRequest), 'https://loan.samuraibuiness.in');
+
+const prevAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+process.env.NEXT_PUBLIC_APP_URL = 'https://app.zolofunds.com';
+const localRequest = new Request('http://localhost:3000/portal', {
+  headers: {
+    host: 'localhost:3000',
+  },
+}) as any;
+assert.equal(getPublicOrigin(localRequest), 'http://localhost:3000');
+if (prevAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+else process.env.NEXT_PUBLIC_APP_URL = prevAppUrl;
+
 assert.equal(
   normalizeLocalCallbackUrl('https://app.zolofunds.com/portal'),
   '/portal',

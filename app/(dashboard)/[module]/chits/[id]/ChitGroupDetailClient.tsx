@@ -24,6 +24,7 @@ import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelC
 import { parseFrequency, frequencyLabel, periodWindow } from '@/lib/chits/frequency';
 import PaymentIntentsQueue from '@/components/chits/PaymentIntentsQueue';
 import MemberDividendLedgerPanel from '@/components/chits/MemberDividendLedgerPanel';
+import InlineAddPicker from '@/components/chits/InlineAddPicker';
 import { computeSubscriptionBalances } from '@/lib/chits/engineCalculator';
 import {
   CHIT_ENGINE_CATALOG,
@@ -98,10 +99,8 @@ export default function ChitGroupDetailClient({
       isPrimary: Boolean(f.isPrimary),
     })),
   );
-  const [pickForemanId, setPickForemanId] = useState('');
   const [pickForemanRole, setPickForemanRole] = useState('Co-Foreman');
-  const [addCustId, setAddCustId] = useState('');
-  const [addQty, setAddQty] = useState(1);
+  const [detailLimitWarning, setDetailLimitWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -602,37 +601,31 @@ export default function ChitGroupDetailClient({
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <h3 style={{ margin: 0 }}>👥 {d.members} ({group.members.length}/{group.totalMembers})</h3>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {customers.length > 0 && group.members.length < group.totalMembers && !['completed', 'cancelled'].includes(group.status) && (
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <select
-                  className="form-control"
-                  value={addCustId}
-                  onChange={(e) => setAddCustId(e.target.value)}
-                  style={{ width: '175px', padding: '4px 8px', fontSize: '.78rem' }}
-                >
-                  <option value="">+ Select customer ticket</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.customerCode})</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  className="form-control"
-                  min={1}
-                  max={Math.max(1, group.totalMembers - group.members.length)}
-                  value={addQty}
-                  onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))}
-                  style={{ width: '56px', padding: '4px 6px', fontSize: '.78rem' }}
-                  title="Tickets to add"
+            {customers.length > 0 && !['completed', 'cancelled'].includes(group.status) && (
+              <div style={{ minWidth: '290px', maxWidth: '380px', flex: '1 1 290px' }}>
+                <InlineAddPicker
+                  compact
+                  disabled={busy === 'add-tickets'}
+                  placeholder={busy === 'add-tickets' ? 'Adding ticket...' : 'Search customer & click + to add ticket...'}
+                  summaryText={`${group.members.length}/${group.totalMembers}`}
+                  allowMultiple
+                  maxTotalReached={group.members.length >= group.totalMembers}
+                  onExceedMax={(cid) => {
+                    const cust = customers.find((c) => c.id === cid);
+                    setDetailLimitWarning(cust ? `${cust.name} (${cust.customerCode})` : 'Customer');
+                  }}
+                  items={customers.map((c) => {
+                    const count = group.members.filter((m: any) => m.customerId === c.id).length;
+                    return {
+                      id: c.id,
+                      label: c.name,
+                      subLabel: c.customerCode,
+                      count,
+                    };
+                  })}
+                  onIncrement={(cid) => run('add-tickets', () => addChitMemberTicketsAction(group.id, cid, 1))}
+                  footerAction={{ label: 'New Customer', href: '/customers/new' }}
                 />
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  disabled={!addCustId || !!busy}
-                  onClick={() => run('add-tickets', () => addChitMemberTicketsAction(group.id, addCustId, addQty))}
-                >
-                  {busy === 'add-tickets' ? 'Adding…' : '+ Add Ticket'}
-                </button>
               </div>
             )}
             {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
@@ -1065,52 +1058,45 @@ export default function ChitGroupDetailClient({
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '520px', padding: '18px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '12px' }}>🏛️ Assign Foremen ({foremenDraft.length})</h3>
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
-              <select
-                className="form-control"
-                style={{ flex: 1, minWidth: '170px' }}
-                value={pickForemanId}
-                onChange={(e) => {
-                  const uid = e.target.value;
-                  setPickForemanId(uid);
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) 130px', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+              <InlineAddPicker
+                compact
+                allowMultiple={false}
+                placeholder="Search staff & click + to assign..."
+                summaryText={`${foremenDraft.length} selected`}
+                items={staffUsers.map((u) => ({
+                  id: u.id,
+                  label: u.name,
+                  subLabel: u.phone || undefined,
+                  badgeText: u.customRoleName || u.customRole?.name || u.role,
+                  count: foremenDraft.some((fd) => fd.userId === u.id) ? 1 : 0,
+                }))}
+                onIncrement={(uid) => {
                   const found = staffUsers.find((u) => u.id === uid);
-                  if (found) {
-                    setPickForemanRole(found.customRoleName || found.customRole?.name || (foremenDraft.length === 0 ? 'Primary Foreman' : 'Co-Foreman'));
-                  }
+                  if (!found) return;
+                  setForemenDraft((prev) => {
+                    if (prev.some((x) => x.userId === uid)) return prev;
+                    const role = found.customRoleName || found.customRole?.name || pickForemanRole.trim() || (prev.length === 0 ? 'Primary Foreman' : 'Co-Foreman');
+                    return [...prev, { userId: uid, roleLabel: role, isPrimary: prev.length === 0 }];
+                  });
                 }}
-              >
-                <option value="">Select staff / foreman…</option>
-                {staffUsers
-                  .filter((u) => !foremenDraft.some((d) => d.userId === u.id))
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.customRoleName || u.customRole?.name || u.role})
-                    </option>
-                  ))}
-              </select>
+                onDecrement={(uid) => {
+                  setForemenDraft((prev) => {
+                    const next = prev.filter((x) => x.userId !== uid);
+                    if (next.length > 0 && !next.some((x) => x.isPrimary)) {
+                      next[0] = { ...next[0], isPrimary: true };
+                    }
+                    return next;
+                  });
+                }}
+              />
               <input
                 type="text"
                 className="form-control"
-                style={{ width: '140px' }}
                 value={pickForemanRole}
                 onChange={(e) => setPickForemanRole(e.target.value)}
                 placeholder="Role label"
               />
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={!pickForemanId}
-                onClick={() => {
-                  if (!pickForemanId) return;
-                  setForemenDraft((prev) => [
-                    ...prev,
-                    { userId: pickForemanId, roleLabel: pickForemanRole || 'Foreman', isPrimary: prev.length === 0 },
-                  ]);
-                  setPickForemanId('');
-                }}
-              >
-                + Add
-              </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
@@ -1162,6 +1148,60 @@ export default function ChitGroupDetailClient({
               >
                 {busy === 'save-foremen' ? 'Saving…' : 'Save Foremen'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailLimitWarning && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: '16px',
+          }}
+          onClick={() => setDetailLimitWarning(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: '1px solid #CBD5E1',
+              boxShadow: '0 20px 44px -10px rgba(15, 23, 42, 0.3)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '13px 16px', background: 'linear-gradient(90deg, #B45309 0%, #D97706 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '20px' }}>warning_amber</span>
+              <h4 style={{ margin: 0, fontSize: '.98rem', fontWeight: 800, color: '#FFFFFF' }}>
+                Member Limit Reached ({group.totalMembers} Members)
+              </h4>
+            </div>
+            <div style={{ padding: '16px' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '.86rem', color: '#0F172A', lineHeight: 1.5 }}>
+                Cannot add <strong>{detailLimitWarning}</strong> because this group already has{' '}
+                <strong>{group.members.length} / {group.totalMembers}</strong> member tickets filled.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDetailLimitWarning(null)}>
+                  Close
+                </button>
+                {group.status === 'draft' && (
+                  <Link href={`/chits/${group.id}/edit`} className="btn btn-primary btn-sm">
+                    Increase Limit in Edit Group
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>

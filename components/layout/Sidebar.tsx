@@ -81,7 +81,7 @@ export default function Sidebar({
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
-    { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canViewAccounting), appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'wallet', icon: 'payments', label: ((dict.sidebar as any).wallet || 'Agent Wallet'), href: '/wallet', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.insights },
     { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, allowAgentIf: (p) => Boolean(p?.canViewReports || p?.canViewDashboard), appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },

@@ -110,12 +110,12 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
 
           // ── Distributed rate limiting (MySQL-backed) ─────────────────────────
           const ip = getClientIp(request as unknown as Request);
-          
+
           console.log(`[AUTH_DEBUG] Attempting login for user: ${username} from IP: ${ip}`);
 
           // Use a shorter timeout for rate limiting to fail fast
           const rateLimitTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('RATE_LIMIT_TIMEOUT')), 5000));
-          
+
           try {
             const [ipLimit, userLimit] = await Promise.race([
               Promise.all([
@@ -139,7 +139,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           // ── Tenant-scoped user lookup ─────────────────────────────────────────
           const host = (request as any)?.headers?.get?.('host') ?? null;
           const tenantIdFromHost = await resolveLoginTenantId(host);
-          
+
           console.log(`[AUTH_DEBUG] Resolved tenantId from host (${host}): ${tenantIdFromHost}`);
 
           // Use a timeout for the main user lookup
@@ -175,7 +175,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
 
           if (!tenantIdFromHost && process.env.ALLOW_ROOT_DOMAIN_LOGIN === 'false') {
             console.warn(`[AUTH_WARN] Root domain login blocked for user: ${username}`);
-            return null; 
+            return null;
           }
 
           if (isWhatsappAuth) {
@@ -280,14 +280,14 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           };
         } catch (error: any) {
           console.error('[AUTH_ERROR_DETAILS] Authorize failed:', error.message || error);
-          
+
           if (error.message === 'DATABASE_TIMEOUT') {
             throw new Error('Database is taking too long to respond. Please try again.');
           }
           if (error.message === 'RATE_LIMIT_TIMEOUT') {
             throw new Error('Security check timeout. Please try again.');
           }
-          
+
           throw error;
         }
       },
@@ -470,7 +470,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         // Only store minimal essential data in JWT for authorization
         // Sensitive data (tenantId, branchId, phone, username) are fetched server-side in session callback
         token.userId = user.id;
-        
+
         let role = (user as AuthorizedUser).role;
         let tenantId = (user as AuthorizedUser).tenantId;
         let branchId = (user as AuthorizedUser).branchId;
@@ -512,7 +512,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         token.tenantId = tenantId;
         token.branchId = branchId;
         token.appType = appType;
-        
+
         // Handle dynamic expiration based on Remember Me
         const rememberMe = (user as any).rememberMe;
         // NOTE: We rely on maxAge instead of manually setting exp if possible 
@@ -553,7 +553,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             token.tenantId = dbUser.tenantId;
             token.branchId = dbUser.branchId;
             token.appType = dbUser.appType;
-            
+
             // Also issue a new apiToken
             const { issueMobileToken } = await import('@/lib/api/v1-auth');
             const apiToken = await issueMobileToken({
@@ -654,7 +654,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
               }
             },
           });
-          
+
           if (!dbUser) {
             console.error('[AUTH_SESSION_ERROR] User not found in database');
             return null;
@@ -667,18 +667,18 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             try {
               const nextCookies = await import('next/headers').then(m => m.cookies());
               const monitorToken = nextCookies.get('monitor-token')?.value;
-              
+
               if (monitorToken) {
                 const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
                 const encodedSecret = new TextEncoder().encode(secret);
                 const { payload } = await import('jose').then(m => m.jwtVerify(monitorToken, encodedSecret));
-                
+
                 if (payload && payload.targetUserId) {
                   const targetUser = await prisma.user.findUnique({
                     where: { id: payload.targetUserId as string },
-                    select: { 
-                      role: true, 
-                      appType: true, 
+                    select: {
+                      role: true,
+                      appType: true,
                       branchId: true,
                       tenantId: true,
                       phone: true,
@@ -752,10 +752,11 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         sameSite: 'lax',
         // The Secure flag must track the actual serving scheme, not the build
         // mode: a production build served over plain HTTP (e.g. an IP-only VPS
-        // before SSL) must NOT set Secure, or the browser drops the cookie and
-        // login never persists. Derives from the configured public URL, so it
-        // auto-enables once APP_URL/NEXT_PUBLIC_APP_URL is https://.
-        secure: (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '').startsWith('https://'),
+        // before SSL) or local HTTP dev must NOT set Secure, or the browser drops
+        // the cookie and login never persists.
+        secure:
+          process.env.NODE_ENV === 'production' &&
+          (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '').startsWith('https://'),
       },
     },
   },
