@@ -4,11 +4,9 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import prisma from '@/lib/db';
 import { fail } from '@/lib/api/v1-envelope';
 import { requireBorrowerMobileContext } from '@/lib/api/borrower-mobile';
-import { buildChitPeriodReportData } from '@/lib/chits/periodReport';
+import { buildChitPeriodReportData, resolveChitPdfBranding } from '@/lib/chits/periodReport';
 import { ChitPeriodReportPDF } from '@/lib/chits/periodReportPdf';
-import { getCurrentLanguage } from '@/lib/i18n';
 import { resolvePdfLang } from '@/lib/reports/pdfFonts';
-import { getBranding, getSetting } from '@/lib/tenant';
 
 export async function GET(
   req: NextRequest,
@@ -33,12 +31,8 @@ export async function GET(
   if (!member) return fail('Forbidden', 403);
 
   const { searchParams } = new URL(req.url);
-  const [branding, currencySymbol, tenantLang] = await Promise.all([
-    getBranding(borrower.tenantId),
-    getSetting(borrower.tenantId, 'currency_symbol', '₹'),
-    getCurrentLanguage(borrower.tenantId),
-  ]);
-  const lang = resolvePdfLang(searchParams.get('lang') ?? tenantLang);
+  const brandCtx = await resolveChitPdfBranding(borrower.tenantId);
+  const lang = resolvePdfLang(searchParams.get('lang') ?? brandCtx.defaultLang);
 
   const data = await buildChitPeriodReportData({
     chitGroupId: member.chitGroupId,
@@ -50,9 +44,14 @@ export async function GET(
       role: 'superadmin',
       userId: null,
     },
-    tenantName: branding.appName || 'ZoloFund',
-    currencySymbol,
+    tenantName: brandCtx.tenantName,
+    currencySymbol: brandCtx.currencySymbol,
     lang,
+    theme: brandCtx.theme,
+    logoDataUri: brandCtx.logoDataUri,
+    companyAddress: brandCtx.companyAddress,
+    companyPhone: brandCtx.companyPhone,
+    companyEmail: brandCtx.companyEmail,
   });
   if (!data) return fail('Auction report not found', 404);
 

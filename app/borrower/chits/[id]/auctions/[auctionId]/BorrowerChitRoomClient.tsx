@@ -352,8 +352,12 @@ export default function BorrowerChitRoomClient({
         </div>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px' }}>
           <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>TIME REMAINING</div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: roomOpen ? 'var(--primary)' : '#64748B', fontFamily: 'monospace' }}>
-            {roomOpen ? `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')}` : state?.roomStatus}
+          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: roomOpen ? 'var(--primary)' : state?.roomStatus === 'paused' ? '#D97706' : '#64748B', fontFamily: 'monospace' }}>
+            {roomOpen
+              ? `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')}`
+              : state?.roomStatus === 'paused'
+                ? `⏸ PAUSED (${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')})`
+                : state?.roomStatus}
           </div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px' }}>

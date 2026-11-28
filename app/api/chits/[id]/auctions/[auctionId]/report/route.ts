@@ -3,13 +3,11 @@ import { createElement } from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { requireApiContext } from '@/lib/apiAuth';
 import { canCollectChits } from '@/lib/chits/access';
-import { buildChitPeriodReportData } from '@/lib/chits/periodReport';
+import { buildChitPeriodReportData, resolveChitPdfBranding } from '@/lib/chits/periodReport';
 import { ChitPeriodReportPDF } from '@/lib/chits/periodReportPdf';
 import { STANDARD_CASH_DENOMINATIONS } from '@/lib/chits/payout';
-import { getCurrentLanguage } from '@/lib/i18n';
 import { requireModule } from '@/lib/moduleGate';
 import { resolvePdfLang } from '@/lib/reports/pdfFonts';
-import { getBranding, getSetting } from '@/lib/tenant';
 
 function parseDenominations(searchParams: URLSearchParams): Record<number, number> {
   const out: Record<number, number> = {};
@@ -44,21 +42,22 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const cashDenominations = parseDenominations(searchParams);
 
-  const [branding, currencySymbol, tenantLang] = await Promise.all([
-    getBranding(tenantId),
-    getSetting(tenantId, 'currency_symbol', '₹'),
-    getCurrentLanguage(tenantId),
-  ]);
-  const lang = resolvePdfLang(searchParams.get('lang') ?? tenantLang);
+  const brandCtx = await resolveChitPdfBranding(tenantId);
+  const lang = resolvePdfLang(searchParams.get('lang') ?? brandCtx.defaultLang);
 
   const data = await buildChitPeriodReportData({
     chitGroupId,
     auctionId,
     scope: { tenantId, appType: 'chitfunds', branchId, role, userId },
-    tenantName: branding.appName || 'ZoloFund',
-    currencySymbol,
+    tenantName: brandCtx.tenantName,
+    currencySymbol: brandCtx.currencySymbol,
     cashDenominations,
     lang,
+    theme: brandCtx.theme,
+    logoDataUri: brandCtx.logoDataUri,
+    companyAddress: brandCtx.companyAddress,
+    companyPhone: brandCtx.companyPhone,
+    companyEmail: brandCtx.companyEmail,
   });
 
   if (!data) {

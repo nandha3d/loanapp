@@ -5,7 +5,7 @@
 import type { Prisma } from '@prisma/client';
 import { isBiddingEnabledForPeriod, parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
 
-export type ChitRoomStatus = 'scheduled' | 'open' | 'extended' | 'closed';
+export type ChitRoomStatus = 'scheduled' | 'open' | 'extended' | 'paused' | 'closed';
 
 export function isRoomOpen(auction: { roomStatus: string; biddingClosesAt?: Date | null }, now = new Date()) {
   if (!['open', 'extended'].includes(auction.roomStatus)) return false;
@@ -13,7 +13,14 @@ export function isRoomOpen(auction: { roomStatus: string; biddingClosesAt?: Date
   return true;
 }
 
-export function secondsRemaining(auction: { biddingClosesAt?: Date | null }, now = new Date()) {
+export function secondsRemaining(
+  auction: { roomStatus?: string; countdownSeconds?: number | null; biddingClosesAt?: Date | null },
+  now = new Date(),
+) {
+  if (auction.roomStatus === 'paused') {
+    return Math.max(0, Number(auction.countdownSeconds ?? 0));
+  }
+  if (auction.roomStatus === 'closed') return 0;
   if (!auction.biddingClosesAt) return 0;
   return Math.max(0, Math.floor((auction.biddingClosesAt.getTime() - now.getTime()) / 1000));
 }
@@ -101,12 +108,13 @@ export async function closeAuctionRoom(
     select: { id: true, roomStatus: true, status: true },
   });
   if (!fresh) throw new Error('Auction not found');
-  if (!['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is not open');
+  if (!['open', 'extended', 'paused'].includes(fresh.roomStatus)) throw new Error('Room is not open');
   const updated = await tx.chitAuction.update({
     where: { id: auctionId },
     data: {
       roomStatus: 'closed',
       biddingClosesAt: new Date(),
+      countdownSeconds: null,
       status: fresh.status === 'in_progress' ? 'completed' : fresh.status,
     },
   });
@@ -116,6 +124,122 @@ export async function closeAuctionRoom(
       type: 'close',
       message: opts.reason ?? 'Manually closed',
       createdById: opts.closedById ?? undefined,
+    },
+  });
+  return updated;
+}
+
+/**
+ * Freezes the entire live auction process (both room clock and bell idle countdown)
+ * while holding current remaining time cleanly for later resume.
+ */
+export async function pauseAuctionRoom(
+  tx: Prisma.TransactionClient,
+  auctionId: string,
+  opts: { byUserId?: string | null; now?: Date } = {},
+) {
+  const now = opts.now ?? new Date();
+  const fresh = await tx.chitAuction.findUnique({
+    where: { id: auctionId },
+    select: {
+      id: true,
+      roomStatus: true,
+      biddingClosesAt: true,
+      bellAnchorAt: true,
+      bellsRung: true,
+      chitGroup: { select: { bellIntervalSeconds: true } },
+    },
+  });
+  if (!fresh) throw new Error('Auction not found');
+  if (!['open', 'extended'].includes(fresh.roomStatus)) {
+    throw new Error('Room must be live before pausing');
+  }
+
+  const remainingRoomSec = fresh.biddingClosesAt
+    ? Math.max(1, Math.ceil((fresh.biddingClosesAt.getTime() - now.getTime()) / 1000))
+    : 0;
+  const intervalMs = Math.max(5, fresh.chitGroup?.bellIntervalSeconds || 30) * 1000;
+  const bellAnchorMs = fresh.bellAnchorAt ? fresh.bellAnchorAt.getTime() : now.getTime();
+  const elapsedTotalMs = Math.max(0, now.getTime() - bellAnchorMs);
+  const elapsedCycleMs = Math.min(intervalMs, Math.max(0, elapsedTotalMs - fresh.bellsRung * intervalMs));
+  const bellRemainingSec = Math.max(1, Math.ceil((intervalMs - elapsedCycleMs) / 1000));
+
+  const updated = await tx.chitAuction.update({
+    where: { id: auctionId },
+    data: {
+      roomStatus: 'paused',
+      countdownSeconds: remainingRoomSec,
+    },
+  });
+  await tx.chitAuctionEvent.create({
+    data: {
+      auctionId,
+      type: 'pause',
+      message: 'Auction paused — timer & bells held',
+      amount: bellRemainingSec,
+      createdById: opts.byUserId ?? undefined,
+      createdAt: now,
+    },
+  });
+  return { auction: updated, remainingRoomSec, bellRemainingSec };
+}
+
+/**
+ * Resumes a paused auction room cleanly from its saved remaining room & bell timers.
+ */
+export async function resumeAuctionRoom(
+  tx: Prisma.TransactionClient,
+  auctionId: string,
+  opts: { byUserId?: string | null; now?: Date } = {},
+) {
+  const now = opts.now ?? new Date();
+  const fresh = await tx.chitAuction.findUnique({
+    where: { id: auctionId },
+    select: {
+      id: true,
+      roomStatus: true,
+      countdownSeconds: true,
+      bellsRung: true,
+      chitGroup: { select: { bellIntervalSeconds: true } },
+    },
+  });
+  if (!fresh) throw new Error('Auction not found');
+  if (fresh.roomStatus !== 'paused') {
+    throw new Error('Auction is not currently paused');
+  }
+
+  const latestPause = await tx.chitAuctionEvent.findFirst({
+    where: { auctionId, type: 'pause' },
+    orderBy: { createdAt: 'desc' },
+    select: { amount: true },
+  });
+
+  const remainingRoomSec = Math.max(1, Number(fresh.countdownSeconds ?? 300));
+  const intervalMs = Math.max(5, fresh.chitGroup?.bellIntervalSeconds || 30) * 1000;
+  const bellRemainingMs =
+    latestPause?.amount != null
+      ? Math.min(intervalMs, Math.max(1000, Number(latestPause.amount) * 1000))
+      : intervalMs;
+  const elapsedInCycleMs = intervalMs - bellRemainingMs;
+  const restoredBellAnchor = new Date(now.getTime() - (fresh.bellsRung * intervalMs + elapsedInCycleMs));
+  const nextClose = new Date(now.getTime() + remainingRoomSec * 1000);
+
+  const updated = await tx.chitAuction.update({
+    where: { id: auctionId },
+    data: {
+      roomStatus: 'open',
+      biddingClosesAt: nextClose,
+      bellAnchorAt: restoredBellAnchor,
+      countdownSeconds: null,
+    },
+  });
+  await tx.chitAuctionEvent.create({
+    data: {
+      auctionId,
+      type: 'resume',
+      message: 'Auction resumed',
+      createdById: opts.byUserId ?? undefined,
+      createdAt: now,
     },
   });
   return updated;
@@ -137,26 +261,34 @@ export async function extendAuctionRoomMinutes(
 
   const fresh = await tx.chitAuction.findUnique({
     where: { id: params.auctionId },
-    select: { id: true, roomStatus: true, biddingClosesAt: true, status: true },
+    select: { id: true, roomStatus: true, biddingClosesAt: true, countdownSeconds: true, status: true },
   });
   if (!fresh) throw new Error('Auction not found');
-  if (!['open', 'extended'].includes(fresh.roomStatus)) {
+  if (!['open', 'extended', 'paused'].includes(fresh.roomStatus)) {
     throw new Error('Room must be open before adding extra minutes');
   }
 
-  const baseTime =
-    fresh.biddingClosesAt && fresh.biddingClosesAt.getTime() > now.getTime()
-      ? fresh.biddingClosesAt
-      : now;
-  const nextClose = new Date(baseTime.getTime() + extraMinutes * 60_000);
-
-  const updated = await tx.chitAuction.update({
-    where: { id: params.auctionId },
-    data: {
-      biddingClosesAt: nextClose,
-      roomStatus: 'extended',
-    },
-  });
+  const updated =
+    fresh.roomStatus === 'paused'
+      ? await tx.chitAuction.update({
+          where: { id: params.auctionId },
+          data: {
+            countdownSeconds: Math.max(0, Number(fresh.countdownSeconds ?? 0)) + extraMinutes * 60,
+          },
+        })
+      : await tx.chitAuction.update({
+          where: { id: params.auctionId },
+          data: {
+            biddingClosesAt: new Date(
+              (fresh.biddingClosesAt && fresh.biddingClosesAt.getTime() > now.getTime()
+                ? fresh.biddingClosesAt
+                : now
+              ).getTime() +
+                extraMinutes * 60_000,
+            ),
+            roomStatus: 'extended',
+          },
+        });
   await tx.chitAuctionEvent.create({
     data: {
       auctionId: params.auctionId,

@@ -22,6 +22,7 @@ import {
   extendAuctionRoomMinutes,
   openScheduledRoomIfDue,
   reopenAuctionRoom,
+  secondsRemaining,
 } from '../../lib/chits/liveAuction';
 import { placeChitBid } from '../../lib/chits/bidService';
 import { getPeriodReportCopy } from '../../lib/chits/periodReportI18n';
@@ -646,6 +647,24 @@ async function runAsyncTests() {
   assert.equal(tcAllSettledSummary.settledTickets, 2);
   assert.equal(tcAllSettledSummary.pendingTickets, 0);
   assert.equal(tcAllSettledSummary.allSettled, true);
+
+  // 20. Paused auction room returns frozen countdownSeconds
+  assert.equal(
+    secondsRemaining({
+      roomStatus: 'paused',
+      countdownSeconds: 742,
+      biddingClosesAt: new Date(Date.now() + 10_000),
+    }),
+    742,
+  );
+  assert.equal(
+    secondsRemaining({
+      roomStatus: 'closed',
+      countdownSeconds: 742,
+      biddingClosesAt: new Date(Date.now() + 10_000),
+    }),
+    0,
+  );
 
   console.log('chit automated bid bounds and monotonic direction tests passed');
 }

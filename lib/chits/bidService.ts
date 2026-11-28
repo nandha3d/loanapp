@@ -101,7 +101,13 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
       where: { id: auction.id },
       select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
     });
-    if (!fresh || !isRoomOpen(fresh)) {
+    if (!fresh) {
+      throw new Error('Bidding room is not open — press Start Live Now before placing bids.');
+    }
+    if (fresh.roomStatus === 'paused') {
+      throw new Error('Auction is currently paused — resume the auction before placing bids.');
+    }
+    if (!isRoomOpen(fresh)) {
       throw new Error('Bidding room is not open — press Start Live Now before placing bids.');
     }
     const extendedClose = antiSnipeExtension(fresh);
@@ -135,6 +141,9 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
       const bellClosed = fresh.bellsRung >= (fresh.chitGroup?.bellCount ?? 3) && fresh.roomStatus === 'closed';
       if (bellClosed) {
         throw new Error('Final 3rd bell closed bidding — confirm the winner or re-open the room (+5m) first.');
+      }
+      if (fresh.roomStatus === 'paused') {
+        throw new Error('Auction is currently paused — resume the auction before placing bids.');
       }
       if (!isRoomOpen(fresh)) {
         throw new Error('Bidding room is not open — press Start Live Now before placing bids.');

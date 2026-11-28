@@ -23,11 +23,13 @@ import {
   markAuctionNoticeSent,
   manageChitAuctionScheduleAction,
   openLiveRoom,
+  pauseLiveRoomAction,
   postRoomMessage,
   postRoomVoiceMessage,
   releasePrizePayout,
   reopenLiveRoomAction,
   requestChitSecurityApprovalAction,
+  resumeLiveRoomAction,
   retractLiveMemberBid,
   reviewChitSecurityDocument,
   ringLiveBell,
@@ -253,6 +255,10 @@ export default function AuctionDetailClient({
     const lastBellSoundKeyRef = useRef('');
     const thirdBellModalPromptKeyRef = useRef('');
     const [bellToast, setBellToast] = useState('');
+    const [showBellTimingEditor, setShowBellTimingEditor] = useState(false);
+    const [customBellSecondsInput, setCustomBellSecondsInput] = useState<string>(
+      String(group.bellIntervalSeconds ?? 60),
+    );
     const [soundMuted, setSoundMuted] = useState<boolean>(() => isBellSoundMuted());
     const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => isBidVoiceEnabled());
     const [roomVoiceLang, setRoomVoiceLang] = useState<BidVoiceLanguageCode>(() =>
@@ -470,25 +476,39 @@ export default function AuctionDetailClient({
       group.bellCount,
     ]);
 
-    const roomActive = (live?.roomStatus ?? auction.roomStatus) === 'open' || (live?.roomStatus ?? auction.roomStatus) === 'extended';
+    const liveRoomStatus = live?.roomStatus ?? auction.roomStatus;
+    const roomActive = liveRoomStatus === 'open' || liveRoomStatus === 'extended';
+    const isPaused = liveRoomStatus === 'paused';
     const currentBellsRung = live?.bell?.bellsRung ?? auction.bellsRung ?? 0;
     const totalBellCount = live?.bell?.bellCount ?? group.bellCount ?? 3;
-    const isClosedByBell = !roomActive && currentBellsRung >= totalBellCount && totalBellCount > 0;
+    const isClosedByBell = !roomActive && !isPaused && currentBellsRung >= totalBellCount && totalBellCount > 0;
     const canBidLiveNow = isBiddingRoom && !locked && activeBidBounds.canBidFurther && roomActive;
     const needsTableCashBeforeStart = Boolean(
       tableCash?.enabled &&
       !tableCash.allSettled &&
       isLive &&
       !roomActive &&
+      !isPaused &&
       !locked &&
       !isClosedByBell &&
-      (live?.roomStatus ?? auction.roomStatus) !== 'closed',
+      liveRoomStatus !== 'closed',
     );
 
     const idleBellIntervalSec = Math.max(
       5,
       Number(live?.bell?.intervalSeconds ?? group.bellIntervalSeconds ?? 60),
     );
+    useEffect(() => {
+      setCustomBellSecondsInput(String(idleBellIntervalSec));
+    }, [idleBellIntervalSec]);
+    const handleApplyBellIntervalSeconds = async (rawSeconds: number) => {
+      const clamped = Math.min(300, Math.max(5, Math.round(Number(rawSeconds) || idleBellIntervalSec)));
+      setCustomBellSecondsInput(String(clamped));
+      const ok = await run('bell-interval', () => updateChitBellIntervalAction(auction.id, clamped));
+      if (ok) {
+        setShowBellTimingEditor(false);
+      }
+    };
     const syncBellAnchorFromState = (state: any) => {
       const rem = state?.bell?.remainingMs;
       const key = `${state?.bell?.bellsRung ?? 0}:${state?.bell?.nextBellAt ?? ''}:${state?.roomStatus ?? ''}`;
@@ -507,20 +527,22 @@ export default function AuctionDetailClient({
       }
     };
     const bellAnchor = bellSyncAnchorRef.current;
-    const expectedBellKey = `${currentBellsRung}:${live?.bell?.nextBellAt ?? ''}:${live?.roomStatus ?? auction.roomStatus ?? ''}`;
+    const expectedBellKey = `${currentBellsRung}:${live?.bell?.nextBellAt ?? ''}:${liveRoomStatus ?? ''}`;
     const bellRemainingMs =
-      roomActive && bellSupported
+      bellSupported && roomActive
         ? bellAnchor && bellAnchor.key === expectedBellKey
           ? Math.max(0, bellAnchor.remainingMs - Math.max(0, bellTickerPerfMs - bellAnchor.capturedPerfMs))
           : live?.bell?.remainingMs != null
             ? Math.max(0, Number(live.bell.remainingMs))
             : null
-        : null;
+        : bellSupported && isPaused && live?.bell?.remainingMs != null
+          ? Math.max(0, Number(live.bell.remainingMs))
+          : null;
     const bellSecondsLeft = bellRemainingMs != null ? Math.ceil(bellRemainingMs / 1000) : null;
     const bellUrgentSeconds =
-      bellSecondsLeft != null && bellSecondsLeft >= 1 && bellSecondsLeft <= 5 ? bellSecondsLeft : null;
+      roomActive && bellSecondsLeft != null && bellSecondsLeft >= 1 && bellSecondsLeft <= 5 ? bellSecondsLeft : null;
     const idleBellProgressPct =
-      roomActive && bellSupported
+      (roomActive || isPaused) && bellSupported
         ? bellRemainingMs != null
           ? Math.min(100, Math.max(0, (bellRemainingMs / (idleBellIntervalSec * 1000)) * 100))
           : 0
@@ -965,12 +987,13 @@ export default function AuctionDetailClient({
               : `Live Auction Table — ${eligibleSeatTotal} Unique Members (${activeSeatCount} Tickets)`;
 
     const isRoomClosedState =
-      locked || isClosedByBell || (live?.roomStatus ?? auction.roomStatus) === 'closed';
-    const countdownTotalSec = roomActive
-      ? Math.max(0, Number(live?.secondsRemaining ?? 0))
-      : isRoomClosedState
-        ? 0
-        : Math.max(0, Number(roomMinutes ?? 30) * 60);
+      locked || isClosedByBell || liveRoomStatus === 'closed';
+    const countdownTotalSec =
+      roomActive || isPaused
+        ? Math.max(0, Number(live?.secondsRemaining ?? auction.countdownSeconds ?? 0))
+        : isRoomClosedState
+          ? 0
+          : Math.max(0, Number(roomMinutes ?? 30) * 60);
     const cdHours = String(Math.floor(countdownTotalSec / 3600)).padStart(2, '0');
     const cdMins = String(Math.floor((countdownTotalSec % 3600) / 60)).padStart(2, '0');
     const cdSecs = String(countdownTotalSec % 60).padStart(2, '0');
@@ -1272,18 +1295,18 @@ export default function AuctionDetailClient({
             {/* Tile 3: Stopwatch + Time Left + Duration/Extend Controls */}
             <div className="chit-telemetry-tile">
               <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
-                <span className="material-icons-outlined" style={{ fontSize: '25px', color: roomActive ? '#38bdf8' : '#e2e8f0', flexShrink: 0 }}>timer</span>
+                <span className="material-icons-outlined" style={{ fontSize: '25px', color: isPaused ? '#fbbf24' : roomActive ? '#38bdf8' : '#e2e8f0', flexShrink: 0 }}>timer</span>
                 <div style={{ minWidth: 0 }}>
                   <div className="chit-telemetry-kicker" style={{ whiteSpace: 'nowrap' }}>
-                    {roomActive ? 'Live Time Left' : isRoomClosedState ? 'Room Timer' : 'Time Left'}
+                    {isPaused ? 'Paused Time Left' : roomActive ? 'Live Time Left' : isRoomClosedState ? 'Room Timer' : 'Time Left'}
                   </div>
-                  <div className="chit-telemetry-value" style={{ fontSize: '1.1rem', letterSpacing: '0.4px', color: roomActive ? '#38bdf8' : '#ffffff', whiteSpace: 'nowrap' }}>
+                  <div className="chit-telemetry-value" style={{ fontSize: '1.1rem', letterSpacing: '0.4px', color: isPaused ? '#fbbf24' : roomActive ? '#38bdf8' : '#ffffff', whiteSpace: 'nowrap' }}>
                     {`${cdHours} : ${cdMins} : ${cdSecs}`}
                   </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                {!locked && isLive && !roomActive && !isRoomClosedState && (
+                {!locked && isLive && !roomActive && !isPaused && !isRoomClosedState && (
                   <>
                     <button
                       type="button"
@@ -1306,7 +1329,7 @@ export default function AuctionDetailClient({
                     </button>
                   </>
                 )}
-                {!locked && isLive && roomActive && (
+                {!locked && isLive && (roomActive || isPaused) && (
                   <button
                     type="button"
                     className="chit-room-glass-btn"
@@ -1322,7 +1345,7 @@ export default function AuctionDetailClient({
                     {busy === 'extend-5' ? '…' : '+5m'}
                   </button>
                 )}
-                {!locked && isLive && !roomActive && isRoomClosedState && (
+                {!locked && isLive && !roomActive && !isPaused && isRoomClosedState && (
                   <button
                     type="button"
                     className="chit-room-glass-btn"
@@ -1361,14 +1384,32 @@ export default function AuctionDetailClient({
             </div>
 
             {/* Tile 4: Single-Line Bell Idle-Time Bar + 5s Urgent Countdown + Room Control */}
-            <div className="chit-telemetry-tile chit-telemetry-tile--control">
-              <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'nowrap' }}>
+            <div className="chit-telemetry-tile chit-telemetry-tile--control" style={{ flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 185px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'nowrap' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <span className="material-icons-outlined" style={{ fontSize: '16px', color: bellUrgentSeconds != null ? '#fbbf24' : '#f59e0b' }}>
-                      notifications_active
+                    <span className="material-icons-outlined" style={{ fontSize: '16px', color: isPaused ? '#fbbf24' : bellUrgentSeconds != null ? '#fbbf24' : '#f59e0b' }}>
+                      {isPaused ? 'pause_circle' : 'notifications_active'}
                     </span>
                     {bellSupported ? 'Bell Timer' : 'Room Status'}
+                    {bellSupported && !locked && (
+                      <button
+                        type="button"
+                        className="chit-room-glass-btn"
+                        title="Change bell idle timing (5s–300s)"
+                        onClick={() => setShowBellTimingEditor((prev) => !prev)}
+                        style={{
+                          padding: '1px 6px',
+                          fontSize: '0.67rem',
+                          fontWeight: 800,
+                          borderRadius: '999px',
+                          color: showBellTimingEditor ? '#fde68a' : '#cbd5e1',
+                          borderColor: showBellTimingEditor ? 'rgba(251, 191, 36, 0.6)' : 'rgba(148, 163, 184, 0.32)',
+                        }}
+                      >
+                        {idleBellIntervalSec}s ✎
+                      </button>
+                    )}
                   </span>
                   <span
                     className={bellUrgentSeconds != null ? 'chit-bell-countdown-pill' : undefined}
@@ -1376,9 +1417,11 @@ export default function AuctionDetailClient({
                       padding: '2px 9px',
                       borderRadius: '999px',
                       background:
-                        bellUrgentSeconds != null
-                          ? 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)'
-                          : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        isPaused
+                          ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'
+                          : bellUrgentSeconds != null
+                            ? 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)'
+                            : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                       color: '#ffffff',
                       fontSize: '0.72rem',
                       fontWeight: 800,
@@ -1387,11 +1430,13 @@ export default function AuctionDetailClient({
                       flexShrink: 0,
                     }}
                   >
-                    {bellUrgentSeconds != null
-                      ? `🔔 ${bellUrgentSeconds}s → Bell ${currentBellsRung + 1}`
-                      : bellSupported
-                        ? `Bell ${currentBellsRung}/${totalBellCount}`
-                        : `${presentCount}/${group.members.length}`}
+                    {isPaused
+                      ? '⏸ PAUSED'
+                      : bellUrgentSeconds != null
+                        ? `🔔 ${bellUrgentSeconds}s → Bell ${currentBellsRung + 1}`
+                        : bellSupported
+                          ? `Bell ${currentBellsRung}/${totalBellCount}`
+                          : `${presentCount}/${group.members.length}`}
                   </span>
                 </div>
                 <div style={{ height: '7px', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.88)', overflow: 'hidden', border: '1px solid rgba(148,163,184,0.22)' }}>
@@ -1401,16 +1446,22 @@ export default function AuctionDetailClient({
                       width: `${bellSupported ? idleBellProgressPct : Math.round((presentCount / Math.max(1, group.members.length)) * 100)}%`,
                       borderRadius: '999px',
                       background:
-                        bellUrgentSeconds != null
-                          ? 'linear-gradient(90deg, #ef4444 0%, #f59e0b 100%)'
-                          : 'linear-gradient(90deg, #f97316 0%, #facc15 45%, #22c55e 100%)',
+                        isPaused
+                          ? 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)'
+                          : bellUrgentSeconds != null
+                            ? 'linear-gradient(90deg, #ef4444 0%, #f59e0b 100%)'
+                            : 'linear-gradient(90deg, #f97316 0%, #facc15 45%, #22c55e 100%)',
                       transition: 'width 0.1s linear',
                     }}
                   />
                 </div>
                 {bellSupported && (
-                  <div style={{ fontSize: '0.67rem', fontWeight: 700, color: bellUrgentSeconds != null ? '#fca5a5' : '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                    {roomActive ? (
+                  <div style={{ fontSize: '0.67rem', fontWeight: 700, color: isPaused ? '#fcd34d' : bellUrgentSeconds != null ? '#fca5a5' : '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                    {isPaused ? (
+                      <span style={{ whiteSpace: 'nowrap' }}>
+                        Paused{bellSecondsLeft != null ? ` (${bellSecondsLeft}s left)` : ''} · {idleBellIntervalSec}s/bell
+                      </span>
+                    ) : roomActive ? (
                       currentBellsRung >= totalBellCount ? (
                         <span style={{ whiteSpace: 'nowrap' }}>Final bell completed</span>
                       ) : bellUrgentSeconds != null ? (
@@ -1421,7 +1472,7 @@ export default function AuctionDetailClient({
                         <span style={{ whiteSpace: 'nowrap' }}>Auto bell · {idleBellIntervalSec}s</span>
                       )
                     ) : (
-                      <span style={{ whiteSpace: 'nowrap' }}>{idleBellIntervalSec}s idle · 3 bells</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>{idleBellIntervalSec}s idle · {totalBellCount} bells</span>
                     )}
                     <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{currentBellsRung}/{totalBellCount} rung</span>
                   </div>
@@ -1434,8 +1485,36 @@ export default function AuctionDetailClient({
                     {String(auction.payoutStatus || 'pending').toUpperCase()}
                   </span>
                 ) : isLive ? (
-                  !roomActive ? (
-                    (isClosedByBell || (live?.roomStatus ?? auction.roomStatus) === 'closed') ? (
+                  isPaused ? (
+                    <>
+                      <button
+                        type="button"
+                        className="chit-room-glass-btn"
+                        style={{ background: 'rgba(22, 163, 74, 0.34)', borderColor: 'rgba(74, 222, 128, 0.55)', color: '#dcfce7', fontWeight: 800, whiteSpace: 'nowrap' }}
+                        disabled={busy === 'resume-room'}
+                        title="Resume total auction timer, bell timer, and bidding"
+                        onClick={() => run('resume-room', () => resumeLiveRoomAction(auction.id))}
+                      >
+                        {busy === 'resume-room' ? '…' : '▶ Resume'}
+                      </button>
+                      <button
+                        type="button"
+                        className="chit-room-glass-btn"
+                        style={{ background: 'rgba(220, 38, 38, 0.28)', borderColor: 'rgba(248, 113, 113, 0.5)', color: '#fecaca', whiteSpace: 'nowrap' }}
+                        disabled={busy === 'close-room'}
+                        onClick={() => run('close-room', () => closeLiveRoom(auction.id))}
+                      >
+                        Close
+                      </button>
+                      <span
+                        className="chit-studio-status-pill"
+                        style={{ background: 'rgba(245, 158, 11, 0.24)', borderColor: 'rgba(251, 191, 36, 0.55)', color: '#fde68a' }}
+                      >
+                        ⏸ PAUSED
+                      </span>
+                    </>
+                  ) : !roomActive ? (
+                    (isClosedByBell || liveRoomStatus === 'closed') ? (
                       <>
                         <button
                           type="button"
@@ -1473,7 +1552,7 @@ export default function AuctionDetailClient({
                               : '▶ Start Live'}
                         </button>
                         <span className="chit-studio-status-pill">
-                          {String(live?.roomStatus ?? auction.roomStatus ?? 'SCHEDULED').toUpperCase()}
+                          {String(liveRoomStatus ?? 'SCHEDULED').toUpperCase()}
                         </span>
                       </>
                     )
@@ -1503,6 +1582,16 @@ export default function AuctionDetailClient({
                       <button
                         type="button"
                         className="chit-room-glass-btn"
+                        style={{ background: 'rgba(245, 158, 11, 0.26)', borderColor: 'rgba(251, 191, 36, 0.55)', color: '#fde68a', fontWeight: 700, whiteSpace: 'nowrap' }}
+                        disabled={busy === 'pause-room'}
+                        title="Pause total auction timer, bell timer, and member bidding"
+                        onClick={() => run('pause-room', () => pauseLiveRoomAction(auction.id))}
+                      >
+                        {busy === 'pause-room' ? '…' : '⏸ Pause'}
+                      </button>
+                      <button
+                        type="button"
+                        className="chit-room-glass-btn"
                         style={{ background: 'rgba(220, 38, 38, 0.28)', borderColor: 'rgba(248, 113, 113, 0.5)', color: '#fecaca', whiteSpace: 'nowrap' }}
                         disabled={busy === 'close-room'}
                         onClick={() => run('close-room', () => closeLiveRoom(auction.id))}
@@ -1526,6 +1615,90 @@ export default function AuctionDetailClient({
                   </button>
                 )}
               </div>
+
+              {showBellTimingEditor && bellSupported && !locked && (
+                <div
+                  style={{
+                    flexBasis: '100%',
+                    marginTop: '4px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid rgba(148, 163, 184, 0.22)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1', marginRight: '2px' }}>
+                      Bell Timing:
+                    </span>
+                    {[10, 15, 20, 30, 60].map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        disabled={busy === 'bell-interval'}
+                        onClick={() => void handleApplyBellIntervalSeconds(sec)}
+                        className="chit-room-glass-btn"
+                        style={{
+                          padding: '2px 7px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: idleBellIntervalSec === sec ? 'rgba(245, 158, 11, 0.35)' : undefined,
+                          borderColor: idleBellIntervalSec === sec ? 'rgba(251, 191, 36, 0.7)' : undefined,
+                          color: idleBellIntervalSec === sec ? '#fef3c7' : '#e2e8f0',
+                        }}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleApplyBellIntervalSeconds(Number(customBellSecondsInput));
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <input
+                      type="number"
+                      min={5}
+                      max={300}
+                      step={1}
+                      value={customBellSecondsInput}
+                      onChange={(e) => setCustomBellSecondsInput(e.target.value)}
+                      aria-label="Custom bell interval seconds"
+                      style={{
+                        width: '56px',
+                        padding: '2px 6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        borderRadius: '6px',
+                        border: '1px solid rgba(148, 163, 184, 0.4)',
+                        background: 'rgba(15, 23, 42, 0.85)',
+                        color: '#ffffff',
+                      }}
+                    />
+                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>s</span>
+                    <button
+                      type="submit"
+                      disabled={busy === 'bell-interval'}
+                      className="chit-room-glass-btn"
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        background: 'rgba(22, 163, 74, 0.35)',
+                        borderColor: 'rgba(74, 222, 128, 0.55)',
+                        color: '#dcfce7',
+                      }}
+                    >
+                      {busy === 'bell-interval' ? '…' : 'Set'}
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           </section>
 
@@ -2080,25 +2253,31 @@ export default function AuctionDetailClient({
               membersPanel={studioMembersRoster}
               biddingDisabledReason={
                 isBiddingRoom && !locked && !roomActive
-                  ? isClosedByBell || (live?.roomStatus ?? auction.roomStatus) === 'closed'
-                    ? 'Room is closed — re-open (+5m) or confirm winner above.'
-                    : needsTableCashBeforeStart
-                      ? 'Table Cash is enabled — collect pending member cash before starting live bidding.'
-                      : 'Press Start Live Now above to enable live bidding.'
+                  ? isPaused
+                    ? 'Auction is currently paused — press Resume Live Auction above to continue bidding.'
+                    : isClosedByBell || liveRoomStatus === 'closed'
+                      ? 'Room is closed — re-open (+5m) or confirm winner above.'
+                      : needsTableCashBeforeStart
+                        ? 'Table Cash is enabled — collect pending member cash before starting live bidding.'
+                        : 'Press Start Live Now above to enable live bidding.'
                   : undefined
               }
               onStartLive={
-                isLive && !locked && !roomActive && !isClosedByBell && (live?.roomStatus ?? auction.roomStatus) !== 'closed'
-                  ? handlePrimaryStartAction
+                isLive && !locked && !roomActive && !isClosedByBell && liveRoomStatus !== 'closed'
+                  ? isPaused
+                    ? () => void run('resume-room', () => resumeLiveRoomAction(auction.id))
+                    : handlePrimaryStartAction
                   : undefined
               }
               startLiveLabel={
-                needsTableCashBeforeStart
-                  ? `Collect Cash (${tableCash!.settledTickets}/${tableCash!.totalTickets}) to Start`
-                  : undefined
+                isPaused
+                  ? 'Resume Live Auction'
+                  : needsTableCashBeforeStart
+                    ? `Collect Cash (${tableCash!.settledTickets}/${tableCash!.totalTickets}) to Start`
+                    : undefined
               }
-              startLiveIcon={needsTableCashBeforeStart ? 'payments' : 'play_arrow'}
-              startLiveBusy={busy === 'open-room'}
+              startLiveIcon={isPaused ? 'play_arrow' : needsTableCashBeforeStart ? 'payments' : 'play_arrow'}
+              startLiveBusy={isPaused ? busy === 'resume-room' : busy === 'open-room'}
               voiceControl={{
                 language: roomVoiceLang,
                 allowMemberChange: allowMemberVoiceChange,
@@ -2386,18 +2565,54 @@ export default function AuctionDetailClient({
                           🔔 Idle Bell Countdown Between Bids:{' '}
                           <span style={{ color: 'var(--primary-dark)' }}>{idleBellIntervalSec}s per bell</span>
                         </div>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                           {[10, 15, 20, 30, 60].map((sec) => (
                             <button
                               key={sec}
                               type="button"
                               disabled={busy === 'bell-interval'}
-                              onClick={() => void run('bell-interval', () => updateChitBellIntervalAction(auction.id, sec))}
+                              onClick={() => void handleApplyBellIntervalSeconds(sec)}
                               className={`chit-drawer-pill-btn${idleBellIntervalSec === sec ? ' chit-drawer-pill-btn--active' : ''}`}
                             >
                               {sec}s
                             </button>
                           ))}
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              void handleApplyBellIntervalSeconds(Number(customBellSecondsInput));
+                            }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}
+                          >
+                            <input
+                              type="number"
+                              min={5}
+                              max={300}
+                              step={1}
+                              value={customBellSecondsInput}
+                              onChange={(e) => setCustomBellSecondsInput(e.target.value)}
+                              aria-label="Custom bell interval in seconds"
+                              style={{
+                                width: '64px',
+                                padding: '4px 8px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)',
+                                background: 'var(--surface)',
+                                color: 'var(--text)',
+                              }}
+                            />
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>s</span>
+                            <button
+                              type="submit"
+                              disabled={busy === 'bell-interval'}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '4px 10px', fontSize: '0.74rem', fontWeight: 700 }}
+                            >
+                              {busy === 'bell-interval' ? 'Saving…' : 'Apply'}
+                            </button>
+                          </form>
                         </div>
                       </div>
                     )}
@@ -2407,11 +2622,13 @@ export default function AuctionDetailClient({
                     variant="default"
                     roomOpen={roomActive}
                     onStartLive={
-                      isLive && !roomActive && !isClosedByBell && (live?.roomStatus ?? auction.roomStatus) !== 'closed'
-                        ? handlePrimaryStartAction
+                      isLive && !roomActive && !isClosedByBell && liveRoomStatus !== 'closed'
+                        ? isPaused
+                          ? () => void run('resume-room', () => resumeLiveRoomAction(auction.id))
+                          : handlePrimaryStartAction
                         : undefined
                     }
-                    startLiveBusy={busy === 'open-room'}
+                    startLiveBusy={isPaused ? busy === 'resume-room' : busy === 'open-room'}
                     bounds={activeBidBounds}
                     eligibleBidders={eligibleBidders}
                     bidMemberId={bidMemberId}
@@ -2517,7 +2734,7 @@ export default function AuctionDetailClient({
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                         <button
                           className="btn btn-primary"
-                          disabled={busy === 'confirm' || validBids.length === 0 || roomActive}
+                          disabled={busy === 'confirm' || validBids.length === 0 || roomActive || isPaused}
                           onClick={async () => {
                             const ok = await run('confirm', () => confirmAuction(auction.id, null, minutes || null));
                             if (ok) {
@@ -2528,7 +2745,7 @@ export default function AuctionDetailClient({
                               });
                             }
                           }}
-                          title={roomActive ? 'Close the bidding room first' : undefined}
+                          title={roomActive || isPaused ? 'Close the bidding room first' : undefined}
                         >
                           {busy === 'confirm'
                             ? 'Confirming…'
@@ -2539,7 +2756,7 @@ export default function AuctionDetailClient({
                         {isReservePrice && validBids.length === 0 && (
                           <button
                             className="btn btn-secondary"
-                            disabled={busy === 'draw' || roomActive}
+                            disabled={busy === 'draw' || roomActive || isPaused}
                             onClick={async () => {
                               const ok = await run('draw', () => drawAuctionWinner(auction.id));
                               if (ok) {
@@ -4072,7 +4289,7 @@ export default function AuctionDetailClient({
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowTableCashModal(false)}>
                   Close
                 </button>
-                {isLive && !roomActive && !locked && !isClosedByBell && (live?.roomStatus ?? auction.roomStatus) !== 'closed' && (
+                {isLive && !roomActive && !isPaused && !locked && !isClosedByBell && liveRoomStatus !== 'closed' && (
                   tableCash.allSettled ? (
                     <button
                       type="button"
@@ -4418,28 +4635,36 @@ export default function AuctionDetailClient({
                             }}
                           >
                             <span className="material-icons-outlined" style={{ fontSize: '21px' }}>
-                              {needsTableCashBeforeStart ? 'payments' : 'podcasts'}
+                              {isPaused ? 'pause_circle' : needsTableCashBeforeStart ? 'payments' : 'podcasts'}
                             </span>
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>
-                              {needsTableCashBeforeStart
-                                ? `Table Cash Required (${tableCash!.settledTickets}/${tableCash!.totalTickets} Settled)`
-                                : 'Auction Room Is Not Live Yet'}
+                              {isPaused
+                                ? 'Auction Is Currently Paused'
+                                : needsTableCashBeforeStart
+                                  ? `Table Cash Required (${tableCash!.settledTickets}/${tableCash!.totalTickets} Settled)`
+                                  : 'Auction Room Is Not Live Yet'}
                             </div>
                             <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
-                              {needsTableCashBeforeStart
-                                ? 'Collect pre-auction table cash or choose Start Live Anyway inside the cash modal.'
-                                : `Start the live studio (${roomMinutes}m timer) to enable bidding for #${seatTicketNo}.`}
+                              {isPaused
+                                ? `Resume the live studio to continue bidding for #${seatTicketNo}.`
+                                : needsTableCashBeforeStart
+                                  ? 'Collect pre-auction table cash or choose Start Live Anyway inside the cash modal.'
+                                  : `Start the live studio (${roomMinutes}m timer) to enable bidding for #${seatTicketNo}.`}
                             </div>
                           </div>
                         </div>
 
-                        {isLive && !isClosedByBell && (live?.roomStatus ?? auction.roomStatus) !== 'closed' && (
+                        {isLive && !isClosedByBell && liveRoomStatus !== 'closed' && (
                           <button
                             type="button"
-                            disabled={busy === 'open-room'}
-                            onClick={handlePrimaryStartAction}
+                            disabled={isPaused ? busy === 'resume-room' : busy === 'open-room'}
+                            onClick={
+                              isPaused
+                                ? () => void run('resume-room', () => resumeLiveRoomAction(auction.id))
+                                : handlePrimaryStartAction
+                            }
                             style={{
                               width: '100%',
                               minHeight: '48px',
@@ -4455,7 +4680,7 @@ export default function AuctionDetailClient({
                               color: '#ffffff',
                               fontSize: '1rem',
                               fontWeight: 800,
-                              cursor: busy === 'open-room' ? 'wait' : 'pointer',
+                              cursor: (isPaused ? busy === 'resume-room' : busy === 'open-room') ? 'wait' : 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -4464,14 +4689,18 @@ export default function AuctionDetailClient({
                             }}
                           >
                             <span className="material-icons-outlined" style={{ fontSize: '22px' }}>
-                              {needsTableCashBeforeStart ? 'payments' : 'play_arrow'}
+                              {isPaused ? 'play_arrow' : needsTableCashBeforeStart ? 'payments' : 'play_arrow'}
                             </span>
                             <span>
-                              {busy === 'open-room'
-                                ? 'Starting Live Room…'
-                                : needsTableCashBeforeStart
-                                  ? `Collect Cash (${tableCash!.settledTickets}/${tableCash!.totalTickets}) to Start`
-                                  : 'Start Live Now to Bid'}
+                              {isPaused
+                                ? busy === 'resume-room'
+                                  ? 'Resuming Live Room…'
+                                  : '▶ Resume Live Auction'
+                                : busy === 'open-room'
+                                  ? 'Starting Live Room…'
+                                  : needsTableCashBeforeStart
+                                    ? `Collect Cash (${tableCash!.settledTickets}/${tableCash!.totalTickets}) to Start`
+                                    : 'Start Live Now to Bid'}
                             </span>
                             <span className="material-icons-outlined" style={{ fontSize: '20px', position: 'absolute', right: '16px' }}>
                               arrow_forward

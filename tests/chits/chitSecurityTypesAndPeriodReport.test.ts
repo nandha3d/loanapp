@@ -3,7 +3,11 @@ import { createElement } from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { calculateChitPeriodEngine } from '../../lib/chits/engineCalculator';
 import { parseChitEngineConfig } from '../../lib/chits/engineTypes';
-import { buildTemplateStatementCopy, type ChitPeriodReportData } from '../../lib/chits/periodReport';
+import {
+  buildTemplateStatementCopy,
+  DEFAULT_CHIT_PDF_THEME,
+  type ChitPeriodReportData,
+} from '../../lib/chits/periodReport';
 import { ChitPeriodReportPDF } from '../../lib/chits/periodReportPdf';
 import {
   ALLOWED_SECURITY_DOCUMENT_TYPES,
@@ -483,6 +487,9 @@ async function main() {
   // and all 6 language dictionaries provide full everyday translations for statuses, roles, and security types.
   const tenMemberReport: ChitPeriodReportData = {
     ...sampleReport,
+    companyAddress: '42 Anna Salai, Teynampet, Chennai 600018',
+    companyPhone: '+91 98400 12345',
+    theme: DEFAULT_CHIT_PDF_THEME,
     memberRows: Array.from({ length: 10 }, (_, idx) => ({
       ticketNo: String(idx + 1),
       memberName: idx === 2 ? 'Vijay Anand' : `Subscriber ${idx + 1}`,
@@ -559,6 +566,10 @@ async function main() {
     assert.ok(copy.securityTypeLabels.INTERNAL_GUARANTOR_JAMEEN && copy.securityDocLabels.guarantor_kyc, `Missing security labels for ${l}`);
     assert.ok(copy.chitTypeLabels.unregistered && copy.frequencyLabels.monthly, `Missing chitType/frequency labels for ${l}`);
   }
+
+  assert.equal(DEFAULT_CHIT_PDF_THEME.primary, '#27AE60');
+  assert.equal(DEFAULT_CHIT_PDF_THEME.primaryDark, '#1E8449');
+  assert.equal(DEFAULT_CHIT_PDF_THEME.primaryLight, '#EAFAF1');
 
   console.log('chit security types and period PDF report tests passed');
 }

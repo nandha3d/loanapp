@@ -37,7 +37,9 @@ import {
   extendAuctionRoomMinutes,
   isRoomOpen,
   openAuctionRoom,
+  pauseAuctionRoom,
   reopenAuctionRoom,
+  resumeAuctionRoom,
   secondsRemaining,
 } from '@/lib/chits/liveAuction';
 import { getStaffChitLiveTicker } from '@/lib/chits/liveTicker';
@@ -1856,6 +1858,7 @@ export async function openLiveRoom(
       await syncRoom(tx, auctionId);
       const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
       if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');
+      if (fresh?.roomStatus === 'paused') throw new Error('Auction is paused — click Resume instead of Start Live.');
       await openAuctionRoom(tx, { auctionId, durationMinutes, autoExtendSeconds, openedById: scope.userId });
       await createChitAudit(tx, {
         tenantId: scope.tenantId,
@@ -1998,6 +2001,23 @@ export async function updateChitBellIntervalAction(auctionId: string, intervalSe
           where: { id: auction.id },
           data: { bellAnchorAt: reAnchoredAt },
         });
+      } else if (auction.roomStatus === 'paused') {
+        const latestPause = await tx.chitAuctionEvent.findFirst({
+          where: { auctionId: auction.id, type: 'pause' },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, amount: true },
+        });
+        if (latestPause) {
+          await tx.chitAuctionEvent.update({
+            where: { id: latestPause.id },
+            data: {
+              amount:
+                latestPause.amount != null
+                  ? Math.min(cleanSeconds, Math.max(1, Number(latestPause.amount)))
+                  : cleanSeconds,
+            },
+          });
+        }
       }
       await createChitAudit(tx, {
         tenantId: scope.tenantId,
@@ -2012,6 +2032,60 @@ export async function updateChitBellIntervalAction(auctionId: string, intervalSe
     revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
     revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
     return { intervalSeconds: cleanSeconds };
+  });
+}
+
+export async function pauseLiveRoomAction(auctionId: string) {
+  return wrapChitAction(async () => {
+    const scope = await getWebChitScope();
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
+    const auction = await prisma.chitAuction.findFirst({
+      where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+      select: { id: true, chitGroupId: true },
+    });
+    if (!auction) throw new Error('Auction not found');
+    const result = await prisma.$transaction(async (tx) => {
+      await syncRoom(tx, auctionId);
+      const paused = await pauseAuctionRoom(tx, auctionId, { byUserId: scope.userId });
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'pause_live_room',
+        entityType: 'chit_auction',
+        entityId: auctionId,
+        newValue: { roomStatus: 'paused', remainingRoomSec: paused.remainingRoomSec, bellRemainingSec: paused.bellRemainingSec },
+      });
+      return paused;
+    });
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
+    return { roomStatus: 'paused', remainingRoomSec: result.remainingRoomSec, bellRemainingSec: result.bellRemainingSec };
+  });
+}
+
+export async function resumeLiveRoomAction(auctionId: string) {
+  return wrapChitAction(async () => {
+    const scope = await getWebChitScope();
+    assertChitCapability(canConductChitAuction(scope.role, scope.staffPermissions));
+    const auction = await prisma.chitAuction.findFirst({
+      where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+      select: { id: true, chitGroupId: true },
+    });
+    if (!auction) throw new Error('Auction not found');
+    await prisma.$transaction(async (tx) => {
+      await resumeAuctionRoom(tx, auctionId, { byUserId: scope.userId });
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'resume_live_room',
+        entityType: 'chit_auction',
+        entityId: auctionId,
+        newValue: { roomStatus: 'open' },
+      });
+    });
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+    revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
+    return { roomStatus: 'open' };
   });
 }
 
@@ -2285,10 +2359,26 @@ export async function getLiveAuctionState(auctionId: string) {
   });
   const waiting = waitingRows.map((w) => ({ memberId: w.memberId, name: w.member?.customer?.name ?? '—' }));
   const rawBell = await buildBellState(auction);
+  const pausedBellEvent =
+    auction.roomStatus === 'paused'
+      ? await prisma.chitAuctionEvent.findFirst({
+          where: { auctionId: auction.id, type: 'pause' },
+          orderBy: { createdAt: 'desc' },
+          select: { amount: true },
+        })
+      : null;
   const bell = {
     ...rawBell,
     nextBellAt: rawBell.nextBellAt ? rawBell.nextBellAt.toISOString() : null,
-    remainingMs: rawBell.nextBellAt ? Math.max(0, rawBell.nextBellAt.getTime() - now.getTime()) : null,
+    remainingMs:
+      auction.roomStatus === 'paused'
+        ? Math.min(
+            rawBell.intervalSeconds * 1000,
+            Math.max(1000, Number(pausedBellEvent?.amount ?? rawBell.intervalSeconds) * 1000),
+          )
+        : rawBell.nextBellAt
+          ? Math.max(0, rawBell.nextBellAt.getTime() - now.getTime())
+          : null,
   };
   const tableCashSummary = await loadAuctionTableCashSummary(prisma, {
     chitGroupId: auction.chitGroupId,

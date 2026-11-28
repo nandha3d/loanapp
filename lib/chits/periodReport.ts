@@ -3,7 +3,11 @@
 // net member instalment, winner's current-period instalment deduction -> Net Cash in Hand,
 // mode-wise receipts, payout transfers, cash denominations, bids, security, and member ledger.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import prisma from '../db';
+import { getAppConfig } from '../appConfig';
+import { getThemePreset, THEME_SETTING_KEY } from '../themes';
 import { scopedChitGroupWhere } from './access';
 import { roundMoney } from './calculations';
 import {
@@ -61,10 +65,92 @@ export interface ChitPeriodMemberRow {
   status: string;
 }
 
+export interface ChitPdfTheme {
+  primary: string;
+  primaryDark: string;
+  primaryLight: string;
+  accent: string;
+}
+
+export const DEFAULT_CHIT_PDF_THEME: ChitPdfTheme = {
+  primary: '#27AE60',
+  primaryDark: '#1E8449',
+  primaryLight: '#EAFAF1',
+  accent: '#2ECC71',
+};
+
+function loadLocalAssetDataUri(relOrUrl?: string | null): string | null {
+  const candidates: string[] = [];
+  const clean = (relOrUrl || '').trim();
+  if (clean && /\.(png|jpe?g|webp)$/i.test(clean)) {
+    const trimmed = clean.replace(/^\/+/, '');
+    candidates.push(path.join(process.cwd(), 'public', trimmed));
+  }
+  candidates.push(
+    path.join(process.cwd(), 'public', 'assets', 'logo-square-light.png'),
+    path.join(process.cwd(), 'public', 'assets', 'logo-192.png'),
+  );
+  for (const abs of candidates) {
+    try {
+      if (fs.existsSync(abs)) {
+        const ext = path.extname(abs).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        const b64 = fs.readFileSync(abs).toString('base64');
+        return `data:${mime};base64,${b64}`;
+      }
+    } catch {
+      // Ignore unreadable filesystem asset candidates
+    }
+  }
+  return null;
+}
+
+export async function resolveChitPdfBranding(tenantId: string): Promise<{
+  tenantName: string;
+  currencySymbol: string;
+  theme: ChitPdfTheme;
+  logoDataUri: string | null;
+  companyAddress: string | null;
+  companyPhone: string | null;
+  companyEmail: string | null;
+  defaultLang: string | null;
+}> {
+  const { getBranding, getTenantSettings } = await import('../tenant');
+  const { getCurrentLanguage } = await import('../i18n');
+  const [branding, settings, tenantLang] = await Promise.all([
+    getBranding(tenantId),
+    getTenantSettings(tenantId),
+    getCurrentLanguage(tenantId),
+  ]);
+  const preset = getThemePreset(settings[THEME_SETTING_KEY]);
+  const chitCfg = getAppConfig('chitfunds');
+  const theme: ChitPdfTheme = {
+    primary: preset?.primary ?? chitCfg.primaryColor,
+    primaryDark: preset?.primaryDark ?? chitCfg.primaryDark,
+    primaryLight: preset?.primaryLight ?? chitCfg.primaryLight,
+    accent: preset?.accent ?? chitCfg.accentColor,
+  };
+  return {
+    tenantName: branding.appName || 'ZoloFund',
+    currencySymbol: branding.currencySymbol || '₹',
+    theme,
+    logoDataUri: loadLocalAssetDataUri(branding.logoUrl),
+    companyAddress: (settings['company_address'] || settings['office_address'] || '').trim() || null,
+    companyPhone: (settings['company_phone'] || settings['support_phone'] || '').trim() || null,
+    companyEmail: (settings['company_email'] || settings['support_email'] || '').trim() || null,
+    defaultLang: tenantLang,
+  };
+}
+
 export interface ChitPeriodReportData {
   lang?: PdfLang;
   tenantName: string;
   branchName: string;
+  companyAddress?: string | null;
+  companyPhone?: string | null;
+  companyEmail?: string | null;
+  logoDataUri?: string | null;
+  theme?: ChitPdfTheme;
   currencySymbol: string;
   generatedAt: string;
   templateSectionTitle: string;
@@ -483,8 +569,26 @@ export async function buildChitPeriodReportData(params: {
   currencySymbol: string;
   cashDenominations?: Record<number, number>;
   lang?: string | null;
+  theme?: ChitPdfTheme;
+  logoDataUri?: string | null;
+  companyAddress?: string | null;
+  companyPhone?: string | null;
+  companyEmail?: string | null;
 }): Promise<ChitPeriodReportData | null> {
-  const { chitGroupId, auctionId, scope, tenantName, currencySymbol, cashDenominations, lang } = params;
+  const {
+    chitGroupId,
+    auctionId,
+    scope,
+    tenantName,
+    currencySymbol,
+    cashDenominations,
+    lang,
+    theme,
+    logoDataUri,
+    companyAddress,
+    companyPhone,
+    companyEmail,
+  } = params;
   const resolvedLang = resolvePdfLang(lang);
   const copy = getPeriodReportCopy(resolvedLang);
   const effectiveSym =
@@ -501,7 +605,7 @@ export async function buildChitPeriodReportData(params: {
     include: {
       chitGroup: {
         include: {
-          branch: { select: { name: true, code: true } },
+          branch: { select: { name: true, code: true, address: true, phone: true } },
           members: {
             include: {
               customer: { select: { name: true, phone: true } },
@@ -1044,6 +1148,11 @@ export async function buildChitPeriodReportData(params: {
     lang: resolvedLang,
     tenantName,
     branchName: group.branch?.name ?? 'Main Branch',
+    companyAddress: group.branch?.address?.trim() || companyAddress || null,
+    companyPhone: group.branch?.phone?.trim() || companyPhone || null,
+    companyEmail: companyEmail || null,
+    logoDataUri: logoDataUri ?? loadLocalAssetDataUri(null),
+    theme: theme ?? DEFAULT_CHIT_PDF_THEME,
     currencySymbol: effectiveSym,
     generatedAt: new Date().toISOString(),
     templateSectionTitle: statementCopy.sectionTitle,
@@ -1154,24 +1263,24 @@ export async function buildChitPeriodReportData(params: {
     denominationCashTotal,
     security: security && secSpec
       ? {
-          typeCode: secSpec.type,
-          typeLabel: secSpec.label,
-          status: security.status,
-          value: security.securityValue != null ? Number(security.securityValue) : null,
-          guarantorLabel: security.guarantorMember
-            ? `#${security.guarantorMember.ticketNo ?? security.guarantorMember.memberNumber} ${security.guarantorMember.customer.name}`
-            : security.guarantorName ?? null,
-          guarantorPhone: security.guarantorMember?.customer?.phone ?? security.guarantorPhone ?? null,
-          details: security.details ?? null,
-          documents: Array.from(
-            new Map(securityDocs.map((doc) => [doc.documentType, doc])).values(),
-          ).map((doc) => ({
-            type: doc.documentType,
-            label: SECURITY_DOCUMENT_LABELS[doc.documentType] ?? doc.documentType,
-            fileName: doc.fileName,
-            status: doc.status,
-          })),
-        }
+        typeCode: secSpec.type,
+        typeLabel: secSpec.label,
+        status: security.status,
+        value: security.securityValue != null ? Number(security.securityValue) : null,
+        guarantorLabel: security.guarantorMember
+          ? `#${security.guarantorMember.ticketNo ?? security.guarantorMember.memberNumber} ${security.guarantorMember.customer.name}`
+          : security.guarantorName ?? null,
+        guarantorPhone: security.guarantorMember?.customer?.phone ?? security.guarantorPhone ?? null,
+        details: security.details ?? null,
+        documents: Array.from(
+          new Map(securityDocs.map((doc) => [doc.documentType, doc])).values(),
+        ).map((doc) => ({
+          type: doc.documentType,
+          label: SECURITY_DOCUMENT_LABELS[doc.documentType] ?? doc.documentType,
+          fileName: doc.fileName,
+          status: doc.status,
+        })),
+      }
       : null,
     multiDivisionWinners: multiWinnersFallback,
     bids: auction.bids.map((b) => ({

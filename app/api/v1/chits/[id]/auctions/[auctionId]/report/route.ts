@@ -4,11 +4,9 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { canCollectChits } from '@/lib/chits/access';
 import { STANDARD_CASH_DENOMINATIONS } from '@/lib/chits/payout';
-import { buildChitPeriodReportData } from '@/lib/chits/periodReport';
+import { buildChitPeriodReportData, resolveChitPdfBranding } from '@/lib/chits/periodReport';
 import { ChitPeriodReportPDF } from '@/lib/chits/periodReportPdf';
-import { getCurrentLanguage } from '@/lib/i18n';
 import { resolvePdfLang } from '@/lib/reports/pdfFonts';
-import { getBranding, getSetting } from '@/lib/tenant';
 
 function parseDenominations(searchParams: URLSearchParams): Record<number, number> {
   const out: Record<number, number> = {};
@@ -37,12 +35,8 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const cashDenominations = parseDenominations(searchParams);
 
-  const [branding, currencySymbol, tenantLang] = await Promise.all([
-    getBranding(ctx.tenantId),
-    getSetting(ctx.tenantId, 'currency_symbol', '₹'),
-    getCurrentLanguage(ctx.tenantId),
-  ]);
-  const lang = resolvePdfLang(searchParams.get('lang') ?? tenantLang);
+  const brandCtx = await resolveChitPdfBranding(ctx.tenantId);
+  const lang = resolvePdfLang(searchParams.get('lang') ?? brandCtx.defaultLang);
 
   const data = await buildChitPeriodReportData({
     chitGroupId,
@@ -54,10 +48,15 @@ export async function GET(
       role: ctx.role,
       userId: ctx.userId,
     },
-    tenantName: branding.appName || 'ZoloFund',
-    currencySymbol,
+    tenantName: brandCtx.tenantName,
+    currencySymbol: brandCtx.currencySymbol,
     cashDenominations,
     lang,
+    theme: brandCtx.theme,
+    logoDataUri: brandCtx.logoDataUri,
+    companyAddress: brandCtx.companyAddress,
+    companyPhone: brandCtx.companyPhone,
+    companyEmail: brandCtx.companyEmail,
   });
 
   if (!data) {

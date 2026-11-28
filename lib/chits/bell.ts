@@ -9,10 +9,11 @@ import { closeRoomIfExpired, closeAuctionRoom, openScheduledRoomIfDue } from './
 export type BellState = {
   bellsRung: number;
   bellCount: number;
-  nextBellAt: Date | null; // null once bellsRung === bellCount or bells are disabled
+  nextBellAt: Date | null; // null once bellsRung === bellCount, paused, or bells are disabled
   intervalSeconds: number;
   enabled: boolean;
   autoClose: boolean;
+  paused?: boolean;
 };
 
 // Lazy, timestamp-derived bell advancement. Call this (via syncRoom, below)
@@ -134,5 +135,6 @@ export async function buildBellState(auction: {
     intervalSeconds: g.bellIntervalSeconds,
     enabled: g.bellEnabled,
     autoClose: g.bellAutoClose,
+    paused: auction.roomStatus === 'paused',
   };
 }
