@@ -88,4 +88,7 @@
 61. **PokerTableArena Full-Bleed Image Cover & Bottom Center Rail Light (`PokerTableArena.tsx`)**:
     - Removed the `3.5%` inset, `WebkitMaskImage`/`maskImage` edge fade, and `#dcdadf` gray wrapper background in `embedded` mode so `poker_table.avif` covers `100%` edge-to-edge (`inset: 0`, `backgroundSize: 'cover'`).
     - Added the missing bottom-center LED specular glint (`{ top: '73.1%', left: '51.1%', w: '88px', h: '28px' }`) to balance the 8 rail lights symmetrically.
+62. **VPS `GOOGLE_TTS_API_KEY` Sync & Executive Single-Page Period Report PDF (`periodReportPdf.tsx`, `chitSecurityTypesAndPeriodReport.test.ts`)**:
+    - Synced `GOOGLE_TTS_API_KEY` into `/home/loantrack/app/.env` on `loanvps` (`187.127.177.121`) via SSH and reloaded PM2 `loanapp` (`pm2 reload loanapp --update-env`) so online TTS announces live.
+    - Redesigned `ChitPeriodReportPDF` (`lib/chits/periodReportPdf.tsx`) into a single-`<Page size="A4">` executive table layout: fixed the green `NET` row `width: C.amt` right-alignment, removed 3 blank placeholder payout rows and thick left accent bars, condensed cash denominations into one `CASH` tally strip, placed `Pool Money Flow` + `Security Gate` and `Bidding Log` + `Official Minutes` into clean side-by-side 2-column cards, humanized raw enum labels (`Bid Discount`, `Subscriber`, `Prized`, `Winner`, `Upcoming`, `Table Tap`), and added an explicit `pageCount === 1` test assertion for 10-member period reports in `tests/chits/chitSecurityTypesAndPeriodReport.test.ts`.
 

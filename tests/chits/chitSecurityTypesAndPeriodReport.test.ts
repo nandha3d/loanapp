@@ -479,6 +479,39 @@ async function main() {
   );
   assert.equal(goldPdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
 
+  // 5. Verify a standard 10-member period report with payouts, denominations & bids fits cleanly on ONE page
+  const tenMemberReport: ChitPeriodReportData = {
+    ...sampleReport,
+    memberRows: Array.from({ length: 10 }, (_, idx) => ({
+      ticketNo: String(idx + 1),
+      memberName: idx === 2 ? 'Vijay Anand' : `Subscriber ${idx + 1}`,
+      ticketShare: 1,
+      role: idx === 2 ? 'winner' : idx === 8 ? 'previously_prized' : 'non_prized',
+      baseDue: 10_000,
+      dividendEarned: 950,
+      deferredDividend: 0,
+      extras: 0,
+      netDue: 9_050,
+      paidAmount: idx === 2 ? 9_050 : 0,
+      outstanding: idx === 2 ? 0 : 9_050,
+      goldGramsCredited: 0,
+      receiptNo: idx === 2 ? 'REC-003' : '—',
+      paymentMode: idx === 2 ? 'Recorded' : '—',
+      status: idx === 2 ? 'paid' : 'upcoming',
+    })),
+    denominations: [
+      { denomination: 500, count: 50, amount: 25_000 },
+      { denomination: 200, count: 200, amount: 40_000 },
+      { denomination: 100, count: 9, amount: 900 },
+      { denomination: 50, count: 1, amount: 50 },
+    ],
+    denominationCashTotal: 65_950,
+  };
+  const singlePagePdfBuffer = await renderToBuffer(createElement(ChitPeriodReportPDF, { data: tenMemberReport }) as any);
+  assert.equal(singlePagePdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
+  const pageCount = (singlePagePdfBuffer.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
+  assert.equal(pageCount, 1, `Expected 10-member period PDF report to fit on 1 page, got ${pageCount}`);
+
   console.log('chit security types and period PDF report tests passed');
 }
 
