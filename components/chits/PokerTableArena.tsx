@@ -156,8 +156,8 @@ export function PokerTableArena({
             width: '100%',
             padding: 0,
             borderRadius: '18px',
-            background: 'radial-gradient(ellipse at 50% 48%, #eae8ed 0%, #dcdadf 65%, #cecccf 100%)',
-            border: '1px solid rgba(255, 255, 255, 0.7)',
+            backgroundColor: '#0b1222',
+            border: '1px solid rgba(255, 255, 255, 0.22)',
             boxShadow: '0 14px 32px rgba(2, 6, 23, 0.42)',
             overflow: 'hidden',
             userSelect: 'none',
@@ -374,19 +374,13 @@ export function PokerTableArena({
           <div
             style={{
               position: 'absolute',
-              inset: '3.5%',
+              inset: 0,
               backgroundImage: 'url(/assets/poker_table.avif)',
-              backgroundSize: '100% 100%',
+              backgroundSize: 'cover',
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'center',
               filter: 'contrast(1.06) brightness(1.02)',
-              borderRadius: embedded ? '0px' : '26px',
-              WebkitMaskImage: embedded
-                ? 'radial-gradient(ellipse 98% 96% at 50% 50%, #000 84%, transparent 100%)'
-                : undefined,
-              maskImage: embedded
-                ? 'radial-gradient(ellipse 98% 96% at 50% 50%, #000 84%, transparent 100%)'
-                : undefined,
+              borderRadius: embedded ? '18px' : '26px',
               boxShadow: embedded
                 ? 'none'
                 : isOpen
@@ -413,13 +407,14 @@ export function PokerTableArena({
               animation: 'pokerStudioGlow 3.6s ease-in-out infinite',
             }}
           />
-          {/* 7 Bright-Core Specular Glint Stars Anchored Directly on the Wooden Rail Perimeter */}
+          {/* 8 Bright-Core Specular Glint Stars Anchored Directly on the Wooden Rail Perimeter */}
           {[
             { top: '28.2%', left: '31.5%', w: '74px', h: '26px' },
             { top: '28.2%', left: '51.1%', w: '88px', h: '28px' },
             { top: '28.2%', left: '70.5%', w: '74px', h: '26px' },
             { top: '50.6%', left: '84.2%', w: '26px', h: '72px' },
             { top: '73.1%', left: '70.5%', w: '74px', h: '26px' },
+            { top: '73.1%', left: '51.1%', w: '88px', h: '28px' },
             { top: '73.1%', left: '31.5%', w: '74px', h: '26px' },
             { top: '50.6%', left: '18.0%', w: '26px', h: '72px' },
           ].map((pt, i) => (

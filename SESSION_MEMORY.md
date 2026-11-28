@@ -85,4 +85,7 @@
     - Registered Web app (`1:895293019400:web:5206c2be2bad269f4988bd`) inside existing Firebase project `loantrack-74cf6`, updated local `.env` with the 5 `NEXT_PUBLIC_FIREBASE_*` keys, and updated `.github/workflows/deploy.yml` to idempotently write the 5 public `NEXT_PUBLIC_FIREBASE_*` keys into `/home/loantrack/app/.env` and check for `FIREBASE_SERVICE_ACCOUNT*` on VPS deploy.
 60. **Custom Auction Bell MP3 (`public/assets/bell-sound.mp3`, `lib/chits/bellAudio.ts`)**:
     - Copied `Downloads/bell sound.mp3` into `public/assets/bell-sound.mp3` and updated `playAuctionBellChime` in `lib/chits/bellAudio.ts` to decode and play `/assets/bell-sound.mp3` through a boosted Web Audio `GainNode` (`1.75×` / `1.90×` on final bell) + `DynamicsCompressorNode` limiter (preserving HTMLAudio and synthesized brass fallbacks).
+61. **PokerTableArena Full-Bleed Image Cover & Bottom Center Rail Light (`PokerTableArena.tsx`)**:
+    - Removed the `3.5%` inset, `WebkitMaskImage`/`maskImage` edge fade, and `#dcdadf` gray wrapper background in `embedded` mode so `poker_table.avif` covers `100%` edge-to-edge (`inset: 0`, `backgroundSize: 'cover'`).
+    - Added the missing bottom-center LED specular glint (`{ top: '73.1%', left: '51.1%', w: '88px', h: '28px' }`) to balance the 8 rail lights symmetrically.
 
