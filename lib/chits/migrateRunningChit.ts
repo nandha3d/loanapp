@@ -254,6 +254,17 @@ export async function migrateRunningChit(
     const freq = parseFrequency({ auctionFrequency: raw.auctionFrequency ?? 'monthly' });
     const totalCycles = Math.trunc(Number(raw.totalCycles ?? dryRun.totalMembers) || dryRun.totalMembers);
     const openingCommission = roundMoney(Math.max(0, Number(raw.openingForemanCommissionBalance ?? 0) || 0));
+    const creatorUser = scope.userId
+      ? await tx.user.findFirst({
+          where: {
+            id: scope.userId,
+            tenantId: scope.tenantId,
+            status: 'active',
+            deletedAt: null,
+          },
+          select: { id: true, name: true },
+        })
+      : null;
 
     const group = await tx.chitGroup.create({
       data: {
@@ -285,10 +296,22 @@ export async function migrateRunningChit(
         migratedAt: new Date(),
         stateCode: (raw.stateCode || 'GENERIC').toUpperCase(),
         registrationNo: raw.registrationNo?.trim() || null,
-        foremanName: raw.foremanName?.trim() || null,
+        foremanName: raw.foremanName?.trim() || creatorUser?.name || null,
         remarks: raw.notes?.trim() || `Mid-cycle migration starting at Cycle ${dryRun.currentActiveCycle}/${totalCycles}.`,
       },
     });
+
+    if (creatorUser) {
+      await tx.chitGroupForeman.create({
+        data: {
+          chitGroupId: group.id,
+          userId: creatorUser.id,
+          roleLabel: 'Organizer / Foreman',
+          isPrimary: true,
+          assignedById: scope.userId,
+        },
+      });
+    }
 
     // Resolve / create customers (MINIMAL KYC) & ChitMembers
     const createdMembers: Array<{

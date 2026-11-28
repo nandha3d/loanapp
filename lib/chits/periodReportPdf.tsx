@@ -178,12 +178,11 @@ function createThemedPdfStyles(
         marginBottom: 1.5,
       },
       execBottomBand: {
-        paddingVertical: 8,
-        paddingHorizontal: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 5,
       },
       kickerLabel: {
         ...bold,
@@ -193,22 +192,44 @@ function createThemedPdfStyles(
       },
       reportTitle: {
         ...bold,
-        fontSize: 15.5,
+        fontSize: 17.5,
+        lineHeight: 1.25,
         color: '#0F172A',
         textAlign: 'center',
+        marginBottom: 3,
       },
       reportSubTitle: {
-        fontSize: 7.8,
+        fontSize: 9.2,
+        lineHeight: 1.3,
         color: '#475569',
-        marginTop: 1.5,
         textAlign: 'center',
+        marginBottom: 6,
       },
-      metaBoxesRow: {
+      metaStripRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 8,
+        flexWrap: 'wrap',
         marginTop: 2,
+      },
+      metaStripItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+      },
+      metaStripSep: {
+        width: 1,
+        height: 12,
+        backgroundColor: '#CBD5E1',
+      },
+      metaStripLbl: {
+        fontSize: 9.5,
+        color: '#64748B',
+      },
+      metaStripVal: {
+        ...bold,
+        fontSize: 10.2,
+        color: '#0F172A',
       },
       metaBox: {
         backgroundColor: '#F8FAFC',
@@ -749,26 +770,26 @@ export function ChitPeriodReportPDF({ data, lang }: { data: ChitPeriodReportData
           </View>
 
           <View style={styles.execBottomBand}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.reportTitle}>{data.group.name}</Text>
-              <Text style={styles.reportSubTitle}>
-                {data.templateSectionTitle} ({fmt(s.chitValue)})
-              </Text>
-            </View>
-            <View style={styles.metaBoxesRow}>
-              <View style={styles.metaBox}>
-                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.groupWord}</Text>
-                <Text style={[styles.metaBoxVal, { textAlign: 'center' }]}>{groupRef}</Text>
+            <Text style={styles.reportTitle}>{data.group.name}</Text>
+            <Text style={styles.reportSubTitle}>
+              {data.templateSectionTitle} ({fmt(s.chitValue)})
+            </Text>
+            <View style={styles.metaStripRow}>
+              <View style={styles.metaStripItem}>
+                <Text style={styles.metaStripLbl}>{t.groupWord}: </Text>
+                <Text style={styles.metaStripVal}>{groupRef}</Text>
               </View>
-              <View style={styles.metaBoxThemed}>
-                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.periodWord}</Text>
-                <Text style={[styles.metaBoxVal, { color: theme.primaryDark, textAlign: 'center' }]}>
+              <View style={styles.metaStripSep} />
+              <View style={styles.metaStripItem}>
+                <Text style={styles.metaStripLbl}>{t.periodWord}: </Text>
+                <Text style={[styles.metaStripVal, { color: theme.primaryDark }]}>
                   {data.auction.periodNumber} {t.ofWord} {data.group.totalMembers}
                 </Text>
               </View>
-              <View style={styles.metaBox}>
-                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.commencedWord}</Text>
-                <Text style={[styles.metaBoxVal, { textAlign: 'center' }]}>
+              <View style={styles.metaStripSep} />
+              <View style={styles.metaStripItem}>
+                <Text style={styles.metaStripLbl}>{t.commencedWord}: </Text>
+                <Text style={styles.metaStripVal}>
                   {fmtDate(data.group.startDate || data.auction.auctionDate)}
                 </Text>
               </View>

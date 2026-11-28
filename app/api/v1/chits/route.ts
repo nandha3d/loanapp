@@ -134,6 +134,26 @@ export async function POST(req: NextRequest) {
         });
         return acc;
       }, []);
+    // Auto-assign the logged-in creator as Organizer / Foreman if no foremen were passed
+    if (foremanEntries.length === 0 && ctx.userId) {
+      const creatorUser = await prisma.user.findFirst({
+        where: {
+          id: ctx.userId,
+          tenantId: ctx.tenantId,
+          status: 'active',
+          deletedAt: null,
+        },
+        select: { id: true, name: true },
+      });
+      if (creatorUser) {
+        foremanNameById.set(creatorUser.id, creatorUser.name);
+        foremanEntries.push({
+          userId: creatorUser.id,
+          roleLabel: 'Organizer / Foreman',
+          isPrimary: true,
+        });
+      }
+    }
     const computedForemanName =
       body?.foremanName ??
       (foremanEntries.length ? foremanEntries.map((f) => foremanNameById.get(f.userId)).filter(Boolean).join(', ') : null);

@@ -318,7 +318,7 @@ export async function createChitGroup(formData: FormData) {
     throw new Error('One or more selected foremen are invalid or belong to another tenant.');
   }
   const foremanNameById = new Map(validForemen.map((u) => [u.id, u.name]));
-  const normalizedForemen = foremanUserIds.map((uid, i) => {
+  let normalizedForemen = foremanUserIds.map((uid, i) => {
     const match = rawForemen.find((f) => String(f?.userId || '').trim() === uid);
     return {
       userId: uid,
@@ -326,6 +326,28 @@ export async function createChitGroup(formData: FormData) {
       isPrimary: Boolean(match?.isPrimary) || (i === 0 && !rawForemen.some((x) => x?.isPrimary)),
     };
   });
+  // Auto-assign the logged-in admin/creator as Organizer / Foreman if no foreman was explicitly selected
+  if (normalizedForemen.length === 0 && scope.userId) {
+    const creatorUser = await prisma.user.findFirst({
+      where: {
+        id: scope.userId,
+        tenantId: scope.tenantId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: { id: true, name: true },
+    });
+    if (creatorUser) {
+      foremanNameById.set(creatorUser.id, creatorUser.name);
+      normalizedForemen = [
+        {
+          userId: creatorUser.id,
+          roleLabel: 'Organizer / Foreman',
+          isPrimary: true,
+        },
+      ];
+    }
+  }
   const explicitForemanName = value(formData, 'foremanName');
   const resolvedForemanName =
     explicitForemanName ||

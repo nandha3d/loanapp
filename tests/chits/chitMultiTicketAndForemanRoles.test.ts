@@ -140,9 +140,14 @@ assert.ok(createIdxPos !== -1 && dropIdxPos !== -1 && createIdxPos < dropIdxPos,
 const chitActions = readRel('app/(dashboard)/[module]/chits/actions.ts');
 assert.ok(!chitActions.includes("Array.from(new Set(formData.getAll('memberIds')"), 'createChitGroup must allow duplicate customerIds');
 assert.ok(chitActions.includes('chitGroupForeman'), 'createChitGroup must persist multi-foreman rows');
+assert.ok(chitActions.includes('Organizer / Foreman'), 'createChitGroup must auto-assign logged-in creator as Organizer / Foreman');
 assert.ok(chitActions.includes('addChitMemberTicketsAction'), 'multi-ticket action must be exported');
 
 const v1ChitsRoute = readRel('app/api/v1/chits/route.ts');
 assert.ok(!v1ChitsRoute.includes('new Set((body?.memberIds'), 'v1 POST /chits must allow multiple tickets per customer');
+assert.ok(v1ChitsRoute.includes('Organizer / Foreman'), 'v1 POST /chits must auto-assign creator as Organizer / Foreman');
+
+const migrateRunning = readRel('lib/chits/migrateRunningChit.ts');
+assert.ok(migrateRunning.includes('Organizer / Foreman'), 'migrateRunningChit must auto-assign creator as Organizer / Foreman');
 
 console.log('✅ chitMultiTicketAndForemanRoles tests passed (permissions, 6-lang tooltips/tenure, multi-ticket & multi-foreman)');

@@ -295,6 +295,7 @@ export default function ChitGroupWizardModal({
   storageKey,
   customers,
   staffUsers = [],
+  currentUserId,
   currencySymbol,
   dict,
   lang = 'en',
@@ -304,6 +305,7 @@ export default function ChitGroupWizardModal({
   storageKey: string;
   customers: { id: string; name: string; customerCode: string }[];
   staffUsers?: StaffUserOption[];
+  currentUserId?: string;
   currencySymbol: string;
   dict: ChitWizardDict;
   lang?: string;
@@ -359,7 +361,12 @@ export default function ChitGroupWizardModal({
   const [gstPct, setGstPct] = useState('');
   const [hasForemanTicket, setHasForemanTicket] = useState(false);
   const [foremanName, setForemanName] = useState('');
-  const [selectedForemen, setSelectedForemen] = useState<ForemanEntry[]>([]);
+  const [selectedForemen, setSelectedForemen] = useState<ForemanEntry[]>(() => {
+    if (currentUserId && staffUsers.some((u) => u.id === currentUserId)) {
+      return [{ userId: currentUserId, roleLabel: 'Organizer / Foreman', isPrimary: true }];
+    }
+    return [];
+  });
   const [minDiscountPct, setMinDiscountPct] = useState(
     engineConfig.discountRules.minDiscountPct > 0 ? String(engineConfig.discountRules.minDiscountPct) : '',
   );
@@ -371,7 +378,7 @@ export default function ChitGroupWizardModal({
   );
   const [strictBidMultiple, setStrictBidMultiple] = useState<boolean>(
     engineConfig.discountRules.strictBidMultiple ??
-      (engineConfig.discountRules.bidIncrementMultiple > 1 || engineConfig.discountRules.bidIncrementMultiple === 0),
+    (engineConfig.discountRules.bidIncrementMultiple > 1 || engineConfig.discountRules.bidIncrementMultiple === 0),
   );
   const [dividendPolicy, setDividendPolicy] = useState('ALL_MEMBERS');
   const [dividendDistribution, setDividendDistribution] = useState('ADJUST_NEXT_DUE');
@@ -429,7 +436,11 @@ export default function ChitGroupWizardModal({
     setGstPct('');
     setHasForemanTicket(false);
     setForemanName('');
-    setSelectedForemen([]);
+    setSelectedForemen(
+      currentUserId && staffUsers.some((u) => u.id === currentUserId)
+        ? [{ userId: currentUserId, roleLabel: 'Organizer / Foreman', isPrimary: true }]
+        : [],
+    );
     setMinDiscountPct(cfg.discountRules.minDiscountPct > 0 ? String(cfg.discountRules.minDiscountPct) : '');
     setMaxDiscountPct(cfg.discountRules.maxDiscountPct != null ? String(cfg.discountRules.maxDiscountPct) : '');
     const initInc = cfg.discountRules.bidIncrementMultiple > 0 ? cfg.discountRules.bidIncrementMultiple : 100;
@@ -487,7 +498,14 @@ export default function ChitGroupWizardModal({
     setGstPct(draft.gstPct ?? '');
     setHasForemanTicket(Boolean(draft.hasForemanTicket));
     setForemanName(draft.foremanName ?? '');
-    setSelectedForemen(Array.isArray(draft.selectedForemen) ? draft.selectedForemen : []);
+    const restoredForemen = Array.isArray(draft.selectedForemen) ? draft.selectedForemen : [];
+    setSelectedForemen(
+      restoredForemen.length > 0
+        ? restoredForemen
+        : currentUserId && staffUsers.some((u) => u.id === currentUserId)
+          ? [{ userId: currentUserId, roleLabel: 'Organizer / Foreman', isPrimary: true }]
+          : [],
+    );
     setMinDiscountPct(draft.minDiscountPct ?? '');
     setMaxDiscountPct(draft.maxDiscountPct ?? '');
     const restoredInc =

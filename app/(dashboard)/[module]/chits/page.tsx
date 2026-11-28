@@ -469,6 +469,7 @@ export default async function ChitsPage({
           storageKey={wizardStorageKey}
           customers={customers}
           staffUsers={staffUsers}
+          currentUserId={session.user?.id}
           currencySymbol={currencySymbol}
           dict={dict}
           lang={lang}

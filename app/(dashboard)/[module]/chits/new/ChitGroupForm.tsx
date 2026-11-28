@@ -99,6 +99,7 @@ function stripStepPrefix(title: string): string {
 export default function ChitGroupForm({
   customers,
   staffUsers = [],
+  currentUserId,
   currencySymbol,
   dict,
   lang = 'en',
@@ -107,6 +108,7 @@ export default function ChitGroupForm({
 }: {
   customers: { id: string; name: string; customerCode: string }[];
   staffUsers?: StaffUserOption[];
+  currentUserId?: string;
   currencySymbol: string;
   dict: any;
   lang?: string;
@@ -185,8 +187,13 @@ export default function ChitGroupForm({
   const [winnerInterestPeriods, setWinnerInterestPeriods] = useState(0);
   const [csvScheduleText, setCsvScheduleText] = useState('');
 
-  // Multi-foreman assignment state
-  const [selectedForemen, setSelectedForemen] = useState<ForemanEntry[]>([]);
+  // Multi-foreman assignment state (default logged-in creator as Organizer / Foreman)
+  const [selectedForemen, setSelectedForemen] = useState<ForemanEntry[]>(() => {
+    if (currentUserId && staffUsers.some((u) => u.id === currentUserId)) {
+      return [{ userId: currentUserId, roleLabel: 'Organizer / Foreman', isPrimary: true }];
+    }
+    return [];
+  });
   const [defaultForemanRole, setDefaultForemanRole] = useState('Foreman');
 
   // Collapsible secondary sections (compact layout)
