@@ -42,6 +42,7 @@ import './auction-room.css';
 import AuctionScheduleModal from '@/components/chits/AuctionScheduleModal';
 import LotteryDrawStage from '@/components/chits/LotteryDrawStage';
 import ThirdBellWinnerModal from '@/components/chits/ThirdBellWinnerModal';
+import ChitPdfPreviewModal from '@/components/chits/ChitPdfPreviewModal';
 import {
   isBellSoundMuted,
   playAuctionBellChime,
@@ -205,6 +206,7 @@ export default function AuctionDetailClient({
   );
   const savedReceiptDenoms = normalizeCashDenominations(payoutReceipt?.cashDenominationsJson);
   const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(lang));
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [includeCashNotes, setIncludeCashNotes] = useState<boolean>(() => Boolean(savedReceiptDenoms));
   const [showDenoms, setShowDenoms] = useState(false);
   const [denom500, setDenom500] = useState<number>(() => savedReceiptDenoms?.[500] ?? 0);
@@ -791,6 +793,7 @@ export default function AuctionDetailClient({
       }
       return `/api/chits/${group.id}/auctions/${auction.id}/report?${qs.toString()}`;
     })();
+    const periodReportPreviewUrl = `${periodReportUrl}&inline=1`;
 
     const leadingBidForTable = live?.highestBid
       ? {
@@ -1175,9 +1178,19 @@ export default function AuctionDetailClient({
                     </option>
                   ))}
                 </select>
-                <a href={periodReportUrl} target="_blank" rel="noreferrer" className="chit-room-light-lang-btn" style={{ textDecoration: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => setPdfPreviewOpen(true)}
+                  className="chit-room-light-lang-btn"
+                  style={{ borderRight: '1px solid #cbd5e1', cursor: 'pointer' }}
+                  title="Preview PDF before downloading"
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#2563eb' }}>visibility</span>
+                  Preview
+                </button>
+                <a href={periodReportUrl} download className="chit-room-light-lang-btn" style={{ textDecoration: 'none' }} title="Download PDF">
                   <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#dc2626' }}>picture_as_pdf</span>
-                  PDF
+                  PDF ↓
                 </a>
               </div>
             </div>
@@ -1688,7 +1701,14 @@ export default function AuctionDetailClient({
                   {busy === 'save-denoms' ? 'Saving…' : 'Save Notes'}
                 </button>
               )}
-              <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+              <button
+                type="button"
+                className="chit-room-glass-btn"
+                onClick={() => setPdfPreviewOpen(true)}
+              >
+                👁 Preview PDF
+              </button>
+              <a href={periodReportUrl} download className="btn btn-primary btn-sm">
                 Download PDF with Notes
               </a>
             </div>
@@ -2840,7 +2860,8 @@ export default function AuctionDetailClient({
                       </div>
                       {winnerSummary && (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">📄 Period PDF</a>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPdfPreviewOpen(true)}>👁 Preview PDF</button>
+                          <a href={periodReportUrl} download className="btn btn-primary btn-sm">📄 Download PDF</a>
                           <button type="button" className="btn btn-secondary btn-sm" onClick={copyWinnerSummary}>Copy</button>
                           <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.print()}>Print</button>
                         </div>
@@ -3348,13 +3369,19 @@ export default function AuctionDetailClient({
                                         {payoutSummary?.nettingLocked && (
                                           <span className="badge badge-info">Arrears Netting Locked (Tranche Started)</span>
                                         )}
-                                        <a
-                                          href={periodReportUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => setPdfPreviewOpen(true)}
                                           className="btn btn-secondary btn-sm"
                                         >
-                                          Printable Settlement Summary PDF
+                                          👁 Preview PDF
+                                        </button>
+                                        <a
+                                          href={periodReportUrl}
+                                          download
+                                          className="btn btn-secondary btn-sm"
+                                        >
+                                          📄 Download Settlement PDF
                                         </a>
                                       </div>
                                     </div>
@@ -3654,8 +3681,11 @@ export default function AuctionDetailClient({
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <a href={periodReportUrl} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
-                              📄 Settlement Summary PDF
+                            <button type="button" onClick={() => setPdfPreviewOpen(true)} className="btn btn-secondary btn-sm">
+                              👁 Preview PDF
+                            </button>
+                            <a href={periodReportUrl} download className="btn btn-secondary btn-sm">
+                              📄 Download PDF
                             </a>
                             {nextAuction && (
                               <Link
@@ -4871,6 +4901,16 @@ export default function AuctionDetailClient({
                               getLiveAuctionState(auction.id).then(setLive).catch(() => { });
                             }
                           }}
+                        />
+
+                        <ChitPdfPreviewModal
+                          open={pdfPreviewOpen}
+                          onClose={() => setPdfPreviewOpen(false)}
+                          title={`${group.name} — Period ${auction.periodNumber} Report`}
+                          previewUrl={periodReportPreviewUrl}
+                          downloadUrl={periodReportUrl}
+                          pdfLang={pdfLang}
+                          onChangePdfLang={setPdfLang}
                         />
                       </div>
                     );

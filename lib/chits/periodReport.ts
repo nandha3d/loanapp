@@ -208,7 +208,7 @@ export interface ChitPeriodReportData {
     guarantorLabel: string | null;
     guarantorPhone: string | null;
     details: string | null;
-    documents: { label: string; fileName: string; status: string }[];
+    documents: { type?: string; label: string; fileName: string; status: string }[];
   } | null;
 
   multiDivisionWinners: {
@@ -387,6 +387,7 @@ export function buildTemplateStatementCopy(params: {
     row2Note = `Monthly Loan Interest: ${breakdown.ascaDetails?.monthlyLoanInterestPct ?? 0}% · Admin Exp: ${fmtInr(breakdown.ascaDetails?.adminExpensePerCycle ?? 0, sym)}`;
   }
 
+  const localizedBasis = copy.commissionBasisLabels[commissionBasis] ?? commissionBasis;
   const row3Title =
     foremanMode === 'ZERO_COMMISSION' || commission === 0
       ? copy.row3ZeroComm(foremanMode)
@@ -394,7 +395,7 @@ export function buildTemplateStatementCopy(params: {
         ? copy.row3FlatFee(fmtInr(breakdown.flatFeeAmount, sym))
         : foremanMode === 'FREE_TICKET_CYCLE_1' || foremanMode === 'FREE_TICKET_CYCLE_2'
           ? copy.row3FreeTicket(foremanMode)
-          : copy.row3CommOnBasis(commissionPct, commissionBasis);
+          : copy.row3CommOnBasis(commissionPct, localizedBasis);
 
   let row4Title = copy.row4NetDivTitle(eligibleTickets);
   let row4Note = copy.row4PoolNote(
@@ -573,11 +574,11 @@ export async function buildChitPeriodReportData(params: {
       goldRatePerGram: auction.goldRatePerGram != null ? Number(auction.goldRatePerGram) : null,
       multiDivisionWinners: auction.winners.length
         ? auction.winners.map((w) => ({
-            memberId: w.memberId,
-            winType: w.winType,
-            prizeAmount: Number(w.prizeAmount),
-            bidDiscount: Number(w.bidDiscount),
-          }))
+          memberId: w.memberId,
+          winType: w.winType,
+          prizeAmount: Number(w.prizeAmount),
+          bidDiscount: Number(w.bidDiscount),
+        }))
         : undefined,
       members: group.members.map((m) => ({
         memberId: m.id,
@@ -607,14 +608,14 @@ export async function buildChitPeriodReportData(params: {
   const [subReceipts, payoutReceipts, payoutDisbursements, dividendReceipts, security] = await Promise.all([
     subIds.length
       ? prisma.chitReceipt.findMany({
-          where: {
-            tenantId: group.tenantId,
-            entityType: 'subscription',
-            entityId: { in: subIds },
-            status: 'active',
-          },
-          orderBy: { issuedAt: 'asc' },
-        })
+        where: {
+          tenantId: group.tenantId,
+          entityType: 'subscription',
+          entityId: { in: subIds },
+          status: 'active',
+        },
+        orderBy: { issuedAt: 'asc' },
+      })
       : [],
     prisma.chitReceipt.findMany({
       where: {
@@ -658,13 +659,13 @@ export async function buildChitPeriodReportData(params: {
 
   const securityDocs = security
     ? await prisma.chitDocument.findMany({
-        where: {
-          tenantId: group.tenantId,
-          entityType: 'chit_security',
-          entityId: security.id,
-        },
-        orderBy: { uploadedAt: 'asc' },
-      })
+      where: {
+        tenantId: group.tenantId,
+        entityType: 'chit_security',
+        entityId: security.id,
+      },
+      orderBy: { uploadedAt: 'asc' },
+    })
     : [];
 
   // Resolve collector / issuer names for receipts
@@ -677,9 +678,9 @@ export async function buildChitPeriodReportData(params: {
   );
   const users = userIds.length
     ? await prisma.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, name: true },
-      })
+      where: { id: { in: userIds } },
+      select: { id: true, name: true },
+    })
     : [];
   const userNameMap = new Map(users.map((u) => [u.id, u.name]));
 
@@ -782,12 +783,12 @@ export async function buildChitPeriodReportData(params: {
     multiWinnersFromDb.length > 0
       ? multiWinnersFromDb
       : (breakdown.multiDivisionWinners ?? []).map((w) => ({
-          ticketNo: w.ticketNo,
-          memberName: w.memberName,
-          winType: w.winType,
-          prizeAmount: w.prizeAmount,
-          bidDiscount: w.bidDiscount,
-        }));
+        ticketNo: w.ticketNo,
+        memberName: w.memberName,
+        winType: w.winType,
+        prizeAmount: w.prizeAmount,
+        bidDiscount: w.bidDiscount,
+      }));
   const winnerCount = Math.max(1, multiWinnersFallback.length || (auction.winnerMemberId ? 1 : 0));
   const prizePayoutTotal =
     multiWinnersFallback.length > 0
@@ -816,23 +817,23 @@ export async function buildChitPeriodReportData(params: {
   const netMemberInstallment =
     nonWinnerSample != null
       ? roundMoney(
-          Math.max(
-            0,
-            nonWinnerSample.baseInstalment - nonWinnerSample.nextDueDividendCredit + nonWinnerSample.premiumAdded,
-          ),
-        )
+        Math.max(
+          0,
+          nonWinnerSample.baseInstalment - nonWinnerSample.nextDueDividendCredit + nonWinnerSample.premiumAdded,
+        ),
+      )
       : Math.max(0, roundMoney(baseInstallment - dividendPerTicket));
   const prizedMemberInstallment =
     prizedSample != null
       ? roundMoney(
-          Math.max(
-            0,
-            prizedSample.baseInstalment -
-              prizedSample.nextDueDividendCredit +
-              prizedSample.premiumAdded +
-              prizedSample.winnerInterestAdded,
-          ),
-        )
+        Math.max(
+          0,
+          prizedSample.baseInstalment -
+          prizedSample.nextDueDividendCredit +
+          prizedSample.premiumAdded +
+          prizedSample.winnerInterestAdded,
+        ),
+      )
       : netMemberInstallment;
   const winnerInterestAdded = roundMoney(
     breakdown.memberBreakdowns.reduce((maxVal, mb) => Math.max(maxVal, mb.winnerInterestAdded), 0),
@@ -929,12 +930,12 @@ export async function buildChitPeriodReportData(params: {
       const denomSummary = formatCashDenominationsSummary(pdDenoms, effectiveSym);
       const baseRef = pd.referenceNumber
         ? `${modeDesc} · ${pd.referenceNumber}`
-        : `${modeDesc} · Tranche #${pd.trancheNumber}`;
+        : `${modeDesc} · #${pd.trancheNumber}`;
       payoutRows.push({
         slNo: idx + 1,
         description: pd.notes
-          ? `Tranche #${pd.trancheNumber} · ${pd.notes}`
-          : `Tranche #${pd.trancheNumber} · ${modeDesc} Prize Disbursement`,
+          ? `#${pd.trancheNumber} · ${pd.notes}`
+          : `${modeDesc} ${copy.payoutWord} (#${pd.trancheNumber})`,
         modeOrRef: denomSummary ? `${baseRef} · ${denomSummary}` : baseRef,
         amount: Number(pd.amount),
       });
@@ -956,7 +957,7 @@ export async function buildChitPeriodReportData(params: {
         slNo: idx + 1,
         description: pr.notes
           ? pr.notes
-          : `${modeDesc} Prize Payout${issuer ? ` (${issuer})` : ''}`,
+          : `${modeDesc} ${copy.payoutWord}${issuer ? ` (${issuer})` : ''}`,
         modeOrRef: denomSummary ? `${baseRef} · ${denomSummary}` : baseRef,
         amount: Number(pr.amount),
       });
@@ -965,7 +966,7 @@ export async function buildChitPeriodReportData(params: {
     byMode.forEach((mb, idx) => {
       payoutRows.push({
         slNo: idx + 1,
-        description: `${mb.label} from ${mb.count} member${mb.count === 1 ? '' : 's'}`,
+        description: `${mb.label} (${mb.count} ${copy.txnsWord})`,
         modeOrRef: mb.label,
         amount: mb.amount,
       });
@@ -1010,32 +1011,32 @@ export async function buildChitPeriodReportData(params: {
   const minutesText =
     resolvedLang !== 'en' && isFinalized
       ? copy.autoMinutesSummary({
-          groupName: group.name,
-          period: auction.periodNumber,
-          dateStr: formattedMinutesDate,
-          present: presentCount + proxyCount,
-          total: group.totalMembers,
-          winner: auction.winnerMember?.customer?.name ?? copy.winnerPending,
-          prize: fmtInr(grossPrize, effectiveSym),
-          discount: fmtInr(bidDiscount, effectiveSym),
-          comm: fmtInr(commission, effectiveSym),
-          div: fmtInr(dividendPerTicket, effectiveSym),
-        })
+        groupName: group.name,
+        period: auction.periodNumber,
+        dateStr: formattedMinutesDate,
+        present: presentCount + proxyCount,
+        total: group.totalMembers,
+        winner: auction.winnerMember?.customer?.name ?? copy.winnerPending,
+        prize: fmtInr(grossPrize, effectiveSym),
+        discount: fmtInr(bidDiscount, effectiveSym),
+        comm: fmtInr(commission, effectiveSym),
+        div: fmtInr(dividendPerTicket, effectiveSym),
+      })
       : auction.minutesText ||
-        (isFinalized
-          ? generateAuctionMinutes({
-              groupName: group.name,
-              periodNumber: auction.periodNumber,
-              auctionDate: auction.auctionDate,
-              winnerName: auction.winnerMember?.customer?.name ?? 'TBD',
-              prizeAmount: grossPrize,
-              bidDiscount,
-              commission,
-              dividend: dividendPerTicket,
-              presentCount: presentCount + proxyCount,
-              totalMembers: group.totalMembers,
-            })
-          : copy.notFinalizedMinutes);
+      (isFinalized
+        ? generateAuctionMinutes({
+          groupName: group.name,
+          periodNumber: auction.periodNumber,
+          auctionDate: auction.auctionDate,
+          winnerName: auction.winnerMember?.customer?.name ?? 'TBD',
+          prizeAmount: grossPrize,
+          bidDiscount,
+          commission,
+          dividend: dividendPerTicket,
+          presentCount: presentCount + proxyCount,
+          totalMembers: group.totalMembers,
+        })
+        : copy.notFinalizedMinutes);
 
   const secSpec = security ? getSecurityTypeSpec(security.securityType) : null;
 
@@ -1162,7 +1163,10 @@ export async function buildChitPeriodReportData(params: {
             : security.guarantorName ?? null,
           guarantorPhone: security.guarantorMember?.customer?.phone ?? security.guarantorPhone ?? null,
           details: security.details ?? null,
-          documents: securityDocs.map((doc) => ({
+          documents: Array.from(
+            new Map(securityDocs.map((doc) => [doc.documentType, doc])).values(),
+          ).map((doc) => ({
+            type: doc.documentType,
             label: SECURITY_DOCUMENT_LABELS[doc.documentType] ?? doc.documentType,
             fileName: doc.fileName,
             status: doc.status,

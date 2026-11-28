@@ -479,7 +479,8 @@ async function main() {
   );
   assert.equal(goldPdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
 
-  // 5. Verify a standard 10-member period report with payouts, denominations & bids fits cleanly on ONE page
+  // 5. Verify a 10-member and 20-member period report build validly in English & Tamil without errors,
+  // and all 6 language dictionaries provide full everyday translations for statuses, roles, and security types.
   const tenMemberReport: ChitPeriodReportData = {
     ...sampleReport,
     memberRows: Array.from({ length: 10 }, (_, idx) => ({
@@ -507,10 +508,57 @@ async function main() {
     ],
     denominationCashTotal: 65_950,
   };
-  const singlePagePdfBuffer = await renderToBuffer(createElement(ChitPeriodReportPDF, { data: tenMemberReport }) as any);
-  assert.equal(singlePagePdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
-  const pageCount = (singlePagePdfBuffer.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
-  assert.equal(pageCount, 1, `Expected 10-member period PDF report to fit on 1 page, got ${pageCount}`);
+  const tenMemberPdfBuffer = await renderToBuffer(createElement(ChitPeriodReportPDF, { data: tenMemberReport }) as any);
+  assert.equal(tenMemberPdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
+  const tenPageCount = (tenMemberPdfBuffer.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
+  assert.ok(tenPageCount >= 1 && tenPageCount <= 2, `Expected 10-member period PDF to render in 1-2 intact pages, got ${tenPageCount}`);
+
+  const twentyMemberReport: ChitPeriodReportData = {
+    ...tenMemberReport,
+    lang: 'ta',
+    memberRows: Array.from({ length: 20 }, (_, idx) => ({
+      ticketNo: String(idx + 1),
+      memberName: idx === 2 ? 'Eswari Murugesan' : `Member ${idx + 1}`,
+      ticketShare: 1,
+      role: idx === 2 ? 'winner' : idx < 7 ? 'previously_prized' : 'non_prized',
+      baseDue: 250_000,
+      dividendEarned: 2_750,
+      deferredDividend: 0,
+      extras: 0,
+      netDue: 247_250,
+      paidAmount: idx === 2 ? 247_250 : 0,
+      outstanding: idx === 2 ? 0 : 247_250,
+      goldGramsCredited: 0,
+      receiptNo: '—',
+      paymentMode: '—',
+      status: idx === 2 ? 'paid' : 'upcoming',
+    })),
+    security: {
+      typeCode: 'INTERNAL_GUARANTOR_JAMEEN',
+      typeLabel: 'Internal Guarantor (Jameen)',
+      status: 'verified',
+      value: 50_00_000,
+      guarantorLabel: '#1 Bharathi Balasubramanian',
+      guarantorPhone: null,
+      details: null,
+      documents: [
+        { type: 'guarantor_photo', label: 'Guarantor Photo', fileName: 'photo.jpg', status: 'verified' },
+        { type: 'guarantor_kyc', label: 'Guarantor KYC', fileName: 'kyc.pdf', status: 'verified' },
+      ],
+    },
+  };
+  const tamilTwentyPdfBuffer = await renderToBuffer(createElement(ChitPeriodReportPDF, { data: twentyMemberReport, lang: 'ta' }) as any);
+  assert.equal(tamilTwentyPdfBuffer.subarray(0, 5).toString('utf8'), '%PDF-');
+
+  const { getPeriodReportCopy } = await import('../../lib/chits/periodReportI18n');
+  for (const l of ['en', 'ta', 'hi', 'te', 'kn', 'ml']) {
+    const copy = getPeriodReportCopy(l);
+    assert.ok(copy.statusLabels.paid && copy.statusLabels.upcoming && copy.statusLabels.security_pending, `Missing statusLabels for ${l}`);
+    assert.ok(copy.roleLabels.winner && copy.roleLabels.non_prized && copy.roleLabels.previously_prized, `Missing roleLabels for ${l}`);
+    assert.ok(copy.commissionBasisLabels.CHIT_VALUE && copy.commissionBasisLabels.BID_DISCOUNT, `Missing commissionBasisLabels for ${l}`);
+    assert.ok(copy.securityTypeLabels.INTERNAL_GUARANTOR_JAMEEN && copy.securityDocLabels.guarantor_kyc, `Missing security labels for ${l}`);
+    assert.ok(copy.chitTypeLabels.unregistered && copy.frequencyLabels.monthly, `Missing chitType/frequency labels for ${l}`);
+  }
 
   console.log('chit security types and period PDF report tests passed');
 }

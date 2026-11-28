@@ -58,10 +58,11 @@ export async function GET(
 
   const buffer = await renderToBuffer(createElement(ChitPeriodReportPDF, { data, lang }) as any);
   const safeName = data.group.name.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
+  const isInline = searchParams.get('inline') === '1' || searchParams.get('preview') === '1';
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${safeName || 'chit'}-period-${data.auction.periodNumber}-${lang}-report.pdf"`,
+      'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="${safeName || 'chit'}-period-${data.auction.periodNumber}-${lang}-report.pdf"`,
       'Cache-Control': 'no-store',
     },
   });

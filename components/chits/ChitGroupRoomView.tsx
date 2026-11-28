@@ -6,6 +6,7 @@ import { PDF_LANGUAGES, resolvePdfLang } from '@/lib/reports/pdfLanguages';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PokerTableArena } from './PokerTableArena';
 import { parseBidAmountFromChat } from './AuctionRoomChatBox';
+import ChitPdfPreviewModal from './ChitPdfPreviewModal';
 
 export interface GroupRoomProps {
   mode: 'staff' | 'member';
@@ -26,6 +27,7 @@ export default function ChitGroupRoomView({
   apiBaseUrl,
 }: GroupRoomProps) {
   const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(initialLang));
+  const [pdfPreview, setPdfPreview] = useState<{ title: string; baseUrl: string } | null>(null);
   const [state, setState] = useState<any>(initialState);
   const [messages, setMessages] = useState<any[]>(initialState?.messages ?? []);
   const [chatBody, setChatBody] = useState('');
@@ -733,14 +735,28 @@ export default function ChitGroupRoomView({
                     <div>
                       <strong>Period {st.periodNumber}</strong> · {st.winnerName} ({formatCurrency(st.prizeAmount, currencySymbol)})
                     </div>
-                    <a
-                      href={`${mode === 'staff' ? st.reportUrl : st.borrowerReportUrl}?lang=${pdfLang}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ padding: '4px 9px', borderRadius: '6px', background: 'var(--primary)', color: '#fff', fontWeight: 700, textDecoration: 'none', fontSize: '0.72rem' }}
-                    >
-                      PDF ↓
-                    </a>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPdfPreview({
+                            title: `Period ${st.periodNumber} Report — ${g.name}`,
+                            baseUrl: mode === 'staff' ? st.reportUrl : st.borrowerReportUrl,
+                          })
+                        }
+                        style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}
+                      >
+                        Preview
+                      </button>
+                      <a
+                        href={`${mode === 'staff' ? st.reportUrl : st.borrowerReportUrl}?lang=${pdfLang}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ padding: '4px 9px', borderRadius: '6px', background: 'var(--primary)', color: '#fff', fontWeight: 700, textDecoration: 'none', fontSize: '0.72rem' }}
+                      >
+                        PDF ↓
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -795,9 +811,21 @@ export default function ChitGroupRoomView({
                       </div>
                       <div>{m.body}</div>
                       {typeof pdfHref === 'string' && (
-                        <div style={{ marginTop: '6px' }}>
+                        <div style={{ marginTop: '6px', display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPdfPreview({
+                                title: `Period Report — ${g.name}`,
+                                baseUrl: pdfHref,
+                              })
+                            }
+                            style={{ display: 'inline-block', padding: '4px 10px', borderRadius: '6px', border: '1px solid #065f46', background: '#fff', color: '#065f46', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}
+                          >
+                            👁 Preview PDF
+                          </button>
                           <a href={`${pdfHref}?lang=${pdfLang}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '4px 10px', borderRadius: '6px', background: '#065f46', color: '#fff', fontWeight: 700, textDecoration: 'none', fontSize: '0.72rem' }}>
-                            📄 Download Period PDF
+                            📄 Download PDF
                           </a>
                         </div>
                       )}
@@ -964,6 +992,17 @@ export default function ChitGroupRoomView({
           )}
         </div>
       </div>
+      {pdfPreview && (
+        <ChitPdfPreviewModal
+          open={Boolean(pdfPreview)}
+          onClose={() => setPdfPreview(null)}
+          title={pdfPreview.title}
+          previewUrl={`${pdfPreview.baseUrl}${pdfPreview.baseUrl.includes('?') ? '&' : '?'}lang=${pdfLang}&inline=1`}
+          downloadUrl={`${pdfPreview.baseUrl}${pdfPreview.baseUrl.includes('?') ? '&' : '?'}lang=${pdfLang}`}
+          pdfLang={pdfLang}
+          onChangePdfLang={setPdfLang}
+        />
+      )}
     </div>
   );
 }
