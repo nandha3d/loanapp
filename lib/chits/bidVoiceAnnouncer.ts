@@ -154,46 +154,312 @@ export function extractShortBidderName(fullName?: string | null): string {
   return tokens[0] ?? '';
 }
 
-/**
- * Converts rupee amounts into natural spoken Indian grouping in the active language:
- * - en: 48000 -> "48 thousand", 4749700 -> "47 lakh 49 thousand 7 hundred"
- * - ml: 48000 -> "48 ആയിരം",    4749700 -> "47 ലക്ഷം 49 ആയിരം 7 നൂറ്"
- */
-export function formatIndianNumberForSpeech(amount: number, lang?: string | null): string {
-  const n = Math.max(0, Math.round(Number(amount) || 0));
-  if (n === 0) return '0';
-  const code = normalizeVoiceLanguageCode(lang);
-  const u = SPEECH_NUMBER_UNITS[code];
+const TA_UNITS = ['பூஜ்யம்', 'ஒன்று', 'இரண்டு', 'மூன்று', 'நான்கு', 'ஐந்து', 'ஆறு', 'ஏழு', 'எட்டு', 'ஒன்பது'] as const;
+const TA_TEENS = ['பத்து', 'பதினொன்று', 'பன்னிரண்டு', 'பதின்மூன்று', 'பதினான்கு', 'பதினைந்து', 'பதினாறு', 'பதினேழு', 'பதினெட்டு', 'பத்தொன்பது'] as const;
+const TA_TENS_EXACT = ['', '', 'இருபது', 'முப்பது', 'நாற்பது', 'ஐம்பது', 'அறுபது', 'எழுபது', 'எண்பது', 'தொண்ணூறு'] as const;
+const TA_TENS_CONT = ['', '', 'இருபத்து', 'முப்பத்து', 'நாற்பத்து', 'ஐம்பத்து', 'அறுபத்து', 'எழுபத்து', 'எண்பத்து', 'தொண்ணூற்று'] as const;
+const TA_HUNDREDS_EXACT = ['', 'நூறு', 'இருநூறு', 'முன்னூறு', 'நானூறு', 'ஐந்நூறு', 'அறுநூறு', 'எழுநூறு', 'எண்ணூறு', 'தொள்ளாயிரம்'] as const;
+const TA_HUNDREDS_CONT = ['', 'நூற்று', 'இருநூற்று', 'முன்னூற்று', 'நானூற்று', 'ஐந்நூற்று', 'அறுநூற்று', 'எழுநூற்று', 'எண்ணூற்று', 'தொள்ளாயிரத்து'] as const;
+
+function tamilUnder100(n: number): string {
+  if (n < 10) return TA_UNITS[n];
+  if (n < 20) return TA_TEENS[n - 10];
+  const t = Math.floor(n / 10);
+  const u = n % 10;
+  return u === 0 ? TA_TENS_EXACT[t] : `${TA_TENS_CONT[t]} ${TA_UNITS[u]}`;
+}
+
+function tamilJoinThousand(k: number, hasRemainder: boolean): string {
+  if (k === 1) return hasRemainder ? 'ஆயிரத்து' : 'ஆயிரம்';
+  const tail = hasRemainder ? '\u0BBEயிரத்து' : '\u0BBEயிரம்';
+  if (k === 90) return `தொண்ணூற்ற${tail}`;
+  return `${tamilUnder100(k).replace(/\u0BC1$/, '')}${tail}`;
+}
+
+function tamilUnder1000(n: number): string {
+  const h = Math.floor(n / 100);
+  const r = n % 100;
+  if (h === 0) return tamilUnder100(r);
+  if (r === 0) return TA_HUNDREDS_EXACT[h];
+  return `${TA_HUNDREDS_CONT[h]} ${tamilUnder100(r)}`;
+}
+
+function formatTamilNumberForSpeech(n: number): string {
+  if (n === 0) return TA_UNITS[0];
   const parts: string[] = [];
   let rem = n;
 
   const crores = Math.floor(rem / 10_000_000);
   if (crores > 0) {
-    parts.push(`${crores} ${u.crore}`);
     rem %= 10_000_000;
+    const prefix = crores === 1 ? 'ஒரு' : formatTamilNumberForSpeech(crores);
+    parts.push(`${prefix} ${rem > 0 ? 'கோடியே' : 'கோடி'}`);
   }
   const lakhs = Math.floor(rem / 100_000);
   if (lakhs > 0) {
-    parts.push(`${lakhs} ${u.lakh}`);
     rem %= 100_000;
+    const prefix = lakhs === 1 ? 'ஒரு' : tamilUnder100(lakhs);
+    parts.push(`${prefix} ${rem > 0 ? 'லட்சத்து' : 'லட்சம்'}`);
   }
   const thousands = Math.floor(rem / 1000);
   if (thousands > 0) {
-    parts.push(`${thousands} ${u.thousand}`);
     rem %= 1000;
-  }
-  const hundreds = Math.floor(rem / 100);
-  if (hundreds > 0 && rem % 100 === 0) {
-    parts.push(`${hundreds} ${u.hundred}`);
-    rem = 0;
-  } else if (hundreds > 0) {
-    parts.push(`${hundreds} ${u.hundred}`);
-    rem %= 100;
+    parts.push(tamilJoinThousand(thousands, rem > 0));
   }
   if (rem > 0) {
-    parts.push(String(rem));
+    parts.push(tamilUnder1000(rem));
   }
   return parts.join(' ');
+}
+
+const ML_UNITS = ['പൂജ്യം', 'ഒന്ന്', 'രണ്ട്', 'മൂന്ന്', 'നാല്', 'അഞ്ച്', 'ആറ്', 'ഏഴ്', 'എട്ട്', 'ഒമ്പത്'] as const;
+const ML_TEENS = ['പത്ത്', 'പതിനൊന്ന്', 'പന്ത്രണ്ട്', 'പതിമൂന്ന്', 'പതിനാല്', 'പതിനഞ്ച്', 'പതിനാറ്', 'പതിനേഴ്', 'പതിനെട്ട്', 'പത്തൊമ്പത്'] as const;
+const ML_TENS_EXACT = ['', '', 'ഇരുപത്', 'മുപ്പത്', 'നാൽപ്പത്', 'അമ്പത്', 'അറുപത്', 'എഴുപത്', 'എൺപത്', 'തൊണ്ണൂറ്'] as const;
+const ML_TENS_CONT = ['', '', 'ഇരുപത്തി', 'മുപ്പത്തി', 'നാൽപ്പത്തി', 'അമ്പത്തി', 'അറുപത്തി', 'എഴുപത്തി', 'എൺപത്തി', 'തൊണ്ണൂറ്റി'] as const;
+const ML_HUNDREDS_EXACT = ['', 'നൂറ്', 'ഇരുന്നൂറ്', 'മുന്നൂറ്', 'നാനൂറ്', 'അഞ്ഞൂറ്', 'അറുന്നൂറ്', 'എഴുന്നൂറ്', 'എണ്ണൂറ്', 'തൊള്ളായിരം'] as const;
+const ML_HUNDREDS_CONT = ['', 'നൂറ്റി', 'ഇരുന്നൂറ്റി', 'മുന്നൂറ്റി', 'നാനൂറ്റി', 'അഞ്ഞൂറ്റി', 'അറുന്നൂറ്റി', 'എഴുന്നൂറ്റി', 'എണ്ണൂറ്റി', 'തൊള്ളായിരത്തി'] as const;
+
+function mlUnder100(n: number): string {
+  if (n < 10) return ML_UNITS[n];
+  if (n < 20) return ML_TEENS[n - 10];
+  const t = Math.floor(n / 10);
+  const u = n % 10;
+  return u === 0 ? ML_TENS_EXACT[t] : `${ML_TENS_CONT[t]} ${ML_UNITS[u]}`;
+}
+
+function mlJoinThousand(k: number, hasRemainder: boolean): string {
+  if (k === 1) return hasRemainder ? 'ആയിരത്തി' : 'ആയിരം';
+  if (k === 10) return hasRemainder ? 'പതിനായിരത്തി' : 'പതിനായിരം';
+  const tail = hasRemainder ? '\u0D3Eയിരത്തി' : '\u0D3Eയിരം';
+  return `${mlUnder100(k).replace(/\u0D4D$/, '')}${tail}`;
+}
+
+function mlUnder1000(n: number): string {
+  const h = Math.floor(n / 100);
+  const r = n % 100;
+  if (h === 0) return mlUnder100(r);
+  if (r === 0) return ML_HUNDREDS_EXACT[h];
+  return `${ML_HUNDREDS_CONT[h]} ${mlUnder100(r)}`;
+}
+
+function formatMalayalamNumberForSpeech(n: number): string {
+  if (n === 0) return ML_UNITS[0];
+  const parts: string[] = [];
+  let rem = n;
+
+  const crores = Math.floor(rem / 10_000_000);
+  if (crores > 0) {
+    rem %= 10_000_000;
+    const prefix = crores === 1 ? 'ഒരു' : formatMalayalamNumberForSpeech(crores);
+    parts.push(`${prefix} കോടി`);
+  }
+  const lakhs = Math.floor(rem / 100_000);
+  if (lakhs > 0) {
+    rem %= 100_000;
+    const prefix = lakhs === 1 ? 'ഒരു' : mlUnder100(lakhs);
+    parts.push(`${prefix} ${rem > 0 ? 'ലക്ഷത്തി' : 'ലക്ഷം'}`);
+  }
+  const thousands = Math.floor(rem / 1000);
+  if (thousands > 0) {
+    rem %= 1000;
+    parts.push(mlJoinThousand(thousands, rem > 0));
+  }
+  if (rem > 0) {
+    parts.push(mlUnder1000(rem));
+  }
+  return parts.join(' ');
+}
+
+const HI_UNDER_100 = [
+  'शून्य', 'एक', 'दो', 'तीन', 'चार', 'पाँच', 'छह', 'सात', 'आठ', 'नौ',
+  'दस', 'ग्यारह', 'बारह', 'तेरह', 'चौदह', 'पंद्रह', 'सोलह', 'सत्रह', 'अठारह', 'उन्नीस',
+  'बीस', 'इक्कीस', 'बाईस', 'तेईस', 'चौबीस', 'पच्चीस', 'छब्बीस', 'सत्ताईस', 'अट्ठाईस', 'उनतीस',
+  'तीस', 'इकतीस', 'बत्तीस', 'तैंतीस', 'चौंतीस', 'पैंतीस', 'छत्तीस', 'सैंतीस', 'अड़तीस', 'उनतालीस',
+  'चालीस', 'इकतालीस', 'बयालीस', 'तैंतालीस', 'चवालीस', 'पैंतालीस', 'छियालीस', 'सैंतालीस', 'अड़तालीस', 'उनचास',
+  'पचास', 'इक्यावन', 'बावन', 'तिरेपन', 'चौवन', 'पचपन', 'छप्पन', 'सत्तावन', 'अट्ठावन', 'उनसठ',
+  'साठ', 'इकसठ', 'बासठ', 'तिरेसठ', 'चौंसठ', 'पैंसठ', 'छियासठ', 'सड़सठ', 'अड़सठ', 'उनहत्तर',
+  'सत्तर', 'इकहत्तर', 'बहत्तर', 'तिहत्तर', 'चौहत्तर', 'पचहत्तर', 'छहत्तर', 'सतहत्तर', 'अठहत्तर', 'उनासी',
+  'अस्सी', 'इक्यासी', 'बयासी', 'तिरासी', 'चौरासी', 'पचासी', 'छियासी', 'सत्तासी', 'अट्ठासी', 'नवासी',
+  'नब्बे', 'इक्यानबे', 'बानवे', 'तिरानवे', 'चौरानवे', 'पचानवे', 'छियानवे', 'सत्तानवे', 'अट्ठानवे', 'निन्यानवे',
+] as const;
+
+function formatHindiNumberForSpeech(n: number): string {
+  if (n === 0) return HI_UNDER_100[0];
+  const parts: string[] = [];
+  let rem = n;
+
+  const crores = Math.floor(rem / 10_000_000);
+  if (crores > 0) {
+    rem %= 10_000_000;
+    parts.push(`${crores < 100 ? HI_UNDER_100[crores] : formatHindiNumberForSpeech(crores)} करोड़`);
+  }
+  const lakhs = Math.floor(rem / 100_000);
+  if (lakhs > 0) {
+    rem %= 100_000;
+    parts.push(`${HI_UNDER_100[lakhs]} लाख`);
+  }
+  const thousands = Math.floor(rem / 1000);
+  if (thousands > 0) {
+    rem %= 1000;
+    parts.push(`${HI_UNDER_100[thousands]} हजार`);
+  }
+  const hundreds = Math.floor(rem / 100);
+  if (hundreds > 0) {
+    rem %= 100;
+    parts.push(`${HI_UNDER_100[hundreds]} सौ`);
+  }
+  if (rem > 0) {
+    parts.push(HI_UNDER_100[rem]);
+  }
+  return parts.join(' ');
+}
+
+const TE_UNITS = ['సున్నా', 'ఒకటి', 'రెండు', 'మూడు', 'నాలుగు', 'ఐదు', 'ఆరు', 'ఏడు', 'ఎనిమిది', 'తొమ్మిది'] as const;
+const TE_MOD = ['', 'ఒక', 'రెండు', 'మూడు', 'నాలుగు', 'ఐదు', 'ఆరు', 'ఏడు', 'ఎనిమిది', 'తొమ్మిది'] as const;
+const TE_TEENS = ['పది', 'పదకొండు', 'పన్నెండు', 'పదమూడు', 'పద్నాలుగు', 'పదిహేను', 'పదహారు', 'పదిహేడు', 'పద్దెనిమిది', 'పందొమ్మిది'] as const;
+const TE_TENS = ['', '', 'ఇరవై', 'ముప్పై', 'నలభై', 'యాభై', 'అరవై', 'డెబ్బై', 'ఎనభై', 'తొంభై'] as const;
+
+function teUnder100(n: number): string {
+  if (n < 10) return TE_UNITS[n];
+  if (n < 20) return TE_TEENS[n - 10];
+  const t = Math.floor(n / 10);
+  const u = n % 10;
+  return u === 0 ? TE_TENS[t] : `${TE_TENS[t]} ${TE_UNITS[u]}`;
+}
+
+function formatTeluguNumberForSpeech(n: number): string {
+  if (n === 0) return TE_UNITS[0];
+  const parts: string[] = [];
+  let rem = n;
+
+  const crores = Math.floor(rem / 10_000_000);
+  if (crores > 0) {
+    rem %= 10_000_000;
+    if (crores === 1) parts.push('ఒక కోటి');
+    else parts.push(`${crores < 100 ? teUnder100(crores) : formatTeluguNumberForSpeech(crores)} ${rem > 0 ? 'కోట్ల' : 'కోట్లు'}`);
+  }
+  const lakhs = Math.floor(rem / 100_000);
+  if (lakhs > 0) {
+    rem %= 100_000;
+    if (lakhs === 1) parts.push('ఒక లక్ష');
+    else parts.push(`${teUnder100(lakhs)} ${rem > 0 ? 'లక్షల' : 'లక్షలు'}`);
+  }
+  const thousands = Math.floor(rem / 1000);
+  if (thousands > 0) {
+    rem %= 1000;
+    if (thousands === 1) parts.push('వెయ్యి');
+    else parts.push(`${teUnder100(thousands)} ${rem > 0 ? 'వేల' : 'వేలు'}`);
+  }
+  const hundreds = Math.floor(rem / 100);
+  if (hundreds > 0) {
+    rem %= 100;
+    if (hundreds === 1) parts.push(rem > 0 ? 'నూట' : 'వంద');
+    else parts.push(`${TE_MOD[hundreds]} ${rem > 0 ? 'వందల' : 'వందలు'}`);
+  }
+  if (rem > 0) {
+    parts.push(teUnder100(rem));
+  }
+  return parts.join(' ');
+}
+
+const KN_UNITS = ['ಸೊನ್ನೆ', 'ಒಂದು', 'ಎರಡು', 'ಮೂರು', 'ನಾಲ್ಕು', 'ಐದು', 'ಆರು', 'ಏಳು', 'ಎಂಟು', 'ಒಂಬತ್ತು'] as const;
+const KN_TEENS = ['ಹತ್ತು', 'ಹನ್ನೊಂದು', 'ಹನ್ನೆರಡು', 'ಹದಿಮೂರು', 'ಹದಿನಾಲ್ಕು', 'ಹದಿನೈದು', 'ಹದಿನಾರು', 'ಹದಿನೇಳು', 'ಹದಿನೆಂಟು', 'ಹತ್ತೊಂಬತ್ತು'] as const;
+const KN_TENS_EXACT = ['', '', 'ಇಪ್ಪತ್ತು', 'ಮೂವತ್ತು', 'ನಲವತ್ತು', 'ಐವತ್ತು', 'ಅರವತ್ತು', 'ಎಪ್ಪತ್ತು', 'ಎಂಬತ್ತು', 'ತೊಂಬತ್ತು'] as const;
+const KN_TENS_CONT = ['', '', 'ಇಪ್ಪತ್ತ', 'ಮೂವತ್ತ', 'ನಲವತ್ತ', 'ಐವತ್ತ', 'ಅರವತ್ತ', 'ಎಪ್ಪತ್ತ', 'ಎಂಬತ್ತ', 'ತೊಂಬತ್ತ'] as const;
+const KN_HUNDREDS_EXACT = ['', 'ನೂರು', 'ಇನ್ನೂರು', 'ಮುನ್ನೂರು', 'ನಾಲ್ಕು ನೂರು', 'ಐನೂರು', 'ಆರು ನೂರು', 'ಏಳು ನೂರು', 'ಎಂಟು ನೂರು', 'ಒಂಬೈನೂರು'] as const;
+const KN_HUNDREDS_CONT = ['', 'ನೂರಾ', 'ಇನ್ನೂರ', 'ಮುನ್ನೂರ', 'ನಾಲ್ಕು ನೂರ', 'ಐನೂರ', 'ಆರು ನೂರ', 'ಏಳು ನೂರ', 'ಎಂಟು ನೂರ', 'ಒಂಬೈನೂರ'] as const;
+
+function knUnder100(n: number): string {
+  if (n < 10) return KN_UNITS[n];
+  if (n < 20) return KN_TEENS[n - 10];
+  const t = Math.floor(n / 10);
+  const u = n % 10;
+  return u === 0 ? KN_TENS_EXACT[t] : `${KN_TENS_CONT[t]} ${KN_UNITS[u]}`;
+}
+
+function formatKannadaNumberForSpeech(n: number): string {
+  if (n === 0) return KN_UNITS[0];
+  const parts: string[] = [];
+  let rem = n;
+
+  const crores = Math.floor(rem / 10_000_000);
+  if (crores > 0) {
+    rem %= 10_000_000;
+    const prefix = crores < 100 ? knUnder100(crores) : formatKannadaNumberForSpeech(crores);
+    parts.push(`${prefix} ${rem > 0 ? 'ಕೋಟಿಯ' : 'ಕೋಟಿ'}`);
+  }
+  const lakhs = Math.floor(rem / 100_000);
+  if (lakhs > 0) {
+    rem %= 100_000;
+    parts.push(`${knUnder100(lakhs)} ${rem > 0 ? 'ಲಕ್ಷದ' : 'ಲಕ್ಷ'}`);
+  }
+  const thousands = Math.floor(rem / 1000);
+  if (thousands > 0) {
+    rem %= 1000;
+    parts.push(`${knUnder100(thousands)} ${rem > 0 ? 'ಸಾವಿರದ' : 'ಸಾವಿರ'}`);
+  }
+  const hundreds = Math.floor(rem / 100);
+  if (hundreds > 0) {
+    rem %= 100;
+    parts.push(rem > 0 ? KN_HUNDREDS_CONT[hundreds] : KN_HUNDREDS_EXACT[hundreds]);
+  }
+  if (rem > 0) {
+    parts.push(knUnder100(rem));
+  }
+  return parts.join(' ');
+}
+
+/**
+ * Converts rupee amounts into natural spoken Indian grouping in the active language,
+ * emitting full compound words in regional Indian languages so Cloud TTS pronounces
+ * every number naturally (e.g. ta 94,700 -> "தொண்ணூற்று நான்காயிரத்து எழுநூறு").
+ */
+export function formatIndianNumberForSpeech(amount: number, lang?: string | null): string {
+  const n = Math.max(0, Math.round(Number(amount) || 0));
+  const code = normalizeVoiceLanguageCode(lang);
+  switch (code) {
+    case 'ta':
+      return formatTamilNumberForSpeech(n);
+    case 'ml':
+      return formatMalayalamNumberForSpeech(n);
+    case 'hi':
+      return formatHindiNumberForSpeech(n);
+    case 'te':
+      return formatTeluguNumberForSpeech(n);
+    case 'kn':
+      return formatKannadaNumberForSpeech(n);
+    default: {
+      if (n === 0) return '0';
+      const u = SPEECH_NUMBER_UNITS.en;
+      const parts: string[] = [];
+      let rem = n;
+
+      const crores = Math.floor(rem / 10_000_000);
+      if (crores > 0) {
+        parts.push(`${crores} ${u.crore}`);
+        rem %= 10_000_000;
+      }
+      const lakhs = Math.floor(rem / 100_000);
+      if (lakhs > 0) {
+        parts.push(`${lakhs} ${u.lakh}`);
+        rem %= 100_000;
+      }
+      const thousands = Math.floor(rem / 1000);
+      if (thousands > 0) {
+        parts.push(`${thousands} ${u.thousand}`);
+        rem %= 1000;
+      }
+      const hundreds = Math.floor(rem / 100);
+      if (hundreds > 0) {
+        parts.push(`${hundreds} ${u.hundred}`);
+        rem %= 100;
+      }
+      if (rem > 0) {
+        parts.push(String(rem));
+      }
+      return parts.join(' ');
+    }
+  }
 }
 
 export function formatBidVoicePhrase(params: {

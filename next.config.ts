@@ -36,7 +36,8 @@ const securityHeaders = [
       // checkout.razorpay.com: Razorpay Standard Checkout (/subscribe, NACH authorisation)
       // apis.google.com: Firebase Google Auth popup/redirect helper scripts
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://checkout.razorpay.com https://apis.google.com",
-      `frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.firebaseapp.com${cspFirebaseFrame}`,
+      "frame-src 'self' blob: https://api.razorpay.com https://checkout.razorpay.com https://*.firebaseapp.com" + cspFirebaseFrame,
+      "object-src 'self' blob: data:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
       // OpenStreetMap tiles + Leaflet marker sprites for the live map
       `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com https://*.razorpay.com${cspApiUrl}`,
@@ -140,6 +141,23 @@ const nextConfig: NextConfig = {
         source: '/(.*)',
         headers: securityHeaders,
       },
+      // Allow same-origin PDF preview iframes (`?inline=1`) on report & statutory endpoints
+      ...[
+        '/api/chits/:id/auctions/:auctionId/report',
+        '/api/v1/chits/:id/auctions/:auctionId/report',
+        '/api/borrower/chits/:id/auctions/:auctionId/report',
+        '/api/v1/borrower/chits/:id/auctions/:auctionId/report',
+        '/api/chits/:id/statutory',
+      ].map((source) => ({
+        source,
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; object-src 'self' blob: data:; frame-ancestors 'self'",
+          },
+        ],
+      })),
     ];
   },
 };

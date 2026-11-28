@@ -38,26 +38,39 @@ function testVoicePhraseFormatting() {
     formatBidSpokenPhrase({ prizeAmount: 4749700, memberName: 'Yogeshwaran Thirumalai', ticketNo: '19', lang: 'en' }),
     '47 lakh 49 thousand 7 hundred by Yogeshwaran',
   );
-  assert.equal(formatIndianNumberForSpeech(48000, 'ml'), '48 ആയിരം');
+  assert.equal(formatIndianNumberForSpeech(94700, 'ta'), 'தொண்ணூற்று நான்காயிரத்து எழுநூறு');
+  assert.equal(formatIndianNumberForSpeech(4749700, 'ta'), 'நாற்பத்து ஏழு லட்சத்து நாற்பத்து ஒன்பதாயிரத்து எழுநூறு');
+  assert.equal(formatIndianNumberForSpeech(95000, 'ta'), 'தொண்ணூற்று ஐந்தாயிரம்');
+  assert.equal(formatIndianNumberForSpeech(1000, 'ta'), 'ஆயிரம்');
+  assert.equal(formatIndianNumberForSpeech(1700, 'ta'), 'ஆயிரத்து எழுநூறு');
+  assert.equal(formatIndianNumberForSpeech(100000, 'ta'), 'ஒரு லட்சம்');
+  assert.equal(formatIndianNumberForSpeech(0, 'ta'), 'பூஜ்யம்');
+
+  assert.equal(formatIndianNumberForSpeech(48000, 'ml'), 'നാൽപ്പത്തി എട്ടായിരം');
+  assert.equal(formatIndianNumberForSpeech(94700, 'ml'), 'തൊണ്ണൂറ്റി നാലായിരത്തി എഴുന്നൂറ്');
   assert.equal(
     formatBidSpokenPhrase({ prizeAmount: 48000, memberName: 'Oviya Kandasamy', ticketNo: '11', lang: 'ml' }),
-    '48 ആയിരം, Oviya',
+    'നാൽപ്പത്തി എട്ടായിരം, Oviya',
   );
   assert.equal(
     formatBidSpokenPhrase({ prizeAmount: 100000, memberName: 'S. Rajesh', ticketNo: '4', lang: 'ta' }),
-    '1 லட்சம், Rajesh',
+    'ஒரு லட்சம், Rajesh',
+  );
+  assert.equal(
+    formatBidSpokenPhrase({ prizeAmount: 94700, memberName: 'Murugan Palanisamy', ticketNo: '6', lang: 'ta' }),
+    'தொண்ணூற்று நான்காயிரத்து எழுநூறு, Murugan',
   );
   assert.equal(
     formatBidSpokenPhrase({ prizeAmount: 50000, memberName: 'Oviya Kandasamy', ticketNo: '11', lang: 'hi' }),
-    '50 हजार, Oviya द्वारा',
+    'पचास हजार, Oviya द्वारा',
   );
   assert.equal(
     formatBidSpokenPhrase({ prizeAmount: 48000, memberName: 'Oviya Kandasamy', ticketNo: '11', lang: 'te' }),
-    '48 వేలు, Oviya',
+    'నలభై ఎనిమిది వేలు, Oviya',
   );
   assert.equal(
     formatBidSpokenPhrase({ prizeAmount: 48000, memberName: 'Oviya Kandasamy', ticketNo: '11', lang: 'kn' }),
-    '48 ಸಾವಿರ, Oviya',
+    'ನಲವತ್ತ ಎಂಟು ಸಾವಿರ, Oviya',
   );
 
   // Foreman fixed language vs member-allowed override (never affected by main UI locale)
