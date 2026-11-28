@@ -131,6 +131,23 @@ export interface PeriodReportCopy {
     comm: string;
     div: string;
   }) => string;
+  siCol: string;
+  prizedBeneficiary: string;
+  grossPrizeLabel: string;
+  section1Title: string;
+  section2Title: string;
+  section3CashTitle: string;
+  section5LedgerTitle: string;
+  section6SignoffTitle: string;
+  aggregateTotalsLabel: string;
+  reconciledBadge: string;
+  foremanSignoffTitle: string;
+  winnerSignoffTitle: string;
+  auditorSignoffTitle: string;
+  sealWord: string;
+  foremanSignLine: string;
+  winnerAckLine: string;
+  auditorNoteLine: string;
 }
 
 const EN: PeriodReportCopy = {
@@ -313,6 +330,23 @@ const EN: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `Floor R_t = ${floor} | Prize ${prize} + Comm ${comm} -> Div ${div}/tkt`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — Period ${period} conducted on ${dateStr}. Attendance: ${present}/${total}. Winner: ${winner}. Prize: ${prize}, Bid discount: ${discount}, Foreman commission: ${comm}, Dividend per ticket: ${div}.`,
+  siCol: 'Sl',
+  prizedBeneficiary: 'Prized Winner',
+  grossPrizeLabel: 'Gross Prize Payout',
+  section1Title: 'Section 1: Prize Settlement & Dividend Summary',
+  section2Title: 'Section 2: Arrears Recovery & Payout Settlement',
+  section3CashTitle: 'Cash Denomination & Pool Collections',
+  section5LedgerTitle: 'Member Subscription & Dividend Ledger',
+  section6SignoffTitle: 'Sign-Off & Verification Endorsements',
+  aggregateTotalsLabel: 'Aggregate Totals',
+  reconciledBadge: 'Reconciled',
+  foremanSignoffTitle: '1. Foreman / Authorized Officer',
+  winnerSignoffTitle: '2. Prize Winner Subscriber',
+  auditorSignoffTitle: '3. Security & Verification Seal',
+  sealWord: 'SEAL',
+  foremanSignLine: 'Foreman Signature & Stamp',
+  winnerAckLine: 'Winner Receipt Acknowledgement',
+  auditorNoteLine: 'Security & ledger figures checked per group rules.',
 };
 
 // Everyday colloquial Tamil + familiar Chit/English business terms
@@ -496,6 +530,23 @@ const TA: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `வரம்பு R_t = ${floor} | பரிசு ${prize} + கமிஷன் ${comm} -> டிவிடெண்ட் ${div}/சீட்டு`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — சுற்று ${period} (${dateStr}) அன்று நடந்தது. வருகை: ${present}/${total}. வின்னர்: ${winner}. பரிசு: ${prize}, தள்ளுபடி: ${discount}, ஃபோர்மேன் கமிஷன்: ${comm}, ஒரு சீட்டுக்கு டிவிடெண்ட்: ${div}.`,
+  siCol: 'வ.எண்',
+  prizedBeneficiary: 'பரிசு வின்னர்',
+  grossPrizeLabel: 'மொத்த பரிசு (Gross)',
+  section1Title: 'பகுதி 1: பரிசு & டிவிடெண்ட் கணக்கு சுருக்கம்',
+  section2Title: 'பகுதி 2: பாக்கி கழிவு & Payout பட்டுவாடா',
+  section3CashTitle: 'ரொக்க நோட்டுகள் & வசூல் விபரம்',
+  section5LedgerTitle: 'மெம்பர் வசூல் & டிவிடெண்ட் பட்டியல்',
+  section6SignoffTitle: 'கையொப்பம் & சரிபார்ப்பு முத்திரை',
+  aggregateTotalsLabel: 'மொத்த கூட்டுத்தொகை',
+  reconciledBadge: 'சரிபார்க்கப்பட்டது',
+  foremanSignoffTitle: '1. ஃபோர்மேன் / பொறுப்பாளர்',
+  winnerSignoffTitle: '2. பரிசு பெற்ற மெம்பர்',
+  auditorSignoffTitle: '3. ஜாமீன் & கணக்கு சரிபார்ப்பு',
+  sealWord: 'SEAL',
+  foremanSignLine: 'ஃபோர்மேன் கையொப்பம் & முத்திரை',
+  winnerAckLine: 'பரிசுத் தொகை பெற்றுக்கொண்ட கையொப்பம்',
+  auditorNoteLine: 'ஜாமீன் & லெட்ஜர் கணக்குகள் சரிபார்க்கப்பட்டன.',
 };
 
 // Everyday colloquial Hindi + familiar Chit/English business terms
@@ -679,6 +730,23 @@ const HI: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `सीमा R_t = ${floor} | इनाम ${prize} + कमीशन ${comm} -> डिविडेंड ${div}/टिकट`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — राउंड ${period} (${dateStr}) को पूरा हुआ। हाजिरी: ${present}/${total}। विनर: ${winner}। इनाम: ${prize}, बोली छूट: ${discount}, फोरमैन कमीशन: ${comm}, डिविडेंड/टिकट: ${div}।`,
+  siCol: 'क्र.',
+  prizedBeneficiary: 'प्राइज विनर',
+  grossPrizeLabel: 'कुल इनाम (Gross)',
+  section1Title: 'भाग 1: इनाम और डिविडेंड हिसाब',
+  section2Title: 'भाग 2: बकाया कटौती और Payout सेटलमेंट',
+  section3CashTitle: 'कैश नोट और कलेक्शन विवरण',
+  section5LedgerTitle: 'मेंबर कलेक्शन और डिविडेंड लेजर',
+  section6SignoffTitle: 'हस्ताक्षर और वेरिफिकेशन मुहर',
+  aggregateTotalsLabel: 'कुल योग',
+  reconciledBadge: 'मिलान पूर्ण',
+  foremanSignoffTitle: '1. फोरमैन / अधिकृत अधिकारी',
+  winnerSignoffTitle: '2. प्राइज विनर मेंबर',
+  auditorSignoffTitle: '3. सिक्योरिटी और हिसाब जांच',
+  sealWord: 'SEAL',
+  foremanSignLine: 'फोरमैन हस्ताक्षर व मुहर',
+  winnerAckLine: 'इनाम राशि प्राप्ति हस्ताक्षर',
+  auditorNoteLine: 'सिक्योरिटी और लेजर हिसाब ग्रुप नियमों से जांचा गया।',
 };
 
 // Everyday colloquial Telugu + familiar Chit/English business terms
@@ -862,6 +930,23 @@ const TE: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `హద్దు R_t = ${floor} | బహుమతి ${prize} + కమీషన్ ${comm} -> డివిడెండ్ ${div}/టికెట్`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — విడత ${period} (${dateStr})న జరిగింది. హాజరు: ${present}/${total}. విన్నర్: ${winner}. బహుమతి: ${prize}, తగ్గింపు: ${discount}, ఫోర్‌మన్ కమీషన్: ${comm}, టికెట్ డివిడెండ్: ${div}.`,
+  siCol: 'క్ర.సం',
+  prizedBeneficiary: 'ప్రైజ్ విన్నర్',
+  grossPrizeLabel: 'మొత్తం బహుమతి',
+  section1Title: 'విభాగం 1: బహుమతి & డివిడెండ్ లెక్కలు',
+  section2Title: 'విభాగం 2: బకాయి మినహాయింపు & Payout సెటిల్మెంట్',
+  section3CashTitle: 'క్యాష్ నోట్లు & వసూలు వివరాలు',
+  section5LedgerTitle: 'మెంబర్ వసూలు & డివిడెండ్ లెడ్జర్',
+  section6SignoffTitle: 'సంతకాలు & వెరిఫికేషన్ ముద్ర',
+  aggregateTotalsLabel: 'మొత్తం టోటల్',
+  reconciledBadge: 'సరిపోలింది',
+  foremanSignoffTitle: '1. ఫోర్‌మన్ / అధికారి',
+  winnerSignoffTitle: '2. బహుమతి పొందిన మెంబర్',
+  auditorSignoffTitle: '3. సెక్యూరిటీ & లెక్కల నిర్ధారణ',
+  sealWord: 'SEAL',
+  foremanSignLine: 'ఫోర్‌మన్ సంతకం & స్టాంప్',
+  winnerAckLine: 'బహుమతి స్వీకరణ సంతకం',
+  auditorNoteLine: 'సెక్యూరిటీ మరియు లెడ్జర్ లెక్కలు సరిచూడబడ్డాయి.',
 };
 
 // Everyday colloquial Kannada + familiar Chit/English business terms
@@ -1045,6 +1130,23 @@ const KN: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `ಮಿತಿ R_t = ${floor} | ಬಹುಮಾನ ${prize} + ಕಮಿಷನ್ ${comm} -> ಡಿವಿಡೆಂಡ್ ${div}/ಟಿಕೆಟ್`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — ಕಂತು ${period} (${dateStr}) ರಂದು ನಡೆಯಿತು. ಹಾಜರು: ${present}/${total}. ವಿನ್ನರ್: ${winner}. ಬಹುಮಾನ: ${prize}, ರಿಯಾಯಿತಿ: ${discount}, ಫೋರ್‌ಮನ್ ಕಮಿಷನ್: ${comm}, ಟಿಕೆಟ್ ಡಿವಿಡೆಂಡ್: ${div}.`,
+  siCol: 'ಕ್ರ.ಸಂ',
+  prizedBeneficiary: 'ಪ್ರೈಜ್ ವಿನ್ನರ್',
+  grossPrizeLabel: 'ಒಟ್ಟು ಬಹುಮಾನ',
+  section1Title: 'ಭಾಗ 1: ಬಹುಮಾನ ಮತ್ತು ಡಿವಿಡೆಂಡ್ ಲೆಕ್ಕ',
+  section2Title: 'ಭಾಗ 2: ಬಾಕಿ ಕಡಿತ ಮತ್ತು Payout ಸೆಟಲ್‌ಮೆಂಟ್',
+  section3CashTitle: 'ಕ್ಯಾಶ್ ನೋಟುಗಳು ಮತ್ತು ವಸೂಲಿ ವಿವರ',
+  section5LedgerTitle: 'ಮೆಂಬರ್ ವಸೂಲಿ ಮತ್ತು ಡಿವಿಡೆಂಡ್ ಲೆಡ್ಜರ್',
+  section6SignoffTitle: 'ಸಹಿ ಮತ್ತು ಪರಿಶೀಲನಾ ಮುದ್ರೆ',
+  aggregateTotalsLabel: 'ಒಟ್ಟು ಮೊತ್ತ',
+  reconciledBadge: 'ಸರಿಹೊಂದಿದೆ',
+  foremanSignoffTitle: '1. ಫೋರ್‌ಮನ್ / ಅಧಿಕಾರಿ',
+  winnerSignoffTitle: '2. ಬಹುಮಾನ ಪಡೆದ ಮೆಂಬರ್',
+  auditorSignoffTitle: '3. ಸೆಕ್ಯುರಿಟಿ ಮತ್ತು ಲೆಕ್ಕ ಪರಿಶೀಲನೆ',
+  sealWord: 'SEAL',
+  foremanSignLine: 'ಫೋರ್‌ಮನ್ ಸಹಿ ಮತ್ತು ಮುದ್ರೆ',
+  winnerAckLine: 'ಬಹುಮಾನ ಸ್ವೀಕೃತಿ ಸಹಿ',
+  auditorNoteLine: 'ಸೆಕ್ಯುರಿಟಿ ಮತ್ತು ಲೆಡ್ಜರ್ ಲೆಕ್ಕಗಳನ್ನು ಪರಿಶೀಲಿಸಲಾಗಿದೆ.',
 };
 
 // Everyday colloquial Malayalam + familiar Chit/English business terms
@@ -1228,6 +1330,23 @@ const ML: PeriodReportCopy = {
   verifyReserve: (floor, prize, comm, div) => `പരിധി R_t = ${floor} | സമ്മാനം ${prize} + കമ്മീഷൻ ${comm} -> ഡിവിഡന്റ് ${div}/ടിക്കറ്റ്`,
   autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
     `${groupName} — തവണ ${period} (${dateStr})-ന് നടന്നു. ഹാജർ: ${present}/${total}. വിന്നർ: ${winner}. സമ്മാനം: ${prize}, ലേല കിഴിവ്: ${discount}, ഫോർമാൻ കമ്മീഷൻ: ${comm}, ടിക്കറ്റ് ഡിവിഡന്റ്: ${div}.`,
+  siCol: 'ക്രമം',
+  prizedBeneficiary: 'സമ്മാന വിന്നർ',
+  grossPrizeLabel: 'മൊത്തം സമ്മാനം',
+  section1Title: 'ഭാഗം 1: സമ്മാനവും ഡിവിഡന്റ് കണക്കും',
+  section2Title: 'ഭാഗം 2: കുടിശ്ശിക കുറയ്ക്കലും Payout വിവരവും',
+  section3CashTitle: 'ക്യാഷ് നോട്ടുകളും പിരിവ് വിവരവും',
+  section5LedgerTitle: 'മെമ്പർ പിരിവ് & ഡിവിഡന്റ് ലെഡ്ജർ',
+  section6SignoffTitle: 'ഒപ്പും വെരിഫിക്കേഷൻ സീലും',
+  aggregateTotalsLabel: 'ആകെ തുക',
+  reconciledBadge: 'കണക്ക് കൃത്യം',
+  foremanSignoffTitle: '1. ഫോർമാൻ / അധികാരി',
+  winnerSignoffTitle: '2. സമ്മാനം നേടിയ മെമ്പർ',
+  auditorSignoffTitle: '3. സെക്യൂരിറ്റി & കണക്ക് പരിശോധന',
+  sealWord: 'SEAL',
+  foremanSignLine: 'ഫോർമാൻ ഒപ്പും സീലും',
+  winnerAckLine: 'തുക കൈപ്പറ്റിയ ഒപ്പ്',
+  auditorNoteLine: 'സെക്യൂരിറ്റിയും ലെഡ്ജർ കണക്കുകളും പരിശോധിച്ചു.',
 };
 
 const COPY_MAP: Record<PdfLang, PeriodReportCopy> = {
