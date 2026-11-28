@@ -159,6 +159,7 @@ export interface ChitPeriodReportData {
     id: string;
     groupCode: string | null;
     name: string;
+    startDate?: string | null;
     chitValue: number;
     monthlyContrib: number;
     totalMembers: number;
@@ -1160,6 +1161,7 @@ export async function buildChitPeriodReportData(params: {
       id: group.id,
       groupCode: group.groupCode,
       name: group.name,
+      startDate: group.startDate ? group.startDate.toISOString() : null,
       chitValue,
       monthlyContrib: baseInstallment,
       totalMembers: group.totalMembers,

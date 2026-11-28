@@ -183,6 +183,7 @@ async function main() {
       id: 'g-1',
       groupCode: 'CHIT-3L',
       name: '3.00 Lakh Chit Group',
+      startDate: '2026-04-01T00:00:00.000Z',
       chitValue: 300_000,
       monthlyContrib: 6_000,
       totalMembers: 50,
@@ -565,6 +566,7 @@ async function main() {
     assert.ok(copy.commissionBasisLabels.CHIT_VALUE && copy.commissionBasisLabels.BID_DISCOUNT, `Missing commissionBasisLabels for ${l}`);
     assert.ok(copy.securityTypeLabels.INTERNAL_GUARANTOR_JAMEEN && copy.securityDocLabels.guarantor_kyc, `Missing security labels for ${l}`);
     assert.ok(copy.chitTypeLabels.unregistered && copy.frequencyLabels.monthly, `Missing chitType/frequency labels for ${l}`);
+    assert.ok(copy.commencedWord, `Missing commencedWord for ${l}`);
   }
 
   assert.equal(DEFAULT_CHIT_PDF_THEME.primary, '#27AE60');

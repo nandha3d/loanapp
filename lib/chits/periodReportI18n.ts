@@ -7,6 +7,7 @@ export interface PeriodReportCopy {
   baseDueWord: string;
   commWord: string;
   groupWord: string;
+  commencedWord: string;
   statusWord: string;
   payoutWord: string;
   generatedWord: string;
@@ -157,6 +158,7 @@ const EN: PeriodReportCopy = {
   baseDueWord: 'Base Due',
   commWord: 'Comm',
   groupWord: 'Group',
+  commencedWord: 'Commenced Date',
   statusWord: 'Status',
   payoutWord: 'Payout',
   generatedWord: 'Date',
@@ -357,6 +359,7 @@ const TA: PeriodReportCopy = {
   baseDueWord: 'மாத தவணை',
   commWord: 'கமிஷன்',
   groupWord: 'குரூப்',
+  commencedWord: 'தொடங்கிய தேதி',
   statusWord: 'நிலை',
   payoutWord: 'Payout',
   generatedWord: 'தேதி',
@@ -557,6 +560,7 @@ const HI: PeriodReportCopy = {
   baseDueWord: 'मासिक किश्त',
   commWord: 'कमीशन',
   groupWord: 'ग्रुप',
+  commencedWord: 'शुरू होने की तारीख',
   statusWord: 'स्टेटस',
   payoutWord: 'Payout',
   generatedWord: 'तारीख',
@@ -757,6 +761,7 @@ const TE: PeriodReportCopy = {
   baseDueWord: 'నెల వాయిదా',
   commWord: 'కమీషన్',
   groupWord: 'గ్రూప్',
+  commencedWord: 'ప్రారంభ తేదీ',
   statusWord: 'స్టేటస్',
   payoutWord: 'Payout',
   generatedWord: 'తేదీ',
@@ -957,6 +962,7 @@ const KN: PeriodReportCopy = {
   baseDueWord: 'ಮೂಲ ಕಂತು',
   commWord: 'ಕಮಿಷನ್',
   groupWord: 'ಗ್ರೂಪ್',
+  commencedWord: 'ಪ್ರಾರಂಭ ದಿನಾಂಕ',
   statusWord: 'ಸ್ಟೇಟಸ್',
   payoutWord: 'Payout',
   generatedWord: 'ದಿನಾಂಕ',
@@ -1157,6 +1163,7 @@ const ML: PeriodReportCopy = {
   baseDueWord: 'മാസ തവണ',
   commWord: 'കമ്മീഷൻ',
   groupWord: 'ഗ്രൂപ്പ്',
+  commencedWord: 'തുടങ്ങിയ തീയതി',
   statusWord: 'സ്റ്റാറ്റസ്',
   payoutWord: 'Payout',
   generatedWord: 'തീയതി',

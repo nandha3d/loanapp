@@ -94,8 +94,8 @@ function createThemedPdfStyles(
       },
       execTopBand: {
         backgroundColor: '#F8FAFC',
-        borderBottomWidth: 0.8,
-        borderBottomColor: '#E2E8F0',
+        borderBottomWidth: 1.2,
+        borderBottomColor: theme.primary,
         borderBottomStyle: 'solid',
         paddingVertical: 8,
         paddingHorizontal: 10,
@@ -142,11 +142,7 @@ function createThemedPdfStyles(
         color: '#FFFFFF',
       },
       companyNameWrap: {
-        borderBottomWidth: 0.9,
-        borderBottomColor: theme.primary,
-        borderBottomStyle: 'solid',
-        paddingBottom: 2.5,
-        marginBottom: 2.5,
+        marginBottom: 1.5,
       },
       brandTitle: {
         ...bold,
@@ -182,12 +178,12 @@ function createThemedPdfStyles(
         marginBottom: 1.5,
       },
       execBottomBand: {
-        paddingVertical: 7,
+        paddingVertical: 8,
         paddingHorizontal: 10,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 10,
+        gap: 5,
       },
       kickerLabel: {
         ...bold,
@@ -197,17 +193,22 @@ function createThemedPdfStyles(
       },
       reportTitle: {
         ...bold,
-        fontSize: 11.6,
+        fontSize: 15.5,
         color: '#0F172A',
+        textAlign: 'center',
       },
       reportSubTitle: {
-        fontSize: 7.4,
+        fontSize: 7.8,
         color: '#475569',
         marginTop: 1.5,
+        textAlign: 'center',
       },
       metaBoxesRow: {
         flexDirection: 'row',
-        gap: 5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 2,
       },
       metaBox: {
         backgroundColor: '#F8FAFC',
@@ -748,8 +749,7 @@ export function ChitPeriodReportPDF({ data, lang }: { data: ChitPeriodReportData
           </View>
 
           <View style={styles.execBottomBand}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.kickerLabel}>{t.settlementReportWord}</Text>
+            <View style={{ alignItems: 'center' }}>
               <Text style={styles.reportTitle}>{data.group.name}</Text>
               <Text style={styles.reportSubTitle}>
                 {data.templateSectionTitle} ({fmt(s.chitValue)})
@@ -757,23 +757,19 @@ export function ChitPeriodReportPDF({ data, lang }: { data: ChitPeriodReportData
             </View>
             <View style={styles.metaBoxesRow}>
               <View style={styles.metaBox}>
-                <Text style={styles.metaBoxLbl}>{t.groupWord}</Text>
-                <Text style={styles.metaBoxVal}>{groupRef}</Text>
+                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.groupWord}</Text>
+                <Text style={[styles.metaBoxVal, { textAlign: 'center' }]}>{groupRef}</Text>
               </View>
-              <View style={styles.metaBox}>
-                <Text style={styles.metaBoxLbl}>{t.periodWord}</Text>
-                <Text style={[styles.metaBoxVal, { color: theme.primaryDark }]}>
+              <View style={styles.metaBoxThemed}>
+                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.periodWord}</Text>
+                <Text style={[styles.metaBoxVal, { color: theme.primaryDark, textAlign: 'center' }]}>
                   {data.auction.periodNumber} {t.ofWord} {data.group.totalMembers}
                 </Text>
               </View>
               <View style={styles.metaBox}>
-                <Text style={styles.metaBoxLbl}>{t.generatedWord}</Text>
-                <Text style={styles.metaBoxVal}>{fmtDate(data.auction.auctionDate)}</Text>
-              </View>
-              <View style={styles.metaBoxThemed}>
-                <Text style={styles.metaBoxLbl}>{t.payoutWord}</Text>
-                <Text style={[styles.metaBoxVal, { color: theme.primaryDark }]}>
-                  {localizeStatus(data.auction.payoutStatus, t)}
+                <Text style={[styles.metaBoxLbl, { textAlign: 'center' }]}>{t.commencedWord}</Text>
+                <Text style={[styles.metaBoxVal, { textAlign: 'center' }]}>
+                  {fmtDate(data.group.startDate || data.auction.auctionDate)}
                 </Text>
               </View>
             </View>
