@@ -316,6 +316,7 @@ function buildLedgerFromLoadedGroup(
     }
 
     const wonPeriods = Array.from(wonEntriesByPeriod.keys()).sort((a, b) => a - b);
+    const completedPeriodSet = new Set(completedAuctions.map((a: any) => Number(a.periodNumber)));
     const prizeWonAmount = roundMoney(Array.from(wonEntriesByPeriod.values()).reduce((s, v) => s + v, 0));
 
     // Also compute earned dividend from period breakdowns (covers period N and CASH_PAYOUT/DEFERRED)
@@ -359,7 +360,11 @@ function buildLedgerFromLoadedGroup(
         netDue: bal.netDue,
         paidAmount: bal.paidAmount,
         outstanding: bal.outstanding,
-        status: sub.status,
+        status:
+          sub.status === 'upcoming' &&
+          (completedPeriodSet.has(Number(sub.periodNumber)) || new Date(sub.dueDate).getTime() <= Date.now())
+            ? 'pending'
+            : sub.status,
         goldRateApplied: sub.goldRateApplied != null ? Number(sub.goldRateApplied) : null,
         goldGramsCredited: sub.goldGramsCredited != null ? Number(sub.goldGramsCredited) : 0,
         wonThisPeriod: wonEntriesByPeriod.has(sub.periodNumber),

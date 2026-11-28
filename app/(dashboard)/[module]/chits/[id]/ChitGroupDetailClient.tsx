@@ -1271,6 +1271,11 @@ export default function ChitGroupDetailClient({
                   })
                   .map((s: any) => {
                   const b = subscriptionBreakdown(s);
+                  const periodDone = completedAuctions.some((a: any) => Number(a.periodNumber) === Number(s.periodNumber));
+                  const displayStatus =
+                    s.status === 'upcoming' && (periodDone || new Date(s.dueDate).getTime() <= Date.now())
+                      ? 'pending'
+                      : s.status;
                   return (
                   <tr key={s.id}>
                     <td>{m.customer.name}</td>
@@ -1283,7 +1288,7 @@ export default function ChitGroupDetailClient({
                     <td>{formatCurrency(b.paid, currencySymbol)}</td>
                     <td><strong>{formatCurrency(b.outstanding, currencySymbol)}</strong></td>
                     <td style={{ fontSize: '.75rem' }}>{s.lastReceiptNo || '—'}</td>
-                    <td><span className={`badge badge-${s.status === 'paid' ? 'success' : s.status === 'missed' ? 'danger' : s.status === 'partial' ? 'warning' : 'secondary'}`}>{s.status}</span></td>
+                    <td><span className={`badge badge-${displayStatus === 'paid' ? 'success' : displayStatus === 'missed' ? 'danger' : displayStatus === 'partial' || displayStatus === 'pending' ? 'warning' : 'secondary'}`}>{displayStatus}</span></td>
                     <td style={{ display: 'flex', gap: '4px' }}>
                       {s.status !== 'paid' && (
                         <button

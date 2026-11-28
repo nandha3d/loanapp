@@ -6,6 +6,7 @@ import { parseChitEngineConfig } from '../../lib/chits/engineTypes';
 import {
   buildTemplateStatementCopy,
   DEFAULT_CHIT_PDF_THEME,
+  resolvePeriodMemberDisplayStatus,
   type ChitPeriodReportData,
 } from '../../lib/chits/periodReport';
 import { ChitPeriodReportPDF } from '../../lib/chits/periodReportPdf';
@@ -572,6 +573,28 @@ async function main() {
   assert.equal(DEFAULT_CHIT_PDF_THEME.primary, '#27AE60');
   assert.equal(DEFAULT_CHIT_PDF_THEME.primaryDark, '#1E8449');
   assert.equal(DEFAULT_CHIT_PDF_THEME.primaryLight, '#EAFAF1');
+
+  assert.equal(
+    resolvePeriodMemberDisplayStatus({
+      rawStatus: 'upcoming',
+      paidAmount: 0,
+      outstanding: 249_750,
+      isFinalized: true,
+      dueDate: '2027-05-27T00:00:00.000Z',
+    }),
+    'pending',
+  );
+  assert.equal(
+    resolvePeriodMemberDisplayStatus({
+      rawStatus: 'upcoming',
+      paidAmount: 0,
+      outstanding: 249_750,
+      isFinalized: false,
+      dueDate: '2028-05-27T00:00:00.000Z',
+      now: new Date('2026-11-28T00:00:00.000Z'),
+    }),
+    'upcoming',
+  );
 
   console.log('chit security types and period PDF report tests passed');
 }

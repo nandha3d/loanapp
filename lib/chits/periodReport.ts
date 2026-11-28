@@ -105,6 +105,25 @@ function loadLocalAssetDataUri(relOrUrl?: string | null): string | null {
   return null;
 }
 
+export function resolvePeriodMemberDisplayStatus(input: {
+  rawStatus: string;
+  paidAmount: number;
+  outstanding: number;
+  isFinalized: boolean;
+  dueDate?: Date | string | null;
+  now?: Date;
+}): string {
+  const raw = String(input.rawStatus || 'upcoming').toLowerCase();
+  if (raw !== 'upcoming') return raw;
+  if (input.outstanding <= 0 && input.paidAmount > 0) return 'paid';
+  const dueMs = input.dueDate ? new Date(input.dueDate).getTime() : NaN;
+  const nowMs = (input.now ?? new Date()).getTime();
+  if (input.isFinalized || (Number.isFinite(dueMs) && dueMs <= nowMs)) {
+    return 'pending';
+  }
+  return 'upcoming';
+}
+
 export async function resolveChitPdfBranding(tenantId: string): Promise<{
   tenantName: string;
   currencySymbol: string;
@@ -633,6 +652,7 @@ export async function buildChitPeriodReportData(params: {
 
   if (!auction) return null;
 
+  const isFinalized = ['confirmed', 'paid', 'completed'].includes(auction.status);
   const group = auction.chitGroup;
   const engineType = resolveEngineTypeFromGroup(group);
   const config = parseChitEngineConfig(group.engineConfig, engineType);
@@ -845,7 +865,13 @@ export async function buildChitPeriodReportData(params: {
         goldGramsCredited: bd?.goldGramsCredited ?? 0,
         receiptNo: sub.lastReceiptNo ?? recInfo?.receiptNo ?? '—',
         paymentMode: recInfo ? labelMode(recInfo.mode, copy) : sub.paidAmount && Number(sub.paidAmount) > 0 ? (copy.modeLabels.recorded || 'Recorded') : '—',
-        status: sub.status,
+        status: resolvePeriodMemberDisplayStatus({
+          rawStatus: sub.status,
+          paidAmount: bal.paidAmount,
+          outstanding: bal.outstanding,
+          isFinalized,
+          dueDate: sub.dueDate,
+        }),
       };
     }
 
@@ -869,7 +895,7 @@ export async function buildChitPeriodReportData(params: {
       goldGramsCredited: bd?.goldGramsCredited ?? 0,
       receiptNo: '—',
       paymentMode: '—',
-      status: 'upcoming',
+      status: isFinalized ? 'pending' : 'upcoming',
     };
   });
 
@@ -1107,7 +1133,6 @@ export async function buildChitPeriodReportData(params: {
   const proxyCount = auction.attendance.filter((a) => a.status === 'proxy').length;
   const absentCount = auction.attendance.filter((a) => a.status === 'absent').length;
 
-  const isFinalized = ['confirmed', 'paid', 'completed'].includes(auction.status);
   const formattedMinutesDate = new Date(auction.auctionDate).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',

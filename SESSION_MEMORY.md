@@ -119,3 +119,5 @@
 70. **Oval Capsule Tab Bar & Outlined Pill Buttons on Chit Group Detail (`chits-detail.css`)**:
     - Styled `.chit-detail-tabs` as a tinted oval capsule dock (`border-radius: 999px`, `var(--primary-light)` -> `var(--primary-tint)` gradient with `var(--primary-border)` outline) distinct from the page background and cards.
     - Converted tab buttons into crisp pills (`border-radius: 999px`) with outlined white idle state (`var(--surface)` + `1.5px solid` theme outline) and highlighted gradient active state (`var(--primary)` -> `var(--primary-dark)`).
+71. **Resolve Unpaid Subscription Display Status to `Pending` on Completed/Finalized Periods (`periodReport.ts`, `memberDividendLedger.ts`, `ChitGroupDetailClient.tsx`)**:
+    - Added `resolvePeriodMemberDisplayStatus` in `periodReport.ts` and aligned `memberDividendLedger.ts` and `ChitGroupDetailClient.tsx` so unpaid `ChitSubscription` rows (`status === 'upcoming'`) for periods whose auction is already finalized (`confirmed`/`paid`/`completed`) or whose `dueDate <= now` render as `Pending` rather than misleadingly showing `Upcoming` even after auctions complete.
