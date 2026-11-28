@@ -139,6 +139,26 @@ jobs:
               echo 'VPS .env updated with MilesWeb SMTP credentials.'
             fi
 
+            # Ensure public Firebase Web SDK identifiers are in .env for Google Sign-In
+            if [ -f $APP_DIR/.env ] && ! grep -q '1:895293019400:web:5206c2be2bad269f4988bd' $APP_DIR/.env; then
+              echo 'Configuring Firebase Web SDK keys in .env...'
+              sed -i '/^NEXT_PUBLIC_FIREBASE_/d' $APP_DIR/.env
+              printf '%s\n' \
+                'NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyDuJJDzm1JsjGzLC4acXz174fHWjURksfI' \
+                'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=loantrack-74cf6.firebaseapp.com' \
+                'NEXT_PUBLIC_FIREBASE_PROJECT_ID=loantrack-74cf6' \
+                'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=895293019400' \
+                'NEXT_PUBLIC_FIREBASE_APP_ID=1:895293019400:web:5206c2be2bad269f4988bd' >> $APP_DIR/.env
+              echo 'VPS .env updated with Firebase Web SDK keys.'
+            fi
+            if [ -f $APP_DIR/.env ]; then
+              if grep -qE '^FIREBASE_SERVICE_ACCOUNT(_BASE64|_PATH)?=.+' $APP_DIR/.env || [ -f $APP_DIR/firebase-service-account.json ]; then
+                echo 'VPS Firebase Admin credentials: PRESENT'
+              else
+                echo '::warning::VPS .env is missing FIREBASE_SERVICE_ACCOUNT_BASE64 — server-side Google token verification requires it.'
+              fi
+            fi
+
             # Ensure a 2GB swapfile exists on memory-constrained VPS hosts so Next builds never hit OOM (exit 137)
             swap_mb=$(free -m | awk '/^Swap:/ {print $2}')
             if [ "${swap_mb:-0}" -lt 1024 ] && sudo -n true 2>/dev/null; then
