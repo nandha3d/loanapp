@@ -83,4 +83,6 @@
     - Updated `Content-Security-Policy` in `next.config.ts` (`apis.google.com`, `https://*.firebaseapp.com` / `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `identitytoolkit.googleapis.com`, `securetoken.googleapis.com`, `www.googleapis.com`) and added conditional `ignoreBuildErrors: process.env.SKIP_NEXT_TYPECHECK === '1'`.
 59. **Firebase Web SDK Config for Local & VPS Deploy (`.env`, `.github/workflows/deploy.yml`)**:
     - Registered Web app (`1:895293019400:web:5206c2be2bad269f4988bd`) inside existing Firebase project `loantrack-74cf6`, updated local `.env` with the 5 `NEXT_PUBLIC_FIREBASE_*` keys, and updated `.github/workflows/deploy.yml` to idempotently write the 5 public `NEXT_PUBLIC_FIREBASE_*` keys into `/home/loantrack/app/.env` and check for `FIREBASE_SERVICE_ACCOUNT*` on VPS deploy.
+60. **Custom Auction Bell MP3 (`public/assets/bell-sound.mp3`, `lib/chits/bellAudio.ts`)**:
+    - Copied `Downloads/bell sound.mp3` into `public/assets/bell-sound.mp3` and updated `playAuctionBellChime` in `lib/chits/bellAudio.ts` to decode and play `/assets/bell-sound.mp3` through a boosted Web Audio `GainNode` (`1.75×` / `1.90×` on final bell) + `DynamicsCompressorNode` limiter (preserving HTMLAudio and synthesized brass fallbacks).
 

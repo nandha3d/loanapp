@@ -1,8 +1,16 @@
 'use client';
 
+import { withBasePath } from '@/lib/public-path';
+
 const BELL_MUTE_STORAGE_KEY = 'zolofund:chit-bell-muted';
+const BELL_MP3_PATH = '/assets/bell-sound.mp3';
+const BELL_VOLUME_BOOST = 1.75;
 
 let sharedAudioCtx: AudioContext | null = null;
+let bellMp3Buffer: AudioBuffer | null = null;
+let bellMp3FetchPromise: Promise<AudioBuffer | null> | null = null;
+let activeBellSources: AudioBufferSourceNode[] = [];
+let activeFallbackAudio: HTMLAudioElement | null = null;
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -17,6 +25,46 @@ function getAudioContext(): AudioContext | null {
     void sharedAudioCtx.resume().catch(() => {});
   }
   return sharedAudioCtx;
+}
+
+function preloadBellMp3Buffer(ctx: AudioContext): Promise<AudioBuffer | null> {
+  if (bellMp3Buffer) return Promise.resolve(bellMp3Buffer);
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (!bellMp3FetchPromise) {
+    const url = withBasePath(BELL_MP3_PATH);
+    bellMp3FetchPromise = fetch(url, { cache: 'force-cache' })
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .then((ab) => (ab ? ctx.decodeAudioData(ab.slice(0)) : null))
+      .then((decoded) => {
+        if (decoded) bellMp3Buffer = decoded;
+        return decoded;
+      })
+      .catch(() => null)
+      .finally(() => {
+        bellMp3FetchPromise = null;
+      });
+  }
+  return bellMp3FetchPromise;
+}
+
+function stopActiveBellPlayback(): void {
+  for (const src of activeBellSources) {
+    try {
+      src.stop();
+    } catch {
+      // Ignore already stopped sources
+    }
+  }
+  activeBellSources = [];
+  if (activeFallbackAudio) {
+    try {
+      activeFallbackAudio.pause();
+      activeFallbackAudio.currentTime = 0;
+    } catch {
+      // Ignore HTMLAudio cleanup error
+    }
+    activeFallbackAudio = null;
+  }
 }
 
 export function isBellSoundMuted(): boolean {
@@ -38,17 +86,17 @@ export function setBellSoundMuted(muted: boolean): void {
 }
 
 function triggerBrassBellStrike(ctx: AudioContext, startAt: number, accentScale = 1): void {
-  // Multi-harmonic brass chime partials (fundamental + bright bronze overtones)
+  // Fallback multi-harmonic brass chime partials if custom MP3 fails to decode
   const partials = [
-    { freq: 1046.5, amp: 0.24 * accentScale, decay: 1.05 }, // C6 fundamental
-    { freq: 2093.0, amp: 0.14 * accentScale, decay: 0.85 }, // C7 octave
-    { freq: 2888.0, amp: 0.09 * accentScale, decay: 0.55 }, // metallic bronze mode
-    { freq: 4259.0, amp: 0.05 * accentScale, decay: 0.35 }, // crisp shimmer
+    { freq: 1046.5, amp: 0.28 * accentScale, decay: 1.05 },
+    { freq: 2093.0, amp: 0.16 * accentScale, decay: 0.85 },
+    { freq: 2888.0, amp: 0.11 * accentScale, decay: 0.55 },
+    { freq: 4259.0, amp: 0.06 * accentScale, decay: 0.35 },
   ];
 
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, startAt);
-  master.gain.exponentialRampToValueAtTime(0.8, startAt + 0.008);
+  master.gain.exponentialRampToValueAtTime(0.92, startAt + 0.008);
   master.gain.exponentialRampToValueAtTime(0.0001, startAt + 1.15);
   master.connect(ctx.destination);
 
@@ -65,25 +113,58 @@ function triggerBrassBellStrike(ctx: AudioContext, startAt: number, accentScale 
   }
 }
 
-function triggerGavelKnock(ctx: AudioContext, startAt: number): void {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(175, startAt);
-  osc.frequency.exponentialRampToValueAtTime(58, startAt + 0.14);
-  gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.exponentialRampToValueAtTime(0.32, startAt + 0.006);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.2);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(startAt);
-  osc.stop(startAt + 0.22);
+function playBoostedBellBuffer(
+  ctx: AudioContext,
+  buffer: AudioBuffer,
+  bellNumber: number,
+  totalBells: number,
+): boolean {
+  stopActiveBellPlayback();
+
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-3, ctx.currentTime);
+  compressor.knee.setValueAtTime(6, ctx.currentTime);
+  compressor.ratio.setValueAtTime(6, ctx.currentTime);
+  compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+  compressor.release.setValueAtTime(0.15, ctx.currentTime);
+  compressor.connect(ctx.destination);
+
+  const strikeCount =
+    buffer.duration <= 1.8
+      ? bellNumber >= totalBells
+        ? 3
+        : bellNumber === totalBells - 1
+          ? 2
+          : 1
+      : 1;
+  const baseGain =
+    bellNumber >= totalBells ? BELL_VOLUME_BOOST + 0.15 : BELL_VOLUME_BOOST;
+  const now = ctx.currentTime + 0.01;
+
+  for (let i = 0; i < strikeCount; i++) {
+    const startAt = now + i * 0.36;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(baseGain, startAt);
+    src.connect(gain).connect(compressor);
+    src.onended = () => {
+      activeBellSources = activeBellSources.filter((item) => item !== src);
+    };
+    activeBellSources.push(src);
+    src.start(startAt);
+  }
+  return true;
+}
+
+export function preloadAuctionBellSound(): void {
+  const ctx = getAudioContext();
+  if (ctx) void preloadBellMp3Buffer(ctx);
 }
 
 /**
- * Plays a realistic multi-harmonic brass auction bell chime:
- * - Bell 1 ("Going Once"): 1 strike
- * - Bell 2 ("Going Twice"): 2 strikes
- * - Final Bell 3 ("Sold!"): 3 rapid strikes + firm gavel knock
+ * Plays the custom auction bell sound (`/assets/bell-sound.mp3`) amplified via
+ * a Web Audio GainNode + limiter, with HTMLAudio / synthesized brass fallbacks.
  */
 export function playAuctionBellChime(
   bellNumber: number,
@@ -91,37 +172,52 @@ export function playAuctionBellChime(
   opts?: { force?: boolean },
 ): boolean {
   if (!opts?.force && isBellSoundMuted()) return false;
+  if (typeof window === 'undefined') return false;
+
   const ctx = getAudioContext();
-  if (!ctx) return false;
-  const now = ctx.currentTime + 0.02;
+  if (ctx && bellMp3Buffer) {
+    try {
+      return playBoostedBellBuffer(ctx, bellMp3Buffer, bellNumber, totalBells);
+    } catch {
+      // Fall through to HTMLAudio / synth fallback
+    }
+  }
 
   try {
-    if (bellNumber >= totalBells) {
-      triggerBrassBellStrike(ctx, now, 1.0);
-      triggerBrassBellStrike(ctx, now + 0.21, 1.05);
-      triggerBrassBellStrike(ctx, now + 0.42, 1.12);
-      triggerGavelKnock(ctx, now + 0.68);
-    } else if (bellNumber === totalBells - 1) {
-      triggerBrassBellStrike(ctx, now, 0.95);
-      triggerBrassBellStrike(ctx, now + 0.26, 1.0);
-    } else {
-      triggerBrassBellStrike(ctx, now, 0.92);
+    if (ctx) {
+      void preloadBellMp3Buffer(ctx);
     }
+    stopActiveBellPlayback();
+    const audio = new Audio(withBasePath(BELL_MP3_PATH));
+    audio.volume = 1.0;
+    activeFallbackAudio = audio;
+    void audio.play().catch(() => {
+      if (ctx) {
+        triggerBrassBellStrike(ctx, ctx.currentTime + 0.02, 1.0);
+      }
+    });
     return true;
   } catch {
-    return false;
+    if (!ctx) return false;
+    try {
+      triggerBrassBellStrike(ctx, ctx.currentTime + 0.02, 1.0);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
 /**
  * Plays a crisp countdown tick during the final 5 seconds before an automatic auction bell.
- * Final 1s plays a higher urgent pitch so bidders know the bell is about to strike.
+ * Also preloads `/assets/bell-sound.mp3` so the bell strike plays with zero network delay.
  */
 export function playBellCountdownTick(secondLeft: number): boolean {
   if (isBellSoundMuted()) return false;
   if (!(secondLeft >= 1 && secondLeft <= 5)) return false;
   const ctx = getAudioContext();
   if (!ctx) return false;
+  void preloadBellMp3Buffer(ctx);
   const now = ctx.currentTime + 0.01;
   try {
     const osc = ctx.createOscillator();
@@ -129,7 +225,7 @@ export function playBellCountdownTick(secondLeft: number): boolean {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(secondLeft <= 1 ? 1174.66 : secondLeft === 2 ? 987.77 : 880, now);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(secondLeft <= 1 ? 0.14 : 0.09, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(secondLeft <= 1 ? 0.2 : 0.13, now + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
@@ -156,7 +252,7 @@ export function playWinnerConfirmedFanfare(opts?: { force?: boolean }): boolean 
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, start);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.16, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.24, start + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.65);
       osc.connect(gain).connect(ctx.destination);
       osc.start(start);
