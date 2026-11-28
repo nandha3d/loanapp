@@ -36,6 +36,10 @@ import {
 } from '../../lib/chits/bidVoiceAnnouncer';
 import { resolveCustomerRouteMode } from '../../lib/moduleCapabilities';
 import { computeTableCashSummaryFromData } from '../../lib/chits/tableCash';
+import {
+  computeCollectionSeriesFromSubs,
+  computePayoutProgressSummary,
+} from '../../lib/chits/dashboard';
 
 // 1. Fresh standard 1,00,000 chit with 5% commission floor & 35% cap -> auto-starts at 95,000
 const initialBounds = computeAutomatedBidBounds({
@@ -665,6 +669,33 @@ async function runAsyncTests() {
     }),
     0,
   );
+
+  // 21. Server-side Chit Dashboard collection series & payout progress math (STABLE-8)
+  const collSeries = computeCollectionSeriesFromSubs(
+    [
+      { periodNumber: 1, dueAmount: 85_975, paidAmount: 85_975 },
+      { periodNumber: 2, dueAmount: 85_975, paidAmount: 70_000 },
+      { periodNumber: 3, dueAmount: 85_975, paidAmount: 85_725 },
+    ],
+    'Standard Commercial Auction Chit',
+  );
+  assert.equal(collSeries.points.length, 3);
+  assert.equal(collSeries.collectedTotal, 85_725);
+  assert.equal(collSeries.expectedTotal, 85_975);
+  assert.equal(collSeries.collectionPct, 99.71);
+  assert.equal(collSeries.peakPeriodLabel, 'P1');
+
+  const payoutProg = computePayoutProgressSummary({
+    grossPrize: 95_000,
+    arrearsOffset: 28_050,
+    penaltyOffset: 1_000,
+    disbursedAmount: 42_868,
+  });
+  assert.equal(payoutProg.arrearsAndPenaltyOffset, 29_050);
+  assert.equal(payoutProg.netTargetAfterArrears, 65_950);
+  assert.equal(payoutProg.disbursedAmount, 42_868);
+  assert.equal(payoutProg.balancePending, 23_082);
+  assert.equal(payoutProg.payoutProgressPct, 65);
 
   console.log('chit automated bid bounds and monotonic direction tests passed');
 }

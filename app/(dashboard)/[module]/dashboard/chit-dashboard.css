@@ -1,0 +1,515 @@
+/* ===== Executive Theme-Harmonized Chit Funds Dashboard ===== */
+
+.chit-dash-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 1. 5-Card Top KPI Strip */
+.chit-dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chit-dash-kpi {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  text-decoration: none;
+  color: var(--text);
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  overflow: hidden;
+}
+
+.chit-dash-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--primary) 24%, rgba(15, 23, 42, 0.14));
+  text-decoration: none;
+}
+
+.chit-dash-kpi--primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 12px 26px -10px var(--primary-glow);
+}
+
+.chit-dash-kpi--info {
+  background: linear-gradient(135deg, var(--info-bg) 0%, var(--surface) 100%);
+  border-color: color-mix(in srgb, var(--info) 24%, var(--border));
+}
+
+.chit-dash-kpi--success {
+  background: linear-gradient(135deg, var(--success-bg) 0%, var(--surface) 100%);
+  border-color: color-mix(in srgb, var(--success) 26%, var(--border));
+}
+
+.chit-dash-kpi--warning {
+  background: linear-gradient(135deg, var(--warning-bg) 0%, var(--surface) 100%);
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+}
+
+.chit-dash-kpi--danger {
+  background: linear-gradient(135deg, var(--danger-bg) 0%, var(--surface) 100%);
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+}
+
+.chit-dash-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chit-dash-kpi--primary .chit-dash-kpi-icon {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.chit-dash-kpi--info .chit-dash-kpi-icon {
+  background: color-mix(in srgb, var(--info) 16%, transparent);
+  color: var(--info);
+}
+
+.chit-dash-kpi--success .chit-dash-kpi-icon {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
+.chit-dash-kpi--warning .chit-dash-kpi-icon {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.chit-dash-kpi--danger .chit-dash-kpi-icon {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.chit-dash-kpi-val {
+  font-size: 1.55rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.chit-dash-kpi-lbl {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.chit-dash-kpi--primary .chit-dash-kpi-lbl {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* 2. Row 2: Live Auction Hero + Group Overview */
+.chit-dash-row2 {
+  display: grid;
+  grid-template-columns: 1.38fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.chit-dash-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 20px 22px;
+  color: #ffffff;
+  background: linear-gradient(
+    130deg,
+    color-mix(in srgb, var(--primary-dark) 92%, #07130d) 0%,
+    var(--primary-dark) 48%,
+    var(--primary) 100%
+  );
+  box-shadow: 0 16px 34px -14px var(--primary-glow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chit-dash-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 86% 24%, rgba(255, 255, 255, 0.16) 0%, transparent 42%),
+    radial-gradient(circle at 12% 90%, rgba(255, 255, 255, 0.1) 0%, transparent 44%);
+  pointer-events: none;
+}
+
+.chit-dash-hero-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.chit-dash-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.chit-dash-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.3);
+}
+
+.chit-dash-live-dot--hot {
+  background: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+}
+
+.chit-dash-hero-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background var(--transition);
+}
+
+.chit-dash-hero-action:hover {
+  background: rgba(255, 255, 255, 0.28);
+  text-decoration: none;
+}
+
+.chit-dash-hero-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.chit-dash-hero-title {
+  margin: 0;
+  font-size: 1.48rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.chit-dash-hero-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.chit-dash-hero-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chit-dash-hero-emblem {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent-gold, #fde68a);
+}
+
+.chit-dash-hero-stats {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.15fr;
+  gap: 10px;
+}
+
+.chit-dash-hero-stat-box {
+  background: rgba(15, 23, 42, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  padding: 11px 13px;
+}
+
+.chit-dash-hero-stat-box--leader {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.24) 0%, rgba(15, 23, 42, 0.34) 100%);
+  border-color: rgba(251, 191, 36, 0.38);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chit-dash-hero-stat-lbl {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.chit-dash-hero-stat-val {
+  margin-top: 3px;
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3. Shared Executive Cards */
+.chit-dash-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.chit-dash-card-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.chit-dash-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.chit-dash-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--primary-tint);
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chit-dash-view-all {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chit-dash-row3 {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.chit-dash-row4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Key-value rows inside Settlement & Payout */
+.chit-dash-kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+}
+
+.chit-dash-kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.84rem;
+}
+
+.chit-dash-kv-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.chit-dash-kv-lbl {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chit-dash-kv-val {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chit-dash-net-banner {
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.chit-dash-net-banner--solid {
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.chit-dash-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin: 8px 0 12px;
+}
+
+.chit-dash-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--success) 100%);
+}
+
+/* Upcoming auction row */
+.chit-dash-upcoming-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.chit-dash-upcoming-item:hover {
+  border-color: var(--primary-border);
+  background: var(--primary-light);
+  text-decoration: none;
+}
+
+.chit-dash-cal-badge {
+  width: 44px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--primary-tint);
+  border: 1px solid var(--primary-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chit-dash-cal-month {
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+  line-height: 1;
+}
+
+.chit-dash-cal-day {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.chit-dash-day-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--warning-bg);
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.chit-dash-day-chip--today {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1240px) {
+  .chit-dash-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .chit-dash-row2 {
+    grid-template-columns: 1fr;
+  }
+  .chit-dash-row3,
+  .chit-dash-row4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .chit-dash-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chit-dash-hero-stats {
+    grid-template-columns: 1fr;
+  }
+  .chit-dash-row3,
+  .chit-dash-row4 {
+    grid-template-columns: 1fr;
+  }
+}

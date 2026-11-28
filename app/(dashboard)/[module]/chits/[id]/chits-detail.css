@@ -221,6 +221,73 @@
   color: var(--primary-dark);
 }
 
+/* Section Tab Navigation Bar under Info KPIs */
+.chit-detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chit-detail-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.chit-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.chit-detail-tab:hover {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.chit-detail-tab--active {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px -6px var(--primary-glow);
+}
+
+.chit-detail-tab--active:hover {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #ffffff;
+}
+
+.chit-detail-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.chit-detail-tab--active .chit-detail-tab-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
 @media (max-width: 1024px) {
   .chit-detail-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

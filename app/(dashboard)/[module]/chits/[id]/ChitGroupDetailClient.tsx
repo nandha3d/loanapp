@@ -97,9 +97,7 @@ export default function ChitGroupDetailClient({
   const router = useRouter();
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
   const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(lang));
-  const [membersTableOpen, setMembersTableOpen] = useState<boolean>(
-    () => !(dividendLedger && dividendLedger.memberStatements.length > 0 && group.members.length > 0),
-  );
+  const [membersTableOpen, setMembersTableOpen] = useState<boolean>(true);
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [memberModal, setMemberModal] = useState<any>(null);
   const [payAmount, setPayAmount] = useState(0);
@@ -136,6 +134,9 @@ export default function ChitGroupDetailClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [detailTab, setDetailTab] = useState<
+    'overview' | 'auctions' | 'ledger' | 'members' | 'payments' | 'registers'
+  >('overview');
   const [subTab, setSubTab] = useState<'current' | 'overdue' | 'all'>('current');
   const periodNumbers = Array.from(
     new Set<number>(
@@ -442,7 +443,83 @@ export default function ChitGroupDetailClient({
         </div>
       </section>
 
-      {/* Configuration & Winner Insights */}
+      {/* Tab Navigation Under KPI Info Boxes */}
+      <nav className="chit-detail-tabs" aria-label="Chit group sections" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'overview'}
+          onClick={() => setDetailTab('overview')}
+          className={`chit-detail-tab${detailTab === 'overview' ? ' chit-detail-tab--active' : ''}`}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '17px' }}>tune</span>
+          <span>{d.tabOverview || 'Overview & Rules'}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'auctions'}
+          onClick={() => setDetailTab('auctions')}
+          className={`chit-detail-tab${detailTab === 'auctions' ? ' chit-detail-tab--active' : ''}`}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '17px' }}>gavel</span>
+          <span>{d.tabAuctions || 'Auctions'}</span>
+          <span className="chit-detail-tab-badge">{group.auctions.length}</span>
+        </button>
+
+        {(dividendLedger || engineType === 'ASCA_SHG_REVOLVING') && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={detailTab === 'ledger'}
+            onClick={() => setDetailTab('ledger')}
+            className={`chit-detail-tab${detailTab === 'ledger' ? ' chit-detail-tab--active' : ''}`}
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '17px' }}>account_balance</span>
+            <span>{d.tabLedger || 'Dividend Ledger'}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'members'}
+          onClick={() => setDetailTab('members')}
+          className={`chit-detail-tab${detailTab === 'members' ? ' chit-detail-tab--active' : ''}`}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '17px' }}>groups</span>
+          <span>{d.tabMembers || 'Members'}</span>
+          <span className="chit-detail-tab-badge">
+            {group.members.length}/{group.totalMembers}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'payments'}
+          onClick={() => setDetailTab('payments')}
+          className={`chit-detail-tab${detailTab === 'payments' ? ' chit-detail-tab--active' : ''}`}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '17px' }}>payments</span>
+          <span>{d.tabPayments || 'Payments & Proofs'}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={detailTab === 'registers'}
+          onClick={() => setDetailTab('registers')}
+          className={`chit-detail-tab${detailTab === 'registers' ? ' chit-detail-tab--active' : ''}`}
+        >
+          <span className="material-icons-outlined" style={{ fontSize: '17px' }}>description</span>
+          <span>{d.tabRegisters || 'Statutory Registers'}</span>
+        </button>
+      </nav>
+
+      {/* Tab 1: Overview & Rules */}
+      {detailTab === 'overview' && (
       <div className="grid-60-40">
         <div className="chit-detail-card">
           <div className="chit-detail-card-head">
@@ -741,19 +818,22 @@ export default function ChitGroupDetailClient({
           </div>
         </div>
       </div>
-
-      {/* Detailed Chit & Member Dividend Ledger (post-chit & live breakdown) */}
-      {dividendLedger && (
-        <MemberDividendLedgerPanel
-          ledger={dividendLedger}
-          currencySymbol={currencySymbol}
-          lang={lang}
-          dict={dict}
-        />
       )}
 
-      {/* ASCA / SHG Revolving Pool Transactions */}
-      {engineType === 'ASCA_SHG_REVOLVING' && (
+      {/* Tab 3: Detailed Chit & Member Dividend Ledger + ASCA Pool */}
+      {detailTab === 'ledger' && (
+        <>
+          {dividendLedger && (
+            <MemberDividendLedgerPanel
+              ledger={dividendLedger}
+              currencySymbol={currencySymbol}
+              lang={lang}
+              dict={dict}
+            />
+          )}
+
+          {/* ASCA / SHG Revolving Pool Transactions */}
+          {engineType === 'ASCA_SHG_REVOLVING' && (
         <div className="chit-detail-card">
           <div className="chit-detail-card-head"><h3>🤝 ASCA / SHG Revolving Pool Ledger</h3></div>
           <form
@@ -818,9 +898,12 @@ export default function ChitGroupDetailClient({
             </div>
           )}
         </div>
+          )}
+        </>
       )}
 
-      {/* Auctions */}
+      {/* Tab 2: Auctions */}
+      {detailTab === 'auctions' && (
       <div className="chit-detail-card">
         <div className="chit-detail-card-head">
           <h3>🔨 {d.auctionHistory || ui.auctionHistoryTitle}</h3>
@@ -912,9 +995,10 @@ export default function ChitGroupDetailClient({
           </div>
         )}
       </div>
+      )}
 
-      {/* Members: Hidden completely when all seats are filled, signed & verified and the primary ledger table is visible; otherwise collapsible/expandable */}
-      {!(allMembersVerifiedAndFull && hasPrimaryLedgerTable) && (
+      {/* Tab 4: Members */}
+      {detailTab === 'members' && (
         <div className="chit-detail-card">
           <div className="chit-detail-card-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1059,6 +1143,9 @@ export default function ChitGroupDetailClient({
         </div>
       )}
 
+      {/* Tab 5: Payments & Proofs */}
+      {detailTab === 'payments' && (
+        <>
       {/* Doc 19: customer-submitted payment proofs awaiting review, scoped to this group */}
       <div className="chit-detail-card">
         <div className="chit-detail-card-head"><h3>🧾 {ui.paymentProofsTitle}</h3></div>
@@ -1236,6 +1323,8 @@ export default function ChitGroupDetailClient({
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* Payment Modal */}
       {paymentModal && (
@@ -1518,7 +1607,8 @@ export default function ChitGroupDetailClient({
         </div>
       )}
 
-      {/* Task 7: State-Configurable Statutory Registers (Enterprise) */}
+      {/* Tab 6: State-Configurable Statutory Registers (Enterprise) */}
+      {detailTab === 'registers' && (
       <div className="chit-detail-card" data-testid="statutory-registers-card">
         <div className="chit-detail-card-head">
           <div>
@@ -1595,6 +1685,7 @@ export default function ChitGroupDetailClient({
           })}
         </div>
       </div>
+      )}
 
       {/* Themed Group Cancel / Delete Confirmation Modal */}
       {confirmGroupAction && (
