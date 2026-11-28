@@ -7,6 +7,7 @@ import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { createRoute } from '../../settings/actions';
 import { usePathname, useRouter } from 'next/navigation';
 import { compressFormDataImages } from '@/lib/imageCompression';
+import { resolveCustomerRouteMode, type CustomerRouteMode } from '@/lib/moduleCapabilities';
 
 interface CustomerFormProps {
   appType: string;
@@ -16,13 +17,15 @@ interface CustomerFormProps {
   onSuccess?: (customer: any) => void;
   dict: any;
   viewerRole?: string;
+  routeMode?: CustomerRouteMode;
 }
 
-export default function CustomerForm({ appType, routes: initialRoutes, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
+export default function CustomerForm({ appType, routes: initialRoutes, customer, onSuccess, dict, viewerRole, routeMode }: CustomerFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const isChit = appType === 'chitfunds';
+  const effectiveRouteMode = routeMode ?? resolveCustomerRouteMode(appType);
   const isAgentViewer = viewerRole === 'agent';
   const [localRoutes, setLocalRoutes] = useState(initialRoutes);
   const [selectedRouteId, setSelectedRouteId] = useState(customer?.routeId || '');
@@ -379,31 +382,56 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
           </div>
         </div>
 
-        {/* Box 2: Route / Line Assignment */}
-        <div className="card" style={{ border: '1px solid var(--border)' }}>
-          <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
-              <span className="material-icons-outlined">alt_route</span> 🗺️ {dict.customers.routeAssignment || 'Route / Line Assignment'}
-            </h3>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label className="form-label" style={{ margin: 0 }}>{dict.customers.route} *</label>
-              {!isAgentViewer && (
-                <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
-                  + New Route
-                </button>
+        {/* Box 2: Route / Line Assignment (configurable per module in Settings) */}
+        {effectiveRouteMode === 'DISABLED' ? (
+          selectedRouteId ? <input type="hidden" name="routeId" value={selectedRouteId} /> : null
+        ) : (
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">alt_route</span> 🗺️ {dict.customers.routeAssignment || 'Route / Line Assignment'}
+                {effectiveRouteMode === 'ENABLED_OPTIONAL' && (
+                  <span style={{ fontSize: '.74rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                    (Optional)
+                  </span>
+                )}
+              </h3>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="form-label" style={{ margin: 0 }}>
+                  {dict.customers.route}
+                  {effectiveRouteMode === 'ENABLED_REQUIRED' ? ' *' : ' (Optional)'}
+                </label>
+                {!isAgentViewer && (
+                  <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
+                    + New Route
+                  </button>
+                )}
+              </div>
+              <select
+                name="routeId"
+                className="form-control"
+                value={selectedRouteId}
+                onChange={e => setSelectedRouteId(e.target.value)}
+                required={effectiveRouteMode === 'ENABLED_REQUIRED'}
+                style={{ fontSize: '1rem', padding: '12px' }}
+              >
+                <option value="">
+                  {effectiveRouteMode === 'ENABLED_OPTIONAL'
+                    ? 'None — No Route Assigned'
+                    : isAgentViewer
+                      ? 'Select your route / line'
+                      : 'Select Route'}
+                </option>
+                {localRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              {isAgentViewer && localRoutes.length === 0 && effectiveRouteMode === 'ENABLED_REQUIRED' && (
+                <small style={{ color: 'var(--danger)', display: 'block', marginTop: '6px' }}>No route assigned to you yet. Ask an admin to assign you a route in Settings.</small>
               )}
             </div>
-            <select name="routeId" className="form-control" value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">{isAgentViewer ? 'Select your route / line' : 'Select Route'}</option>
-              {localRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            {isAgentViewer && localRoutes.length === 0 && (
-              <small style={{ color: 'var(--danger)', display: 'block', marginTop: '6px' }}>No route assigned to you yet. Ask an admin to assign you a route in Settings.</small>
-            )}
           </div>
-        </div>
+        )}
 
         {!isChit && (
           /* Box 3: Company / Business Details */

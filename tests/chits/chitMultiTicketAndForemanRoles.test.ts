@@ -84,6 +84,19 @@ assert.equal(serializeStaffPermissions(coForemanPerms), JSON.stringify(coForeman
 assert.equal(canApproveChitSecurity('admin', null), false);
 assert.equal(canReleaseChitPayout('admin', null), false);
 assert.equal(canApproveChitSecurity('superadmin', null), true);
+assert.equal(canReleaseChitPayout('superadmin', null), true);
+
+// Tenant-wide Superadmin policy toggles enable Admin approval & payout when switched ON
+assert.equal(canApproveChitSecurity('admin', null, { adminCanApproveSecurity: true }), true);
+assert.equal(canApproveChitSecurity('admin', null, { adminCanApproveSecurity: false }), false);
+assert.equal(canReleaseChitPayout('admin', null, { adminCanReleasePayout: true }), true);
+assert.equal(canReleaseChitPayout('admin', null, { adminCanReleasePayout: false }), false);
+// Per-admin staffPermissions override also works even when tenant-wide policy is OFF
+assert.equal(canApproveChitSecurity('admin', parseStaffPermissions({ canApproveSecurity: true })), true);
+assert.equal(canReleaseChitPayout('admin', parseStaffPermissions({ canReleasePayout: true })), true);
+// Foreman / Staff (agent) remain scoped by their own staffPermissions, unaffected by Admin tenant toggle
+assert.equal(canApproveChitSecurity('agent', null, { adminCanApproveSecurity: true }), false);
+assert.equal(canReleaseChitPayout('agent', null, { adminCanReleasePayout: true }), false);
 
 // 3. Auto-tenure localization across all 6 languages & frequencies
 const LANGS: SupportedChitLang[] = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];

@@ -47,6 +47,23 @@ class ChitsScreen extends ConsumerWidget {
               context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
         actions: [
+          Builder(builder: (ctx) {
+            final syncState = ref.watch(chitPaymentSyncProvider);
+            final badgeCount = syncState.pending + syncState.failed + syncState.conflict;
+            return IconButton(
+              icon: Badge(
+                isLabelVisible: badgeCount > 0,
+                label: Text('$badgeCount'),
+                child: Icon(
+                  syncState.online
+                      ? Icons.cloud_sync_outlined
+                      : Icons.cloud_off_outlined,
+                ),
+              ),
+              tooltip: 'Offline Collection Queue',
+              onPressed: () => ctx.push('/chits/offline-queue'),
+            );
+          }),
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined),
             tooltip: 'Payment proofs',

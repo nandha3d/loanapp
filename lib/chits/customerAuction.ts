@@ -102,16 +102,16 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   const reserveFloorPct =
     engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
       ? calculateReserveFloor({
-          chitValue: chitValueNum,
-          totalPeriods: auction.chitGroup.totalMembers,
-          periodNumber: auction.periodNumber,
-          reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
-          maxDiscountPct: engineCfg.discountRules.uncapped
-            ? null
-            : auction.chitGroup.maxDiscountPct != null
-              ? Number(auction.chitGroup.maxDiscountPct)
-              : null,
-        }).reserveFloorPct
+        chitValue: chitValueNum,
+        totalPeriods: auction.chitGroup.totalMembers,
+        periodNumber: auction.periodNumber,
+        reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+        maxDiscountPct: engineCfg.discountRules.uncapped
+          ? null
+          : auction.chitGroup.maxDiscountPct != null
+            ? Number(auction.chitGroup.maxDiscountPct)
+            : null,
+      }).reserveFloorPct
       : null;
 
   const floorDiscount = startingDiscountAmount(chitValueNum, {
@@ -133,6 +133,7 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
     reserveFloorPct,
     uncapped: engineType === 'AUCTION_UNCAPPED_ENTERPRISE' || engineCfg.discountRules.uncapped,
     bidIncrement: increment,
+    strictBidMultiple: Boolean(engineCfg.discountRules.strictBidMultiple),
     currentHighestDiscount: highestBid ? Number(highestBid.bidDiscount) : 0,
     auctionType: auction.chitGroup.auctionType,
   });
@@ -165,12 +166,17 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   });
 
   const bell = await buildBellState(auction);
+  const voiceSettings = {
+    language: engineCfg.voiceSettings?.language ?? 'en',
+    allowMemberChange: Boolean(engineCfg.voiceSettings?.allowMemberChange),
+  };
 
   return {
     roomStatus: auction.roomStatus,
     auctionStatus: auction.status,
     auctionType: auction.chitGroup.auctionType,
     roomAdmission: auction.chitGroup.roomAdmission,
+    voiceSettings,
     serverTime: now,
     biddingClosesAt: auction.biddingClosesAt,
     secondsRemaining: secondsRemaining(auction, now),

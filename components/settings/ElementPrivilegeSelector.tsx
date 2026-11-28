@@ -16,6 +16,8 @@ interface ElementPrivilegeSelectorProps {
   onChange: (next: StaffPermissions) => void;
   title?: string;
   subtitle?: string;
+  restrictedKeys?: StaffPermissionKey[];
+  restrictedHint?: string;
 }
 
 export default function ElementPrivilegeSelector({
@@ -23,8 +25,11 @@ export default function ElementPrivilegeSelector({
   onChange,
   title = 'Element-Level Privilege Selector',
   subtitle = 'Enable or disable each portal page, chit workflow, and UI action individually.',
+  restrictedKeys = [],
+  restrictedHint = 'Superadmin only',
 }: ElementPrivilegeSelectorProps) {
   const [filterText, setFilterText] = useState('');
+  const restrictedSet = useMemo(() => new Set(restrictedKeys), [restrictedKeys]);
 
   const enabledTotal = useMemo(
     () => ALL_STAFF_PERMISSION_KEYS.filter((k) => Boolean(value[k])).length,
@@ -32,6 +37,7 @@ export default function ElementPrivilegeSelector({
   );
 
   const toggleKey = (key: StaffPermissionKey, nextVal: boolean) => {
+    if (restrictedSet.has(key)) return;
     onChange({
       ...value,
       [key]: nextVal,
@@ -41,7 +47,7 @@ export default function ElementPrivilegeSelector({
   const setAll = (enabled: boolean) => {
     const next: StaffPermissions = { ...EMPTY_STAFF_PERMISSIONS };
     for (const key of ALL_STAFF_PERMISSION_KEYS) {
-      next[key] = enabled;
+      next[key] = restrictedSet.has(key) ? Boolean(value[key]) : enabled;
     }
     onChange(next);
   };
@@ -49,7 +55,7 @@ export default function ElementPrivilegeSelector({
   const setGroupAll = (group: StaffPermissionGroupKey, enabled: boolean) => {
     const next: StaffPermissions = { ...value };
     for (const meta of STAFF_PERMISSION_META) {
-      if (meta.group === group) {
+      if (meta.group === group && !restrictedSet.has(meta.key)) {
         next[meta.key] = enabled;
       }
     }
@@ -252,12 +258,15 @@ export default function ElementPrivilegeSelector({
               >
                 {groupItems.map((pm) => {
                   const checked = Boolean(value[pm.key]);
+                  const isRestricted = restrictedSet.has(pm.key);
                   return (
                     <button
                       key={pm.key}
                       type="button"
                       role="switch"
                       aria-checked={checked}
+                      disabled={isRestricted}
+                      title={isRestricted ? restrictedHint : pm.description}
                       onClick={() => toggleKey(pm.key, !checked)}
                       style={{
                         textAlign: 'left',
@@ -271,7 +280,8 @@ export default function ElementPrivilegeSelector({
                           ? '1.5px solid var(--primary)'
                           : '1px solid #DCE3EC',
                         backgroundColor: checked ? 'var(--primary-light)' : '#F8FAFC',
-                        cursor: 'pointer',
+                        cursor: isRestricted ? 'not-allowed' : 'pointer',
+                        opacity: isRestricted ? 0.65 : 1,
                         transition: 'all .14s ease',
                       }}
                     >
@@ -282,9 +292,27 @@ export default function ElementPrivilegeSelector({
                             fontWeight: 700,
                             color: checked ? 'var(--primary-dark)' : '#0F172A',
                             lineHeight: 1.25,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            flexWrap: 'wrap',
                           }}
                         >
-                          {pm.label}
+                          <span>{pm.label}</span>
+                          {isRestricted && (
+                            <span
+                              style={{
+                                fontSize: '.64rem',
+                                padding: '1px 6px',
+                                borderRadius: '999px',
+                                backgroundColor: '#E2E8F0',
+                                color: '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              🔒 {restrictedHint}
+                            </span>
+                          )}
                         </div>
                         <div
                           style={{

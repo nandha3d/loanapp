@@ -1,10 +1,11 @@
 import { serverFetch } from '@/lib/api-client/server';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import CustomerForm from './CustomerForm';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
+import { customerRouteSettingKey, resolveCustomerRouteMode } from '@/lib/moduleCapabilities';
 
 export default async function NewCustomerPage({
   searchParams
@@ -18,11 +19,13 @@ export default async function NewCustomerPage({
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
   
-  const [routesRes, agentsRes] = await Promise.all([
+  const [routesRes, agentsRes, rawRouteMode] = await Promise.all([
     serverFetch<any>('/routes'),
-    serverFetch<any>('/agents')
+    serverFetch<any>('/agents'),
+    getSetting(tenantId, customerRouteSettingKey(appType)),
   ]);
 
+  const routeMode = resolveCustomerRouteMode(appType, rawRouteMode);
   const routes = routesRes?.data || routesRes || [];
   const agents = agentsRes?.data || agentsRes || [];
 
@@ -44,6 +47,6 @@ export default async function NewCustomerPage({
     }
   }
 
-  return <CustomerForm appType={appType} routes={routes} agents={agents} customer={customer} dict={dict} viewerRole={userRole} />;
+  return <CustomerForm appType={appType} routes={routes} agents={agents} customer={customer} dict={dict} viewerRole={userRole} routeMode={routeMode} />;
 }
 

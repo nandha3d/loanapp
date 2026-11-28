@@ -20,7 +20,7 @@ import { generateAuctionMinutes } from './auction';
 import { formatCashDenominationsSummary, normalizeCashDenominations } from './payout';
 import { SECURITY_DOCUMENT_LABELS, getSecurityTypeSpec } from './securityTypes';
 import { ensurePdfFonts, resolvePdfLang, type PdfLang } from '../reports/pdfFonts';
-import { getPeriodReportCopy } from './periodReportI18n';
+import { getPeriodReportCopy, type PeriodReportCopy } from './periodReportI18n';
 import type { ChitScope } from './types';
 
 export interface CashDenominationEntry {
@@ -191,6 +191,9 @@ export interface ChitPeriodReportData {
     rows: ChitPeriodSettlementRow[];
     totalDisbursedToWinner: number;
     remainingPayoutBalance: number;
+    arrearsDeductedAmount: number;
+    penaltyDeductedAmount: number;
+    netPayableAmount: number;
     dividendReceiptNo: string | null;
   };
 
@@ -238,8 +241,9 @@ const MODE_LABELS: Record<string, string> = {
   nach: 'NACH / Auto-Debit',
 };
 
-function labelMode(mode: string | null | undefined): string {
+function labelMode(mode: string | null | undefined, copy?: PeriodReportCopy): string {
   const key = (mode ?? 'cash').toLowerCase();
+  if (copy?.modeLabels?.[key]) return copy.modeLabels[key];
   return MODE_LABELS[key] ?? key.toUpperCase();
 }
 
@@ -297,11 +301,10 @@ export function buildTemplateStatementCopy(params: {
   reserveFloorAmount: number | null;
   breakdown: ChitPeriodCalculationBreakdown;
   sym: string;
+  copy?: PeriodReportCopy;
 }) {
   const {
     engineType,
-    chitValue,
-    bidDiscount,
     discountPct,
     grossPrize,
     prizePayoutTotal,
@@ -326,6 +329,7 @@ export function buildTemplateStatementCopy(params: {
     reserveFloorAmount,
     breakdown,
     sym,
+    copy = getPeriodReportCopy('en'),
   } = params;
 
   const isAccumulationGoldOrGoods = [
@@ -334,103 +338,123 @@ export function buildTemplateStatementCopy(params: {
     'FESTIVAL_COMMODITY',
   ].includes(engineType);
 
-  let row2Title = `Winning Bid Discount (${discountPct.toFixed(2)}% of Chit Value)`;
-  let row2Note = `Gross Prize = Chit Value - Bid Discount = ${fmtInr(grossPrize, sym)}`;
+  let row2Title = copy.row2WinningBid(discountPct.toFixed(2));
+  let row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   if (engineType === 'AUCTION_MULTI_DIVISION') {
-    row2Title = `Pooled Auction Discounts (${winnerCount} winners in cycle)`;
-    row2Note = `Combined Payout = ${fmtInr(prizePayoutTotal, sym)} (Avg ${fmtInr(grossPrize, sym)}/winner)`;
+    row2Title = copy.row2MultiDivTitle(winnerCount);
+    row2Note = copy.row2MultiDivNote(fmtInr(prizePayoutTotal, sym), fmtInr(grossPrize, sym));
   } else if (engineType === 'AUCTION_RESERVE_PRICE') {
-    row2Title = `Winning Bid Discount (${discountPct.toFixed(2)}%)`;
-    row2Note = `Gross Prize = ${fmtInr(grossPrize, sym)}${reserveFloorAmount != null ? ` · Min Reserve Floor R_t = ${fmtInr(reserveFloorAmount, sym)}` : ''}`;
+    row2Title = copy.row2WinningBid(discountPct.toFixed(2));
+    row2Note = copy.row2ReserveNote(
+      fmtInr(grossPrize, sym),
+      reserveFloorAmount != null ? fmtInr(reserveFloorAmount, sym) : null,
+    );
   } else if (engineType === 'HYBRID_SPLIT_PHASE') {
     row2Title =
       hybridPhase === 'reserved'
-        ? `Reserved-Phase Fixed Discount (${discountPct.toFixed(2)}%)`
-        : `Live-Auction Bid Discount (${discountPct.toFixed(2)}%)`;
-    row2Note = `Phase: ${hybridPhase === 'reserved' ? 'RESERVED (No Auction)' : 'AUCTION'} · Gross Prize = ${fmtInr(grossPrize, sym)}`;
+        ? copy.row2FixedDeduction(discountPct.toFixed(2))
+        : copy.row2WinningBid(discountPct.toFixed(2));
+    row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   } else if (engineType === 'BASE_PLUS_PREMIUM') {
-    row2Title = `Pot Adjustment / Discount (${discountPct.toFixed(2)}%)`;
-    row2Note = `Base ${fmtInr(baseInstallment, sym)} + Prized Premium ${fmtInr(breakdown.basePlusPremiumDetails?.prizedInstalment ? breakdown.basePlusPremiumDetails.prizedInstalment - breakdown.basePlusPremiumDetails.nonPrizedInstalment : 0, sym)} · Payout = ${fmtInr(grossPrize, sym)}`;
+    row2Title = copy.row2FixedDeduction(discountPct.toFixed(2));
+    row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   } else if (engineType === 'FIXED_CHART_ESCALATING') {
-    row2Title = `Chart Discount / Escalation Adjustment`;
-    row2Note = `Scheduled Chart Payout = ${fmtInr(grossPrize, sym)} (${grossPrize > chitValue ? 'includes maturity escalation above pot' : 'from published table'})`;
+    row2Title = copy.row2FixedDeduction(discountPct.toFixed(2));
+    row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   } else if (engineType === 'FIXED_DIVIDEND') {
-    row2Title = `Pre-Fixed Discount Offset (${discountPct.toFixed(2)}%)`;
-    row2Note = `Pre-published fixed dividend payout = ${fmtInr(grossPrize, sym)}`;
+    row2Title = copy.row2FixedDeduction(discountPct.toFixed(2));
+    row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   } else if (engineType === 'FIXED_PAYOUT_VARIABLE_PAY' || engineType === 'CUSTOM_MANUAL_SCHEDULE') {
-    row2Title = `Schedule Payout Deduction / Offset`;
-    row2Note = `Scheduled Payout = ${fmtInr(grossPrize, sym)} (Non-prized ${fmtInr(netMemberInstallment, sym)} / Prized ${fmtInr(prizedMemberInstallment, sym)})`;
+    row2Title = copy.row2FixedDeduction(discountPct.toFixed(2));
+    row2Note = copy.row2GrossPrizeNote(fmtInr(grossPrize, sym));
   } else if (engineType === 'PURE_LOTTERY' || engineType === 'FIXED_ROTATION' || engineType === 'NEED_BASED_CONSENSUS') {
-    row2Title = `Fixed Deduction / Discount (${discountPct.toFixed(2)}%)`;
-    row2Note = `No bidding (${ENGINE_SECTION_TITLES[engineType]?.split(' Settlement')[0] ?? engineType}) · Pot Payout = ${fmtInr(grossPrize, sym)}`;
+    row2Title = copy.row2FixedDeduction(discountPct.toFixed(2));
+    row2Note = copy.row2NoBiddingNote(
+      copy.engineTitles[engineType] ?? ENGINE_SECTION_TITLES[engineType] ?? engineType,
+      fmtInr(grossPrize, sym),
+    );
   } else if (engineType === 'GOLD_WEIGHT_ACCUMULATION') {
-    row2Title = `Bullion Rate Lock & Discount Offset`;
+    row2Title = copy.engineTitles[engineType] ?? `Bullion Rate Lock & Discount Offset`;
     row2Note = `Rate: ${fmtInr(breakdown.goldDetails?.goldRatePerGram ?? 0, sym)}/g · Credit: ${breakdown.goldDetails?.gramsPerFullTicket ?? 0} g/ticket`;
   } else if (engineType === 'GOLD_VALUE_ACCUMULATION') {
-    row2Title = `Merchant Scheme Adjustment / Discount`;
+    row2Title = copy.engineTitles[engineType] ?? `Merchant Scheme Adjustment / Discount`;
     row2Note = `Maturity Bonus: ${breakdown.goldDetails?.bonusMonths ?? 0} mo / ${breakdown.goldDetails?.bonusPct ?? 0}%`;
   } else if (engineType === 'FESTIVAL_COMMODITY') {
-    row2Title = `Hamper Scheme Offset / Discount`;
+    row2Title = copy.engineTitles[engineType] ?? `Hamper Scheme Offset / Discount`;
     row2Note = `Merchant Bonus: ${breakdown.commodityDetails?.merchantBonusPct ?? 0}% · ${breakdown.commodityDetails?.itemsSummary ?? 'Commodity goods'}`;
   } else if (engineType === 'ASCA_SHG_REVOLVING') {
-    row2Title = `Revolving Internal Loan Pool Adjustment`;
+    row2Title = copy.engineTitles[engineType] ?? `Revolving Internal Loan Pool Adjustment`;
     row2Note = `Monthly Loan Interest: ${breakdown.ascaDetails?.monthlyLoanInterestPct ?? 0}% · Admin Exp: ${fmtInr(breakdown.ascaDetails?.adminExpensePerCycle ?? 0, sym)}`;
   }
 
   const row3Title =
     foremanMode === 'ZERO_COMMISSION' || commission === 0
-      ? `Foreman Commission (${foremanMode} — 0%)`
+      ? copy.row3ZeroComm(foremanMode)
       : foremanMode === 'FLAT_FEE'
-        ? `Foreman Flat Fee (${fmtInr(breakdown.flatFeeAmount, sym)})`
+        ? copy.row3FlatFee(fmtInr(breakdown.flatFeeAmount, sym))
         : foremanMode === 'FREE_TICKET_CYCLE_1' || foremanMode === 'FREE_TICKET_CYCLE_2'
-          ? `Foreman Free-Ticket Pot (${foremanMode})`
-          : `Foreman Commission (${commissionPct}% on ${commissionBasis})`;
+          ? copy.row3FreeTicket(foremanMode)
+          : copy.row3CommOnBasis(commissionPct, commissionBasis);
 
-  let row4Title = `Net Dividend per Ticket (${eligibleTickets} eligible tickets)`;
-  let row4Note = `Distributable Pool ${fmtInr(distributableDividend, sym)} (${fmtInr(grossDiscountSharePerTicket, sym)} share - ${fmtInr(foremanFeePerTicket, sym)} fee)`;
+  let row4Title = copy.row4NetDivTitle(eligibleTickets);
+  let row4Note = copy.row4PoolNote(
+    fmtInr(distributableDividend, sym),
+    fmtInr(grossDiscountSharePerTicket, sym),
+    fmtInr(foremanFeePerTicket, sym),
+  );
   if (dividendPolicy === 'NONE' || dividendDistribution === 'NONE' || isAccumulationGoldOrGoods) {
-    row4Title = isAccumulationGoldOrGoods
-      ? 'Member Dividend (Maturity Bonus / Bullion Model)'
-      : 'Net Dividend per Ticket (No Cycle Dividend)';
+    row4Title = isAccumulationGoldOrGoods ? copy.row4NoDivAccumTitle : copy.row4NoDivTitle;
     row4Note =
       engineType === 'GOLD_WEIGHT_ACCUMULATION'
-        ? `Credited as ${breakdown.goldDetails?.gramsPerFullTicket ?? 0} g gold weight per ticket`
-        : engineType === 'GOLD_VALUE_ACCUMULATION' || engineType === 'FESTIVAL_COMMODITY'
-          ? 'Benefit delivered via maturity bonus / commodity value at scheme end'
-          : `Dividend Policy: ${dividendPolicy} · Distribution: ${dividendDistribution}`;
+        ? `${breakdown.goldDetails?.gramsPerFullTicket ?? 0} g`
+        : `${dividendPolicy} · ${dividendDistribution}`;
   } else if (dividendDistribution === 'DEFERRED_BONUS_POOL' || dividendDistribution === 'ACCUMULATE') {
-    row4Title = `Deferred Dividend / Bonus Credit per Ticket (${eligibleTickets} eligible)`;
-    row4Note = `Accumulated (${dividendDistribution}): ${fmtInr(distributableDividend, sym)} pool retained for maturity`;
+    row4Title = copy.row4DeferredTitle(eligibleTickets);
+    row4Note = copy.row4DeferredNote(dividendDistribution, fmtInr(distributableDividend, sym));
   } else if (engineType === 'FIXED_DIVIDEND') {
-    row4Title = `Pre-Fixed Dividend per Ticket (${eligibleTickets} eligible)`;
-    row4Note = `Fixed schedule dividend total = ${fmtInr(distributableDividend, sym)}`;
+    row4Title = copy.row4NetDivTitle(eligibleTickets);
+    row4Note = copy.row4PoolNote(
+      fmtInr(distributableDividend, sym),
+      fmtInr(grossDiscountSharePerTicket, sym),
+      fmtInr(foremanFeePerTicket, sym),
+    );
   }
 
   const row5Title =
     Math.abs(prizedMemberInstallment - netMemberInstallment) > 0.01
-      ? 'Installment Payable (Non-Prized / Prized)'
-      : 'Net Installment Payable per Member';
+      ? copy.row5DiffTitle
+      : copy.row5NetTitle;
 
-  let verificationFormulaLine = `Prize ${grossPrize.toLocaleString('en-IN')} | Dividend ${dividendPerTicket.toLocaleString('en-IN')} | Comm ${commission.toLocaleString('en-IN')}`;
+  let verificationFormulaLine = `${fmtInr(grossPrize, sym)} | ${fmtInr(dividendPerTicket, sym)} | ${fmtInr(commission, sym)}`;
   if (engineType === 'AUCTION_STANDARD' && dividendPolicy === 'ALL_MEMBERS' && gstAmount === 0) {
-    verificationFormulaLine = `Verification: (Gross Prize ${grossPrize.toLocaleString('en-IN')} + Comm ${commission.toLocaleString('en-IN')}) / ${totalMembers} = ${roundMoney((grossPrize + commission) / Math.max(1, totalMembers)).toLocaleString('en-IN')}`;
+    verificationFormulaLine = copy.verifyStandard(
+      fmtInr(grossPrize, sym),
+      fmtInr(commission, sym),
+      totalMembers,
+      fmtInr(roundMoney((grossPrize + commission) / Math.max(1, totalMembers)), sym),
+    );
   } else if (engineType === 'AUCTION_MULTI_DIVISION') {
-    verificationFormulaLine = `Multi-Div: Payout ${prizePayoutTotal.toLocaleString('en-IN')} across ${winnerCount} winners | Div Pool ${distributableDividend.toLocaleString('en-IN')}`;
+    verificationFormulaLine = copy.row2MultiDivNote(fmtInr(prizePayoutTotal, sym), fmtInr(distributableDividend, sym));
   } else if (engineType === 'AUCTION_RESERVE_PRICE' && reserveFloorAmount != null) {
-    verificationFormulaLine = `Floor R_t = ${reserveFloorAmount.toLocaleString('en-IN')} | Prize ${grossPrize.toLocaleString('en-IN')} + Comm ${commission.toLocaleString('en-IN')} -> Div ${dividendPerTicket.toLocaleString('en-IN')}/tkt`;
+    verificationFormulaLine = copy.verifyReserve(
+      fmtInr(reserveFloorAmount, sym),
+      fmtInr(grossPrize, sym),
+      fmtInr(commission, sym),
+      fmtInr(dividendPerTicket, sym),
+    );
   } else if (engineType === 'BASE_PLUS_PREMIUM' && breakdown.basePlusPremiumDetails) {
     const bp = breakdown.basePlusPremiumDetails;
-    verificationFormulaLine = `Collected = ${totalMembers}x${bp.nonPrizedInstalment.toLocaleString('en-IN')} + ${bp.alreadyPrizedTicketUnits}x${roundMoney(bp.prizedInstalment - bp.nonPrizedInstalment).toLocaleString('en-IN')} = ${bp.collectedPool.toLocaleString('en-IN')} (Surplus ${bp.poolSurplus.toLocaleString('en-IN')})`;
+    verificationFormulaLine = `${totalMembers}×${bp.nonPrizedInstalment.toLocaleString('en-IN')} + ${bp.alreadyPrizedTicketUnits}×${roundMoney(bp.prizedInstalment - bp.nonPrizedInstalment).toLocaleString('en-IN')} = ${bp.collectedPool.toLocaleString('en-IN')}`;
   } else if (engineType === 'GOLD_WEIGHT_ACCUMULATION' && breakdown.goldDetails) {
     verificationFormulaLine = `Weight Credit g_t = ${baseInstallment.toLocaleString('en-IN')} / ${breakdown.goldDetails.goldRatePerGram.toLocaleString('en-IN')} = ${breakdown.goldDetails.gramsPerFullTicket} g/ticket`;
   } else if (engineType === 'GOLD_VALUE_ACCUMULATION' && breakdown.goldDetails) {
-    verificationFormulaLine = `Gold Maturity = Paid + ${breakdown.goldDetails.bonusMonths} bonus mo (${breakdown.goldDetails.bonusPct}% bonus)`;
+    verificationFormulaLine = `+${breakdown.goldDetails.bonusMonths} mo (${breakdown.goldDetails.bonusPct}%)`;
   } else if (engineType === 'FESTIVAL_COMMODITY' && breakdown.commodityDetails) {
-    verificationFormulaLine = `Hamper = Total Paid + ${breakdown.commodityDetails.merchantBonusPct}% Bonus`;
+    verificationFormulaLine = `+${breakdown.commodityDetails.merchantBonusPct}%`;
   } else if (engineType === 'ASCA_SHG_REVOLVING' && breakdown.ascaDetails) {
-    verificationFormulaLine = `ASCA Net = Loan Interest (${breakdown.ascaDetails.monthlyLoanInterestPct}%/mo) - Admin Exp ${breakdown.ascaDetails.adminExpensePerCycle.toLocaleString('en-IN')}`;
+    verificationFormulaLine = `${breakdown.ascaDetails.monthlyLoanInterestPct}%/mo · -${breakdown.ascaDetails.adminExpensePerCycle.toLocaleString('en-IN')}`;
   } else if (engineType === 'HYBRID_SPLIT_PHASE') {
-    verificationFormulaLine = `Split Phase: ${hybridPhase === 'reserved' ? 'Reserved Cycle' : 'Open Auction'} · Prize ${grossPrize.toLocaleString('en-IN')} · Div ${dividendPerTicket.toLocaleString('en-IN')}`;
+    verificationFormulaLine = `${fmtInr(grossPrize, sym)} · ${fmtInr(dividendPerTicket, sym)}`;
   } else if (breakdown.formulaLines[0]) {
     verificationFormulaLine = breakdown.formulaLines
       .slice(0, 2)
@@ -439,7 +463,7 @@ export function buildTemplateStatementCopy(params: {
   }
 
   return {
-    sectionTitle: ENGINE_SECTION_TITLES[engineType] ?? `${engineType} Period Settlement`,
+    sectionTitle: copy.engineTitles[engineType] ?? ENGINE_SECTION_TITLES[engineType] ?? `${engineType}`,
     row2Title,
     row2Note,
     row3Title,
@@ -580,7 +604,7 @@ export async function buildChitPeriodReportData(params: {
   });
 
   const subIds = subscriptions.map((s) => s.id);
-  const [subReceipts, payoutReceipts, dividendReceipts, security] = await Promise.all([
+  const [subReceipts, payoutReceipts, payoutDisbursements, dividendReceipts, security] = await Promise.all([
     subIds.length
       ? prisma.chitReceipt.findMany({
           where: {
@@ -601,6 +625,13 @@ export async function buildChitPeriodReportData(params: {
         status: 'active',
       },
       orderBy: { issuedAt: 'asc' },
+    }),
+    prisma.chitPayoutDisbursement.findMany({
+      where: {
+        tenantId: group.tenantId,
+        auctionId: auction.id,
+      },
+      orderBy: { trancheNumber: 'asc' },
     }),
     prisma.chitReceipt.findFirst({
       where: {
@@ -665,7 +696,7 @@ export async function buildChitPeriodReportData(params: {
   }
   const byMode: ChitPeriodModeBucket[] = Array.from(modeMap.entries()).map(([mode, stats]) => ({
     mode,
-    label: labelMode(mode),
+    label: labelMode(mode, copy),
     count: stats.count,
     amount: stats.amount,
   }));
@@ -707,7 +738,7 @@ export async function buildChitPeriodReportData(params: {
         outstanding: bal.outstanding,
         goldGramsCredited: bd?.goldGramsCredited ?? 0,
         receiptNo: sub.lastReceiptNo ?? recInfo?.receiptNo ?? '—',
-        paymentMode: recInfo ? labelMode(recInfo.mode) : sub.paidAmount && Number(sub.paidAmount) > 0 ? 'Recorded' : '—',
+        paymentMode: recInfo ? labelMode(recInfo.mode, copy) : sub.paidAmount && Number(sub.paidAmount) > 0 ? (copy.modeLabels.recorded || 'Recorded') : '—',
         status: sub.status,
       };
     }
@@ -879,15 +910,39 @@ export async function buildChitPeriodReportData(params: {
     reserveFloorAmount,
     breakdown,
     sym: effectiveSym,
+    copy,
   });
 
   // Build Payout / Disbursement settlement rows & aggregate saved cash denominations
   const savedDenoms: Record<number, number> = {};
   const payoutRows: ChitPeriodSettlementRow[] = [];
-  if (payoutReceipts.length > 0) {
+  if (payoutDisbursements.length > 0) {
+    payoutDisbursements.forEach((pd, idx) => {
+      const modeDesc = labelMode(pd.paymentMode, copy);
+      const pdDenoms = normalizeCashDenominations(pd.denominationBreakdown);
+      if (pdDenoms) {
+        for (const [k, v] of Object.entries(pdDenoms)) {
+          const d = Number(k);
+          savedDenoms[d] = (savedDenoms[d] ?? 0) + Number(v);
+        }
+      }
+      const denomSummary = formatCashDenominationsSummary(pdDenoms, effectiveSym);
+      const baseRef = pd.referenceNumber
+        ? `${modeDesc} · ${pd.referenceNumber}`
+        : `${modeDesc} · Tranche #${pd.trancheNumber}`;
+      payoutRows.push({
+        slNo: idx + 1,
+        description: pd.notes
+          ? `Tranche #${pd.trancheNumber} · ${pd.notes}`
+          : `Tranche #${pd.trancheNumber} · ${modeDesc} Prize Disbursement`,
+        modeOrRef: denomSummary ? `${baseRef} · ${denomSummary}` : baseRef,
+        amount: Number(pd.amount),
+      });
+    });
+  } else if (payoutReceipts.length > 0) {
     payoutReceipts.forEach((pr, idx) => {
       const issuer = pr.issuedById ? userNameMap.get(pr.issuedById) : null;
-      const modeDesc = labelMode(pr.paymentMode);
+      const modeDesc = labelMode(pr.paymentMode, copy);
       const prDenoms = normalizeCashDenominations((pr as any).cashDenominationsJson);
       if (prDenoms) {
         for (const [k, v] of Object.entries(prDenoms)) {
@@ -916,8 +971,14 @@ export async function buildChitPeriodReportData(params: {
       });
     });
   }
+  const arrearsDeductedAmount = roundMoney(Number((auction as any).arrearsDeductedAmount ?? 0));
+  const penaltyDeductedAmount = roundMoney(Number((auction as any).penaltyDeductedAmount ?? 0));
+  const netPayableAmount =
+    (auction as any).netPayableAmount != null
+      ? roundMoney(Number((auction as any).netPayableAmount))
+      : Math.max(0, roundMoney(prizePayoutTotal - arrearsDeductedAmount - penaltyDeductedAmount));
   const totalDisbursedToWinner = roundMoney(payoutRows.reduce((s, r) => s + r.amount, 0));
-  const targetPayout = prizePayoutTotal;
+  const targetPayout = netPayableAmount;
   const remainingPayoutBalance = Math.max(0, roundMoney(targetPayout - totalDisbursedToWinner));
 
   // Hydrate cash denominations: query-param override takes precedence if non-empty, else saved receipt denominations
@@ -941,22 +1002,40 @@ export async function buildChitPeriodReportData(params: {
   const absentCount = auction.attendance.filter((a) => a.status === 'absent').length;
 
   const isFinalized = ['confirmed', 'paid', 'completed'].includes(auction.status);
+  const formattedMinutesDate = new Date(auction.auctionDate).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
   const minutesText =
-    auction.minutesText ||
-    (isFinalized
-      ? generateAuctionMinutes({
+    resolvedLang !== 'en' && isFinalized
+      ? copy.autoMinutesSummary({
           groupName: group.name,
-          periodNumber: auction.periodNumber,
-          auctionDate: auction.auctionDate,
-          winnerName: auction.winnerMember?.customer?.name ?? 'TBD',
-          prizeAmount: grossPrize,
-          bidDiscount,
-          commission,
-          dividend: dividendPerTicket,
-          presentCount: presentCount + proxyCount,
-          totalMembers: group.totalMembers,
+          period: auction.periodNumber,
+          dateStr: formattedMinutesDate,
+          present: presentCount + proxyCount,
+          total: group.totalMembers,
+          winner: auction.winnerMember?.customer?.name ?? copy.winnerPending,
+          prize: fmtInr(grossPrize, effectiveSym),
+          discount: fmtInr(bidDiscount, effectiveSym),
+          comm: fmtInr(commission, effectiveSym),
+          div: fmtInr(dividendPerTicket, effectiveSym),
         })
-      : copy.notFinalizedMinutes);
+      : auction.minutesText ||
+        (isFinalized
+          ? generateAuctionMinutes({
+              groupName: group.name,
+              periodNumber: auction.periodNumber,
+              auctionDate: auction.auctionDate,
+              winnerName: auction.winnerMember?.customer?.name ?? 'TBD',
+              prizeAmount: grossPrize,
+              bidDiscount,
+              commission,
+              dividend: dividendPerTicket,
+              presentCount: presentCount + proxyCount,
+              totalMembers: group.totalMembers,
+            })
+          : copy.notFinalizedMinutes);
 
   const secSpec = security ? getSecurityTypeSpec(security.securityType) : null;
 
@@ -1065,6 +1144,9 @@ export async function buildChitPeriodReportData(params: {
       rows: payoutRows,
       totalDisbursedToWinner,
       remainingPayoutBalance,
+      arrearsDeductedAmount,
+      penaltyDeductedAmount,
+      netPayableAmount,
       dividendReceiptNo: dividendReceipts?.receiptNo ?? null,
     },
     denominations,

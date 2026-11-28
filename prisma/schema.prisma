@@ -1561,6 +1561,14 @@ model ChitGroup {
   pinnedAnnouncement      String?       @map("pinned_announcement") @db.Text
   chitEngineType          String        @default("AUCTION_STANDARD") @map("chit_engine_type")
   engineConfig            String?       @map("engine_config") @db.Text
+  isMigrated                       Boolean   @default(false) @map("is_migrated")
+  migrationStartCycle              Int       @default(1) @map("migration_start_cycle")
+  openingCashBalance               Decimal   @default(0.00) @map("opening_cash_balance") @db.Decimal(14, 2)
+  openingForemanCommissionBalance  Decimal   @default(0.00) @map("opening_foreman_commission_balance") @db.Decimal(14, 2)
+  migratedAt                       DateTime? @map("migrated_at")
+  stateCode                        String    @default("GENERIC") @map("state_code")
+  priorSanctionNumber              String?   @map("prior_sanction_number")
+  registeredOfficeAddress          String?   @map("registered_office_address") @db.Text
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
   deletedAt               DateTime?     @map("deleted_at")
@@ -1598,6 +1606,11 @@ model ChitMember {
   isForemanTicket   Boolean                 @default(false) @map("is_foreman_ticket")
   hasWon            Boolean                 @default(false) @map("has_won")
   wonAt             DateTime?               @map("won_at")
+  openingArrearsAmount          Decimal     @default(0.00) @map("opening_arrears_amount") @db.Decimal(14, 2)
+  openingAdvanceAmount          Decimal     @default(0.00) @map("opening_advance_amount") @db.Decimal(14, 2)
+  prizedCycleNumber             Int?        @map("prized_cycle_number")
+  historicalPrizeAmount         Decimal?    @map("historical_prize_amount") @db.Decimal(14, 2)
+  historicalPayoutPendingAmount Decimal     @default(0.00) @map("historical_payout_pending_amount") @db.Decimal(14, 2)
   joinedAt          DateTime                @default(now()) @map("joined_at")
   wonAuctions          ChitAuction[]           @relation("AuctionWinner")
   auctionWins          ChitAuctionWinner[]     @relation("ChitAuctionWinners")
@@ -1662,11 +1675,19 @@ model ChitAuction {
   calculationBreakdown String?                 @map("calculation_breakdown") @db.Text
   reserveFloorAmount   Decimal?                @map("reserve_floor_amount") @db.Decimal(14, 2)
   goldRatePerGram      Decimal?                @map("gold_rate_per_gram") @db.Decimal(14, 2)
+  grossPrizeAmount       Decimal?              @map("gross_prize_amount") @db.Decimal(14, 2)
+  arrearsDeductedAmount  Decimal               @default(0.00) @map("arrears_deducted_amount") @db.Decimal(14, 2)
+  penaltyDeductedAmount  Decimal               @default(0.00) @map("penalty_deducted_amount") @db.Decimal(14, 2)
+  netPayableAmount       Decimal?              @map("net_payable_amount") @db.Decimal(14, 2)
+  totalDisbursedAmount   Decimal               @default(0.00) @map("total_disbursed_amount") @db.Decimal(14, 2)
+  remainingPayableAmount Decimal?              @map("remaining_payable_amount") @db.Decimal(14, 2)
+  arrearsBreakdownJson   String?               @map("arrears_breakdown_json") @db.Text
   bids                 ChitBid[]
   attendance           ChitAuctionAttendance[]
   events               ChitAuctionEvent[]
   roomMessages         ChitRoomMessage[]
   winners              ChitAuctionWinner[]
+  payoutDisbursements  ChitPayoutDisbursement[]
   chitGroup            ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
   winnerMember         ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
 
@@ -1755,6 +1776,7 @@ model ChitSubscription {
   paymentMode         String?       @map("payment_mode")
   lastReceiptNo       String?       @map("last_receipt_no")
   lastPaymentRefNo    String?       @map("last_payment_ref_no")
+  settledByAuctionId  String?       @map("settled_by_auction_id")
   notes               String?       @db.Text
   member              ChitMember    @relation(fields: [memberId], references: [id], onDelete: Cascade)
   penalties           ChitPenalty[]
@@ -2002,6 +2024,31 @@ model ChitPenalty {
   @@map("chit_penalties")
 }
 
+model ChitPayoutDisbursement {
+  id                    String      @id @default(cuid())
+  tenantId              String      @map("tenant_id")
+  branchId              String?     @map("branch_id")
+  appType               String      @default("chitfunds") @map("app_type")
+  chitGroupId           String      @map("chit_group_id")
+  auctionId             String      @map("auction_id")
+  trancheNumber         Int         @default(1) @map("tranche_number")
+  amount                Decimal     @db.Decimal(14, 2)
+  paymentMode           String      @default("cash") @map("payment_mode")
+  referenceNumber       String?     @map("reference_number")
+  denominationBreakdown String?     @map("denomination_breakdown") @db.Text
+  idempotencyKey        String?     @map("idempotency_key")
+  notes                 String?     @db.Text
+  paidByUserId          String?     @map("paid_by_user_id")
+  paidAt                DateTime    @default(now()) @map("paid_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  auction               ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, idempotencyKey], map: "chit_payout_disb_tenant_idem_key")
+  @@index([tenantId, branchId, chitGroupId])
+  @@index([auctionId, trancheNumber])
+  @@map("chit_payout_disbursements")
+}
+
 model TenantSubscription {
   id                       String    @id @default(cuid())
   tenantId                 String    @unique @map("tenant_id")
@@ -2023,6 +2070,9 @@ model TenantSubscription {
   premiumAccountingEnabled Boolean   @default(false) @map("premium_accounting_enabled")
   /// eNACH mandates. Gated by plan (Enterprise); off for everyone else.
   nachEnabled              Boolean   @default(false) @map("nach_enabled")
+  maxActiveChitGroups         Int?    @map("max_active_chit_groups")
+  maxMembersPerChit           Int?    @map("max_members_per_chit")
+  statutoryRegistersEnabled   Boolean @default(false) @map("statutory_registers_enabled")
   /// JSON array of feature keys a tenant keeps although its plan does not include
   /// them (add-ons bought before bundling). Cleared on the next plan change.
   grandfatheredFeatures    String?   @map("grandfathered_features") @db.LongText
@@ -2056,6 +2106,8 @@ model SubscriptionPlanCatalog {
   maxBranches    Int      @map("max_branches")
   maxAgents      Int      @map("max_agents")
   maxActiveLoans Int      @map("max_active_loans")
+  maxActiveChitGroups Int? @map("max_active_chit_groups")
+  maxMembersPerChit   Int? @map("max_members_per_chit")
   features       String   @map("features") @db.LongText
   razorpayPlanId String?  @map("razorpay_plan_id")
   /// Optional yearly billing. NULL yearlyPrice (or no yearly Razorpay plan) = the

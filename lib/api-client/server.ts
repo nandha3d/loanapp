@@ -26,7 +26,7 @@ export function resolveServerOriginFromHeaders(hdrs: {
   const isLocalHost =
     /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(effectiveHost) ||
     /\.(test|local|localhost)(:\d+)?$/i.test(effectiveHost);
-  const proto = forwardedProto || (isLocalHost ? 'http' : 'https');
+  const proto = isLocalHost ? 'http' : (forwardedProto || 'https');
   return `${proto}://${effectiveHost}`;
 }
 

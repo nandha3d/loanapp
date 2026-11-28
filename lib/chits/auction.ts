@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { calculateChitAuction } from './calculations';
 import type { ChitAuctionCalculationInput } from './types';
 
@@ -47,11 +48,12 @@ export function previewAuctionCalculation(input: ChitAuctionCalculationInput) {
 
 // Shared reschedule core used by the web action and the mobile v1 route.
 // Caller must have already verified the auction belongs to its scope.
-export async function rescheduleAuctionInTx(tx: any, params: {
+export async function rescheduleAuctionInTx(tx: Prisma.TransactionClient, params: {
   tenantId: string;
   userId?: string | null;
   auctionId: string;
   scheduledAt: Date;
+  resetRoomToScheduled?: boolean;
 }) {
   const { createChitAudit } = await import('./audit');
   await tx.chitAuction.update({
@@ -62,14 +64,37 @@ export async function rescheduleAuctionInTx(tx: any, params: {
       // Reset reminder idempotency stamps so the cron re-sends for the new slot.
       reminder1DayAt: null,
       reminder1HourAt: null,
+      ...(params.resetRoomToScheduled
+        ? {
+            roomStatus: 'scheduled',
+            status: 'pending',
+            biddingOpensAt: null,
+            biddingClosesAt: null,
+            bellAnchorAt: null,
+            bellsRung: 0,
+          }
+        : {}),
     },
   });
+  if (params.resetRoomToScheduled) {
+    await tx.chitAuctionEvent.create({
+      data: {
+        auctionId: params.auctionId,
+        type: 'announce',
+        message: 'Auction rescheduled',
+        createdById: params.userId ?? undefined,
+      },
+    });
+  }
   await createChitAudit(tx, {
     tenantId: params.tenantId,
     userId: params.userId,
     action: 'reschedule_auction',
     entityType: 'chit_auction',
     entityId: params.auctionId,
-    newValue: { scheduledAt: params.scheduledAt.toISOString() },
+    newValue: {
+      scheduledAt: params.scheduledAt.toISOString(),
+      ...(params.resetRoomToScheduled ? { resetRoomToScheduled: true } : {}),
+    },
   });
 }

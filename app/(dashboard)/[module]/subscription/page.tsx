@@ -34,7 +34,11 @@ export default async function MySubscriptionPage({
   const highlightFeature = (await searchParams).feature;
   const session = await auth();
   const user = session?.user as { id?: string; role?: string } | undefined;
-  if (user?.role !== 'superadmin' || !user.id) redirect(modulePath(await getUserAppType(), '/dashboard'));
+  const userRole = user?.role || '';
+  if (!user?.id || !['superadmin', 'admin', 'developer'].includes(userRole)) {
+    redirect(modulePath(await getUserAppType(), '/dashboard'));
+  }
+  const canManageBilling = userRole === 'superadmin';
 
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
@@ -55,14 +59,23 @@ export default async function MySubscriptionPage({
   let activeBranchId = await getActiveBranchId();
   let activeBranch = activeBranchId
     ? await prisma.branch.findFirst({
-        where: { id: activeBranchId, tenantId, superadminId: userId, status: 'active' },
+        where: {
+          id: activeBranchId,
+          tenantId,
+          ...(userRole === 'superadmin' ? { superadminId: userId } : {}),
+          status: 'active',
+        },
         select: { id: true, name: true, enabledModules: true },
       })
     : null;
 
   if (!activeBranch) {
     activeBranch = await prisma.branch.findFirst({
-      where: { tenantId, superadminId: userId, status: 'active' },
+      where: {
+        tenantId,
+        ...(userRole === 'superadmin' ? { superadminId: userId } : {}),
+        status: 'active',
+      },
       orderBy: { name: 'asc' },
       select: { id: true, name: true, enabledModules: true },
     });
@@ -165,6 +178,23 @@ export default async function MySubscriptionPage({
           </p>
         </div>
       </div>
+
+      {!canManageBilling && (
+        <div
+          style={{
+            marginBottom: '18px',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            background: 'var(--primary-light)',
+            border: '1px solid var(--primary-border)',
+            color: 'var(--primary-dark)',
+            fontSize: '0.88rem',
+            fontWeight: 600,
+          }}
+        >
+          View-only mode: billing changes and plan upgrades require a Super Admin account.
+        </div>
+      )}
 
       {/* Overview Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '18px', marginBottom: '28px' }}>

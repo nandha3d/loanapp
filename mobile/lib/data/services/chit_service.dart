@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/local/chit_offline_cache.dart';
 import 'package:zolofund/data/models/chit.dart';
 import 'package:zolofund/data/models/chit_contribution.dart';
 import 'package:zolofund/data/models/chit_live.dart';
@@ -12,28 +13,65 @@ import 'package:zolofund/shared/constants/endpoints.dart';
 class ChitService {
   ChitService(this._dio);
   final Dio _dio;
+  final ChitOfflineCache _cache = ChitOfflineCache();
 
   Future<List<ChitGroup>> list() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.chits);
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .map((dynamic e) => ChitGroup.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false);
-    });
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.chits);
+      return unwrapEnvelope(res, (dynamic d) {
+        final rawList = (d as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .toList(growable: false);
+        _cache.saveGroups(rawList);
+        return rawList.map(ChitGroup.fromJson).toList(growable: false);
+      });
+    } on DioException catch (e) {
+      if (e.response == null) {
+        final cached = await _cache.loadGroups();
+        if (cached.isNotEmpty) {
+          return cached.map(ChitGroup.fromJson).toList(growable: false);
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getById(String id) async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.chit(id));
-    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.chit(id));
+      return unwrapEnvelope(res, (dynamic d) {
+        final map = d as Map<String, dynamic>;
+        _cache.saveGroupSnapshot(id, detail: map);
+        return map;
+      });
+    } on DioException catch (e) {
+      if (e.response == null) {
+        final cached = await _cache.loadDetail(id);
+        if (cached != null) return cached;
+      }
+      rethrow;
+    }
   }
 
   Future<List<ChitMember>> members(String id) async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.chitMembers(id));
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .map((dynamic e) => ChitMember.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false);
-    });
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.chitMembers(id));
+      return unwrapEnvelope(res, (dynamic d) {
+        final rawList = (d as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .toList(growable: false);
+        _cache.saveGroupSnapshot(id, members: rawList);
+        return rawList.map(ChitMember.fromJson).toList(growable: false);
+      });
+    } on DioException catch (e) {
+      if (e.response == null) {
+        final cached = await _cache.loadMembers(id);
+        if (cached != null) {
+          return cached.map(ChitMember.fromJson).toList(growable: false);
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<List<ChitAuction>> auctions(String id) async {
@@ -311,6 +349,12 @@ class ChitService {
     String? referenceNo,
     String? notes,
     Map<String, int>? cashDenominations,
+    Map<String, dynamic>? denominationBreakdown,
+    double? disburseNowAmount,
+    bool? deductArrears,
+    double? customArrearsAmount,
+    bool? waivePenalties,
+    String? idempotencyKey,
   }) async {
     final cleanDenoms = cashDenominations == null
         ? null
@@ -326,9 +370,65 @@ class ChitService {
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
         if (cleanDenoms != null && cleanDenoms.isNotEmpty)
           'cashDenominations': cleanDenoms,
+        if (denominationBreakdown != null)
+          'denominationBreakdown': denominationBreakdown,
+        if (disburseNowAmount != null && disburseNowAmount > 0)
+          'disburseNowAmount': disburseNowAmount,
+        if (deductArrears != null) 'deductArrears': deductArrears,
+        if (customArrearsAmount != null)
+          'customArrearsAmount': customArrearsAmount,
+        if (waivePenalties != null) 'waivePenalties': waivePenalties,
+        if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+          'idempotencyKey': idempotencyKey.trim(),
       },
     );
     unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<Map<String, dynamic>> payoutSummary(
+    String groupId,
+    String auctionId, {
+    bool deductArrears = true,
+    double? customArrearsAmount,
+    bool waivePenalties = false,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionPayout(groupId, auctionId),
+      queryParameters: {
+        'deductArrears': deductArrears.toString(),
+        'waivePenalties': waivePenalties.toString(),
+        if (customArrearsAmount != null)
+          'customArrearsAmount': customArrearsAmount.toString(),
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<String> cashDenominationMode() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(Endpoints.chitsSettings);
+      final data = unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+      final mode = data['cashDenominationMode'] as String?;
+      if (mode != null && mode.isNotEmpty) return mode;
+    } catch (_) {
+      // Fallback to OPTIONAL when setting endpoint is unreachable/offline
+    }
+    return 'OPTIONAL';
+  }
+
+  Future<Map<String, dynamic>> quickAddMembers(
+    String groupId,
+    List<Map<String, dynamic>> entries, {
+    bool expandCapacity = false,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitMembersQuickAdd(groupId),
+      data: {
+        'members': entries,
+        'expandGroupCapacity': expandCapacity,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
   Future<Map<String, dynamic>> groupRoomState(
@@ -407,6 +507,7 @@ class ChitService {
     String? idempotencyKey,
     String? referenceNo,
     String? note,
+    Map<String, dynamic>? denominationBreakdown,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPayments(groupId),
@@ -421,6 +522,8 @@ class ChitService {
         if (referenceNo != null && referenceNo.trim().isNotEmpty)
           'referenceNo': referenceNo.trim(),
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        if (denominationBreakdown != null)
+          'denominationBreakdown': denominationBreakdown,
       },
     );
     unwrapEnvelope(res, (_) => null);
@@ -595,18 +698,28 @@ class ChitService {
     unwrapEnvelope(res, (_) => null);
   }
 
-  /// Fetch subscription payments for a group.
+  /// Fetch subscription payments for a group (falls back to Hive cache offline).
   Future<List<ChitSubscription>> subscriptions(String groupId) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.chitSubscriptions(groupId),
-    );
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .map(
-            (dynamic e) => ChitSubscription.fromJson(e as Map<String, dynamic>),
-          )
-          .toList(growable: false);
-    });
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        Endpoints.chitSubscriptions(groupId),
+      );
+      return unwrapEnvelope(res, (dynamic d) {
+        final rawList = (d as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .toList(growable: false);
+        _cache.saveGroupSnapshot(groupId, subscriptions: rawList);
+        return rawList.map(ChitSubscription.fromJson).toList(growable: false);
+      });
+    } on DioException catch (e) {
+      if (e.response == null) {
+        final cached = await _cache.loadSubscriptions(groupId);
+        if (cached != null) {
+          return cached.map(ChitSubscription.fromJson).toList(growable: false);
+        }
+      }
+      rethrow;
+    }
   }
 
   /// Mark a subscription period as missed.

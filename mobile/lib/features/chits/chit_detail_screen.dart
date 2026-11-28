@@ -23,6 +23,8 @@ import 'package:zolofund/data/services/upload_service.dart';
 import 'package:zolofund/features/chits/chit_group_room_screen.dart';
 import 'package:zolofund/features/chits/chit_live_auction_screen.dart';
 import 'package:zolofund/features/chits/chit_payment_intents_screen.dart';
+import 'package:zolofund/features/chits/widgets/cash_denomination_sheet.dart';
+import 'package:zolofund/features/chits/widgets/contact_quick_add_sheet.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 
 /// Decimal columns (chitValue etc.) arrive as JSON strings from the raw
@@ -99,10 +101,17 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     setState(() => _busy = false);
   }
 
-  void _showRecordPaymentSheet(ChitSubscription sub, NumberFormat fmt) {
+  Future<void> _showRecordPaymentSheet(
+    ChitSubscription sub,
+    NumberFormat fmt,
+  ) async {
     double amount = sub.outstanding;
     String paymentMode = 'cash';
     String referenceNo = '';
+    Map<int, int> denomCounts = <int, int>{};
+    final denomMode = await ref.read(chitServiceProvider).cashDenominationMode();
+    final currentUserId = ref.read(authControllerProvider).user?.id;
+    if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -112,7 +121,11 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       ),
       builder: (ctx) {
         return StatefulBuilder(builder: (ctx, setLocal) {
-          return Padding(
+          final countedTotal = computeDenominationTotal(denomCounts);
+          final denomMustMatch = paymentMode == 'cash' &&
+              denomMode.toUpperCase() == 'REQUIRED';
+          final denomValid = !denomMustMatch || countedTotal == amount.round();
+          return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
                 20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20,),
             child: Column(
@@ -149,6 +162,16 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                     if (v != null) setLocal(() => paymentMode = v);
                   },
                 ),
+                if (paymentMode == 'cash' &&
+                    denomMode.toUpperCase() != 'DISABLED') ...[
+                  const SizedBox(height: 12),
+                  CashDenominationCounter(
+                    expectedAmount: amount,
+                    mode: denomMode,
+                    counts: denomCounts,
+                    onChanged: (next) => setLocal(() => denomCounts = next),
+                  ),
+                ],
                 if (paymentMode != 'cash') ...[
                   const SizedBox(height: 12),
                   TextFormField(
@@ -166,9 +189,12 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         child: const Text('Cancel'),),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: amount <= 0
+                      onPressed: (amount <= 0 || !denomValid)
                           ? null
                           : () async {
+                              final breakdown = paymentMode == 'cash'
+                                  ? serializeDenominationBreakdown(denomCounts)
+                                  : null;
                               Navigator.pop(ctx);
                               setState(() => _busy = true);
                               final idempotencyKey = chitPaymentIdempotencyKey(
@@ -181,10 +207,15 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                 idempotencyKey: idempotencyKey,
                                 groupId: widget.id,
                                 memberId: sub.memberId,
+                                memberName: sub.memberName,
                                 periodNumber: sub.periodNumber,
                                 amount: amount,
                                 paymentMode: paymentMode,
                                 referenceNo: referenceNo,
+                                denominationBreakdown: breakdown,
+                                collectedAtLocal:
+                                    DateTime.now().toIso8601String(),
+                                agentId: currentUserId,
                               );
                               try {
                                 if (!ref.read(chitPaymentSyncProvider).online) {
@@ -205,6 +236,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                         paymentMode: paymentMode,
                                         idempotencyKey: idempotencyKey,
                                         referenceNo: referenceNo,
+                                        denominationBreakdown: breakdown,
                                       );
                                 }
                                 _refresh();
@@ -941,16 +973,29 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
 
   Future<void> _showPayoutReleaseSheet(ChitAuction auction) async {
     String paymentMode = 'cash';
+    bool deductArrears = true;
+    bool waivePenalties = false;
+    Map<String, dynamic>? summary;
+    try {
+      summary = await ref
+          .read(chitServiceProvider)
+          .payoutSummary(widget.id, auction.id);
+    } catch (_) {
+      summary = null;
+    }
+    if (!mounted) return;
+    final grossPrize = _asDouble(summary?['grossPrizeAmount']) ??
+        auction.prizeAmount ??
+        0;
+    final initialNet = _asDouble(summary?['remainingPayableAmount']) ??
+        _asDouble(summary?['netPayableAmount']) ??
+        grossPrize;
+    final amountCtrl = TextEditingController(
+      text: initialNet > 0 ? initialNet.toStringAsFixed(0) : '',
+    );
     final refCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
-    final denomCtrls = <int, TextEditingController>{
-      500: TextEditingController(),
-      200: TextEditingController(),
-      100: TextEditingController(),
-      50: TextEditingController(),
-      20: TextEditingController(),
-      10: TextEditingController(),
-    };
+    Map<int, int> denomCounts = <int, int>{};
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -960,11 +1005,16 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
-          int noteTotal = 0;
-          denomCtrls.forEach((denom, ctrl) {
-            final c = int.tryParse(ctrl.text.trim()) ?? 0;
-            if (c > 0) noteTotal += denom * c;
-          });
+          final arrearsDed = _asDouble(summary?['arrearsDeductedAmount']) ?? 0;
+          final penDed = _asDouble(summary?['penaltyDeductedAmount']) ?? 0;
+          final netPayable =
+              _asDouble(summary?['netPayableAmount']) ?? grossPrize;
+          final alreadyPaid = _asDouble(summary?['totalDisbursedAmount']) ?? 0;
+          final remainingBal =
+              _asDouble(summary?['remainingPayableAmount']) ?? netPayable;
+          final nettingLocked = summary?['nettingLocked'] == true;
+          final disburseNow =
+              double.tryParse(amountCtrl.text.trim()) ?? remainingBal;
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               20,
@@ -980,7 +1030,115 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   'Release Payout — Period ${auction.periodNumber}',
                   style: AppTypography.sectionTitle,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Gross Prize'),
+                          Text('₹${grossPrize.toStringAsFixed(0)}'),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('(-) Arrears Netted (FIFO)'),
+                          Text('- ₹${arrearsDed.toStringAsFixed(0)}'),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('(-) Pending Penalties'),
+                          Text('- ₹${penDed.toStringAsFixed(0)}'),
+                        ],
+                      ),
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '= Net Payable / Balance',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            '₹${netPayable.toStringAsFixed(0)} (Paid ₹${alreadyPaid.toStringAsFixed(0)} · Left ₹${remainingBal.toStringAsFixed(0)})',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (!nettingLocked) ...[
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: deductArrears,
+                    title: const Text('Auto-deduct unpaid arrears (FIFO)'),
+                    onChanged: (val) async {
+                      final next = val ?? true;
+                      final fresh = await ref
+                          .read(chitServiceProvider)
+                          .payoutSummary(
+                            widget.id,
+                            auction.id,
+                            deductArrears: next,
+                            waivePenalties: waivePenalties,
+                          );
+                      setLocal(() {
+                        deductArrears = next;
+                        summary = fresh;
+                        final rem = _asDouble(fresh['remainingPayableAmount']) ??
+                            grossPrize;
+                        amountCtrl.text = rem.toStringAsFixed(0);
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: waivePenalties,
+                    title: const Text('Waive pending penalties'),
+                    onChanged: (val) async {
+                      final next = val ?? false;
+                      final fresh = await ref
+                          .read(chitServiceProvider)
+                          .payoutSummary(
+                            widget.id,
+                            auction.id,
+                            deductArrears: deductArrears,
+                            waivePenalties: next,
+                          );
+                      setLocal(() {
+                        waivePenalties = next;
+                        summary = fresh;
+                        final rem = _asDouble(fresh['remainingPayableAmount']) ??
+                            grossPrize;
+                        amountCtrl.text = rem.toStringAsFixed(0);
+                      });
+                    },
+                  ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setLocal(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Disburse Amount Now (₹)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   initialValue: paymentMode,
                   decoration: const InputDecoration(labelText: 'Payment Mode'),
@@ -1009,38 +1167,15 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Cash Note Counts', style: AppTypography.body),
-                    Text(
-                      'Notes Total: ₹$noteTotal',
-                      style: AppTypography.caption
-                          .copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: denomCtrls.entries.map((entry) {
-                    return SizedBox(
-                      width: 96,
-                      child: TextField(
-                        controller: entry.value,
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => setLocal(() {}),
-                        decoration: InputDecoration(
-                          labelText: '₹${entry.key}',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+                if (paymentMode == 'cash') ...[
+                  const SizedBox(height: 12),
+                  CashDenominationCounter(
+                    expectedAmount: disburseNow,
+                    mode: 'OPTIONAL',
+                    counts: denomCounts,
+                    onChanged: (next) => setLocal(() => denomCounts = next),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -1051,26 +1186,37 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: () {
-                        final denoms = <String, int>{};
-                        denomCtrls.forEach((denom, ctrl) {
-                          final c = int.tryParse(ctrl.text.trim()) ?? 0;
-                          if (c > 0) denoms['$denom'] = c;
-                        });
-                        Navigator.pop(ctx);
-                        _runAction(
-                          () => ref.read(chitServiceProvider).releasePayout(
-                                widget.id,
-                                auction.id,
-                                paymentMode: paymentMode,
-                                referenceNo: refCtrl.text,
-                                notes: notesCtrl.text,
-                                cashDenominations:
-                                    denoms.isEmpty ? null : denoms,
-                              ),
-                        );
-                      },
-                      child: const Text('Confirm Release'),
+                      onPressed: disburseNow <= 0
+                          ? null
+                          : () {
+                              final breakdown = paymentMode == 'cash'
+                                  ? serializeDenominationBreakdown(denomCounts)
+                                  : null;
+                              final idem =
+                                  'payout-${auction.id}-${DateTime.now().millisecondsSinceEpoch}';
+                              Navigator.pop(ctx);
+                              _runAction(
+                                () => ref
+                                    .read(chitServiceProvider)
+                                    .releasePayout(
+                                      widget.id,
+                                      auction.id,
+                                      paymentMode: paymentMode,
+                                      referenceNo: refCtrl.text,
+                                      notes: notesCtrl.text,
+                                      denominationBreakdown: breakdown,
+                                      disburseNowAmount: disburseNow,
+                                      deductArrears: deductArrears,
+                                      waivePenalties: waivePenalties,
+                                      idempotencyKey: idem,
+                                    ),
+                              );
+                            },
+                      child: Text(
+                        disburseNow < remainingBal
+                            ? 'Disburse ₹${disburseNow.toStringAsFixed(0)}'
+                            : 'Confirm Release',
+                      ),
                     ),
                   ],
                 ),
@@ -1234,36 +1380,74 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                       // Members
                       _SectionCard(
                         title: '👥 Members',
-                        child: members.when(
-                          loading: () => const Skeleton(
-                              height: 80, borderRadius: AppTokens.radius,),
-                          error: (e, _) => Text(e.toString()),
-                          data: (list) {
-                            if (list.isEmpty) {
-                              return Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Text('No members',
-                                    style: AppTypography.caption,),
-                              );
-                            }
-                            return Column(
-                              children: list
-                                  .map((m) => _MemberTile(
-                                        member: m,
-                                        groupStatus: status,
-                                        isAdmin: isAdmin,
-                                        busy: _busy,
-                                        onSign: () =>
-                                            _setAgreement(m.id, 'signed'),
-                                        onVerify: () =>
-                                            _setAgreement(m.id, 'verified'),
-                                        onReject: () =>
-                                            _setAgreement(m.id, 'rejected'),
-                                        onEdit: () => _showEditMemberSheet(m),
-                                      ),)
-                                  .toList(),
-                            );
-                          },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (status != 'completed' && status != 'cancelled')
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.contacts_outlined, size: 18),
+                                  label: const Text('Quick-Add / Pick Contacts'),
+                                  onPressed: () {
+                                    showModalBottomSheet<void>(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: AppColors.surface,
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(20),
+                                        ),
+                                      ),
+                                      builder: (_) => ContactQuickAddSheet(
+                                        groupId: widget.id,
+                                        onAdded: _refresh,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            members.when(
+                              loading: () => const Skeleton(
+                                height: 80,
+                                borderRadius: AppTokens.radius,
+                              ),
+                              error: (e, _) => Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(e.toString()),
+                              ),
+                              data: (list) {
+                                if (list.isEmpty) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      'No members',
+                                      style: AppTypography.caption,
+                                    ),
+                                  );
+                                }
+                                return Column(
+                                  children: list
+                                      .map(
+                                        (m) => _MemberTile(
+                                          member: m,
+                                          groupStatus: status,
+                                          isAdmin: isAdmin,
+                                          busy: _busy,
+                                          onSign: () =>
+                                              _setAgreement(m.id, 'signed'),
+                                          onVerify: () =>
+                                              _setAgreement(m.id, 'verified'),
+                                          onReject: () =>
+                                              _setAgreement(m.id, 'rejected'),
+                                          onEdit: () => _showEditMemberSheet(m),
+                                        ),
+                                      )
+                                      .toList(),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),

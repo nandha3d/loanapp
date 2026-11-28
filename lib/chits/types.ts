@@ -51,6 +51,11 @@ export type ChitPaymentCalculationResult = {
   status: 'upcoming' | 'partial' | 'paid' | 'missed';
 };
 
+export type ChitApprovalPolicy = {
+  adminCanApproveSecurity: boolean;
+  adminCanReleasePayout: boolean;
+};
+
 export type ChitScope = {
   tenantId: string;
   appType: string;
@@ -59,4 +64,5 @@ export type ChitScope = {
   userId?: string | null;
   customRoleName?: string | null;
   staffPermissions?: StaffPermissions | null;
+  approvalPolicy?: ChitApprovalPolicy;
 };

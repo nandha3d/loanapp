@@ -57,6 +57,8 @@
 	<string>ZoloFund uses the microphone for voice entry of collection amounts and chit auction bids</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>ZoloFund uses speech recognition to let you record collections and place chit auction bids by voice</string>
+	<key>NSContactsUsageDescription</key>
+	<string>ZoloFund needs access to your contacts so you can quickly add chit fund members without typing phone numbers</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

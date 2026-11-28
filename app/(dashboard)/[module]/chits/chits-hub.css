@@ -1,0 +1,596 @@
+/* ===== Chit Fund Groups Hub — High-Craft Theme-Harmonized Layout ===== */
+
+.chits-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 1. Hero Banner */
+.chits-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 22px 26px;
+  color: #ffffff;
+  background: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--primary-dark) 92%, #071A12) 0%,
+    var(--primary-dark) 38%,
+    var(--primary) 76%,
+    color-mix(in srgb, var(--accent, var(--primary)) 72%, #0D9488) 100%
+  );
+  box-shadow: 0 14px 32px -10px color-mix(in srgb, var(--primary-dark) 45%, transparent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.chits-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 50%, rgba(253, 224, 71, 0.22) 0%, transparent 40%),
+    radial-gradient(circle at 92% 18%, rgba(255, 255, 255, 0.16) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.chits-hero-left {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.chits-hero-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.chits-hero-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.45;
+}
+
+.chits-hero-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chits-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(8px);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.chits-hero-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chits-hero-dot--active {
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.28);
+}
+
+.chits-hero-dot--draft {
+  background: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(203, 213, 225, 0.22);
+}
+
+.chits-hero-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.chits-hero-btn-glass {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chits-hero-btn-glass:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+  text-decoration: none;
+  color: #ffffff;
+}
+
+.chits-hero-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--primary-dark);
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chits-hero-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+  text-decoration: none;
+  color: var(--primary-dark);
+}
+
+/* 2. 4-Card Elevated KPI Strip with Sparklines */
+.chits-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.chits-kpi-card {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.chits-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.11);
+  border-color: color-mix(in srgb, var(--primary) 35%, #cbd5e1);
+}
+
+.chits-kpi-icon {
+  position: relative;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chits-kpi-icon .material-icons-outlined {
+  font-size: 23px;
+}
+
+.chits-kpi-icon--primary {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.chits-kpi-icon--violet {
+  background: #f3e8ff;
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+}
+
+.chits-kpi-icon--sky {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.16);
+}
+
+.chits-kpi-icon--amber {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.16);
+}
+
+.chits-kpi-meta {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.chits-kpi-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.chits-kpi-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+/* 3. Unified Directory Shell + Filter Toolbar */
+.chits-directory-shell {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 18px 20px 22px;
+  box-shadow: 0 6px 24px -6px rgba(15, 23, 42, 0.06);
+}
+
+.chits-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.chits-filter-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  flex: 1 1 360px;
+}
+
+.chits-search-wrap {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 290px;
+}
+
+.chits-search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.chits-search-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 12px 7px 36px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-family: inherit;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.chits-search-input:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.chits-status-select {
+  width: auto;
+  min-width: 145px;
+  min-height: 38px;
+  padding: 7px 34px 7px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.chits-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  box-shadow: 0 4px 12px var(--primary-glow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chits-filter-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px var(--primary-glow);
+}
+
+.chits-pill-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chits-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  transition: all 0.18s ease;
+}
+
+.chits-status-pill:hover {
+  background: #f1f5f9;
+  text-decoration: none;
+  color: #0f172a;
+}
+
+.chits-status-pill--active {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #ffffff;
+  border-color: var(--primary-dark);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.chits-status-pill--active:hover {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+}
+
+/* 4. Empty State Well */
+.chits-empty-well {
+  border-radius: 14px;
+  border: 1.5px dashed #cbd5e1;
+  background: linear-gradient(180deg, #fafcfe 0%, #f4f7fa 100%);
+  padding: 46px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.chits-empty-title {
+  margin: 4px 0 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.chits-empty-subtitle {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #64748b;
+  max-width: 380px;
+}
+
+.chits-cta-glow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  box-shadow: 0 8px 20px -4px var(--primary-glow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chits-cta-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -4px var(--primary-glow);
+  text-decoration: none;
+  color: #ffffff;
+}
+
+/* 5. Group Cards Grid */
+.chits-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(305px, 1fr));
+  gap: 16px;
+}
+
+.chits-group-card {
+  background: var(--surface);
+  border-radius: 15px;
+  border: 1.5px solid var(--border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.chits-group-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 26px -6px rgba(15, 23, 42, 0.12);
+  border-color: var(--primary);
+}
+
+.chits-group-card-head {
+  padding: 13px 15px 11px;
+  background: linear-gradient(90deg, var(--primary-light) 0%, #f8fafc 100%);
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chits-group-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.28;
+  color: #0f172a;
+}
+
+.chits-group-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+.chits-group-code {
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.chits-group-body {
+  padding: 14px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+}
+
+.chits-metrics-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.chits-metric-well {
+  background: #f4f7fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.chits-metric-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.chits-metric-val {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 2px;
+}
+
+.chits-metric-val--primary {
+  color: var(--primary-dark);
+}
+
+.chits-bar-track {
+  height: 6px;
+  background: #dce3ec;
+  border-radius: 999px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.chits-bar-fill--primary {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: 999px;
+}
+
+.chits-bar-fill--success {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+  border-radius: 999px;
+}
+
+.chits-cycle-callout {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.76rem;
+  color: #334155;
+  line-height: 1.35;
+}
+
+.chits-cycle-callout--live {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.chits-card-footer {
+  display: flex;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+@media (max-width: 1024px) {
+  .chits-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .chits-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chits-hero {
+    padding: 18px;
+  }
+
+  .chits-hero-title {
+    font-size: 1.28rem;
+  }
+}

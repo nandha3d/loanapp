@@ -346,16 +346,16 @@ export async function buildGroupRoomState(params: {
 
   const freshAuction = activeAuction
     ? await prisma.chitAuction.findUnique({
-        where: { id: activeAuction.id },
-        include: {
-          bids: {
-            where: { status: { in: ['valid', 'winning'] } },
-            orderBy: [{ bidDiscount: 'desc' }, { bidTime: 'asc' }],
-            include: { member: { include: { customer: { select: { name: true } } } } },
-          },
-          attendance: true,
+      where: { id: activeAuction.id },
+      include: {
+        bids: {
+          where: { status: { in: ['valid', 'winning'] } },
+          orderBy: [{ bidDiscount: 'desc' }, { bidTime: 'asc' }],
+          include: { member: { include: { customer: { select: { name: true } } } } },
         },
-      })
+        attendance: true,
+      },
+    })
     : null;
 
   const engineType = resolveEngineTypeFromGroup(group);
@@ -371,16 +371,16 @@ export async function buildGroupRoomState(params: {
     const reserveFloorPct =
       engineType === 'AUCTION_RESERVE_PRICE' && engineCfg.discountRules.reservePriceStepPct > 0
         ? calculateReserveFloor({
-            chitValue: chitValueNum,
-            totalPeriods: group.totalMembers,
-            periodNumber: freshAuction.periodNumber,
-            reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
-            maxDiscountPct: engineCfg.discountRules.uncapped
-              ? null
-              : group.maxDiscountPct != null
-                ? Number(group.maxDiscountPct)
-                : null,
-          }).reserveFloorPct
+          chitValue: chitValueNum,
+          totalPeriods: group.totalMembers,
+          periodNumber: freshAuction.periodNumber,
+          reservePriceStepPct: engineCfg.discountRules.reservePriceStepPct,
+          maxDiscountPct: engineCfg.discountRules.uncapped
+            ? null
+            : group.maxDiscountPct != null
+              ? Number(group.maxDiscountPct)
+              : null,
+        }).reserveFloorPct
         : null;
     const increment =
       group.bidIncrement && Number(group.bidIncrement) > 0
@@ -462,22 +462,22 @@ export async function buildGroupRoomState(params: {
       admissionStatus: myAtt?.admissionStatus ?? null,
       nextDue: nextSub && bal
         ? {
-            subscriptionId: nextSub.id,
-            periodNumber: nextSub.periodNumber,
-            dueDate: nextSub.dueDate.toISOString(),
-            dueAmount: bal.netDue,
-            outstanding: bal.outstanding,
-            status: nextSub.status,
-          }
+          subscriptionId: nextSub.id,
+          periodNumber: nextSub.periodNumber,
+          dueDate: nextSub.dueDate.toISOString(),
+          dueAmount: bal.netDue,
+          outstanding: bal.outstanding,
+          status: nextSub.status,
+        }
         : null,
     };
   }
 
   const sinceRow = params.sinceMessageId
     ? await prisma.chitRoomMessage.findUnique({
-        where: { id: params.sinceMessageId },
-        select: { createdAt: true },
-      })
+      where: { id: params.sinceMessageId },
+      select: { createdAt: true },
+    })
     : null;
 
   const auctionIds = group.auctions.map((a) => a.id);
@@ -546,28 +546,28 @@ export async function buildGroupRoomState(params: {
     })),
     activeAuction: freshAuction
       ? {
-          id: freshAuction.id,
-          periodNumber: freshAuction.periodNumber,
-          status: freshAuction.status,
-          roomStatus: freshAuction.roomStatus,
-          supportsBidding: isBiddingEnabledForPeriod(group, freshAuction.periodNumber),
-          isOpen: isRoomOpen(freshAuction),
-          biddingClosesAt: freshAuction.biddingClosesAt?.toISOString() ?? null,
-          secondsRemaining: secondsRemaining(freshAuction),
-          auctionDate: freshAuction.auctionDate.toISOString(),
-          scheduledAt: freshAuction.scheduledAt?.toISOString() ?? null,
-          leadingBid: currentTop
-            ? {
-                prizeAmount: Number(currentTop.bidAmount),
-                bidDiscount: Number(currentTop.bidDiscount),
-                memberName: currentTop.member.customer.name,
-                ticketNo: currentTop.member.ticketNo,
-              }
-            : null,
-          bidBounds,
-          bellState,
-          waitingMembers,
-        }
+        id: freshAuction.id,
+        periodNumber: freshAuction.periodNumber,
+        status: freshAuction.status,
+        roomStatus: freshAuction.roomStatus,
+        supportsBidding: isBiddingEnabledForPeriod(group, freshAuction.periodNumber),
+        isOpen: isRoomOpen(freshAuction),
+        biddingClosesAt: freshAuction.biddingClosesAt?.toISOString() ?? null,
+        secondsRemaining: secondsRemaining(freshAuction),
+        auctionDate: freshAuction.auctionDate.toISOString(),
+        scheduledAt: freshAuction.scheduledAt?.toISOString() ?? null,
+        leadingBid: currentTop
+          ? {
+            prizeAmount: Number(currentTop.bidAmount),
+            bidDiscount: Number(currentTop.bidDiscount),
+            memberName: currentTop.member.customer.name,
+            ticketNo: currentTop.member.ticketNo,
+          }
+          : null,
+        bidBounds,
+        bellState,
+        waitingMembers,
+      }
       : null,
     settlements,
     mySummary,

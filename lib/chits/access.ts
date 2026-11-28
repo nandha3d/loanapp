@@ -1,9 +1,27 @@
 import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { requireModule } from '@/lib/moduleGate';
-import { getDefaultTenantId } from '@/lib/tenant';
-import type { StaffPermissions } from '@/lib/staffPermissions';
-import type { ChitScope } from './types';
+import { mergeStaffPermissions, type StaffPermissions } from '@/lib/staffPermissions';
+import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import type { ChitApprovalPolicy, ChitScope } from './types';
+
+export const CHIT_ADMIN_APPROVE_SECURITY_KEY = 'chit_admin_approve_security';
+export const CHIT_ADMIN_RELEASE_PAYOUT_KEY = 'chit_admin_release_payout';
+
+export async function getChitApprovalPolicy(tenantId: string): Promise<ChitApprovalPolicy> {
+  const [adminApprove, adminPayout] = await Promise.all([
+    getSetting(tenantId, CHIT_ADMIN_APPROVE_SECURITY_KEY, '0'),
+    getSetting(tenantId, CHIT_ADMIN_RELEASE_PAYOUT_KEY, '0'),
+  ]);
+  return {
+    adminCanApproveSecurity: adminApprove === '1',
+    adminCanReleasePayout: adminPayout === '1',
+  };
+}
+
+export function canModifyChitApprovalPermissions(role?: string | null): boolean {
+  return role === 'superadmin' || role === 'developer';
+}
 
 export function canViewChits(role?: string | null, perms?: StaffPermissions | null) {
   return (
@@ -35,15 +53,29 @@ export function canCollectChits(role?: string | null, perms?: StaffPermissions |
   return role === 'agent' || canAdminChits(role, perms) || Boolean(perms?.canCollectChits);
 }
 
-export function canApproveChitSecurity(role?: string | null, perms?: StaffPermissions | null) {
-  return role === 'superadmin' || role === 'developer' || Boolean(perms?.canApproveSecurity);
-}
-
-export function canReleaseChitPayout(role?: string | null, perms?: StaffPermissions | null) {
+export function canApproveChitSecurity(
+  role?: string | null,
+  perms?: StaffPermissions | null,
+  policy?: Partial<ChitApprovalPolicy> | null,
+) {
   return (
     role === 'superadmin' ||
     role === 'developer' ||
-    (role === 'agent' && Boolean(perms?.canReleasePayout))
+    Boolean(perms?.canApproveSecurity) ||
+    (role === 'admin' && Boolean(policy?.adminCanApproveSecurity))
+  );
+}
+
+export function canReleaseChitPayout(
+  role?: string | null,
+  perms?: StaffPermissions | null,
+  policy?: Partial<ChitApprovalPolicy> | null,
+) {
+  return (
+    role === 'superadmin' ||
+    role === 'developer' ||
+    ((role === 'agent' || role === 'admin') && Boolean(perms?.canReleasePayout)) ||
+    (role === 'admin' && Boolean(policy?.adminCanReleasePayout))
   );
 }
 
@@ -67,7 +99,10 @@ export async function getWebChitScope(): Promise<ChitScope> {
   const tenantId = await getDefaultTenantId();
   const appType = 'chitfunds';
   const branchId = await getActiveBranchId();
-  await requireModule(tenantId, 'chitfunds');
+  const [, approvalPolicy] = await Promise.all([
+    requireModule(tenantId, 'chitfunds'),
+    getChitApprovalPolicy(tenantId),
+  ]);
   return {
     tenantId,
     appType,
@@ -76,6 +111,47 @@ export async function getWebChitScope(): Promise<ChitScope> {
     userId: session.user.id,
     customRoleName,
     staffPermissions,
+    approvalPolicy,
+  };
+}
+
+export async function getChitMobileCapabilities(ctx: {
+  tenantId: string;
+  userId: string;
+  role: string;
+}) {
+  if (ctx.role === 'superadmin' || ctx.role === 'developer') {
+    return {
+      staffPermissions: null as StaffPermissions | null,
+      policy: { adminCanApproveSecurity: true, adminCanReleasePayout: true } as ChitApprovalPolicy,
+      canConductAuction: true,
+      canApproveSecurity: true,
+      canReleasePayout: true,
+    };
+  }
+  const prisma = (await import('@/lib/db')).default;
+  const [policy, user] = await Promise.all([
+    getChitApprovalPolicy(ctx.tenantId),
+    prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: {
+        staffPermissions: true,
+        customRole: { select: { status: true, permissionsJson: true } },
+      },
+    }),
+  ]);
+  const staffPermissions = user
+    ? mergeStaffPermissions(
+        user.customRole?.status === 'active' ? user.customRole.permissionsJson : null,
+        user.staffPermissions,
+      )
+    : null;
+  return {
+    staffPermissions,
+    policy,
+    canConductAuction: canConductChitAuction(ctx.role, staffPermissions),
+    canApproveSecurity: canApproveChitSecurity(ctx.role, staffPermissions, policy),
+    canReleasePayout: canReleaseChitPayout(ctx.role, staffPermissions, policy),
   };
 }
 

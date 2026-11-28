@@ -32,7 +32,7 @@ export async function isBorrowerFileAllowed(
     return true;
   }
 
-  const [kycDoc, paymentApproval, chitDoc, voiceRoomMsg] = await Promise.all([
+  const [kycDoc, paymentApproval, chitDoc, voiceRoomMsg, chitCoMemberPhoto] = await Promise.all([
     prisma.kycDocument.findFirst({
       where: { customerId, filePath: { endsWith: suffix } },
       select: { id: true },
@@ -71,8 +71,19 @@ export async function isBorrowerFileAllowed(
       },
       select: { id: true },
     }),
+    // Co-members' public profile avatars around the same chit group's table circle
+    // (strictly Customer.profilePhoto — never Aadhaar, KYC docs, or payment proofs).
+    prisma.chitMember?.findFirst
+      ? prisma.chitMember.findFirst({
+          where: {
+            customer: { tenantId, profilePhoto: { endsWith: suffix } },
+            chitGroup: { members: { some: { customerId } } },
+          },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
   ]);
-  if (kycDoc || paymentApproval || voiceRoomMsg) return true;
+  if (kycDoc || paymentApproval || voiceRoomMsg || chitCoMemberPhoto) return true;
 
   if (chitDoc) {
     if (chitDoc.entityType === 'payment_intent') {

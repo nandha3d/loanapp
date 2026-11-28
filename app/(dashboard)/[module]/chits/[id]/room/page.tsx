@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getWebChitScope } from '@/lib/chits/access';
 import { buildGroupRoomState } from '@/lib/chits/groupRoom';
 import { getCurrentLanguage } from '@/lib/i18n';
@@ -24,6 +24,16 @@ export default async function StaffChitGroupRoomPage({
     getCurrentLanguage(scope.tenantId),
   ]);
   if (!initialState) notFound();
+
+  // Unify staff Group Room & Live Auction Room into one default workspace whenever an auction exists.
+  if (initialState.activeAuction?.id) {
+    redirect(
+      modulePath(
+        scope.appType,
+        `/chits/${initialState.group.groupCode ?? initialState.group.id}/auctions/${initialState.activeAuction.id}`,
+      ),
+    );
+  }
 
   return (
     <ChitGroupRoomView

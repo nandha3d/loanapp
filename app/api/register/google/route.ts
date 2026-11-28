@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       idToken,
+      firebaseIdToken,
       supabaseAccessToken,
       googleId: directGoogleId,
       ownerEmail: directEmail,
@@ -61,10 +62,20 @@ export async function POST(request: Request) {
     let email = directEmail;
     let name = directName || 'Google User';
 
-    // Preferred path: a verified Supabase session token from the OAuth handshake.
-    // Supabase brokered Google, so the email is already proven; we use the
-    // Supabase user id as the stable external identity (googleId).
-    if (supabaseAccessToken) {
+    // Preferred Web path: verified Firebase ID Token from Firebase Google Sign-In.
+    if (firebaseIdToken) {
+      const { verifyFirebaseIdToken } = await import('@/lib/firebase/server');
+      const identity = await verifyFirebaseIdToken(String(firebaseIdToken));
+      if (!identity) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid or expired Firebase Google session' },
+          { status: 401 }
+        );
+      }
+      email = identity.email;
+      name = identity.name || name;
+      googleId = identity.uid;
+    } else if (supabaseAccessToken) {
       const { verifySupabaseToken } = await import('@/lib/supabase/server');
       const identity = await verifySupabaseToken(String(supabaseAccessToken));
       if (!identity) {

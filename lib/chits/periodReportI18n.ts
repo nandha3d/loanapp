@@ -81,6 +81,44 @@ export interface PeriodReportCopy {
   settlementReportWord: string;
   winnerPending: string;
   txnsWord: string;
+  arrearsOffsetTitle: string;
+  arrearsOffsetNote: (arrears: string, penalty: string) => string;
+  netTargetAfterArrears: string;
+  engineTitles: Record<string, string>;
+  modeLabels: Record<string, string>;
+  row2WinningBid: (pct: string) => string;
+  row2GrossPrizeNote: (gross: string) => string;
+  row2ReserveNote: (gross: string, floor: string | null) => string;
+  row2MultiDivTitle: (count: number) => string;
+  row2MultiDivNote: (total: string, avg: string) => string;
+  row2FixedDeduction: (pct: string) => string;
+  row2NoBiddingNote: (label: string, gross: string) => string;
+  row3ZeroComm: (mode: string) => string;
+  row3FlatFee: (amt: string) => string;
+  row3FreeTicket: (mode: string) => string;
+  row3CommOnBasis: (pct: number, basis: string) => string;
+  row4NetDivTitle: (eligible: number) => string;
+  row4PoolNote: (pool: string, share: string, fee: string) => string;
+  row4NoDivAccumTitle: string;
+  row4NoDivTitle: string;
+  row4DeferredTitle: (eligible: number) => string;
+  row4DeferredNote: (dist: string, pool: string) => string;
+  row5DiffTitle: string;
+  row5NetTitle: string;
+  verifyStandard: (gross: string, comm: string, members: number, each: string) => string;
+  verifyReserve: (floor: string, prize: string, comm: string, div: string) => string;
+  autoMinutesSummary: (p: {
+    groupName: string;
+    period: number;
+    dateStr: string;
+    present: number;
+    total: number;
+    winner: string;
+    prize: string;
+    discount: string;
+    comm: string;
+    div: string;
+  }) => string;
 }
 
 const EN: PeriodReportCopy = {
@@ -164,6 +202,53 @@ const EN: PeriodReportCopy = {
   settlementReportWord: 'Settlement Report',
   winnerPending: 'Winner Pending',
   txnsWord: 'txns',
+  arrearsOffsetTitle: 'Winner Unpaid Arrears & Penalty Offset (FIFO)',
+  arrearsOffsetNote: (a, p) => `Unpaid Subscriptions Offset: ${a} · Pending Penalties Offset: ${p}`,
+  netTargetAfterArrears: 'Net Target After Arrears',
+  engineTitles: {
+    AUCTION_STANDARD: 'Standard Auction Dividend Settlement',
+    AUCTION_RESERVE_PRICE: 'Reserve-Price Declining Floor Auction Settlement',
+    AUCTION_MULTI_DIVISION: 'Multi-Division (Lottery + Auction) Settlement',
+    AUCTION_UNCAPPED_ENTERPRISE: 'Enterprise Syndicate Auction Settlement',
+    BASE_PLUS_PREMIUM: 'Differential Installment (Base + Premium) Settlement',
+    FIXED_CHART_ESCALATING: 'Escalating Payout Chart Settlement',
+    FIXED_DIVIDEND: 'Fixed Dividend Schedule Settlement',
+    FIXED_PAYOUT_VARIABLE_PAY: 'Fixed Payout / Variable Installment Settlement',
+    PURE_LOTTERY: 'Pure Lottery Draw Pot Settlement',
+    FIXED_ROTATION: 'Fixed-Order Rotation Pot Settlement',
+    NEED_BASED_CONSENSUS: 'Need-Based / Consensus Pot Settlement',
+    MICRO_DAILY_COLLECTION: 'Daily Micro-Collection Cycle Settlement',
+    GOLD_VALUE_ACCUMULATION: 'Gold Jewellery Value Scheme Settlement',
+    GOLD_WEIGHT_ACCUMULATION: 'Gold Weight-Accumulation (g_t = S_t / R_t) Settlement',
+    FESTIVAL_COMMODITY: 'Festival / Commodity Savings Settlement',
+    HYBRID_SPLIT_PHASE: 'Hybrid Split-Phase Period Settlement',
+    ASCA_SHG_REVOLVING: 'ASCA / SHG Revolving Loan & Interest Pool',
+    CUSTOM_MANUAL_SCHEDULE: 'Custom / Manual Schedule Period Settlement',
+  },
+  modeLabels: { upi: 'UPI / GPay', cash: 'Cash', bank: 'Bank Transfer', cheque: 'Cheque', nach: 'NACH / Auto-Debit', recorded: 'Recorded' },
+  row2WinningBid: (pct) => `Winning Bid Discount (${pct}% of Chit Value)`,
+  row2GrossPrizeNote: (gross) => `Gross Prize = Chit Value - Bid Discount = ${gross}`,
+  row2ReserveNote: (gross, floor) => `Gross Prize = ${gross}${floor ? ` · Min Reserve Floor R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `Pooled Auction Discounts (${c} winners in cycle)`,
+  row2MultiDivNote: (total, avg) => `Combined Payout = ${total} (Avg ${avg}/winner)`,
+  row2FixedDeduction: (pct) => `Fixed Deduction / Discount (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `No bidding (${label}) · Pot Payout = ${gross}`,
+  row3ZeroComm: (mode) => `Foreman Commission (${mode} — 0%)`,
+  row3FlatFee: (amt) => `Foreman Flat Fee (${amt})`,
+  row3FreeTicket: (mode) => `Foreman Free-Ticket Pot (${mode})`,
+  row3CommOnBasis: (pct, basis) => `Foreman Commission (${pct}% on ${basis})`,
+  row4NetDivTitle: (eligible) => `Net Dividend per Ticket (${eligible} eligible tickets)`,
+  row4PoolNote: (pool, share, fee) => `Distributable Pool ${pool} (${share} share - ${fee} fee)`,
+  row4NoDivAccumTitle: 'Member Dividend (Maturity Bonus / Bullion Model)',
+  row4NoDivTitle: 'Net Dividend per Ticket (No Cycle Dividend)',
+  row4DeferredTitle: (eligible) => `Deferred Dividend / Bonus Credit per Ticket (${eligible} eligible)`,
+  row4DeferredNote: (dist, pool) => `Accumulated (${dist}): ${pool} pool retained for maturity`,
+  row5DiffTitle: 'Installment Payable (Non-Prized / Prized)',
+  row5NetTitle: 'Net Installment Payable per Member',
+  verifyStandard: (gross, comm, members, each) => `Verification: (Gross Prize ${gross} + Comm ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `Floor R_t = ${floor} | Prize ${prize} + Comm ${comm} -> Div ${div}/tkt`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — Period ${period} conducted on ${dateStr}. Attendance: ${present}/${total}. Winner: ${winner}. Prize: ${prize}, Bid discount: ${discount}, Foreman commission: ${comm}, Dividend per ticket: ${div}.`,
 };
 
 const TA: PeriodReportCopy = {
@@ -247,6 +332,53 @@ const TA: PeriodReportCopy = {
   settlementReportWord: 'தீர்வு அறிக்கை',
   winnerPending: 'வெற்றியாளர் அறிவிக்கப்படவில்லை',
   txnsWord: 'பரிவர்த்தனைகள்',
+  arrearsOffsetTitle: 'வெற்றியாளரின் பாக்கி சந்தா மற்றும் அபராத கழிவு (FIFO)',
+  arrearsOffsetNote: (a, p) => `பாக்கி சந்தா கழிவு: ${a} · நிலுவை அபராத கழிவு: ${p}`,
+  netTargetAfterArrears: 'பாக்கி கழிவு பின் நிகரத் தொகை',
+  engineTitles: {
+    AUCTION_STANDARD: 'சாதாரண ஏல டிவிடெண்ட் தீர்வு',
+    AUCTION_RESERVE_PRICE: 'குறைந்தபட்ச ஏலத் தள்ளுபடி (Reserve Floor) தீர்வு',
+    AUCTION_MULTI_DIVISION: 'பல பிரிவு (குலுக்கல் + ஏலம்) தீர்வு',
+    AUCTION_UNCAPPED_ENTERPRISE: 'வரம்பற்ற பெருநிறுவன சிண்டிகேட் ஏலத் தீர்வு',
+    BASE_PLUS_PREMIUM: 'அடிப்படை + பிரீமியம் தவணை தீர்வு',
+    FIXED_CHART_ESCALATING: 'உயரும் பரிசு அட்டவணைத் தீர்வு',
+    FIXED_DIVIDEND: 'நிலையான டிவிடெண்ட் அட்டவணைத் தீர்வு',
+    FIXED_PAYOUT_VARIABLE_PAY: 'நிலையான பரிசு / மாறும் தவணை தீர்வு',
+    PURE_LOTTERY: 'தூய குலுக்கல் பரிசுத் தீர்வு',
+    FIXED_ROTATION: 'வரிசையான சுழற்சிப் பரிசுத் தீர்வு',
+    NEED_BASED_CONSENSUS: 'தேவை அடிப்படையிலான ஒருமித்த முடிவுத் தீர்வு',
+    MICRO_DAILY_COLLECTION: 'தினசரி நுண்-வசூல் சுற்றுத் தீர்வு',
+    GOLD_VALUE_ACCUMULATION: 'தங்க நகை மதிப்புச் சேமிப்புத் தீர்வு',
+    GOLD_WEIGHT_ACCUMULATION: 'தங்க எடை சேமிப்பு (g_t = S_t / R_t) தீர்வு',
+    FESTIVAL_COMMODITY: 'பண்டிகை / பொருட்கள் சேமிப்புத் தீர்வு',
+    HYBRID_SPLIT_PHASE: 'இரு-கட்ட கலப்புச் சுற்றுத் தீர்வு',
+    ASCA_SHG_REVOLVING: 'சுயஉதவிக் குழு சுழல் கடன் நிதித் தீர்வு',
+    CUSTOM_MANUAL_SCHEDULE: 'தனிப்பயன் அட்டவணைத் தீர்வு',
+  },
+  modeLabels: { upi: 'யுபிஐ / ஜிபே', cash: 'ரொக்கம்', bank: 'வங்கி பரிமாற்றம்', cheque: 'காசோலை', nach: 'ஆட்டோ டெபிட் (NACH)', recorded: 'பதிவு' },
+  row2WinningBid: (pct) => `வெற்றி ஏலத் தள்ளுபடி (சீட்டில் ${pct}%)`,
+  row2GrossPrizeNote: (gross) => `மொத்த பரிசு = சீட்டுத் தொகை - ஏலத் தள்ளுபடி = ${gross}`,
+  row2ReserveNote: (gross, floor) => `மொத்த பரிசு = ${gross}${floor ? ` · குறைந்தபட்ச ரிசர்வ் வரம்பு R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `ஒருங்கிணைந்த ஏலத் தள்ளுபடி (${c} வெற்றியாளர்கள்)`,
+  row2MultiDivNote: (total, avg) => `மொத்த பரிசு = ${total} (சராசரி ${avg}/நபர்)`,
+  row2FixedDeduction: (pct) => `நிலையான கழிவு / தள்ளுபடி (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `ஏலம் இல்லை (${label}) · பரிசுத் தொகை = ${gross}`,
+  row3ZeroComm: (mode) => `நடத்துநர் கமிஷன் (${mode} — 0%)`,
+  row3FlatFee: (amt) => `நடத்துநர் நிலையான கட்டணம் (${amt})`,
+  row3FreeTicket: (mode) => `நடத்துநர் இலவச சீட்டு (${mode})`,
+  row3CommOnBasis: (pct, basis) => `நடத்துநர் கமிஷன் (${pct}% · ${basis})`,
+  row4NetDivTitle: (eligible) => `ஒரு சீட்டுக்கான நிகர டிவிடெண்ட் (${eligible} தகுதியான சீட்டுகள்)`,
+  row4PoolNote: (pool, share, fee) => `பகிரப்படும் நிதி ${pool} (${share} பங்கு - ${fee} கட்டணம்)`,
+  row4NoDivAccumTitle: 'உறுப்பினர் டிவிடெண்ட் (முதிர்வு போனஸ் / தங்க முறை)',
+  row4NoDivTitle: 'ஒரு சீட்டுக்கான நிகர டிவிடெண்ட் (இந்தச் சுற்றில் இல்லை)',
+  row4DeferredTitle: (eligible) => `ஒதுக்கப்பட்ட டிவிடெண்ட் / போனஸ் (${eligible} தகுதியான சீட்டுகள்)`,
+  row4DeferredNote: (dist, pool) => `சேமிப்பு (${dist}): ${pool} முதிர்வுக்கு ஒதுக்கப்பட்டது`,
+  row5DiffTitle: 'செலுத்த வேண்டிய சந்தா (பரிசு பெறாதவர் / பெற்றவர்)',
+  row5NetTitle: 'ஒரு உறுப்பினர் செலுத்த வேண்டிய நிகர சந்தா',
+  verifyStandard: (gross, comm, members, each) => `சரிபார்ப்பு: (மொத்த பரிசு ${gross} + கமிஷன் ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `வரம்பு R_t = ${floor} | பரிசு ${prize} + கமிஷன் ${comm} -> டிவிடெண்ட் ${div}/சீட்டு`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — சுற்று ${period} (${dateStr}) அன்று நடைபெற்றது. வருகை: ${present}/${total}. வெற்றியாளர்: ${winner}. பரிசு: ${prize}, தள்ளுபடி: ${discount}, நடத்துநர் கமிஷன்: ${comm}, டிவிடெண்ட்/சீட்டு: ${div}.`,
 };
 
 const HI: PeriodReportCopy = {
@@ -330,6 +462,53 @@ const HI: PeriodReportCopy = {
   settlementReportWord: 'निपटान रिपोर्ट',
   winnerPending: 'विजेता प्रतीक्षारत',
   txnsWord: 'लेनदेन',
+  arrearsOffsetTitle: 'विजेता का बकाया किश्त व जुर्माना समायोजन (FIFO)',
+  arrearsOffsetNote: (a, p) => `बकाया किश्त समायोजन: ${a} · लंबित जुर्माना समायोजन: ${p}`,
+  netTargetAfterArrears: 'बकाया कटौती के बाद शुद्ध देय',
+  engineTitles: {
+    AUCTION_STANDARD: 'मानक नीलामी लाभांश निपटान',
+    AUCTION_RESERVE_PRICE: 'आरक्षित मूल्य घटता तल नीलामी निपटान',
+    AUCTION_MULTI_DIVISION: 'बहु-विभाग (लॉटरी + नीलामी) निपटान',
+    AUCTION_UNCAPPED_ENTERPRISE: 'असीमित सिंडिकेट नीलामी निपटान',
+    BASE_PLUS_PREMIUM: 'अंतर किश्त (आधार + प्रीमियम) निपटान',
+    FIXED_CHART_ESCALATING: 'बढ़ता भुगतान चार्ट निपटान',
+    FIXED_DIVIDEND: 'निश्चित लाभांश अनुसूची निपटान',
+    FIXED_PAYOUT_VARIABLE_PAY: 'निश्चित पुरस्कार / परिवर्तनीय किश्त निपटान',
+    PURE_LOTTERY: 'शुद्ध लॉटरी ड्रा निपटान',
+    FIXED_ROTATION: 'निश्चित क्रम रोटेशन निपटान',
+    NEED_BASED_CONSENSUS: 'आवश्यकता-आधारित सर्वसम्मति निपटान',
+    MICRO_DAILY_COLLECTION: 'दैनिक सूक्ष्म-संग्रह चक्र निपटान',
+    GOLD_VALUE_ACCUMULATION: 'स्वर्ण आभूषण मूल्य योजना निपटान',
+    GOLD_WEIGHT_ACCUMULATION: 'स्वर्ण भार-संचय (g_t = S_t / R_t) निपटान',
+    FESTIVAL_COMMODITY: 'उत्सव / वस्तु बचत निपटान',
+    HYBRID_SPLIT_PHASE: 'मिश्रित विभाजित-चरण चक्र निपटान',
+    ASCA_SHG_REVOLVING: 'ASCA / SHG आवर्ती ऋण एवं ब्याज पूल',
+    CUSTOM_MANUAL_SCHEDULE: 'कस्टम / मैनुअल अनुसूची निपटान',
+  },
+  modeLabels: { upi: 'यूपीआई / जीपे', cash: 'नकद', bank: 'बैंक ट्रांसफर', cheque: 'चेक', nach: 'एनएसीएच / ऑटो-डेबिट', recorded: 'दर्ज' },
+  row2WinningBid: (pct) => `विजेता बोली छूट (चिट का ${pct}%)`,
+  row2GrossPrizeNote: (gross) => `कुल पुरस्कार = चिट मूल्य - बोली छूट = ${gross}`,
+  row2ReserveNote: (gross, floor) => `कुल पुरस्कार = ${gross}${floor ? ` · न्यूनतम आरक्षित सीमा R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `संयुक्त नीलामी छूट (चक्र में ${c} विजेता)`,
+  row2MultiDivNote: (total, avg) => `कुल भुगतान = ${total} (औसत ${avg}/विजेता)`,
+  row2FixedDeduction: (pct) => `निश्चित कटौती / छूट (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `कोई बोली नहीं (${label}) · पॉट भुगतान = ${gross}`,
+  row3ZeroComm: (mode) => `फोरमैन कमीशन (${mode} — 0%)`,
+  row3FlatFee: (amt) => `फोरमैन निश्चित शुल्क (${amt})`,
+  row3FreeTicket: (mode) => `फोरमैन निःशुल्क टिकट पॉट (${mode})`,
+  row3CommOnBasis: (pct, basis) => `फोरमैन कमीशन (${pct}% · ${basis})`,
+  row4NetDivTitle: (eligible) => `प्रति टिकट शुद्ध लाभांश (${eligible} पात्र टिकट)`,
+  row4PoolNote: (pool, share, fee) => `वितरण योग्य पूल ${pool} (${share} हिस्सा - ${fee} शुल्क)`,
+  row4NoDivAccumTitle: 'सदस्य लाभांश (परिपक्वता बोनस / स्वर्ण मॉडल)',
+  row4NoDivTitle: 'प्रति टिकट शुद्ध लाभांश (चक्र लाभांश नहीं)',
+  row4DeferredTitle: (eligible) => `संचित लाभांश / बोनस क्रेडिट (${eligible} पात्र टिकट)`,
+  row4DeferredNote: (dist, pool) => `संचित (${dist}): ${pool} परिपक्वता के लिए सुरक्षित`,
+  row5DiffTitle: 'देय किश्त (गैर-विजेता / विजेता)',
+  row5NetTitle: 'प्रति सदस्य देय शुद्ध किश्त',
+  verifyStandard: (gross, comm, members, each) => `सत्यापन: (कुल पुरस्कार ${gross} + कमीशन ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `सीमा R_t = ${floor} | पुरस्कार ${prize} + कमीशन ${comm} -> लाभांश ${div}/टिकट`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — चक्र ${period} (${dateStr}) को आयोजित। उपस्थिति: ${present}/${total}। विजेता: ${winner}। पुरस्कार: ${prize}, बोली छूट: ${discount}, फोरमैन कमीशन: ${comm}, प्रति टिकट लाभांश: ${div}।`,
 };
 
 const TE: PeriodReportCopy = {
@@ -413,6 +592,53 @@ const TE: PeriodReportCopy = {
   settlementReportWord: 'సెటిల్మెంట్ నివేదిక',
   winnerPending: 'విజేత ప్రకటించలేదు',
   txnsWord: 'లావాదేవీలు',
+  arrearsOffsetTitle: 'విజేత బకాయి వాయిదాలు & జరిమానా తగ్గింపు (FIFO)',
+  arrearsOffsetNote: (a, p) => `బకాయి వాయిదాల తగ్గింపు: ${a} · పెండింగ్ జరిమానా తగ్గింపు: ${p}`,
+  netTargetAfterArrears: 'బకాయిల తగ్గింపు తర్వాత నికర మొత్తం',
+  engineTitles: {
+    AUCTION_STANDARD: 'ప్రామాణిక వేలం డివిడెండ్ సెటిల్మెంట్',
+    AUCTION_RESERVE_PRICE: 'రిజర్వ్ ధర తగ్గుతున్న ఫ్లోర్ వేలం సెటిల్మెంట్',
+    AUCTION_MULTI_DIVISION: 'బహుళ-విభాగ (లాటరీ + వేలం) సెటిల్మెంట్',
+    AUCTION_UNCAPPED_ENTERPRISE: 'అపరిమిత సిండికేట్ వేలం సెటిల్మెంట్',
+    BASE_PLUS_PREMIUM: 'బేస్ + ప్రీమియం వాయిదా సెటిల్మెంట్',
+    FIXED_CHART_ESCALATING: 'పెరుగుతున్న చెల్లింపు చార్ట్ సెటిల్మెంట్',
+    FIXED_DIVIDEND: 'స్థిర డివిడెండ్ షెడ్యూల్ సెటిల్మెంట్',
+    FIXED_PAYOUT_VARIABLE_PAY: 'స్థిర బహుమతి / మారుతున్న వాయిదా సెటిల్మెంట్',
+    PURE_LOTTERY: 'స్వచ్ఛమైన లాటరీ డ్రా సెటిల్మెంట్',
+    FIXED_ROTATION: 'స్థిర క్రమ రొటేషన్ సెటిల్మెంట్',
+    NEED_BASED_CONSENSUS: 'అవసర ఆధారిత ఏకాభిప్రాయ సెటిల్మెంట్',
+    MICRO_DAILY_COLLECTION: 'రోజువారీ సూక్ష్మ-వసూలు సెటిల్మెంట్',
+    GOLD_VALUE_ACCUMULATION: 'బంగారు ఆభరణాల విలువ పథకం సెటిల్మెంట్',
+    GOLD_WEIGHT_ACCUMULATION: 'బంగారం బరువు పొదుపు (g_t = S_t / R_t) సెటిల్మెంట్',
+    FESTIVAL_COMMODITY: 'పండుగ / వస్తువుల పొదుపు సెటిల్మెంట్',
+    HYBRID_SPLIT_PHASE: 'హైబ్రిడ్ స్ప్లిట్-ఫేజ్ సెటిల్మెంట్',
+    ASCA_SHG_REVOLVING: 'ASCA / SHG రివాల్వింగ్ రుణ నిధి',
+    CUSTOM_MANUAL_SCHEDULE: 'కస్టమ్ / మాన్యువల్ షెడ్యూల్ సెటిల్మెంట్',
+  },
+  modeLabels: { upi: 'యూపీఐ / జీపే', cash: 'నగదు', bank: 'బ్యాంక్ బదిలీ', cheque: 'చెక్కు', nach: 'నాచ్ / ఆటో-డెబిట్', recorded: 'నమోదు' },
+  row2WinningBid: (pct) => `గెలుపొందిన వేలం తగ్గింపు (చిట్‌లో ${pct}%)`,
+  row2GrossPrizeNote: (gross) => `మొత్తం బహుమతి = చిట్ విలువ - వేలం తగ్గింపు = ${gross}`,
+  row2ReserveNote: (gross, floor) => `మొత్తం బహుమతి = ${gross}${floor ? ` · కనిష్ట రిజర్వ్ ఫ్లోర్ R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `సమిష్టి వేలం తగ్గింపు (విడతలో ${c} విజేతలు)`,
+  row2MultiDivNote: (total, avg) => `మొత్తం చెల్లింపు = ${total} (సగటు ${avg}/విజేత)`,
+  row2FixedDeduction: (pct) => `స్థిర తగ్గింపు / డిస్కౌంట్ (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `వేలం లేదు (${label}) · పాట్ చెల్లింపు = ${gross}`,
+  row3ZeroComm: (mode) => `ఫోర్‌మన్ కమీషన్ (${mode} — 0%)`,
+  row3FlatFee: (amt) => `ఫోర్‌మన్ స్థిర రుసుము (${amt})`,
+  row3FreeTicket: (mode) => `ఫోర్‌మన్ ఉచిత టికెట్ పాట్ (${mode})`,
+  row3CommOnBasis: (pct, basis) => `ఫోర్‌మన్ కమీషన్ (${pct}% · ${basis})`,
+  row4NetDivTitle: (eligible) => `టికెట్‌కు నికర డివిడెండ్ (${eligible} అర్హమైన టికెట్లు)`,
+  row4PoolNote: (pool, share, fee) => `పంపిణీ నిధి ${pool} (${share} వాటా - ${fee} ఫీజు)`,
+  row4NoDivAccumTitle: 'సభ్యుని డివిడెండ్ (మెచ్యూరిటీ బోనస్ / బంగారం మోడల్)',
+  row4NoDivTitle: 'టికెట్‌కు నికర డివిడెండ్ (ఈ విడతలో డివిడెండ్ లేదు)',
+  row4DeferredTitle: (eligible) => `వాయిదా వేసిన డివిడెండ్ / బోనస్ క్రెడిట్ (${eligible} అర్హులు)`,
+  row4DeferredNote: (dist, pool) => `నిల్వ (${dist}): ${pool} మెచ్యూరిటీకి ఉంచబడింది`,
+  row5DiffTitle: 'చెల్లించాల్సిన వాయిదా (బహుమతి పొందని / పొందిన వారు)',
+  row5NetTitle: 'ప్రతి సభ్యుడు చెల్లించాల్సిన నికర వాయిదా',
+  verifyStandard: (gross, comm, members, each) => `ధృవీకరణ: (బహుమతి ${gross} + కమీషన్ ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `ఫ్లోర్ R_t = ${floor} | బహుమతి ${prize} + కమీషన్ ${comm} -> డివిడెండ్ ${div}/టికెట్`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — విడత ${period} (${dateStr})న జరిగింది. హాజరు: ${present}/${total}. విజేత: ${winner}. బహుమతి: ${prize}, వేలం తగ్గింపు: ${discount}, ఫోర్‌మన్ కమీషన్: ${comm}, టికెట్‌కు డివిడెండ్: ${div}.`,
 };
 
 const KN: PeriodReportCopy = {
@@ -496,6 +722,53 @@ const KN: PeriodReportCopy = {
   settlementReportWord: 'ತೀರ್ಪು ವರದಿ',
   winnerPending: 'ವಿಜೇತರು ಬಾಕಿ',
   txnsWord: 'ವಹಿವಾಟುಗಳು',
+  arrearsOffsetTitle: 'ವಿಜೇತರ ಬಾಕಿ ಕಂತು ಮತ್ತು ದಂಡ ಹೊಂದಾಣಿಕೆ (FIFO)',
+  arrearsOffsetNote: (a, p) => `ಬಾಕಿ ಕಂತು ಕಡಿತ: ${a} · ಬಾಕಿ ದಂಡ ಕಡಿತ: ${p}`,
+  netTargetAfterArrears: 'ಬಾಕಿ ಕಡಿತದ ನಂತರ ನಿವ್ವಳ ಮೊತ್ತ',
+  engineTitles: {
+    AUCTION_STANDARD: 'ಪ್ರಮಾಣಿತ ಹರಾಜು ಲಾಭಾಂಶ ತೀರ್ಪು',
+    AUCTION_RESERVE_PRICE: 'ಮೀಸಲು ಬೆಲೆ ಇಳಿಕೆಯ ಹರಾಜು ತೀರ್ಪು',
+    AUCTION_MULTI_DIVISION: 'ಬಹು-ವಿಭಾಗ (ಲಾಟರಿ + ಹರಾಜು) ತೀರ್ಪು',
+    AUCTION_UNCAPPED_ENTERPRISE: 'ಮಿತಿರಹಿತ ಸಿಂಡಿಕೇಟ್ ಹರಾಜು ತೀರ್ಪು',
+    BASE_PLUS_PREMIUM: 'ಮೂಲ + ಪ್ರೀಮಿಯಂ ಕಂತು ತೀರ್ಪು',
+    FIXED_CHART_ESCALATING: 'ಏರಿಳಿತದ ಪಾವತಿ ಚಾರ್ಟ್ ತೀರ್ಪು',
+    FIXED_DIVIDEND: 'ನಿಗದಿತ ಲಾಭಾಂಶ ವೇಳಾಪಟ್ಟಿ ತೀರ್ಪು',
+    FIXED_PAYOUT_VARIABLE_PAY: 'ನಿಗದಿತ ಬಹುಮಾನ / ಬದಲಾಗುವ ಕಂತು ತೀರ್ಪು',
+    PURE_LOTTERY: 'ಶುದ್ಧ ಲಾಟರಿ ಡ್ರಾ ತೀರ್ಪು',
+    FIXED_ROTATION: 'ನಿಗದಿತ ಕ್ರಮದ ಸರದಿ ತೀರ್ಪು',
+    NEED_BASED_CONSENSUS: 'ಅಗತ್ಯ ಆಧಾರಿತ ಒಮ್ಮತದ ತೀರ್ಪು',
+    MICRO_DAILY_COLLECTION: 'ದೈನಂದಿನ ಸೂಕ್ಷ್ಮ-ಸಂಗ್ರಹ ತೀರ್ಪು',
+    GOLD_VALUE_ACCUMULATION: 'ಚಿನ್ನಾಭರಣ ಮೌಲ್ಯ ಯೋಜನೆ ತೀರ್ಪು',
+    GOLD_WEIGHT_ACCUMULATION: 'ಚಿನ್ನದ ತೂಕ ಸಂಗ್ರಹ (g_t = S_t / R_t) ತೀರ್ಪು',
+    FESTIVAL_COMMODITY: 'ಹಬ್ಬ / ಸರಕು ಉಳಿತಾಯ ತೀರ್ಪು',
+    HYBRID_SPLIT_PHASE: 'ಹೈಬ್ರಿಡ್ ವಿಭಜಿತ ಹಂತದ ತೀರ್ಪು',
+    ASCA_SHG_REVOLVING: 'ASCA / SHG ಆವರ್ತಕ ಸಾಲ ನಿಧಿ',
+    CUSTOM_MANUAL_SCHEDULE: 'ಕಸ್ಟಮ್ / ಹಸ್ತಚಾಲಿತ ವೇಳಾಪಟ್ಟಿ ತೀರ್ಪು',
+  },
+  modeLabels: { upi: 'ಯುಪಿಐ / ಜಿಪೇ', cash: 'ನಗದು', bank: 'ಬ್ಯಾಂಕ್ ವರ್ಗಾವಣೆ', cheque: 'ಚೆಕ್', nach: 'ನಾಚ್ / ಆಟೋ-ಡೆಬಿಟ್', recorded: 'ದಾಖಲಿಸಲಾಗಿದೆ' },
+  row2WinningBid: (pct) => `ಗೆದ್ದ ಹರಾಜು ರಿಯಾಯಿತಿ (ಚಿಟ್‌ನ ${pct}%)`,
+  row2GrossPrizeNote: (gross) => `ಒಟ್ಟು ಬಹುಮಾನ = ಚಿಟ್ ಮೌಲ್ಯ - ರಿಯಾಯಿತಿ = ${gross}`,
+  row2ReserveNote: (gross, floor) => `ಒಟ್ಟು ಬಹುಮಾನ = ${gross}${floor ? ` · ಕನಿಷ್ಠ ಮೀಸಲು ಮಿತಿ R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `ಸಂಯೋಜಿತ ಹರಾಜು ರಿಯಾಯಿತಿ (${c} ವಿಜೇತರು)`,
+  row2MultiDivNote: (total, avg) => `ಒಟ್ಟು ಪಾವತಿ = ${total} (ಸರಾಸರಿ ${avg}/ವಿಜೇತರು)`,
+  row2FixedDeduction: (pct) => `ನಿಗದಿತ ಕಡಿತ / ರಿಯಾಯಿತಿ (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `ಹರಾಜು ಇಲ್ಲ (${label}) · ಬಹುಮಾನ ಪಾವತಿ = ${gross}`,
+  row3ZeroComm: (mode) => `ಫೋರ್‌ಮನ್ ಕಮಿಷನ್ (${mode} — 0%)`,
+  row3FlatFee: (amt) => `ಫೋರ್‌ಮನ್ ನಿಗದಿತ ಶುಲ್ಕ (${amt})`,
+  row3FreeTicket: (mode) => `ಫೋರ್‌ಮನ್ ಉಚಿತ ಟಿಕೆಟ್ ಪಾಟ್ (${mode})`,
+  row3CommOnBasis: (pct, basis) => `ಫೋರ್‌ಮನ್ ಕಮಿಷನ್ (${pct}% · ${basis})`,
+  row4NetDivTitle: (eligible) => `ಪ್ರತಿ ಟಿಕೆಟ್‌ಗೆ ನಿವ್ವಳ ಲಾಭಾಂಶ (${eligible} ಅರ್ಹ ಟಿಕೆಟ್‌ಗಳು)`,
+  row4PoolNote: (pool, share, fee) => `ಹಂಚಿಕೆ ನಿಧಿ ${pool} (${share} ಪಾಲು - ${fee} ಶುಲ್ಕ)`,
+  row4NoDivAccumTitle: 'ಸದಸ್ಯರ ಲಾಭಾಂಶ (ಪಕ್ವತೆ ಬೋನಸ್ / ಚಿನ್ನದ ಮಾದರಿ)',
+  row4NoDivTitle: 'ಪ್ರತಿ ಟಿಕೆಟ್‌ಗೆ ನಿವ್ವಳ ಲಾಭಾಂಶ (ಕಂತು ಲಾಭಾಂಶವಿಲ್ಲ)',
+  row4DeferredTitle: (eligible) => `ಮುಂದೂಡಿದ ಲಾಭಾಂಶ / ಬೋನಸ್ ಕ್ರೆಡಿಟ್ (${eligible} ಅರ್ಹರು)`,
+  row4DeferredNote: (dist, pool) => `ಸಂಚಿತ (${dist}): ${pool} ಪಕ್ವತೆಗಾಗಿ ಕಾಯ್ದಿರಿಸಲಾಗಿದೆ`,
+  row5DiffTitle: 'ಪಾವತಿಸಬೇಕಾದ ಕಂತು (ಬಹುಮಾನ ಪಡೆಯದ / ಪಡೆದವರು)',
+  row5NetTitle: 'ಪ್ರತಿ ಸದಸ್ಯರು ಪಾವತಿಸಬೇಕಾದ ನಿವ್ವಳ ಕಂತು',
+  verifyStandard: (gross, comm, members, each) => `ಪರಿಶೀಲನೆ: (ಬಹುಮಾನ ${gross} + ಕಮಿಷನ್ ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `ಮಿತಿ R_t = ${floor} | ಬಹುಮಾನ ${prize} + ಕಮಿಷನ್ ${comm} -> ಲಾಭಾಂಶ ${div}/ಟಿಕೆಟ್`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — ಕಂತು ${period} (${dateStr}) ರಂದು ನಡೆಯಿತು. ಹಾಜರಾತಿ: ${present}/${total}. ವಿಜೇತರು: ${winner}. ಬಹುಮಾನ: ${prize}, ರಿಯಾಯಿತಿ: ${discount}, ಫೋರ್‌ಮನ್ ಕಮಿಷನ್: ${comm}, ಪ್ರತಿ ಟಿಕೆಟ್ ಲಾಭಾಂಶ: ${div}.`,
 };
 
 const ML: PeriodReportCopy = {
@@ -579,6 +852,53 @@ const ML: PeriodReportCopy = {
   settlementReportWord: 'സെറ്റിൽമെന്റ് റിപ്പോർട്ട്',
   winnerPending: 'വിജയിയെ തീരുമാനിച്ചിട്ടില്ല',
   txnsWord: 'ഇടപാടുകൾ',
+  arrearsOffsetTitle: 'വിജയിയുടെ കുടിശ്ശിക തവണയും പിഴയും കുറയ്ക്കൽ (FIFO)',
+  arrearsOffsetNote: (a, p) => `കുടിശ്ശിക തവണ കുറച്ചത്: ${a} · പിഴ കുറച്ചത്: ${p}`,
+  netTargetAfterArrears: 'കുടിശ്ശിക കുറച്ച ശേഷമുള്ള അറ്റ തുക',
+  engineTitles: {
+    AUCTION_STANDARD: 'സാധാരണ ലേല ഡിവിഡന്റ് സെറ്റിൽമെന്റ്',
+    AUCTION_RESERVE_PRICE: 'റിസർവ് ഫ്ലോർ ലേല സെറ്റിൽമെന്റ്',
+    AUCTION_MULTI_DIVISION: 'മൾട്ടി-ഡിവിഷൻ (ലോട്ടറി + ലേലം) സെറ്റിൽമെന്റ്',
+    AUCTION_UNCAPPED_ENTERPRISE: 'പരിധിയില്ലാത്ത സിൻഡിക്കേറ്റ് ലേല സെറ്റിൽമെന്റ്',
+    BASE_PLUS_PREMIUM: 'ബേസ് + പ്രീമിയം തവണ സെറ്റിൽമെന്റ്',
+    FIXED_CHART_ESCALATING: 'ഉയരുന്ന സമ്മാന ചാർട്ട് സെറ്റിൽമെന്റ്',
+    FIXED_DIVIDEND: 'നിശ്ചിത ഡിവിഡന്റ് ഷെഡ്യൂൾ സെറ്റിൽമെന്റ്',
+    FIXED_PAYOUT_VARIABLE_PAY: 'നിശ്ചിത സമ്മാനം / മാറുന്ന തവണ സെറ്റിൽമെന്റ്',
+    PURE_LOTTERY: 'പ്യുവർ ലോട്ടറി നറുക്കെടുപ്പ് സെറ്റിൽമെന്റ്',
+    FIXED_ROTATION: 'നിശ്ചിത ക്രമത്തിലുള്ള റൊട്ടേഷൻ സെറ്റിൽമെന്റ്',
+    NEED_BASED_CONSENSUS: 'ആവശ്യാധിഷ്ഠിത സമവായ സെറ്റിൽമെന്റ്',
+    MICRO_DAILY_COLLECTION: 'പ്രതിദിന മൈക്രോ-കളക്ഷൻ സെറ്റിൽമെന്റ്',
+    GOLD_VALUE_ACCUMULATION: 'സ്വർണ്ണാഭരണ മൂല്യ പദ്ധതി സെറ്റിൽമെന്റ്',
+    GOLD_WEIGHT_ACCUMULATION: 'സ്വർണ്ണ തൂക്ക ശേഖരണ (g_t = S_t / R_t) സെറ്റിൽമെന്റ്',
+    FESTIVAL_COMMODITY: 'ഉത്സവ / സാധന സമ്പാദ്യ സെറ്റിൽമെന്റ്',
+    HYBRID_SPLIT_PHASE: 'ഹൈബ്രിഡ് സ്പ്ലിറ്റ്-ഫേസ് സെറ്റിൽമെന്റ്',
+    ASCA_SHG_REVOLVING: 'ASCA / SHG റിവോൾവിംഗ് വായ്പാ നിധി',
+    CUSTOM_MANUAL_SCHEDULE: 'കസ്റ്റം / മാനുവൽ ഷെഡ്യൂൾ സെറ്റിൽമെന്റ്',
+  },
+  modeLabels: { upi: 'യുപിഐ / ജിപേ', cash: 'പണം', bank: 'ബാങ്ക് ട്രാൻസ്ഫർ', cheque: 'ചെക്ക്', nach: 'നാച്ച് / ഓട്ടോ-ഡെബിറ്റ്', recorded: 'രേഖപ്പെടുത്തിയത്' },
+  row2WinningBid: (pct) => `വിജയിച്ച ലേല കിഴിവ് (ചിട്ടിയുടെ ${pct}%)`,
+  row2GrossPrizeNote: (gross) => `ആകെ സമ്മാനം = ചിട്ടി തുക - ലേല കിഴിവ് = ${gross}`,
+  row2ReserveNote: (gross, floor) => `ആകെ സമ്മാനം = ${gross}${floor ? ` · കുറഞ്ഞ റിസർവ് ഫ്ലോർ R_t = ${floor}` : ''}`,
+  row2MultiDivTitle: (c) => `സംയുക്ത ലേല കിഴിവ് (${c} വിജയികൾ)`,
+  row2MultiDivNote: (total, avg) => `ആകെ വിതരണം = ${total} (ശരാശരി ${avg}/വിജയി)`,
+  row2FixedDeduction: (pct) => `നിശ്ചിത കിഴിവ് / ഡിസ്കൗണ്ട് (${pct}%)`,
+  row2NoBiddingNote: (label, gross) => `ലേലമില്ല (${label}) · സമ്മാന വിതരണം = ${gross}`,
+  row3ZeroComm: (mode) => `ഫോർമാൻ കമ്മീഷൻ (${mode} — 0%)`,
+  row3FlatFee: (amt) => `ഫോർമാൻ നിശ്ചിത ഫീസ് (${amt})`,
+  row3FreeTicket: (mode) => `ഫോർമാൻ സൗജന്യ ടിക്കറ്റ് (${mode})`,
+  row3CommOnBasis: (pct, basis) => `ഫോർമാൻ കമ്മീഷൻ (${pct}% · ${basis})`,
+  row4NetDivTitle: (eligible) => `ഒരു ടിക്കറ്റിന് അറ്റ ഡിവിഡന്റ് (${eligible} യോഗ്യമായ ടിക്കറ്റുകൾ)`,
+  row4PoolNote: (pool, share, fee) => `വിതരണ നിധി ${pool} (${share} വിഹിതം - ${fee} ഫീസ്)`,
+  row4NoDivAccumTitle: 'അംഗങ്ങളുടെ ഡിവിഡന്റ് (മെച്യൂരിറ്റി ബോണസ് / സ്വർണ്ണ മാതൃക)',
+  row4NoDivTitle: 'ഒരു ടിക്കറ്റിന് അറ്റ ഡിവിഡന്റ് (ഈ തവണയിൽ ഡിവിഡന്റ് ഇല്ല)',
+  row4DeferredTitle: (eligible) => `കരുതൽ ഡിവിഡന്റ് / ബോണസ് ക്രെഡിറ്റ് (${eligible} യോഗ്യർ)`,
+  row4DeferredNote: (dist, pool) => `ശേഖരണം (${dist}): ${pool} കാലാവധിക്കായി മാറ്റി വെച്ചു`,
+  row5DiffTitle: 'അടയ്ക്കേണ്ട തവണ (സമ്മാനം ലഭിക്കാത്തവർ / ലഭിച്ചവർ)',
+  row5NetTitle: 'ഒരു അംഗം അടയ്ക്കേണ്ട അറ്റ തവണ',
+  verifyStandard: (gross, comm, members, each) => `പരിശോധന: (സമ്മാനം ${gross} + കമ്മീഷൻ ${comm}) / ${members} = ${each}`,
+  verifyReserve: (floor, prize, comm, div) => `ഫ്ലോർ R_t = ${floor} | സമ്മാനം ${prize} + കമ്മീഷൻ ${comm} -> ഡിവിഡന്റ് ${div}/ടിക്കറ്റ്`,
+  autoMinutesSummary: ({ groupName, period, dateStr, present, total, winner, prize, discount, comm, div }) =>
+    `${groupName} — തവണ ${period} (${dateStr})-ൽ നടന്നു. ഹാജർ: ${present}/${total}. വിജയി: ${winner}. സമ്മാനം: ${prize}, ലേല കിഴിവ്: ${discount}, ഫോർമാൻ കമ്മീഷൻ: ${comm}, ടിക്കറ്റിന് ഡിവിഡന്റ്: ${div}.`,
 };
 
 const COPY_MAP: Record<PdfLang, PeriodReportCopy> = {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getBorrowerSession } from '@/lib/borrowerAuth';
 import { buildCustomerLiveState, findOwnLiveAuction } from '@/lib/chits/customerAuction';
 import { getSetting } from '@/lib/tenant';
+import { getCurrentLanguage } from '@/lib/i18n';
 import BorrowerChitRoomClient from './BorrowerChitRoomClient';
 
 export default async function BorrowerChitAuctionRoomPage({
@@ -17,9 +18,10 @@ export default async function BorrowerChitAuctionRoomPage({
   const found = await findOwnLiveAuction(session.customerId, session.tenantId, id, auctionId);
   if (!found) notFound();
 
-  const [initialState, currencySymbol] = await Promise.all([
+  const [initialState, currencySymbol, lang] = await Promise.all([
     buildCustomerLiveState(id, auctionId, found.member.id),
     getSetting(session.tenantId, 'currency_symbol', '₹'),
+    getCurrentLanguage(session.tenantId),
   ]);
   if (!initialState) notFound();
 
@@ -59,6 +61,7 @@ export default async function BorrowerChitAuctionRoomPage({
         auctionId={auctionId}
         initialState={JSON.parse(JSON.stringify(initialState))}
         currencySymbol={currencySymbol}
+        lang={lang}
       />
     </div>
   );

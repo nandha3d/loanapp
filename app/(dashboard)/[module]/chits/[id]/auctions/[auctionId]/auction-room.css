@@ -1,0 +1,499 @@
+/* Outer Light Header + Deep Navy Live Chit Studio Shell
+   Matches target reference proportions, iconography, and typography using tenant CSS variables (--primary*).
+   Zero AI-default left-side border crescent stripes. */
+
+.chit-room-shell {
+  max-width: 1560px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 14px 36px -14px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Light Outer Header Bar above Dark Navy Studio Container */
+.chit-room-outer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.chit-room-outer-row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chit-room-outer-title {
+  margin: 0;
+  font-size: 1.24rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chit-room-outer-leader {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chit-room-outer-row2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chit-room-light-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chit-room-light-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+
+.chit-room-light-pill:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.chit-room-light-pill--active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+
+.chit-room-light-lang-group {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.chit-room-light-lang-group--active {
+  border-color: var(--primary);
+  box-shadow: 0 0 12px -4px var(--primary-glow);
+}
+
+.chit-room-light-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chit-room-light-lang-select {
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.79rem;
+  font-weight: 800;
+  padding: 6px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Deep Navy Inner Studio Shell */
+.chit-studio-shell {
+  position: relative;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 24% 20%, color-mix(in srgb, var(--primary) 16%, transparent) 0%, transparent 45%),
+    radial-gradient(circle at 74% 18%, rgba(250, 204, 21, 0.08) 0%, transparent 40%),
+    linear-gradient(180deg, #0f1b2e 0%, #16243a 55%, #0c1728 100%);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow:
+    0 20px 44px -14px rgba(15, 23, 42, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Icon-Driven Telemetry Strip */
+.chit-studio-telemetry {
+  padding: 13px 16px 10px;
+  display: grid;
+  grid-template-columns: minmax(235px, 1.04fr) minmax(275px, 1.18fr) minmax(245px, 1.04fr) minmax(320px, 1.36fr);
+  gap: 11px;
+  align-items: stretch;
+}
+
+.chit-telemetry-tile {
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: rgba(18, 30, 49, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chit-telemetry-tile--leader {
+  background: linear-gradient(125deg, rgba(234, 179, 8, 0.15) 0%, rgba(18, 30, 49, 0.86) 100%);
+  border-color: rgba(250, 204, 21, 0.36);
+  box-shadow: 0 0 20px -8px rgba(250, 204, 21, 0.32), inset 0 1px 0 rgba(254, 240, 138, 0.14);
+}
+
+.chit-telemetry-tile--control {
+  background: rgba(18, 30, 49, 0.84);
+  border-color: rgba(148, 163, 184, 0.24);
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+
+.chit-telemetry-clock-split {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.chit-telemetry-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(148, 163, 184, 0.22);
+  flex-shrink: 0;
+}
+
+.chit-telemetry-kicker {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  line-height: 1.2;
+}
+
+.chit-telemetry-value {
+  font-size: 1.04rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.chit-telemetry-meta {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.chit-telemetry-leader-pill {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  border-radius: 10px;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde047;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 0 16px -4px rgba(250, 204, 21, 0.35);
+}
+
+.chit-studio-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.chit-studio-status-pill--live {
+  background: rgba(220, 38, 38, 0.88);
+  border-color: rgba(254, 202, 202, 0.65);
+  color: #ffffff;
+}
+
+.chit-studio-status-pill--locked {
+  background: rgba(22, 163, 74, 0.25);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #86efac;
+}
+
+/* Main 70:30 Arena + White Dock Split */
+.chit-room-stage-split {
+  padding: 4px 16px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(350px, 3fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.chit-studio-arena-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chit-room-chat-dock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chit-room-glass-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.74);
+  color: #f1f5f9;
+  font-size: 0.77rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.chit-room-glass-btn:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: rgba(255, 255, 255, 0.36);
+  color: #ffffff;
+}
+
+.chit-room-glass-btn--active {
+  background: color-mix(in srgb, var(--primary) 34%, rgba(15, 23, 42, 0.9));
+  border-color: var(--primary);
+  box-shadow: 0 0 14px -3px var(--primary-glow);
+  color: #ffffff;
+}
+
+.chit-room-seat-rail {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.56);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  align-items: center;
+}
+
+.chit-room-seat-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(30, 41, 59, 0.78);
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+
+.chit-room-seat-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 24%, rgba(30, 41, 59, 0.92));
+  color: #ffffff;
+}
+
+.chit-room-seat-chip--selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* Bottom Studio Bar — Reference Hint + Large Frosty/Mint Action Pills */
+.chit-studio-footer-bar {
+  padding: 8px 18px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chit-studio-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chit-studio-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.26);
+  transition: all 0.14s ease;
+}
+
+.chit-studio-tab:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.chit-studio-tab--active {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+  box-shadow: 0 0 20px -2px var(--primary-glow), 0 6px 14px rgba(2, 6, 23, 0.28);
+}
+
+@keyframes bellUrgentPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 18px 2px rgba(245, 158, 11, 0.72);
+    transform: scale(1.03);
+  }
+}
+
+.chit-bell-countdown-pill {
+  animation: bellUrgentPulse 0.9s ease-in-out infinite;
+}
+
+.chit-studio-drawer {
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Crisp light-theme panels & pills inside the expandable bottom studio drawer */
+.chit-studio-drawer .chit-studio-panel {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 16px;
+  color: var(--text);
+  box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.06);
+}
+
+.chit-drawer-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+
+.chit-drawer-pill-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.chit-drawer-pill-btn--active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  box-shadow: 0 0 12px -4px var(--primary-glow);
+}
+
+@media (max-width: 1260px) {
+  .chit-studio-telemetry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chit-room-stage-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .chit-room-outer-card {
+    padding: 12px;
+  }
+  .chit-studio-telemetry {
+    grid-template-columns: 1fr;
+  }
+  .chit-telemetry-tile--control {
+    flex-wrap: wrap;
+  }
+  .chit-studio-tab {
+    padding: 8px 13px;
+    font-size: 0.82rem;
+  }
+}

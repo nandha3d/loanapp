@@ -9,6 +9,7 @@ import { markNotificationRead, markAllNotificationsRead } from '@/app/(dashboard
 import { parseModulePath } from '@/types/modules';
 import { formatNotificationTime } from '@/lib/utils';
 import { renderNotificationText } from '@/lib/notificationText';
+import TopbarLiveAuctionBar from '@/components/chits/TopbarLiveAuctionBar';
 import { useBreadcrumbLabels } from './BreadcrumbLabelContext';
 
 interface BreadcrumbItem {
@@ -25,10 +26,14 @@ function formatTodayDate(): string {
 export default function Topbar({
   dict,
   currentLang,
+  activeModule,
+  canConductChitAuction = false,
   branchSwitcher,
 }: {
   dict: any;
   currentLang: string;
+  activeModule?: string;
+  canConductChitAuction?: boolean;
   branchSwitcher?: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -194,6 +199,13 @@ export default function Topbar({
       </div>
 
       <div className="topbar-right">
+        {activeModule === 'chitfunds' && (
+          <TopbarLiveAuctionBar
+            mode="staff"
+            canConductAuction={canConductChitAuction}
+            dict={dict}
+          />
+        )}
         {branchSwitcher}
 
         <select

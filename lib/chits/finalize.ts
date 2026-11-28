@@ -326,6 +326,7 @@ export async function finalizeAuctionInTx(
       goldRatePerGram: params.goldRatePerGram ?? undefined,
       calculationBreakdown: JSON.stringify(breakdown),
       status: 'confirmed',
+      roomStatus: 'closed',
       payoutStatus: securityAutoApproved ? 'ready' : 'security_pending',
       completedAt: new Date(),
       confirmedAt: new Date(),

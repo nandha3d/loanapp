@@ -83,6 +83,7 @@ export type AutomatedBidBounds = {
   minPrize: number;
   step: number;
   effectiveStep: number;
+  strictBidMultiple?: boolean;
   currentHighestDiscount: number;
   currentLowestPrize: number | null;
   nextValidDiscount: number;
@@ -95,6 +96,29 @@ function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
+/**
+ * Checks whether `bidDiscount` aligns with `step` multiples (either directly
+ * or offset cleanly from the auction's `anchorDiscount` opening floor).
+ */
+export function isDiscountMultipleAligned(
+  bidDiscount: number,
+  step: number,
+  anchorDiscount = 0,
+): boolean {
+  if (!Number.isFinite(step) || step <= 1) return true;
+  const cleanBid = round2(bidDiscount);
+  const directRem = round2(cleanBid % step);
+  if (directRem <= 1e-6 || round2(step - directRem) <= 1e-6) return true;
+  if (anchorDiscount > 0) {
+    const offset = round2(cleanBid - round2(anchorDiscount));
+    if (offset >= 0) {
+      const anchorRem = round2(offset % step);
+      if (anchorRem <= 1e-6 || round2(step - anchorRem) <= 1e-6) return true;
+    }
+  }
+  return false;
+}
+
 /** Computes server-authoritative starting floor, monotonic next bid ceiling, and premade template buttons. */
 export function computeAutomatedBidBounds(params: {
   chitValue: number;
@@ -105,6 +129,7 @@ export function computeAutomatedBidBounds(params: {
   reserveFloorPct?: number | null;
   uncapped?: boolean;
   bidIncrement?: number | null;
+  strictBidMultiple?: boolean;
   currentHighestDiscount?: number | null;
   auctionType?: string | null;
 }): AutomatedBidBounds {
@@ -132,12 +157,19 @@ export function computeAutomatedBidBounds(params: {
     currentHighestDiscount > 0 ? Math.max(1, round2(chitValue - currentHighestDiscount)) : null;
 
   const isSealed = params.auctionType === 'sealed';
+  const strictMultiple = Boolean(params.strictBidMultiple && step > 1 && !isSealed);
   const minAdvance = isSealed ? 0 : step > 0 ? step : 1;
   const capCeiling = maxDiscount ?? round2(chitValue - 1);
 
   let nextValidDiscount: number;
   if (currentHighestDiscount > 0 && !isSealed) {
-    nextValidDiscount = Math.min(capCeiling, round2(currentHighestDiscount + minAdvance));
+    const rawNext = round2(currentHighestDiscount + minAdvance);
+    if (strictMultiple && !isDiscountMultipleAligned(rawNext, step, minDiscount)) {
+      const snappedDirect = round2(Math.ceil(rawNext / step) * step);
+      nextValidDiscount = Math.min(capCeiling, snappedDirect);
+    } else {
+      nextValidDiscount = Math.min(capCeiling, rawNext);
+    }
   } else {
     nextValidDiscount = Math.min(capCeiling, minDiscount > 0 ? minDiscount : step > 0 ? step : effectiveStep);
   }
@@ -194,6 +226,7 @@ export function computeAutomatedBidBounds(params: {
     minPrize,
     step,
     effectiveStep,
+    strictBidMultiple: strictMultiple,
     currentHighestDiscount,
     currentLowestPrize,
     nextValidDiscount,
@@ -211,18 +244,32 @@ export function assertMonotonicBidDirection(params: {
   incrementStep: number;
   maxDiscountCap?: number | null;
   auctionType?: string | null;
+  strictBidMultiple?: boolean;
+  startingDiscount?: number;
 }) {
   if (params.auctionType === 'sealed') return;
   const { chitValue, bidDiscount, currentHighestDiscount, incrementStep, maxDiscountCap } = params;
-  if (currentHighestDiscount <= 0) return;
-
   const atCap = maxDiscountCap != null && round2(bidDiscount) === round2(maxDiscountCap);
-  const minAdvance = incrementStep > 0 ? incrementStep : 1;
-  const minRequiredDiscount = round2(currentHighestDiscount + minAdvance);
-  if (!atCap && bidDiscount + 1e-9 < minRequiredDiscount) {
-    const maxNextPrize = Math.max(1, round2(chitValue - minRequiredDiscount));
+
+  if (currentHighestDiscount > 0) {
+    const minAdvance = incrementStep > 0 ? incrementStep : 1;
+    const minRequiredDiscount = round2(currentHighestDiscount + minAdvance);
+    if (!atCap && bidDiscount + 1e-9 < minRequiredDiscount) {
+      const maxNextPrize = Math.max(1, round2(chitValue - minRequiredDiscount));
+      throw new Error(
+        `Reverse bidding only decreases prize: prize must be <= ${maxNextPrize} (discount >= ${minRequiredDiscount})`,
+      );
+    }
+  }
+
+  if (
+    params.strictBidMultiple &&
+    incrementStep > 1 &&
+    !atCap &&
+    !isDiscountMultipleAligned(bidDiscount, incrementStep, params.startingDiscount ?? 0)
+  ) {
     throw new Error(
-      `Reverse bidding only decreases prize: prize must be <= ${maxNextPrize} (discount >= ${minRequiredDiscount})`,
+      `Narrow bidding restricted: bid must step in multiples of ₹${incrementStep} (e.g. +₹${incrementStep} steps, no narrow ₹1 increments).`,
     );
   }
 }

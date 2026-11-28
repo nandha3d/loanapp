@@ -6,6 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { headers, cookies } from 'next/headers';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
+import { canConductChitAuction } from '@/lib/chits/access';
 import { getDefaultTenantId, getTenantSettings } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
 import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
@@ -27,6 +28,7 @@ import TrialBanner from '@/components/TrialBanner';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import WebPushManager from '@/components/push/WebPushManager';
+import ModuleThemeSync from '@/components/layout/ModuleThemeSync';
 import { BreadcrumbLabelProvider } from '@/components/layout/BreadcrumbLabelContext';
 
 export default async function DashboardLayout({
@@ -181,17 +183,30 @@ export default async function DashboardLayout({
   // Tenant theme preset (Settings → Theme) overrides the per-module colours.
   const tenantSettings = await getTenantSettings(tenantId);
   const theme = getThemePreset(tenantSettings[THEME_SETTING_KEY]);
+  const resolvedPrimary = theme?.primary ?? appConfig.primaryColor;
+  const resolvedPrimaryDark = theme?.primaryDark ?? appConfig.primaryDark;
+  const resolvedPrimaryLight = theme?.primaryLight ?? appConfig.primaryLight;
+  const resolvedAccent = theme?.accent ?? appConfig.accentColor;
 
   return (
     <div
       className={`app-layout${requestedModule === 'microlending' ? ' app-layout--microlending' : ''}${role === 'agent' ? ' has-bottom-nav' : ''}`}
       style={{
-        '--primary': theme?.primary ?? appConfig.primaryColor,
-        '--primary-dark': theme?.primaryDark ?? appConfig.primaryDark,
-        '--primary-light': theme?.primaryLight ?? appConfig.primaryLight,
-        '--accent': theme?.accent ?? appConfig.accentColor,
+        '--primary': resolvedPrimary,
+        '--primary-dark': resolvedPrimaryDark,
+        '--primary-light': resolvedPrimaryLight,
+        '--primary-border': `color-mix(in srgb, ${resolvedPrimary} 28%, #ffffff)`,
+        '--primary-tint': `color-mix(in srgb, ${resolvedPrimary} 12%, #ffffff)`,
+        '--primary-glow': `color-mix(in srgb, ${resolvedPrimary} 28%, transparent)`,
+        '--accent': resolvedAccent,
       } as React.CSSProperties}
     >
+      <ModuleThemeSync
+        primary={resolvedPrimary}
+        primaryDark={resolvedPrimaryDark}
+        primaryLight={resolvedPrimaryLight}
+        accent={resolvedAccent}
+      />
       <Sidebar
         appType={requestedModule}
         enabledModules={enabledModules}
@@ -209,6 +224,11 @@ export default async function DashboardLayout({
           <Topbar
             dict={dict}
             currentLang={lang}
+            activeModule={requestedModule}
+            canConductChitAuction={
+              requestedModule === 'chitfunds' &&
+              canConductChitAuction(role, user.staffPermissions ?? null)
+            }
             branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
           />
           <div className="page-content fade-up" style={{ position: 'relative' }}>

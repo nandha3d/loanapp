@@ -2,16 +2,18 @@
 
 import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
-import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus, saveCustomRole, deleteCustomRole } from './actions';
+import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, updateLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus, saveCustomRole, deleteCustomRole, saveCustomerRouteModeAction, saveChitApprovalPolicyAction, toggleUserChitApprovalAction } from './actions';
 import {
   ALL_STAFF_PERMISSION_KEYS,
   DEFAULT_ROLE_TEMPLATES,
   EMPTY_STAFF_PERMISSIONS,
   STAFF_PERMISSION_META,
   parseStaffPermissions,
+  type StaffPermissionKey,
   type StaffPermissions,
 } from '@/lib/staffPermissions';
 import ElementPrivilegeSelector from '@/components/settings/ElementPrivilegeSelector';
+import ChitApprovalDelegationPanel from '@/components/settings/ChitApprovalDelegationPanel';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -19,7 +21,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 import GoldMasterClient from './gold-master/GoldMasterClient';
 import ChitTypesSettingsClient from './chit-types/ChitTypesSettingsClient';
-import { isLendingAppType, normalizeSettingsTab } from '@/lib/moduleCapabilities';
+import { customerRouteSettingKey, isLendingAppType, normalizeSettingsTab, resolveCustomerRouteMode, type CustomerRouteMode } from '@/lib/moduleCapabilities';
 import { MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { TEMPLATE_PLACEHOLDER_KEYS } from '@/lib/notify/templateRenderer';
 
@@ -39,6 +41,10 @@ export default function SettingsClient({
   const modulePrefix = pathname.split('/')[1] || 'microlending';
   const effAppType = appType || modulePrefix;
   const isLendingModule = isLendingAppType(effAppType);
+  const [customerRouteMode, setCustomerRouteMode] = useState<CustomerRouteMode>(() =>
+    resolveCustomerRouteMode(effAppType, settings[customerRouteSettingKey(effAppType)]),
+  );
+  const [routeModeSaving, setRouteModeSaving] = useState(false);
   // Tab survives reloads via ?tab= (history.replaceState avoids a server round-trip).
   const [activeTab, setActiveTabState] = useState(() => normalizeSettingsTab(
     effAppType,
@@ -98,6 +104,36 @@ export default function SettingsClient({
 
   // Scoped agent management (Users tab)
   const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
+  const isSuperadminOrDev = viewerRole === 'superadmin' || viewerRole === 'developer';
+  const restrictedChitApprovalKeys: StaffPermissionKey[] = isSuperadminOrDev
+    ? []
+    : ['canApproveSecurity', 'canReleasePayout'];
+  const [chitApprovalPolicy, setChitApprovalPolicy] = useState({
+    adminCanApproveSecurity: settings.chit_admin_approve_security === '1',
+    adminCanReleasePayout: settings.chit_admin_release_payout === '1',
+  });
+  const handleSaveChitApprovalPolicy = async (next: {
+    adminCanApproveSecurity: boolean;
+    adminCanReleasePayout: boolean;
+  }) => {
+    const res = await saveChitApprovalPolicyAction(next);
+    if (res?.success) {
+      setChitApprovalPolicy(next);
+      router.refresh();
+    }
+    return res;
+  };
+  const handleToggleUserChitApproval = async (input: {
+    userId: string;
+    permissionKey: 'canApproveSecurity' | 'canReleasePayout';
+    enabled: boolean;
+  }) => {
+    const res = await toggleUserChitApprovalAction(input);
+    if (res?.success) {
+      router.refresh();
+    }
+    return res;
+  };
   const [agentModal, setAgentModal] = useState<{
     id?: string;
     name: string;
@@ -477,6 +513,17 @@ export default function SettingsClient({
               )}
             </div>
           </div>
+
+          {effAppType === 'chitfunds' && (
+            <ChitApprovalDelegationPanel
+              canModify={isSuperadminOrDev}
+              policy={chitApprovalPolicy}
+              onSavePolicy={handleSaveChitApprovalPolicy}
+              users={users || []}
+              onToggleUserPermission={handleToggleUserChitApproval}
+              manageBranchName={manageBranchName}
+            />
+          )}
 
           {/* Role Settings & Templates Card */}
           <div
@@ -885,6 +932,8 @@ export default function SettingsClient({
               <ElementPrivilegeSelector
                 value={roleModal.permissions}
                 onChange={(nextPerms) => setRoleModal({ ...roleModal, permissions: nextPerms })}
+                restrictedKeys={restrictedChitApprovalKeys}
+                restrictedHint="Superadmin only"
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -1009,6 +1058,8 @@ export default function SettingsClient({
                 }
                 title="Individual Staff Element Privileges"
                 subtitle="Fine-tune individual pages, chit controls, live room actions, and reports for this login."
+                restrictedKeys={restrictedChitApprovalKeys}
+                restrictedHint="Superadmin only"
               />
             </div>
 
@@ -1326,6 +1377,54 @@ export default function SettingsClient({
 
       {/* Routes Tab */}
       <div className={`tab-content ${activeTab === 'routes' ? 'active' : ''}`}>
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <strong style={{ fontSize: '0.94rem', color: 'var(--text)' }}>
+              🗺️ Customer Route / Line Requirement
+            </strong>
+            <p style={{ margin: '3px 0 0', fontSize: '0.79rem', color: 'var(--text-secondary)' }}>
+              Control whether Customer Registration shows Route / Line as optional, mandatory, or hidden completely.
+            </p>
+          </div>
+          <select
+            aria-label="Customer Route Requirement Policy"
+            className="form-control"
+            value={customerRouteMode}
+            disabled={routeModeSaving}
+            style={{ width: '280px', fontWeight: 700 }}
+            onChange={async (e) => {
+              const nextMode = e.target.value as CustomerRouteMode;
+              setCustomerRouteMode(nextMode);
+              setRouteModeSaving(true);
+              const res = await saveCustomerRouteModeAction(nextMode, effAppType);
+              setRouteModeSaving(false);
+              if (res?.success) {
+                showToast('Route requirement policy updated');
+                router.refresh();
+              } else {
+                alert(res?.error || 'Failed to update route policy');
+              }
+            }}
+          >
+            <option value="ENABLED_OPTIONAL">Enabled — Optional on Customer Form</option>
+            <option value="DISABLED">Disabled — Hidden on Customer Form</option>
+            <option value="ENABLED_REQUIRED">Enabled — Mandatory (*)</option>
+          </select>
+        </div>
+
         <div className="card-header">
           <h3>🗺️ {d.routesTitle}</h3>
           <button className="btn btn-primary btn-sm" onClick={() => setIsRouteModalOpen(true)}>
@@ -1587,7 +1686,18 @@ export default function SettingsClient({
       {/* Chit Types Tab */}
       {effAppType === 'chitfunds' && (
         <div className={`tab-content ${activeTab === 'chittypes' ? 'active' : ''}`}>
-          <ChitTypesSettingsClient settings={chitTypeSettings} dict={dict} currencySymbol={currencySymbol} />
+          <ChitTypesSettingsClient
+            settings={chitTypeSettings}
+            dict={dict}
+            currencySymbol={currencySymbol}
+            initialVoiceSpeakingRate={Number(settings.chit_voice_speaking_rate || 0.88)}
+            initialVoiceProfile={settings.chit_voice_profile || 'MALE_CLASSIC'}
+            initialRouteMode={customerRouteMode}
+            canModifyApprovalPolicy={isSuperadminOrDev}
+            approvalPolicy={chitApprovalPolicy}
+            onSaveApprovalPolicy={handleSaveChitApprovalPolicy}
+            onManageStaffApprovals={() => setActiveTab('users')}
+          />
         </div>
       )}
 

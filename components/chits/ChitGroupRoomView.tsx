@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { PDF_LANGUAGES, resolvePdfLang } from '@/lib/reports/pdfLanguages';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { PokerTableArena } from './PokerTableArena';
+import { parseBidAmountFromChat } from './AuctionRoomChatBox';
 
 export interface GroupRoomProps {
   mode: 'staff' | 'member';
@@ -298,21 +300,21 @@ export default function ChitGroupRoomView({
     !['admitted', 'denied'].includes(my?.admissionStatus ?? '');
 
   return (
-    <div style={{ maxWidth: '1120px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* Top Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', background: '#1e1b2e', color: '#fff', padding: '14px 18px', borderRadius: '12px' }}>
+    <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Unified Theme Top Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', background: 'linear-gradient(125deg, var(--primary-dark) 0%, var(--primary) 100%)', color: '#fff', padding: '16px 22px', borderRadius: '18px', boxShadow: '0 10px 26px -10px var(--primary-glow)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <Link href={backHref} style={{ color: '#e2e8f0', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '8px' }}>
+          <Link href={backHref} style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', padding: '7px 13px', borderRadius: '10px' }}>
             ← Back
           </Link>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{g.name}</h2>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: g.roomChatMode === 'announcements_only' ? '#f59e0b' : '#10b981', color: '#0f172a' }}>
-                {g.roomChatMode === 'announcements_only' ? '📢 Announcements Only' : '💬 Multi-Member Room'}
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#fff' }}>{g.name}</h2>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: g.roomChatMode === 'announcements_only' ? 'var(--warning)' : 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.28)', color: '#fff' }}>
+                {g.roomChatMode === 'announcements_only' ? '📢 Announcements Only' : '💬 Live Group Table & Chat'}
               </span>
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '2px' }}>
+            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.88)', marginTop: '3px' }}>
               {g.engineLabel} · Pool {formatCurrency(g.chitValue, currencySymbol)} · {g.enrolledCount}/{g.totalMembers} Members
               {my ? ` · Your Ticket #${my.ticketNo ?? '—'}` : ''}
             </div>
@@ -447,15 +449,62 @@ export default function ChitGroupRoomView({
         </div>
       )}
 
-      {/* 2-Column Responsive Layout: Left = Live Auction & Statements, Right/Main = Persistent Chat */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px', alignItems: 'start' }}>
+      {/* Full-Width 20+ Seat Stadium Arena Table FIRST */}
+      <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: '20px', padding: '14px', boxShadow: '0 8px 24px -10px rgba(15,23,42,0.08)' }}>
+        <PokerTableArena
+          periodNumber={activeAuction?.periodNumber ?? 1}
+          chitValue={Number(g.chitValue ?? 0)}
+          currencySymbol={currencySymbol}
+          roomStatus={activeAuction?.roomStatus ?? (roomOpen ? 'live' : 'scheduled')}
+          isOpen={roomOpen}
+          secondsRemaining={activeAuction?.secondsRemaining ?? 0}
+          bell={activeAuction?.bellState}
+          selectedMemberId={mode === 'staff' ? selectedBidMemberId : my?.memberId}
+          highestBid={
+            activeAuction?.leadingBid
+              ? {
+                  ticketNo: activeAuction.leadingBid.ticketNo,
+                  memberName: activeAuction.leadingBid.memberName,
+                  prizeAmount: activeAuction.leadingBid.prizeAmount,
+                  bidDiscount: activeAuction.leadingBid.bidDiscount,
+                }
+              : null
+          }
+          emptyCenterLabel={
+            activeAuction
+              ? formatDate(activeAuction.scheduledAt ?? activeAuction.auctionDate)
+              : 'Group Table'
+          }
+          seats={(state.members ?? []).map((m: any) => ({
+            memberId: m.memberId,
+            ticketNo: m.ticketNo,
+            name: m.name,
+            photoUrl: m.profilePhoto ?? null,
+            isOnline: Boolean(m.isOnline || m.isMe || activeAuction?.leadingBid?.memberId === m.memberId),
+            isLeader: Boolean(activeAuction?.leadingBid?.memberId === m.memberId),
+            hasWon: Boolean(m.hasWon),
+            isMe: Boolean(m.isMe),
+            latestPrize: m.latestPrize ?? null,
+          }))}
+          onSelectSeat={
+            mode === 'staff'
+              ? (seat) => {
+                  if (!seat.hasWon) setSelectedBidMemberId(seat.memberId);
+                }
+              : undefined
+          }
+        />
+      </div>
+
+      {/* 2-Column Responsive Layout Below Table: Left = Controls & Roster, Right = Interactive Bid Chat */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px', alignItems: 'start' }}>
         {/* LIVE AUCTION & SETTLEMENTS PANEL */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {activeAuction && (
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
                 <div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7D287E', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>
                     {roomOpen ? '🔴 Live Auction Room' : 'Scheduled Period'}
                   </div>
                   <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>
@@ -577,9 +626,6 @@ export default function ChitGroupRoomView({
                       ))}
                     </div>
                   )}
-                  <Link href={`/chits/${g.id}/auctions/${activeAuction.id}`} style={{ fontSize: '0.78rem', color: '#7D287E', fontWeight: 700, textDecoration: 'none' }}>
-                    Open Full Auction Console / Winner Confirm / Security →
-                  </Link>
                 </div>
               )}
 
@@ -591,7 +637,7 @@ export default function ChitGroupRoomView({
                       type="button"
                       disabled={busy === 'join'}
                       onClick={() => postJson({ action: 'join' }, 'join')}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#7D287E', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
                       {busy === 'join' ? 'Joining…' : '✋ Join Live Auction Table'}
                     </button>
@@ -605,7 +651,7 @@ export default function ChitGroupRoomView({
                             type="button"
                             disabled={busy === 'bid'}
                             onClick={() => handleBid(opt)}
-                            style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #7D287E', background: '#fdf4ff', color: '#5A195B', fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer' }}
+                            style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--primary-border)', background: 'var(--primary-light)', color: 'var(--primary-dark)', fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer' }}
                           >
                             Bid {formatCurrency(opt, currencySymbol)}
                           </button>
@@ -640,7 +686,7 @@ export default function ChitGroupRoomView({
           )}
 
           {/* Member Roster Pills */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '14px' }}>
             <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#0f172a', marginBottom: '8px' }}>
               👥 Members ({state.members?.length ?? 0}/{g.totalMembers})
             </div>
@@ -652,8 +698,8 @@ export default function ChitGroupRoomView({
                     fontSize: '0.74rem',
                     padding: '3px 8px',
                     borderRadius: '999px',
-                    background: m.isMe ? '#f3e8ff' : m.hasWon ? '#dcfce7' : '#f1f5f9',
-                    color: m.isMe ? '#6b21a8' : m.hasWon ? '#166534' : '#334155',
+                    background: m.isMe ? 'var(--primary-tint)' : m.hasWon ? '#dcfce7' : '#f1f5f9',
+                    color: m.isMe ? 'var(--primary-dark)' : m.hasWon ? '#166534' : '#334155',
                     fontWeight: m.isMe ? 700 : 500,
                   }}
                 >
@@ -691,7 +737,7 @@ export default function ChitGroupRoomView({
                       href={`${mode === 'staff' ? st.reportUrl : st.borrowerReportUrl}?lang=${pdfLang}`}
                       target="_blank"
                       rel="noreferrer"
-                      style={{ padding: '4px 9px', borderRadius: '6px', background: '#7D287E', color: '#fff', fontWeight: 700, textDecoration: 'none', fontSize: '0.72rem' }}
+                      style={{ padding: '4px 9px', borderRadius: '6px', background: 'var(--primary)', color: '#fff', fontWeight: 700, textDecoration: 'none', fontSize: '0.72rem' }}
                     >
                       PDF ↓
                     </a>
@@ -789,7 +835,7 @@ export default function ChitGroupRoomView({
                       </button>
                     </div>
                     {m.replyToBody && (
-                      <div style={{ borderLeft: '3px solid #16a34a', paddingLeft: '6px', marginBottom: '4px', fontSize: '0.72rem', color: '#475569', background: 'rgba(0,0,0,0.04)', borderRadius: '4px', padding: '3px 6px' }}>
+                      <div style={{ border: '1px solid var(--primary-border)', marginBottom: '4px', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--primary-light)', borderRadius: '8px', padding: '4px 8px' }}>
                         <strong>{m.replyToSender}:</strong> {m.replyToBody}
                       </div>
                     )}
@@ -832,21 +878,61 @@ export default function ChitGroupRoomView({
             </div>
           )}
 
-          {/* Composer */}
+          {/* Composer + Chat-to-Bid Bar */}
           {isMemberLocked ? (
-            <div style={{ background: '#f8fafc', padding: '10px 14px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '0.8rem', color: '#64748b' }}>
+            <div style={{ background: 'var(--bg)', padding: '10px 14px', borderTop: '1px solid var(--border)', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               📢 Only organizers can send messages in this group right now.
             </div>
           ) : (
-            <form onSubmit={handleSendText} style={{ background: '#f0f2f5', padding: '8px 10px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={chatBody}
-                onChange={(e) => setChatBody(e.target.value)}
-                placeholder="Type a message or bid update..."
-                maxLength={500}
-                style={{ flex: 1, minWidth: '160px', padding: '9px 12px', borderRadius: '999px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.86rem' }}
-              />
+            <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+              {(canMemberBidNow || (mode === 'staff' && roomOpen && activeAuction?.supportsBidding)) && (() => {
+                const parsedChatBid = parseBidAmountFromChat(chatBody, minPrize, maxPrize);
+                return (
+                  <div style={{ padding: '8px 12px', background: 'var(--primary-light)', borderBottom: '1px solid var(--primary-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {parsedChatBid != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-dark)' }}>
+                        <span>⚡ Detected Bid: {formatCurrency(parsedChatBid, currencySymbol)}</span>
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          className="btn btn-primary btn-sm"
+                          onClick={async () => {
+                            await handleBid(parsedChatBid, 'tap');
+                            setChatBody('');
+                          }}
+                        >
+                          🔨 Place Bid from Chat
+                        </button>
+                      </div>
+                    )}
+                    {quickOptions.length > 0 && (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary-dark)' }}>Quick Bid:</span>
+                        {quickOptions.slice(0, 4).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() => handleBid(opt)}
+                            style={{ padding: '4px 9px', borderRadius: '999px', border: '1px solid var(--primary)', background: 'var(--surface)', color: 'var(--primary-dark)', fontSize: '0.74rem', fontWeight: 800, cursor: 'pointer' }}
+                          >
+                            🔨 {formatCurrency(opt, currencySymbol)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              <form onSubmit={handleSendText} style={{ background: 'var(--bg)', padding: '8px 10px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={chatBody}
+                  onChange={(e) => setChatBody(e.target.value)}
+                  placeholder="Type a message or offer amount (e.g. 92500)..."
+                  maxLength={500}
+                  style={{ flex: 1, minWidth: '160px', padding: '9px 12px', borderRadius: '999px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.86rem' }}
+                />
               {mode === 'staff' && (
                 <label style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569' }}>
                   <input
@@ -869,11 +955,12 @@ export default function ChitGroupRoomView({
               <button
                 type="submit"
                 disabled={!chatBody.trim() || Boolean(busy)}
-                style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: '#075e54', color: '#fff', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '999px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer' }}
               >
                 Send
               </button>
             </form>
+            </div>
           )}
         </div>
       </div>

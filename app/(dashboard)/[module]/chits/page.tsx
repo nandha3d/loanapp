@@ -5,10 +5,26 @@ import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
-import { getDictionary } from '@/lib/i18n';
-import { getActiveBranchId } from '@/lib/branch';
+import { getCurrentLanguage, getDictionary } from '@/lib/i18n';
+import { branchScopeWhere, getActiveBranchId } from '@/lib/branch';
 import { canAdminChits, canViewChits } from '@/lib/chits/access';
+import { getChitTypeSettings } from '@/lib/chits/settings';
 import { modulePath } from '@/types/modules';
+import {
+  ChitEmptyClipboardIllustration,
+  ChitHeroBarsBg,
+  ChitKpiSparkline,
+  ChitPotHeroIllustration,
+} from '@/components/chits/ChitHubIllustrations';
+import ChitGroupWizardModal, {
+  ChitWizardOpenButton,
+  ChitWizardResumeBanner,
+} from '@/components/chits/ChitGroupWizardModal';
+import RunningChitMigrationModal, {
+  RunningChitMigrationButton,
+} from '@/components/chits/RunningChitMigrationModal';
+import ChitGroupManageMenu from '@/components/chits/ChitGroupManageMenu';
+import './chits-hub.css';
 
 export default async function ChitsPage({
   searchParams,
@@ -41,6 +57,7 @@ export default async function ChitsPage({
       </div>
     );
   }
+  const lang = await getCurrentLanguage(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const resolvedParams = await searchParams;
   const status = resolvedParams.status || '';
@@ -56,10 +73,21 @@ export default async function ChitsPage({
   let activeCount = 0;
   let completedCount = 0;
   let draftCount = 0;
+  let customers: { id: string; name: string; customerCode: string }[] = [];
+  let chitTypeSettings: Awaited<ReturnType<typeof getChitTypeSettings>> | null = null;
+  let staffUsers: any[] = [];
   let dbError: string | null = null;
 
   try {
-    [groups, activeCount, completedCount, draftCount] = await Promise.all([
+    const [
+      fetchedGroups,
+      fetchedActive,
+      fetchedCompleted,
+      fetchedDraft,
+      fetchedCustomers,
+      fetchedTypeSettings,
+      fetchedStaffUsers,
+    ] = await Promise.all([
       prisma.chitGroup.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -74,7 +102,44 @@ export default async function ChitsPage({
       prisma.chitGroup.count({ where: { tenantId, appType, deletedAt: null, status: 'active', ...(branchId ? { branchId } : {}) } }),
       prisma.chitGroup.count({ where: { tenantId, appType, deletedAt: null, status: 'completed', ...(branchId ? { branchId } : {}) } }),
       prisma.chitGroup.count({ where: { tenantId, appType, deletedAt: null, status: 'draft', ...(branchId ? { branchId } : {}) } }),
+      canManageChits
+        ? prisma.customer.findMany({
+            where: { tenantId, appType, status: 'active', deletedAt: null, ...branchScopeWhere(branchId) },
+            select: { id: true, name: true, customerCode: true },
+            orderBy: { name: 'asc' },
+          })
+        : Promise.resolve([]),
+      canManageChits ? getChitTypeSettings(tenantId) : Promise.resolve(null),
+      canManageChits
+        ? prisma.user.findMany({
+            where: {
+              tenantId,
+              status: 'active',
+              deletedAt: null,
+              OR: [
+                { role: { in: ['admin', 'superadmin'] } },
+                { role: 'agent', appType, ...branchScopeWhere(branchId) },
+              ],
+            },
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              role: true,
+              customRoleName: true,
+              customRole: { select: { name: true } },
+            },
+            orderBy: { name: 'asc' },
+          })
+        : Promise.resolve([]),
     ]);
+    groups = fetchedGroups;
+    activeCount = fetchedActive;
+    completedCount = fetchedCompleted;
+    draftCount = fetchedDraft;
+    customers = fetchedCustomers;
+    chitTypeSettings = fetchedTypeSettings;
+    staffUsers = fetchedStaffUsers;
   } catch (e: any) {
     dbError = e.message || 'Database tables not yet migrated. Run: npx prisma migrate deploy';
   }
@@ -89,215 +154,168 @@ export default async function ChitsPage({
 
   const totalMembersEnrolled = groups.reduce((s, g) => s + g._count.members, 0);
   const totalPoolVolume = groups.reduce((s, g) => s + Number(g.chitValue || 0), 0);
+  const wizardStorageKey = `zolofund:chit-wizard-draft:${tenantId}:${branchId || 'all'}`;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-      {/* Hero Header Banner harmonized with ZoloFund active tenant theme */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 68%, var(--primary-dark) 100%)',
-          color: '#FFFFFF',
-          borderRadius: '16px',
-          padding: '22px 24px',
-          boxShadow: '0 10px 28px -8px var(--primary-glow, rgba(15, 23, 42, 0.28))',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(255,255,255,0.18)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '22px', color: '#FFFFFF' }}>savings</span>
-            </span>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
-                {dict.chits.chitFundGroups}
-              </h2>
-              <p style={{ margin: '2px 0 0', fontSize: '.82rem', color: 'rgba(255,255,255,0.86)' }}>
-                Manage active chit pools, member ticket allotments, live auction rooms, and monthly settlements.
-              </p>
+    <div className="chits-hub">
+      {/* 1. Rich Theme-Harmonized Hero Header Banner */}
+      <section className="chits-hero">
+        <ChitHeroBarsBg />
+
+        <div className="chits-hero-left">
+          <ChitPotHeroIllustration />
+          <div style={{ minWidth: 0 }}>
+            <h2 className="chits-hero-title">{dict.chits.chitFundGroups}</h2>
+            <p className="chits-hero-subtitle">{dict.chits.heroSubtitle}</p>
+            <div className="chits-hero-pills">
+              <span className="chits-hero-pill">
+                <span className="material-icons-outlined" style={{ fontSize: '15px' }}>account_balance_wallet</span>
+                {dict.chits.poolBook}: {formatCurrency(totalPoolVolume, currencySymbol)}
+              </span>
+              <span className="chits-hero-pill">
+                <span className="chits-hero-dot chits-hero-dot--active" />
+                {activeCount} {dict.chits.active}
+              </span>
+              <span className="chits-hero-pill">
+                <span className="chits-hero-dot chits-hero-dot--draft" />
+                {draftCount} {dict.chits.statusDraft}
+              </span>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-            <span style={{ padding: '4px 11px', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.16)', fontSize: '.76rem', fontWeight: 700 }}>
-              Pool Book: {formatCurrency(totalPoolVolume, currencySymbol)}
-            </span>
-            <span style={{ padding: '4px 11px', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.16)', fontSize: '.76rem', fontWeight: 600 }}>
-              {activeCount} Active
-            </span>
-            <span style={{ padding: '4px 11px', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.16)', fontSize: '.76rem', fontWeight: 600 }}>
-              {draftCount} Draft
-            </span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+        <div className="chits-hero-actions">
           {canVerifyProofs && (
-            <Link
-              href="/chits/payments"
-              className="btn btn-sm"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255,255,255,0.34)',
-                fontWeight: 600,
-              }}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Payment proofs
+            <Link href="/chits/payments" className="chits-hero-btn-glass">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+              {dict.chits.paymentProofs}
             </Link>
           )}
           {canImportChits && (
-            <Link
-              href="/chits/import"
-              className="btn btn-sm"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255,255,255,0.34)',
-                fontWeight: 600,
-              }}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>chat</span> Import from WhatsApp
+            <Link href="/chits/import" className="chits-hero-btn-glass">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>chat</span>
+              {dict.chits.importWhatsapp}
             </Link>
+          )}
+          <a
+            href="/api/public/templates/chit-fund-tracker.xlsx"
+            className="chits-hero-btn-glass"
+            title="Download free 5-tab formula-driven Excel Chit Fund Tracker"
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>table_view</span>
+            Free Excel Tracker
+          </a>
+          {canManageChits && (
+            <RunningChitMigrationButton
+              label="Import Running Chit (Mid-Cycle)"
+              className="chits-hero-btn-glass"
+            />
           )}
           {canManageChits && (
-            <Link
-              href="/chits/new"
-              className="btn btn-sm"
-              style={{
-                backgroundColor: '#FFFFFF',
-                color: 'var(--primary-dark)',
-                border: 'none',
-                fontWeight: 800,
-                boxShadow: '0 4px 14px rgba(0,0,0,0.16)',
-              }}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '17px' }}>add</span> {dict.chits.newChitGroup}
-            </Link>
+            <ChitWizardOpenButton
+              label={dict.chits.newChitGroup}
+              className="chits-hero-btn-primary"
+              mode="auto"
+            />
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Elevated 4-Card KPI Strip */}
-      <div className="kpi-grid" style={{ marginBottom: 0 }}>
-        <div className="kpi-card" style={{ border: '1px solid #DCE3EC', boxShadow: '0 3px 12px rgba(15, 23, 42, 0.05)' }}>
-          <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
-          <div>
-            <div className="kpi-value">{activeCount}</div>
-            <div className="kpi-label">{dict.chits.activeGroups}</div>
-          </div>
-        </div>
-        <div className="kpi-card" style={{ border: '1px solid #DCE3EC', boxShadow: '0 3px 12px rgba(15, 23, 42, 0.05)' }}>
-          <div className="kpi-icon purple"><span className="material-icons-outlined">account_balance_wallet</span></div>
-          <div>
-            <div className="kpi-value">{formatCurrency(totalPoolVolume, currencySymbol)}</div>
-            <div className="kpi-label">Total Chit Pool Value</div>
-          </div>
-        </div>
-        <div className="kpi-card" style={{ border: '1px solid #DCE3EC', boxShadow: '0 3px 12px rgba(15, 23, 42, 0.05)' }}>
-          <div className="kpi-icon orange"><span className="material-icons-outlined">groups</span></div>
-          <div>
-            <div className="kpi-value">{totalMembersEnrolled}</div>
-            <div className="kpi-label">{dict.chits.totalMembers}</div>
-          </div>
-        </div>
-        <div className="kpi-card" style={{ border: '1px solid #DCE3EC', boxShadow: '0 3px 12px rgba(15, 23, 42, 0.05)' }}>
-          <div className="kpi-icon blue"><span className="material-icons-outlined">check_circle</span></div>
-          <div>
-            <div className="kpi-value">{completedCount}</div>
-            <div className="kpi-label">{dict.chits.completedGroups}</div>
-          </div>
-        </div>
-      </div>
+      {canManageChits && (
+        <ChitWizardResumeBanner storageKey={wizardStorageKey} dict={dict} />
+      )}
 
-      {/* Filter Toolbar + High-Contrast Recessed Group Directory Well */}
-      <div
-        style={{
-          backgroundColor: '#E9EEF5',
-          border: '1px solid #CBD5E1',
-          borderRadius: '16px',
-          padding: '18px',
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #DCE3EC',
-            borderRadius: '12px',
-            padding: '12px 14px',
-            marginBottom: '16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '10px',
-            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-          }}
-        >
-          <form method="GET" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
-            <input
-              name="q"
-              type="text"
-              className="form-control"
-              placeholder={dict.chits.searchPlaceholder}
-              defaultValue={q}
-              style={{ maxWidth: '260px', backgroundColor: '#F4F7FA', border: '1.5px solid #CBD5E1', minHeight: '36px', padding: '6px 11px' }}
-            />
+      {/* 2. Elevated 4-Card KPI Strip with Mini Area Sparklines */}
+      <section className="chits-kpi-grid">
+        <div className="chits-kpi-card">
+          <div className="chits-kpi-icon chits-kpi-icon--primary">
+            <span className="material-icons-outlined">layers</span>
+          </div>
+          <div className="chits-kpi-meta">
+            <div className="chits-kpi-value">{activeCount}</div>
+            <div className="chits-kpi-label">{dict.chits.activeGroups}</div>
+          </div>
+          <ChitKpiSparkline color="#16A34A" variant={0} />
+        </div>
+
+        <div className="chits-kpi-card">
+          <div className="chits-kpi-icon chits-kpi-icon--violet">
+            <span className="material-icons-outlined">account_balance_wallet</span>
+          </div>
+          <div className="chits-kpi-meta">
+            <div className="chits-kpi-value">{formatCurrency(totalPoolVolume, currencySymbol)}</div>
+            <div className="chits-kpi-label">{dict.chits.totalPoolValue}</div>
+          </div>
+          <ChitKpiSparkline color="#8B5CF6" variant={1} />
+        </div>
+
+        <div className="chits-kpi-card">
+          <div className="chits-kpi-icon chits-kpi-icon--sky">
+            <span className="material-icons-outlined">groups</span>
+          </div>
+          <div className="chits-kpi-meta">
+            <div className="chits-kpi-value">{totalMembersEnrolled}</div>
+            <div className="chits-kpi-label">{dict.chits.totalMembers}</div>
+          </div>
+          <ChitKpiSparkline color="#0EA5E9" variant={2} />
+        </div>
+
+        <div className="chits-kpi-card">
+          <div className="chits-kpi-icon chits-kpi-icon--amber">
+            <span className="material-icons-outlined">check_circle</span>
+          </div>
+          <div className="chits-kpi-meta">
+            <div className="chits-kpi-value">{completedCount}</div>
+            <div className="chits-kpi-label">{dict.chits.completedGroups}</div>
+          </div>
+          <ChitKpiSparkline color="#F59E0B" variant={3} />
+        </div>
+      </section>
+
+      {/* 3. Unified Filter Toolbar + Chit Directory */}
+      <section className="chits-directory-shell">
+        <div className="chits-toolbar">
+          <form method="GET" className="chits-filter-form">
+            <div className="chits-search-wrap">
+              <span className="material-icons-outlined chits-search-icon">search</span>
+              <input
+                name="q"
+                type="text"
+                className="chits-search-input"
+                placeholder={dict.chits.searchPlaceholder}
+                defaultValue={q}
+              />
+            </div>
             <select
               name="status"
-              className="form-control"
-              style={{ width: 'auto', minWidth: '140px', backgroundColor: '#F4F7FA', border: '1.5px solid #CBD5E1', minHeight: '36px', padding: '6px 32px 6px 10px' }}
+              className="form-control chits-status-select"
               defaultValue={status}
             >
               <option value="">{dict.chits.allStatus}</option>
               <option value="active">{dict.chits.active}</option>
-              <option value="draft">Draft</option>
+              <option value="draft">{dict.chits.statusDraft}</option>
               <option value="completed">{dict.chits.completed}</option>
               <option value="cancelled">{dict.chits.cancelled}</option>
             </select>
-            <button type="submit" className="btn btn-primary btn-sm" style={{ minHeight: '36px' }}>
+            <button type="submit" className="chits-filter-btn">
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>filter_list</span>
               {dict.chits.filter}
             </button>
           </form>
 
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div className="chits-pill-group">
             {[
-              { val: '', label: 'All' },
-              { val: 'active', label: `Active (${activeCount})` },
-              { val: 'draft', label: `Draft (${draftCount})` },
-              { val: 'completed', label: `Done (${completedCount})` },
+              { val: '', label: dict.chits.statusAll },
+              { val: 'active', label: `${dict.chits.active} (${activeCount})` },
+              { val: 'draft', label: `${dict.chits.statusDraft} (${draftCount})` },
+              { val: 'completed', label: `${dict.chits.statusDone} (${completedCount})` },
             ].map((chip) => {
               const active = status === chip.val;
               return (
                 <Link
                   key={chip.val || 'all'}
                   href={chip.val ? `/chits?status=${chip.val}` : '/chits'}
-                  style={{
-                    padding: '5px 11px',
-                    borderRadius: '999px',
-                    fontSize: '.75rem',
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    backgroundColor: active ? 'var(--primary)' : '#F4F7FA',
-                    color: active ? '#FFFFFF' : '#475569',
-                    border: active ? '1px solid var(--primary)' : '1px solid #CBD5E1',
-                  }}
+                  className={`chits-status-pill${active ? ' chits-status-pill--active' : ''}`}
                 >
                   {chip.label}
                 </Link>
@@ -307,66 +325,41 @@ export default async function ChitsPage({
         </div>
 
         {groups.length === 0 ? (
-          <div
-            className="empty-state"
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '14px',
-              border: '1px dashed #CBD5E1',
-              padding: '44px 20px',
-            }}
-          >
-            <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--primary)' }}>savings</span>
-            <p style={{ fontWeight: 600, color: '#334155', margin: '10px 0 14px' }}>{dict.chits.noChits}</p>
+          <div className="chits-empty-well">
+            <ChitEmptyClipboardIllustration />
+            <h3 className="chits-empty-title">{dict.chits.noChits}</h3>
+            <p className="chits-empty-subtitle">{dict.chits.emptySubtitle}</p>
             {canManageChits && (
-              <Link href="/chits/new" className="btn btn-primary btn-sm">{dict.chits.createFirst}</Link>
+              <ChitWizardOpenButton
+                label={dict.chits.createFirst}
+                className="chits-cta-glow"
+                mode="auto"
+              />
             )}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(295px, 1fr))', gap: '16px' }}>
+          <div className="chits-cards-grid">
             {groups.map((g) => {
               const completedAuctions = g.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
-              const nextAuction = g.auctions.find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
+              const nextAuction =
+                g.auctions.find((a: any) => ['open', 'extended', 'LIVE'].includes(a.roomStatus ?? '')) ??
+                g.auctions.find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
               const memberPct = g.totalMembers > 0 ? Math.min(100, Math.round((g._count.members / g.totalMembers) * 100)) : 0;
               const cyclePct = g.durationMonths > 0 ? Math.min(100, Math.round((completedAuctions.length / g.durationMonths) * 100)) : 0;
-              const isLiveRoom = nextAuction?.roomStatus === 'LIVE';
+              const isLiveRoom = ['open', 'extended', 'LIVE'].includes(nextAuction?.roomStatus ?? '');
 
               return (
-                <div
-                  key={g.id}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '14px',
-                    border: '1px solid #CBD5E1',
-                    boxShadow: '0 4px 14px rgba(15, 23, 42, 0.06)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    height: '100%',
-                  }}
-                >
+                <div key={g.id} className="chits-group-card">
                   {/* Tinted Card Header Strip */}
-                  <div
-                    style={{
-                      padding: '13px 15px 11px',
-                      background: 'linear-gradient(90deg, var(--primary-light) 0%, #F8FAFC 100%)',
-                      borderBottom: '1px solid #E2E8F0',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      gap: '8px',
-                    }}
-                  >
+                  <div className="chits-group-card-head">
                     <div style={{ minWidth: 0 }}>
-                      <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, lineHeight: 1.28, color: '#0F172A' }}>
-                        {g.name}
-                      </h4>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginTop: '4px', fontSize: '.72rem', color: '#475569' }}>
-                        <code style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>{g.groupCode ?? g.id}</code>
+                      <h4 className="chits-group-title">{g.name}</h4>
+                      <div className="chits-group-meta">
+                        <code className="chits-group-code">{g.groupCode ?? g.id}</code>
                         <span>·</span>
                         <span>{g.chitEngineType || 'AUCTION_STANDARD'}</span>
                         <span>·</span>
-                        <span>{g.chitType === 'registered' ? 'Act 1982' : 'Private'}</span>
+                        <span>{g.chitType === 'registered' ? dict.chits.act1982 : dict.chits.privateChit}</span>
                       </div>
                     </div>
                     <span
@@ -378,93 +371,89 @@ export default async function ChitsPage({
                   </div>
 
                   {/* Body with 2x2 Contrasted Wells + Progress Bars */}
-                  <div style={{ padding: '14px 15px', display: 'flex', flexDirection: 'column', gap: '11px', flex: 1 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div style={{ backgroundColor: '#F4F7FA', border: '1px solid #E2E8F0', borderRadius: '9px', padding: '8px 10px' }}>
-                        <div style={{ fontSize: '.7rem', fontWeight: 600, color: '#64748B' }}>{dict.chits.chitValue}</div>
-                        <div style={{ fontSize: '.96rem', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+                  <div className="chits-group-body">
+                    <div className="chits-metrics-2x2">
+                      <div className="chits-metric-well">
+                        <div className="chits-metric-label">{dict.chits.chitValue}</div>
+                        <div className="chits-metric-val">
                           {formatCurrency(Number(g.chitValue), currencySymbol)}
                         </div>
                       </div>
-                      <div style={{ backgroundColor: '#F4F7FA', border: '1px solid #E2E8F0', borderRadius: '9px', padding: '8px 10px' }}>
-                        <div style={{ fontSize: '.7rem', fontWeight: 600, color: '#64748B' }}>{dict.chits.monthly}</div>
-                        <div style={{ fontSize: '.96rem', fontWeight: 800, color: 'var(--primary-dark)', marginTop: '2px' }}>
+                      <div className="chits-metric-well">
+                        <div className="chits-metric-label">{dict.chits.monthly}</div>
+                        <div className="chits-metric-val chits-metric-val--primary">
                           {formatCurrency(Number(g.monthlyContrib), currencySymbol)}
                         </div>
                       </div>
-                      <div style={{ backgroundColor: '#F4F7FA', border: '1px solid #E2E8F0', borderRadius: '9px', padding: '8px 10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', fontWeight: 600, color: '#64748B' }}>
+                      <div className="chits-metric-well">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                           <span>{dict.chits.members}</span>
-                          <strong style={{ color: '#0F172A' }}>{g._count.members}/{g.totalMembers}</strong>
+                          <strong style={{ color: 'var(--text)' }}>{g._count.members}/{g.totalMembers}</strong>
                         </div>
-                        <div style={{ height: '5px', backgroundColor: '#DCE3EC', borderRadius: '999px', marginTop: '6px', overflow: 'hidden' }}>
-                          <div style={{ width: `${memberPct}%`, height: '100%', backgroundColor: 'var(--primary)', borderRadius: '999px' }} />
+                        <div className="chits-bar-track">
+                          <div className="chits-bar-fill--primary" style={{ width: `${memberPct}%` }} />
                         </div>
                       </div>
-                      <div style={{ backgroundColor: '#F4F7FA', border: '1px solid #E2E8F0', borderRadius: '9px', padding: '8px 10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', fontWeight: 600, color: '#64748B' }}>
+                      <div className="chits-metric-well">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                           <span>{dict.chits.auctionsDone}</span>
-                          <strong style={{ color: '#0F172A' }}>{completedAuctions.length}/{g.durationMonths}</strong>
+                          <strong style={{ color: 'var(--text)' }}>{completedAuctions.length}/{g.durationMonths}</strong>
                         </div>
-                        <div style={{ height: '5px', backgroundColor: '#DCE3EC', borderRadius: '999px', marginTop: '6px', overflow: 'hidden' }}>
-                          <div style={{ width: `${cyclePct}%`, height: '100%', backgroundColor: '#16A34A', borderRadius: '999px' }} />
+                        <div className="chits-bar-track">
+                          <div className="chits-bar-fill--success" style={{ width: `${cyclePct}%` }} />
                         </div>
                       </div>
                     </div>
 
                     {/* Next Cycle Callout */}
-                    <div
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: '9px',
-                        backgroundColor: isLiveRoom ? '#FEF3C7' : '#F8FAFC',
-                        border: isLiveRoom ? '1px solid #FCD34D' : '1px solid #E2E8F0',
-                        fontSize: '.76rem',
-                        color: '#334155',
-                        lineHeight: 1.35,
-                      }}
-                    >
+                    <div className={`chits-cycle-callout${isLiveRoom ? ' chits-cycle-callout--live' : ''}`}>
                       {nextAuction ? (
                         <>
-                          <strong style={{ color: isLiveRoom ? '#92400E' : '#0F172A' }}>
-                            {isLiveRoom ? '🔴 Live Auction Now:' : 'Next Cycle:'}
+                          <strong style={{ color: isLiveRoom ? 'var(--warning)' : 'var(--text)' }}>
+                            {isLiveRoom ? `🔴 ${dict.chits.liveAuctionNow}` : dict.chits.nextCycle}
                           </strong>{' '}
-                          Period {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)}
+                          {dict.chits.periodLabel} {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)}
                           {nextAuction.scheduledAt
                             ? ` ${new Date(nextAuction.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                             : ''}
                         </>
                       ) : (
                         <>
-                          <strong>Started:</strong> {formatDate(g.startDate)}
+                          <strong>{dict.chits.startedLabel}</strong> {formatDate(g.startDate)}
                         </>
                       )}
                     </div>
 
                     {/* Footer Actions */}
-                    <div style={{ display: 'flex', gap: '7px', marginTop: 'auto', paddingTop: '4px' }}>
+                    <div className="chits-card-footer">
                       <Link
                         href={`/chits/${g.id}`}
                         className="btn btn-secondary btn-sm"
-                        style={{ flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '.78rem', backgroundColor: '#F4F7FA' }}
+                        style={{ flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '.78rem' }}
                       >
                         {dict.chits.view}
                       </Link>
                       <Link
-                        href={`/chits/${g.id}/room`}
-                        className="btn btn-secondary btn-sm"
-                        style={{ flex: 1.15, justifyContent: 'center', padding: '6px 10px', fontSize: '.78rem', backgroundColor: '#F4F7FA' }}
+                        href={nextAuction ? `/chits/${g.id}/auctions/${nextAuction.id}` : `/chits/${g.id}/room`}
+                        className="btn btn-primary btn-sm"
+                        style={{ flex: 1.25, justifyContent: 'center', padding: '6px 10px', fontSize: '.78rem' }}
                       >
-                        💬 Chat Room
+                        {isLiveRoom || g.auctionType === 'open_live' ? dict.chits.liveRoomAction : dict.chits.groupRoomAction}
                       </Link>
-                      {nextAuction && (
-                        <Link
-                          href={`/chits/${g.id}/auctions/${nextAuction.id}`}
-                          className="btn btn-primary btn-sm"
-                          style={{ flex: 1.15, justifyContent: 'center', padding: '6px 10px', fontSize: '.78rem' }}
-                        >
-                          {g.auctionType === 'open_live' ? 'Live Bid' : 'Manage'}
-                        </Link>
+                      {canManageChits && (
+                        <ChitGroupManageMenu
+                          groupId={g.id}
+                          groupName={g.name}
+                          status={g.status}
+                          enrolledMembers={g._count.members}
+                          editHref={`/chits/${g.id}/edit`}
+                          labels={{
+                            editGroup: dict.chits.editGroup,
+                            cancelGroup: dict.chits.cancelGroupMenuBtn,
+                            deleteGroup: dict.chits.deleteGroupMenuBtn,
+                            closeBtn: dict.chits.cancel,
+                          }}
+                        />
                       )}
                     </div>
                   </div>
@@ -473,7 +462,23 @@ export default async function ChitsPage({
             })}
           </div>
         )}
-      </div>
+      </section>
+
+      {canManageChits && (
+        <ChitGroupWizardModal
+          storageKey={wizardStorageKey}
+          customers={customers}
+          staffUsers={staffUsers}
+          currencySymbol={currencySymbol}
+          dict={dict}
+          lang={lang}
+          enabledChitTypes={chitTypeSettings?.enabledTypes}
+          typeDefaults={chitTypeSettings?.typeDefaults}
+        />
+      )}
+      {canManageChits && (
+        <RunningChitMigrationModal currencySymbol={currencySymbol} />
+      )}
     </div>
   );
 }

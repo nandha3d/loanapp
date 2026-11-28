@@ -3,7 +3,7 @@
 // way (eligibility, discount limits, reserve floor, anti-snipe, source/transcript audit).
 import { antiSnipeExtension, isRoomOpen } from './liveAuction';
 import { syncRoom } from './bell';
-import { assertMonotonicBidDirection, assertValidPrizeAmount } from './validation';
+import { assertMonotonicBidDirection, assertValidPrizeAmount, startingDiscountAmount } from './validation';
 import { roundMoney } from './calculations';
 import { calculateReserveFloor } from './engineCalculator';
 import { isBiddingEnabledForPeriod, parseChitEngineConfig, resolveEngineTypeFromGroup } from './engineTypes';
@@ -32,7 +32,7 @@ export type PlaceChitBidParams = {
       branchId: string | null;
     };
   };
-  member: { id: string; hasWon: boolean; subscriberStatus: string };
+  member: { id: string; customerId?: string | null; hasWon: boolean; subscriberStatus: string };
   prizeAmount: number;
   remarks?: string | null;
   source?: ChitBidSource;
@@ -41,6 +41,8 @@ export type PlaceChitBidParams = {
   idempotencyKey?: string | null;
   createdById?: string | null;
   tenantId?: string | null;
+  /** When true, prevents consecutive valid bids by the same customer across single or multiple tickets. */
+  blockConsecutiveSelfBid?: boolean;
 };
 
 export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
@@ -91,15 +93,17 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   });
   const bidDiscount = chitValueNum - prizeAmount;
 
-  // Live room: lazily evaluate bells + close on expiry, require an open room,
-  // apply anti-snipe extension.
+  // Live / manual-bell rooms: lazily evaluate bells + close on expiry, require Start Live Now (open room),
+  // apply anti-snipe extension, and reject bids once a 3rd bell has closed the room until re-opened.
   if (auction.chitGroup.auctionType === 'open_live') {
     await syncRoom(tx, auction.id);
     const fresh = await tx.chitAuction.findUnique({
       where: { id: auction.id },
       select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
     });
-    if (!fresh || !isRoomOpen(fresh)) throw new Error('Bidding room is not open');
+    if (!fresh || !isRoomOpen(fresh)) {
+      throw new Error('Bidding room is not open — press Start Live Now before placing bids.');
+    }
     const extendedClose = antiSnipeExtension(fresh);
     if (extendedClose) {
       await tx.chitAuction.update({
@@ -115,6 +119,42 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
         },
       });
     }
+  } else if (auction.chitGroup.auctionType === 'open_manual') {
+    await syncRoom(tx, auction.id);
+    const fresh = await tx.chitAuction.findUnique({
+      where: { id: auction.id },
+      select: {
+        roomStatus: true,
+        biddingClosesAt: true,
+        autoExtendSeconds: true,
+        bellsRung: true,
+        chitGroup: { select: { bellCount: true } },
+      },
+    });
+    if (fresh) {
+      const bellClosed = fresh.bellsRung >= (fresh.chitGroup?.bellCount ?? 3) && fresh.roomStatus === 'closed';
+      if (bellClosed) {
+        throw new Error('Final 3rd bell closed bidding — confirm the winner or re-open the room (+5m) first.');
+      }
+      if (!isRoomOpen(fresh)) {
+        throw new Error('Bidding room is not open — press Start Live Now before placing bids.');
+      }
+      const extendedClose = antiSnipeExtension(fresh);
+      if (extendedClose) {
+        await tx.chitAuction.update({
+          where: { id: auction.id },
+          data: { biddingClosesAt: extendedClose, roomStatus: 'extended' },
+        });
+        await tx.chitAuctionEvent.create({
+          data: {
+            auctionId: auction.id,
+            type: 'extend',
+            message: 'Anti-snipe extension',
+            amount: fresh.autoExtendSeconds,
+          },
+        });
+      }
+    }
   }
 
   // Automated monotonic direction + increment enforcement for non-sealed auctions.
@@ -128,11 +168,33 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     !uncapped && auction.chitGroup.maxDiscountPct
       ? roundMoney((chitValueNum * Number(auction.chitGroup.maxDiscountPct)) / 100)
       : null;
-  const highest = await tx.chitBid.aggregate({
+  const highestBidRow = await tx.chitBid.findFirst({
     where: { auctionId: auction.id, status: 'valid' },
-    _max: { bidDiscount: true },
+    orderBy: [{ bidDiscount: 'desc' }, { bidTime: 'asc' }],
+    select: {
+      memberId: true,
+      bidDiscount: true,
+      member: { select: { customerId: true } },
+    },
   });
-  const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
+  const currentHighest = highestBidRow?.bidDiscount ? Number(highestBidRow.bidDiscount) : 0;
+
+  if (
+    params.blockConsecutiveSelfBid &&
+    auction.chitGroup.auctionType !== 'sealed' &&
+    highestBidRow
+  ) {
+    const leaderCustomerId = highestBidRow.member?.customerId;
+    const sameMember = highestBidRow.memberId === member.id;
+    const sameCustomer = Boolean(
+      leaderCustomerId && member.customerId && leaderCustomerId === member.customerId,
+    );
+    if (sameMember || sameCustomer) {
+      throw new Error(
+        'Consecutive bids by the same customer are turned off — another member must bid next, or toggle Repeat Self-Bid ON.',
+      );
+    }
+  }
   assertMonotonicBidDirection({
     chitValue: chitValueNum,
     bidDiscount,
@@ -140,6 +202,13 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     incrementStep,
     maxDiscountCap: capDiscount,
     auctionType: auction.chitGroup.auctionType,
+    strictBidMultiple: Boolean(config.discountRules.strictBidMultiple),
+    startingDiscount: startingDiscountAmount(chitValueNum, {
+      minDiscountPct: auction.chitGroup.minDiscountPct ? Number(auction.chitGroup.minDiscountPct) : null,
+      bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+      commissionPct: Number(auction.chitGroup.commissionPct),
+      reserveFloorPct,
+    }),
   });
 
   const created = await tx.chitBid.create({
@@ -159,13 +228,16 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
       createdById: params.createdById ?? undefined,
     },
   });
+  const now = new Date();
   await tx.chitAuction.update({
     where: { id: auction.id },
     data: {
       status: auction.status === 'pending' ? 'in_progress' : auction.status,
-      startedAt: auction.startedAt ?? new Date(),
-      // A new bid means the "going once/twice/sold" countdown starts over.
-      ...(auction.chitGroup.auctionType === 'open_live' ? { bellAnchorAt: new Date(), bellsRung: 0 } : {}),
+      startedAt: auction.startedAt ?? now,
+      // Any new valid bid resets the "going once / going twice / sold" bell count for both live & manual-bell rooms.
+      ...(['open_live', 'open_manual'].includes(auction.chitGroup.auctionType)
+        ? { bellAnchorAt: now, bellsRung: 0 }
+        : {}),
     },
   });
 

@@ -64,8 +64,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           receivedDelta: Number(existingReceipt.amount),
           status: sub.status,
           idempotent: true,
+          idempotentReplay: true,
         });
       }
+    }
+
+    if (mode === 'ADD_PAYMENT' && sub.status === 'paid') {
+      return fail('Cycle is already fully paid', 409);
     }
 
     const engineType = resolveEngineTypeFromGroup(sub.member.chitGroup);
@@ -93,10 +98,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         collectorId: ctx.userId,
         isGoldWeightEngine: engineType === 'GOLD_WEIGHT_ACCUMULATION',
         goldRatePerGram,
+        denominationBreakdown: body?.denominationBreakdown ?? body?.cashDenominations ?? null,
       });
     });
-    return ok({ id: sub.id, ...result });
+    return ok({ id: sub.id, idempotentReplay: false, ...result });
   } catch (e: any) {
-    return fail(e?.message ?? 'Chit payment failed', 500);
+    const msg = e?.message ?? 'Chit payment failed';
+    const isClientErr =
+      msg.includes('denomination') ||
+      msg.includes('Cash denomination') ||
+      msg.includes('exceeds') ||
+      msg.includes('already') ||
+      msg.includes('No new collection');
+    return fail(msg, isClientErr ? 400 : 500);
   }
 }

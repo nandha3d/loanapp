@@ -158,6 +158,8 @@ export type ChitEngineConfig = {
     uncapped: boolean;
     reservePriceStepPct: number;
     bidIncrementMultiple: number;
+    strictBidMultiple?: boolean;
+    allowConsecutiveSelfBid?: boolean;
   };
   dividendDistributionMode:
     | 'ALL_MEMBERS'
@@ -225,6 +227,20 @@ export type ChitEngineConfig = {
     adminExpensePerCycle: number;
   };
   seasonalDates?: string[];
+  meetingSchedule?: {
+    defaultDurationMinutes: number;
+    autoStartAtScheduledTime: boolean;
+  };
+  voiceSettings?: {
+    language: 'en' | 'ta' | 'ml' | 'hi' | 'te' | 'kn';
+    allowMemberChange: boolean;
+    speakingRate?: number;
+    voiceProfile?: string;
+  };
+  tableCash?: {
+    enabled: boolean;
+    allowWinnerSettleAfterAuction?: boolean;
+  };
 };
 
 export type ChitEngineCatalogItem = {
@@ -665,6 +681,12 @@ export function parseChitEngineConfig(
       uncapped: Boolean(dr.uncapped ?? base.discountRules.uncapped),
       reservePriceStepPct: Number(dr.reservePriceStepPct ?? dr.reserve_price_step_pct ?? base.discountRules.reservePriceStepPct) || 0,
       bidIncrementMultiple: Number(dr.bidIncrementMultiple ?? dr.bid_increment_multiple ?? base.discountRules.bidIncrementMultiple) || 0,
+      ...(dr.strictBidMultiple !== undefined || dr.strict_bid_multiple !== undefined
+        ? { strictBidMultiple: Boolean(dr.strictBidMultiple ?? dr.strict_bid_multiple) }
+        : {}),
+      ...(dr.allowConsecutiveSelfBid !== undefined || dr.allow_consecutive_self_bid !== undefined
+        ? { allowConsecutiveSelfBid: Boolean(dr.allowConsecutiveSelfBid ?? dr.allow_consecutive_self_bid) }
+        : {}),
     },
     dividendDistributionMode: (legacyDivDist ?? base.dividendDistributionMode) as ChitEngineConfig['dividendDistributionMode'],
     foremanCompensation: {
@@ -709,6 +731,43 @@ export function parseChitEngineConfig(
     hybridSplitPhase: obj.hybridSplitPhase ?? base.hybridSplitPhase,
     ascaPool: obj.ascaPool ?? base.ascaPool,
     seasonalDates: obj.seasonalDates ?? base.seasonalDates,
+    ...(obj.meetingSchedule && typeof obj.meetingSchedule === 'object'
+      ? {
+          meetingSchedule: {
+            defaultDurationMinutes: Math.max(
+              5,
+              Math.min(240, Math.round(Number(obj.meetingSchedule.defaultDurationMinutes) || 30)),
+            ),
+            autoStartAtScheduledTime: Boolean(obj.meetingSchedule.autoStartAtScheduledTime),
+          },
+        }
+      : {}),
+    ...(obj.voiceSettings && typeof obj.voiceSettings === 'object'
+      ? {
+          voiceSettings: {
+            language: (
+              ['en', 'ta', 'ml', 'hi', 'te', 'kn'].includes(String(obj.voiceSettings.language ?? ''))
+                ? String(obj.voiceSettings.language)
+                : 'en'
+            ) as 'en' | 'ta' | 'ml' | 'hi' | 'te' | 'kn',
+            allowMemberChange: Boolean(obj.voiceSettings.allowMemberChange),
+            ...(obj.voiceSettings.speakingRate != null
+              ? { speakingRate: Number(obj.voiceSettings.speakingRate) || 0.88 }
+              : {}),
+            ...(obj.voiceSettings.voiceProfile
+              ? { voiceProfile: String(obj.voiceSettings.voiceProfile) }
+              : {}),
+          },
+        }
+      : {}),
+    ...(obj.tableCash && typeof obj.tableCash === 'object'
+      ? {
+          tableCash: {
+            enabled: Boolean(obj.tableCash.enabled),
+            allowWinnerSettleAfterAuction: obj.tableCash.allowWinnerSettleAfterAuction !== false,
+          },
+        }
+      : {}),
   };
 }
 
@@ -776,4 +835,71 @@ export function isBiddingEnabledForPeriod(
     return false;
   }
   return true;
+}
+
+export type PeriodRoomMode =
+  | 'OPEN_AUCTION'
+  | 'SEALED_TENDER'
+  | 'LOTTERY_DRAW'
+  | 'CONSENSUS'
+  | 'FIXED_ROTATION';
+
+const FIXED_ROTATION_ENGINES = new Set<ChitEngineType>([
+  'FIXED_ROTATION',
+  'GOLD_VALUE_ACCUMULATION',
+  'GOLD_WEIGHT_ACCUMULATION',
+  'FESTIVAL_COMMODITY',
+]);
+
+/**
+ * Resolves the canonical room experience for a chit group cycle so each chit
+ * template renders only relevant controls (bell/bidding vs lottery drum vs consensus/rotation).
+ */
+export function resolvePeriodRoomMode(
+  group: {
+    chitEngineType?: string | null;
+    auctionType?: string | null;
+    engineConfig?: string | null;
+    hasForemanTicket?: boolean | null;
+  },
+  periodNumber: number,
+): PeriodRoomMode {
+  if (periodNumber === 1 && group.hasForemanTicket) {
+    return 'FIXED_ROTATION';
+  }
+  if (isBiddingEnabledForPeriod(group, periodNumber)) {
+    return group.auctionType === 'sealed' ? 'SEALED_TENDER' : 'OPEN_AUCTION';
+  }
+  const engineType = resolveEngineTypeFromGroup(group);
+  if (engineType === 'NEED_BASED_CONSENSUS') {
+    return 'CONSENSUS';
+  }
+  if (group.auctionType === 'fixed_rotation' || FIXED_ROTATION_ENGINES.has(engineType)) {
+    return 'FIXED_ROTATION';
+  }
+  const cfg = parseChitEngineConfig(group.engineConfig, engineType);
+  if (
+    cfg.foremanCompensation.reservedForemanCycles.includes(periodNumber) ||
+    (periodNumber === 1 && cfg.foremanCompensation.mode === 'FREE_TICKET_CYCLE_1') ||
+    (periodNumber === 2 && cfg.foremanCompensation.mode === 'FREE_TICKET_CYCLE_2') ||
+    (engineType === 'HYBRID_SPLIT_PHASE' &&
+      periodNumber <= (cfg.hybridSplitPhase?.reservedCyclesCount ?? 0))
+  ) {
+    return 'FIXED_ROTATION';
+  }
+  return 'LOTTERY_DRAW';
+}
+
+/** Whether 3-bell countdown controls apply to this cycle. */
+export function supportsBellForPeriod(
+  group: {
+    chitEngineType?: string | null;
+    auctionType?: string | null;
+    engineConfig?: string | null;
+    hasForemanTicket?: boolean | null;
+    bellEnabled?: boolean | null;
+  },
+  periodNumber: number,
+): boolean {
+  return resolvePeriodRoomMode(group, periodNumber) === 'OPEN_AUCTION' && Boolean(group.bellEnabled);
 }

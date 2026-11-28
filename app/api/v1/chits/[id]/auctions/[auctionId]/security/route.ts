@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getSecurityTypeSpec } from '@/lib/chits/securityTypes';
+import { getChitMobileCapabilities } from '@/lib/chits/access';
 
 export async function GET(
   req: NextRequest,
@@ -35,12 +36,13 @@ export async function POST(
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
+  const caps = await getChitMobileCapabilities(ctx);
+  if (!caps.canConductAuction && !caps.canApproveSecurity) return fail('Forbidden', 403);
   const { id, auctionId } = await params;
   const body = await req.json().catch(() => null) as any;
   const action = body?.action as string | undefined;
   const status = action === 'verify' ? 'verified' : action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : body?.status ?? 'submitted';
-  if ((status === 'approved' || status === 'rejected') && !['superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
+  if ((status === 'approved' || status === 'rejected') && !caps.canApproveSecurity) return fail('Forbidden', 403);
 
   try {
     const auction = await prisma.chitAuction.findFirst({

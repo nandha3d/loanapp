@@ -6,6 +6,7 @@ import { buildMemberChitDividendStatement } from '@/lib/chits/memberDividendLedg
 import { getDictionary } from '@/lib/i18n';
 import { getSetting } from '@/lib/tenant';
 import { Collapse } from '@/components/ui/Collapse';
+import TopbarLiveAuctionBar from '@/components/chits/TopbarLiveAuctionBar';
 import PaymentProofButton from './PaymentProofButton';
 import MemberDividendBreakdownCard from './MemberDividendBreakdownCard';
 
@@ -141,9 +142,12 @@ export default async function BorrowerChitsPage() {
 
   return (
     <div style={{ maxWidth: '920px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-        {dc.portalStatementsTitle || 'Chit Dividend Statements, Contributions & Receipts'}
-      </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+          {dc.portalStatementsTitle || 'Chit Dividend Statements, Contributions & Receipts'}
+        </h1>
+        <TopbarLiveAuctionBar mode="borrower" dict={dict} />
+      </div>
 
       {statements.length > 0 && (
         <section>

@@ -576,6 +576,12 @@ export default function ChitGroupForm({
     try {
       await createChitGroup(formData);
     } catch (err: any) {
+      if (
+        err?.digest?.startsWith?.('NEXT_REDIRECT') ||
+        err?.message === 'NEXT_REDIRECT'
+      ) {
+        throw err;
+      }
       setError(err.message || d.failedCreate);
       setLoading(false);
     }

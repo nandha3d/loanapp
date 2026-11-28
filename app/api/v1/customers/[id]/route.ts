@@ -204,6 +204,9 @@ export async function PATCH(
     // Route drives the collecting agent: when the route is (re)assigned, derive
     // the agent from the route's primary agent and inherit the route's branch.
     // (The per-customer agent picker was removed — assignment lives in Settings.)
+    if (data.routeId === '') {
+      data.routeId = null;
+    }
     if (typeof data.routeId === 'string' && data.routeId) {
       const route = await prisma.route.findFirst({
         where: { id: data.routeId, tenantId: ctx.tenantId, appType: ctx.appType },
@@ -213,6 +216,9 @@ export async function PATCH(
         data.agentId = route.assignedAgentId ?? (data.agentId as string | null) ?? null;
         if (route.branchId) data.branchId = route.branchId;
       }
+    } else if (data.routeId === null) {
+      // Preserve customer's own branchId (SCOPE-4 / SCOPE-7) when route is cleared
+      data.agentId = null;
     }
 
     if (Array.isArray(body.collectionPoints)) {

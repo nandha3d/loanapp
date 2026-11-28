@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   activateChitGroup,
   addChitMemberTicketsAction,
   autoAssignChitTicketNumbers,
-  cancelChitGroup,
+  cancelChitGroupAction,
+  deleteChitGroupAction,
   drawAuctionWinner,
   markPaymentMissed,
   recordChitPayment,
@@ -14,17 +15,42 @@ import {
   updateChitMemberDetails,
   markChitAgreementSigned,
   recordAscaPoolTransaction,
-  rescheduleAuction,
   verifyChitAgreement,
 } from '../actions';
+import CashDenominationCounter from '@/components/chits/CashDenominationCounter';
+import AuctionScheduleModal from '@/components/chits/AuctionScheduleModal';
+import QuickAddAndBulkImportPanel from '@/components/chits/QuickAddAndBulkImportPanel';
+import type { CashDenominationMode } from '@/lib/chits/denominations';
+import {
+  STATUTORY_REGISTER_TYPES,
+  normalizeStateCode,
+  resolveStatutoryTemplate,
+  type StatutoryStateCode,
+} from '@/lib/chits/statutory/templates';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PDF_LANGUAGES, resolvePdfLang } from '@/lib/reports/pdfLanguages';
 import Link from '@/components/layout/DashboardLink';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
-import { parseFrequency, frequencyLabel, periodWindow } from '@/lib/chits/frequency';
+import { parseFrequency, periodWindow } from '@/lib/chits/frequency';
 import PaymentIntentsQueue from '@/components/chits/PaymentIntentsQueue';
 import MemberDividendLedgerPanel from '@/components/chits/MemberDividendLedgerPanel';
 import InlineAddPicker from '@/components/chits/InlineAddPicker';
+import FieldHelpIcon from '@/components/chits/FieldHelpIcon';
+import {
+  explainAuctionType,
+  explainCommissionMode,
+  explainDividendDistribution,
+  explainDividendPolicy,
+  explainFrequency,
+  explainLateFeeType,
+  explainPayoutAsset,
+  explainRegulatoryTier,
+  explainScaleTier,
+  explainTieBreak,
+  getChitConfigMeta,
+  getChitDetailUi,
+} from '@/lib/chits/chitConfigExplainI18n';
+import { formatChitTenure } from '@/lib/chits/formTooltipsI18n';
 import { computeSubscriptionBalances } from '@/lib/chits/engineCalculator';
 import {
   CHIT_ENGINE_CATALOG,
@@ -33,6 +59,12 @@ import {
   resolveEngineTypeFromGroup,
 } from '@/lib/chits/engineTypes';
 import type { ChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
+import {
+  ChitHeroBarsBg,
+  ChitKpiSparkline,
+  ChitPotHeroIllustration,
+} from '@/components/chits/ChitHubIllustrations';
+import './chits-detail.css';
 
 interface ChitGroupDetailClientProps {
   group: any;
@@ -40,26 +72,12 @@ interface ChitGroupDetailClientProps {
   poolTransactions?: any[];
   staffUsers?: Array<{ id: string; name: string; phone: string; role: string; customRoleName?: string | null; customRole?: { name: string } | null }>;
   customers?: Array<{ id: string; name: string; customerCode: string }>;
+  cashDenominationMode?: CashDenominationMode;
+  canExportStatutoryRegisters?: boolean;
   currencySymbol: string;
   lang?: string;
   dict: any;
 }
-
-const AUCTION_TYPE_LABELS: Record<string, string> = {
-  open_manual: 'Open auction (manual entry)',
-  open_live: 'Open live bidding',
-  sealed: 'Sealed tender',
-  lottery: 'Lottery draw',
-  fixed_rotation: 'Fixed rotation',
-};
-
-const DISTRIBUTION_LABELS: Record<string, string> = {
-  ADJUST_NEXT_DUE: 'Reduces next installment',
-  CASH_PAYOUT: 'Paid out in cash',
-  ACCUMULATE: 'Accumulated to closure',
-  DEFERRED_BONUS_POOL: 'Deferred maturity bonus pool',
-  NONE: 'None (no dividend)',
-};
 
 export default function ChitGroupDetailClient({
   group,
@@ -67,20 +85,35 @@ export default function ChitGroupDetailClient({
   poolTransactions = [],
   staffUsers = [],
   customers = [],
+  cashDenominationMode = 'OPTIONAL',
+  canExportStatutoryRegisters = false,
   currencySymbol,
   lang,
   dict,
 }: ChitGroupDetailClientProps) {
   const d = dict.chits;
+  const ui = getChitDetailUi(lang);
+  const cfgMeta = getChitConfigMeta(lang);
   const router = useRouter();
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
   const [pdfLang, setPdfLang] = useState<string>(() => resolvePdfLang(lang));
+  const [membersTableOpen, setMembersTableOpen] = useState<boolean>(
+    () => !(dividendLedger && dividendLedger.memberStatements.length > 0 && group.members.length > 0),
+  );
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [memberModal, setMemberModal] = useState<any>(null);
   const [payAmount, setPayAmount] = useState(0);
   const [payMode, setPayMode] = useState('cash');
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [payDenomCounts, setPayDenomCounts] = useState<Record<number, number>>({});
+  const [payDenomJson, setPayDenomJson] = useState<string | null>(null);
+  const [payDenomMatched, setPayDenomMatched] = useState(true);
+  const paymentIdempotencyRef = useRef<string>('');
+  const [planLimitModal, setPlanLimitModal] = useState<string | null>(null);
+  const [confirmGroupAction, setConfirmGroupAction] = useState<'cancel' | 'delete' | null>(null);
+  const [groupActionError, setGroupActionError] = useState('');
+  const [statState, setStatState] = useState<StatutoryStateCode>(() => normalizeStateCode(group.stateCode));
   const engineType = resolveEngineTypeFromGroup(group);
   const engineCfg = parseChitEngineConfig(group.engineConfig, engineType);
   const engineCatalog = CHIT_ENGINE_CATALOG[engineType];
@@ -90,7 +123,6 @@ export default function ChitGroupDetailClient({
   );
   const [lastReceipt, setLastReceipt] = useState('');
   const [rescheduleModal, setRescheduleModal] = useState<any>(null);
-  const [rescheduleValue, setRescheduleValue] = useState('');
   const [foremenModal, setForemenModal] = useState<boolean>(false);
   const [foremenDraft, setForemenDraft] = useState<Array<{ userId: string; roleLabel: string; isPrimary: boolean }>>(() =>
     (group.foremen ?? []).map((f: any) => ({
@@ -175,7 +207,11 @@ export default function ChitGroupDetailClient({
     try {
       const res = await fn();
       if (res && typeof res === 'object' && 'ok' in res && res.ok === false) {
-        setError(res.error || 'Action failed');
+        if (res.code === 'CHIT_PLAN_LIMIT_REACHED') {
+          setPlanLimitModal(res.error || 'Free plan allows 1 active running chit group.');
+        } else {
+          setError(res.error || 'Action failed');
+        }
         setBusy('');
         return;
       }
@@ -190,6 +226,12 @@ export default function ChitGroupDetailClient({
     if (!paymentModal) return;
     setLoading(true);
     setError('');
+    if (!paymentIdempotencyRef.current) {
+      paymentIdempotencyRef.current =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `chit-pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
     try {
       const result = await recordChitPayment(
         paymentModal.memberId,
@@ -199,7 +241,12 @@ export default function ChitGroupDetailClient({
         payRef || null,
         payNotes || null,
         isGoldWeight ? payGoldRate : null,
+        payMode === 'cash' ? payDenomJson : null,
+        paymentIdempotencyRef.current,
       );
+      paymentIdempotencyRef.current = '';
+      setPayDenomCounts({});
+      setPayDenomJson(null);
       setLastReceipt(result?.receiptNo || '');
       setPaymentModal(null);
       router.refresh();
@@ -224,147 +271,261 @@ export default function ChitGroupDetailClient({
     setLoading(false);
   };
 
-  const handleReschedule = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!rescheduleModal || !rescheduleValue) return;
-    await run('reschedule', async () => {
-      await rescheduleAuction(rescheduleModal.id, new Date(rescheduleValue).toISOString());
-      setRescheduleModal(null);
-      setRescheduleValue('');
-    });
-  };
-
   const agreementBadge = (status: string) => {
     const cls = status === 'verified' ? 'success' : status === 'signed' ? 'info' : status === 'rejected' ? 'danger' : 'warning';
-    return <span className={`badge badge-${cls}`}>{status}</span>;
+    return <span className={`badge badge-${cls}`}>{ui.agreementLabels[status] || status}</span>;
   };
 
-  const complianceRows: [string, React.ReactNode][] = group.chitType === 'registered'
-    ? [
-        ['Registration no', group.registrationNo || <span style={{ color: 'var(--danger)' }}>missing</span>],
-        ['Registrar office', group.registrarOffice || <span style={{ color: 'var(--danger)' }}>missing</span>],
-        ['By-law no', group.bylawNo || <span style={{ color: 'var(--danger)' }}>missing</span>],
-        ['Commencement cert.', group.commencementCertificate || <span style={{ color: 'var(--danger)' }}>missing</span>],
-        ['Approved bank', group.approvedBankName || <span style={{ color: 'var(--danger)' }}>missing</span>],
-        ['Foreman', group.foremanName || <span style={{ color: 'var(--danger)' }}>missing</span>],
-      ]
-    : [['Compliance', 'Unregistered chit — registration details not required']];
+  const localizedEngineName = d.engineNames?.[engineType] || engineCatalog.name;
+  const localizedEngineDesc = d.engineDescs?.[engineType] || engineCatalog.description;
+  const unverifiedMembersCount = (group.members ?? []).filter((m: any) => m.agreementStatus !== 'verified').length;
+  const allMembersVerifiedAndFull =
+    (group.members ?? []).length > 0 &&
+    (group.members ?? []).length >= group.totalMembers &&
+    unverifiedMembersCount === 0;
+  const hasPrimaryLedgerTable = Boolean(dividendLedger && dividendLedger.memberStatements.length > 0);
+  const tenureDisplay = formatChitTenure(group.totalMembers, parseFrequency(group), lang);
+
+  const wonAuctions = (group.auctions ?? []).filter((a: any) => Boolean(a.winnerMemberId || a.winnerMember));
+  const nextPendingAuction = (group.auctions ?? []).find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
+  const totalCollectedAmt = (group.members ?? []).reduce(
+    (sum: number, m: any) =>
+      sum + (m.subscriptions ?? []).reduce((s2: number, sub: any) => s2 + Number(sub.paidAmount || 0), 0),
+    0,
+  );
+  const totalPrizeDisbursedAmt = wonAuctions.reduce((sum: number, a: any) => sum + Number(a.prizeAmount || 0), 0);
+  const totalDividendsAmt = wonAuctions.reduce((sum: number, a: any) => sum + Number(a.dividend || 0), 0);
+  const totalCommissionAmt = wonAuctions.reduce((sum: number, a: any) => sum + Number(a.commissionAmount || 0), 0);
+  const verifiedAgreementsCount = (group.members ?? []).filter((m: any) => m.agreementStatus === 'verified').length;
+  const pendingPayoutsCount = wonAuctions.filter((a: any) => a.payoutStatus !== 'paid').length;
+
+  const allAuctions = group.auctions ?? [];
+  const defaultAuction =
+    allAuctions.find((a: any) => ['open', 'extended'].includes(a.roomStatus)) ??
+    allAuctions.find((a: any) => ['in_progress', 'notice_sent', 'pending'].includes(a.status)) ??
+    allAuctions[allAuctions.length - 1] ??
+    null;
+  const roomHref = defaultAuction
+    ? `/chits/${group.id}/auctions/${defaultAuction.id}`
+    : `/chits/${group.id}/room`;
+  const memberPct = group.totalMembers > 0 ? Math.min(100, Math.round((group.members.length / group.totalMembers) * 100)) : 0;
+  const cyclePct = group.totalMembers > 0 ? Math.min(100, Math.round((completedAuctions.length / group.totalMembers) * 100)) : 0;
 
   return (
-    <>
-      {error && <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>{error}</div>}
+    <div className="chit-detail-hub">
+      {error && <div className="alert alert-danger" style={{ padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>{error}</div>}
       {lastReceipt && (
-        <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#f0fff4', border: '1px solid var(--success)', borderRadius: 'var(--radius)', color: 'var(--success)' }}>
+        <div style={{ padding: '10px 14px', background: '#f0fff4', border: '1px solid var(--success)', borderRadius: 'var(--radius)', color: 'var(--success)' }}>
           Payment recorded — receipt {lastReceipt}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <Link href={`/chits/${group.id}/room`} className="btn btn-primary btn-sm">
-          💬 Group Chat &amp; Live Room
-        </Link>
-        <Link href={`/chits/${group.id}/edit`} className="btn btn-secondary btn-sm">Edit</Link>
-        {group.status === 'draft' && membersMissingTicketNo > 0 && (
+      {/* Unified Theme-Harmonized Hero Header */}
+      <section className="chit-detail-hero">
+        <ChitHeroBarsBg />
+        <div className="chit-detail-hero-left">
+          <ChitPotHeroIllustration />
+          <div style={{ minWidth: 0 }}>
+            <Link href="/chits" className="chit-detail-back">
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>arrow_back</span>
+              {d.detailBackToGroups}
+            </Link>
+            <h2 className="chit-detail-title">{group.name}</h2>
+            <div className="chit-detail-pills">
+              <span className="chit-detail-pill">
+                <span className="chits-hero-dot chits-hero-dot--active" style={{ width: '7px', height: '7px', borderRadius: '50%', background: group.status === 'active' ? '#4ade80' : '#fde047', display: 'inline-block' }} />
+                {ui.statusLabels[group.status] || group.status}
+              </span>
+              <span className="chit-detail-pill">{group.groupCode ?? group.id}</span>
+              <span className="chit-detail-pill">{localizedEngineName}</span>
+              <span className="chit-detail-pill">{tenureDisplay}</span>
+              <span className="chit-detail-pill">{group.chitType === 'registered' ? d.act1982 : d.privateChit}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="chit-detail-actions">
+          <Link href={roomHref} className="chit-detail-btn-primary">
+            <span className="material-icons-outlined" style={{ fontSize: '17px' }}>forum</span>
+            {d.detailLiveRoomBtn}
+          </Link>
+          <Link href={`/chits/${group.id}/edit`} className="chit-detail-btn-glass">
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>edit</span>
+            {ui.editGroupBtn}
+          </Link>
+          {group.status === 'draft' && membersMissingTicketNo > 0 && (
+            <button
+              className="chit-detail-btn-glass"
+              disabled={busy === 'auto-assign'}
+              onClick={() => run('auto-assign', () => autoAssignChitTicketNumbers(group.id))}
+            >
+              {busy === 'auto-assign' ? ui.assigningBtn : `${ui.autoAssignBtn} (${membersMissingTicketNo})`}
+            </button>
+          )}
+          {group.status === 'draft' && (
+            <button
+              className="chit-detail-btn-glass"
+              style={{ background: 'rgba(255,255,255,0.24)', borderColor: '#ffffff' }}
+              disabled={busy === 'activate'}
+              onClick={() => run('activate', () => activateChitGroup(group.id))}
+            >
+              {busy === 'activate' ? ui.activatingBtn : ui.activateGroupBtn}
+            </button>
+          )}
+          {['draft', 'active'].includes(group.status) && (
+            <button
+              type="button"
+              className="chit-detail-btn-glass"
+              disabled={busy === 'cancel'}
+              onClick={() => {
+                setGroupActionError('');
+                setConfirmGroupAction('cancel');
+              }}
+            >
+              {busy === 'cancel' ? ui.cancellingBtn : ui.cancelGroupBtn}
+            </button>
+          )}
           <button
-            className="btn btn-secondary btn-sm"
-            disabled={busy === 'auto-assign'}
-            onClick={() => run('auto-assign', () => autoAssignChitTicketNumbers(group.id))}
-          >
-            {busy === 'auto-assign' ? 'Assigning…' : `Auto-assign ticket numbers (${membersMissingTicketNo})`}
-          </button>
-        )}
-        {group.status === 'draft' && (
-          <button
-            className="btn btn-primary btn-sm"
-            disabled={busy === 'activate'}
-            onClick={() => run('activate', () => activateChitGroup(group.id))}
-          >
-            {busy === 'activate' ? 'Activating…' : 'Activate Group'}
-          </button>
-        )}
-        {group.status === 'active' && (
-          <button
-            className="btn btn-danger btn-sm"
-            disabled={busy === 'cancel'}
+            type="button"
+            className="chit-detail-btn-danger-glass"
+            disabled={busy === 'delete'}
             onClick={() => {
-              if (confirm('Cancel this chit group? All pending auctions will be cancelled.')) {
-                run('cancel', () => cancelChitGroup(group.id));
-              }
+              setGroupActionError('');
+              setConfirmGroupAction('delete');
             }}
           >
-            {busy === 'cancel' ? 'Cancelling…' : 'Cancel Group'}
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>delete_outline</span>
+            {d.deleteGroupMenuBtn || 'Delete Group'}
           </button>
-        )}
-      </div>
+        </div>
+      </section>
 
-      {/* Summary */}
-      <div className="kpi-grid" style={{ marginBottom: '20px' }}>
-        <div className="kpi-card">
-          <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
-          <div><div className="kpi-value">{formatCurrency(Number(group.chitValue), currencySymbol)}</div><div className="kpi-label">{d.chitValue}</div></div>
+      {/* Elevated 4-Card Sparkline KPI Strip */}
+      <section className="chit-detail-kpi-grid">
+        <div className="chit-detail-kpi-card">
+          <div className="kpi-icon green" style={{ position: 'relative', zIndex: 1 }}><span className="material-icons-outlined">savings</span></div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div className="kpi-value">{formatCurrency(Number(group.chitValue), currencySymbol)}</div>
+            <div className="kpi-label">{d.chitValue}</div>
+          </div>
+          <ChitKpiSparkline color="#16A34A" variant={0} />
         </div>
-        <div className="kpi-card">
-          <div className="kpi-icon blue"><span className="material-icons-outlined">payments</span></div>
-          <div><div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div><div className="kpi-label">Installment ({frequencyLabel(parseFrequency(group))})</div></div>
+        <div className="chit-detail-kpi-card">
+          <div className="kpi-icon blue" style={{ position: 'relative', zIndex: 1 }}><span className="material-icons-outlined">payments</span></div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div>
+            <div className="kpi-label">{ui.installmentWord} ({explainFrequency(engineCfg.collectionFrequency || group.auctionFrequency, lang)})</div>
+          </div>
+          <ChitKpiSparkline color="#0EA5E9" variant={1} />
         </div>
-        <div className="kpi-card">
-          <div className="kpi-icon orange"><span className="material-icons-outlined">groups</span></div>
-          <div><div className="kpi-value">{group.members.length}/{group.totalMembers}</div><div className="kpi-label">{d.membersEnrolled}</div></div>
+        <div className="chit-detail-kpi-card">
+          <div className="kpi-icon orange" style={{ position: 'relative', zIndex: 1 }}><span className="material-icons-outlined">groups</span></div>
+          <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
+            <div className="kpi-value">{group.members.length}/{group.totalMembers}</div>
+            <div className="kpi-label">{d.membersEnrolled}</div>
+            <div style={{ height: '5px', background: 'var(--border)', borderRadius: '999px', marginTop: '6px', overflow: 'hidden', maxWidth: '140px' }}>
+              <div style={{ width: `${memberPct}%`, height: '100%', background: 'var(--primary)', borderRadius: '999px' }} />
+            </div>
+          </div>
+          <ChitKpiSparkline color="#8B5CF6" variant={2} />
         </div>
-        <div className="kpi-card">
-          <div className="kpi-icon purple"><span className="material-icons-outlined">gavel</span></div>
-          <div><div className="kpi-value">{completedAuctions.length}/{group.totalMembers}</div><div className="kpi-label">{d.auctionsCompleted}</div></div>
+        <div className="chit-detail-kpi-card">
+          <div className="kpi-icon purple" style={{ position: 'relative', zIndex: 1 }}><span className="material-icons-outlined">gavel</span></div>
+          <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
+            <div className="kpi-value">{completedAuctions.length}/{group.totalMembers}</div>
+            <div className="kpi-label">{d.auctionsCompleted}</div>
+            <div style={{ height: '5px', background: 'var(--border)', borderRadius: '999px', marginTop: '6px', overflow: 'hidden', maxWidth: '140px' }}>
+              <div style={{ width: `${cyclePct}%`, height: '100%', background: 'var(--success)', borderRadius: '999px' }} />
+            </div>
+          </div>
+          <ChitKpiSparkline color="#F59E0B" variant={3} />
         </div>
-      </div>
+      </section>
 
-      {/* Configuration & compliance */}
-      <div className="grid-60-40" style={{ marginBottom: '20px' }}>
-        <div className="card">
-          <div className="card-header"><h3>⚙️ Chit configuration</h3></div>
+      {/* Configuration & Winner Insights */}
+      <div className="grid-60-40">
+        <div className="chit-detail-card">
+          <div className="chit-detail-card-head">
+            <div>
+              <h3 style={{ margin: 0 }}>⚙️ {ui.configSectionTitle}</h3>
+              <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                {ui.configSectionSub}
+              </p>
+            </div>
+          </div>
           <div className="table-wrapper">
             <table>
               <tbody>
                 <tr>
-                  <td>Engine &amp; Type</td>
+                  <td style={{ minWidth: '175px', fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.engineLabel}
+                    <FieldHelpIcon title={cfgMeta.engineHelpTitle} text={cfgMeta.engineHelp} />
+                  </td>
                   <td>
-                    <strong>{engineCatalog.name}</strong> (<code>{engineType}</code>) ·{' '}
-                    {group.chitType === 'registered' ? 'Registered' : 'Unregistered'} ·{' '}
-                    {AUCTION_TYPE_LABELS[group.auctionType] ?? group.auctionType}
+                    <div style={{ fontWeight: 700, color: 'var(--text)' }}>
+                      {localizedEngineName} · {group.chitType === 'registered' ? d.act1982 : d.privateChit}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px', lineHeight: 1.45 }}>
+                      {explainAuctionType(group.auctionType, lang)} — {localizedEngineDesc}
+                    </div>
                   </td>
                 </tr>
                 <tr>
-                  <td>Tier &amp; Asset</td>
-                  <td>
-                    {engineCfg.regulatoryTier} · {engineCfg.scaleTier} · Asset: {engineCfg.payoutAssetType} · Cadence: {engineCfg.collectionFrequency}
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.scaleLabel}
+                    <FieldHelpIcon title={cfgMeta.scaleHelpTitle} text={cfgMeta.scaleHelp} />
                   </td>
-                </tr>
-                <tr><td>Commission</td>
                   <td>
-                    {engineCfg.foremanCompensation.mode} · {Number(group.commissionPct)}% of {group.commissionBasis === 'CHIT_VALUE' ? 'chit value' : 'bid discount'}
-                    {engineCfg.foremanCompensation.flatFeeAmount > 0 ? ` / flat ${formatCurrency(engineCfg.foremanCompensation.flatFeeAmount, currencySymbol)}` : ''}
-                    {group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}
+                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                      {explainRegulatoryTier(engineCfg.regulatoryTier, lang)}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px', lineHeight: 1.45 }}>
+                      {explainScaleTier(engineCfg.scaleTier, lang)} · {explainPayoutAsset(engineCfg.payoutAssetType, lang)} · {explainFrequency(engineCfg.collectionFrequency, lang)} ({tenureDisplay})
+                    </div>
                   </td>
                 </tr>
                 <tr>
-                  <td>Foremen</td>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.commissionLabel}
+                    <FieldHelpIcon title={cfgMeta.commissionHelpTitle} text={cfgMeta.commissionHelp} />
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                      {Number(group.commissionPct)}%{' '}
+                      {group.commissionBasis === 'CHIT_VALUE' ? ui.ofGrossPot : ui.ofBidDiscount}
+                      {group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                      {explainCommissionMode(engineCfg.foremanCompensation.mode, lang)}
+                      {engineCfg.foremanCompensation.flatFeeAmount > 0
+                        ? ` (${formatCurrency(engineCfg.foremanCompensation.flatFeeAmount, currencySymbol)} ${ui.flatFeeSuffix})`
+                        : ''}
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.foremenLabel}
+                    <FieldHelpIcon title={cfgMeta.foremenHelpTitle} text={cfgMeta.foremenHelp} />
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                       {(group.foremen ?? []).length > 0 ? (
                         (group.foremen ?? []).map((f: any) => (
-                          <span key={f.id} className="badge badge-info" style={{ fontSize: '.72rem' }}>
+                          <span key={f.id} className="badge badge-info" style={{ fontSize: '.74rem' }}>
                             {f.user?.name || 'Foreman'} · {f.roleLabel}{f.isPrimary ? ' ★' : ''}
                           </span>
                         ))
                       ) : group.foremanName ? (
                         <span>{group.foremanName}</span>
                       ) : (
-                        <span style={{ color: 'var(--text-light)' }}>Not assigned</span>
+                        <span style={{ color: 'var(--text-light)' }}>{ui.notAssigned}</span>
                       )}
                       {staffUsers.length > 0 && (
                         <button
                           type="button"
                           className="btn btn-ghost btn-sm"
-                          style={{ padding: '2px 8px', fontSize: '.72rem' }}
+                          style={{ padding: '2px 8px', fontSize: '.74rem' }}
                           onClick={() => {
                             setForemenDraft(
                               (group.foremen ?? []).map((f: any) => ({
@@ -376,47 +537,207 @@ export default function ChitGroupDetailClient({
                             setForemenModal(true);
                           }}
                         >
-                          Manage Foremen
+                          {ui.manageForemenBtn}
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
-                <tr><td>Dividend</td><td>{group.dividendPolicy} · {DISTRIBUTION_LABELS[group.dividendDistribution] ?? group.dividendDistribution}{group.dividendRounding ? ` · rounded to ${currencySymbol}${group.dividendRounding}` : ''}</td></tr>
-                <tr><td>Default time</td><td>{group.auctionTime || 'Not set'}</td></tr>
-                <tr><td>Winner interest</td><td>{group.winnerInterestType === 'NONE' ? 'None' : `${group.winnerInterestType} ${group.winnerInterestValue ?? ''} for ${group.winnerInterestPeriods ?? 0} period(s)`}</td></tr>
                 <tr>
-                  <td>Default &amp; security</td>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.dividendLabel}
+                    <FieldHelpIcon title={cfgMeta.dividendHelpTitle} text={cfgMeta.dividendHelp} />
+                  </td>
                   <td>
-                    {engineCfg.defaultRules.forfeitDividendOnLate ? 'Forfeit dividend on late' : 'Keep dividend on late'} · Late fee {engineCfg.defaultRules.lateFeeType} ({engineCfg.defaultRules.lateFeeValue}) · Substitution cutoff {engineCfg.defaultRules.substitutionCutoffPct}%
+                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                      {explainDividendPolicy(group.dividendPolicy, lang)}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                      {explainDividendDistribution(group.dividendDistribution, lang)}
+                      {group.dividendRounding ? ` (${currencySymbol}${group.dividendRounding} rounding)` : ''}
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.timeLabel}
+                    <FieldHelpIcon title={cfgMeta.timeHelpTitle} text={cfgMeta.timeHelp} />
+                  </td>
+                  <td>{group.auctionTime || '—'}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.winnerIntLabel}
+                    <FieldHelpIcon title={cfgMeta.winnerIntHelpTitle} text={cfgMeta.winnerIntHelp} />
+                  </td>
+                  <td>
+                    {group.winnerInterestType === 'NONE'
+                      ? explainLateFeeType('NONE', lang)
+                      : `${group.winnerInterestValue ?? 0}% (${group.winnerInterestPeriods ?? 0})`}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                    {cfgMeta.defaultSecLabel}
+                    <FieldHelpIcon title={cfgMeta.defaultSecHelpTitle} text={cfgMeta.defaultSecHelp} />
+                  </td>
+                  <td>
+                    <div style={{ color: 'var(--text)' }}>
+                      {engineCfg.defaultRules.forfeitDividendOnLate ? ui.forfeitedOnLate : ui.keptOnLate}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                      {explainLateFeeType(engineCfg.defaultRules.lateFeeType, lang)}
+                      {engineCfg.defaultRules.lateFeeValue > 0 ? ` (${engineCfg.defaultRules.lateFeeValue})` : ''} · {ui.substCutoffLabel} {engineCfg.defaultRules.substitutionCutoffPct}%
+                    </div>
                   </td>
                 </tr>
                 {!isDrawType && (
-                  <tr><td>Bid rules</td><td>
-                    Discount {group.minDiscountPct ? `${Number(group.minDiscountPct)}%` : `${Number(group.commissionPct)}% (commission floor)`} – {engineCfg.discountRules.uncapped ? 'uncapped' : group.maxDiscountPct ? `${Number(group.maxDiscountPct)}%` : 'no cap'}
-                    {group.bidIncrement ? ` · step ${formatCurrency(Number(group.bidIncrement), currencySymbol)}` : ''}
-                    {` · tie: ${group.tieBreakRule}`}
-                  </td></tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, verticalAlign: 'top' }}>
+                      {cfgMeta.bidRulesLabel}
+                      <FieldHelpIcon title={cfgMeta.bidRulesHelpTitle} text={cfgMeta.bidRulesHelp} />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                        {group.minDiscountPct
+                          ? `${Number(group.minDiscountPct)}%`
+                          : `${Number(group.commissionPct)}% (${ui.commissionFloor})`}{' '}
+                        {ui.upToPct}{' '}
+                        {engineCfg.discountRules.uncapped
+                          ? ui.uncapped
+                          : group.maxDiscountPct
+                            ? `${Number(group.maxDiscountPct)}%`
+                            : ui.noCap}
+                        {group.bidIncrement ? ` · +${formatCurrency(Number(group.bidIncrement), currencySymbol)}` : ''}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                        {explainTieBreak(group.tieBreakRule, lang)}
+                      </div>
+                    </td>
+                  </tr>
                 )}
                 {isDrawType && (
-                  <tr><td>Fixed discount</td><td>{group.fixedDiscountPct ? `${Number(group.fixedDiscountPct)}%` : 'None (full chit value prize)'}</td></tr>
+                  <tr>
+                    <td style={{ fontWeight: 700 }}>{cfgMeta.fixedDiscLabel}</td>
+                    <td>{group.fixedDiscountPct ? `${Number(group.fixedDiscountPct)}%` : ui.fixedDiscountNone}</td>
+                  </tr>
                 )}
-                {group.hasForemanTicket && <tr><td>Foreman ticket</td><td>Period-1 prize goes to the foreman ticket without auction</td></tr>}
+                {group.hasForemanTicket && (
+                  <tr>
+                    <td style={{ fontWeight: 700 }}>{cfgMeta.foremanTicketLabel}</td>
+                    <td>{ui.foremanFirstPotExplain}</td>
+                  </tr>
+                )}
+                {(group.registrationNo || group.priorSanctionNumber || group.bylawNo) && (
+                  <tr>
+                    <td style={{ fontWeight: 700 }}>{cfgMeta.bylawLabel}</td>
+                    <td>
+                      {[
+                        group.registrationNo ? `Reg: ${group.registrationNo}` : null,
+                        group.priorSanctionNumber ? `PSO: ${group.priorSanctionNumber}` : null,
+                        group.bylawNo ? `Bylaw: ${group.bylawNo}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
-        <div className="card">
-          <div className="card-header"><h3>📋 Compliance</h3></div>
-          <div className="table-wrapper">
-            <table>
-              <tbody>
-                {complianceRows.map(([label, valueNode]) => (
-                  <tr key={label}><td>{label}</td><td>{valueNode}</td></tr>
-                ))}
-                <tr><td>Status</td><td><span className={`badge badge-${group.complianceStatus === 'active' ? 'success' : 'secondary'}`}>{group.complianceStatus}</span></td></tr>
-              </tbody>
-            </table>
+        <div className="chit-detail-card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="chit-detail-card-head">
+            <h3>🏆 {ui.winnerSectionTitle}</h3>
+            <span className="badge badge-info" style={{ fontSize: '.72rem' }}>
+              {wonAuctions.length} / {group.durationMonths} {ui.wonSuffix}
+            </span>
+          </div>
+          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+          {/* Pool Financial Insights */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '9px', padding: '8px 10px' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{ui.totalCollected}</div>
+              <div style={{ fontSize: '.95rem', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>
+                {formatCurrency(totalCollectedAmt, currencySymbol)}
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '9px', padding: '8px 10px' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{ui.prizeDisbursed}</div>
+              <div style={{ fontSize: '.95rem', fontWeight: 800, color: 'var(--primary-dark)', marginTop: '2px' }}>
+                {formatCurrency(totalPrizeDisbursedAmt, currencySymbol)}
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '9px', padding: '8px 10px' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{ui.dividendsShared}</div>
+              <div style={{ fontSize: '.92rem', fontWeight: 700, color: 'var(--text)', marginTop: '2px' }}>
+                {formatCurrency(totalDividendsAmt, currencySymbol)}
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '9px', padding: '8px 10px' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{ui.foremanCommission}</div>
+              <div style={{ fontSize: '.92rem', fontWeight: 700, color: 'var(--text)', marginTop: '2px' }}>
+                {formatCurrency(totalCommissionAmt, currencySymbol)}
+              </div>
+            </div>
+          </div>
+
+          {/* Operational Readiness Strip */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '.75rem', padding: '8px 10px', borderRadius: '9px', background: 'var(--primary-light)', color: 'var(--primary-dark)', fontWeight: 600 }}>
+            <span>{ui.agreementsCountLabel}: {verifiedAgreementsCount}/{group.members.length}</span>
+            <span>·</span>
+            <span>{ui.pendingPayoutsLabel}: {pendingPayoutsCount}</span>
+            {nextPendingAuction && (
+              <>
+                <span>·</span>
+                <span>{ui.nextLabel}: {d.periodLabel} {nextPendingAuction.periodNumber} ({formatDate(nextPendingAuction.scheduledAt ?? nextPendingAuction.auctionDate)})</span>
+              </>
+            )}
+          </div>
+
+          {/* Winner History Table / Empty State */}
+          {wonAuctions.length === 0 ? (
+            <div style={{ padding: '18px 14px', borderRadius: '10px', background: 'var(--bg)', border: '1px dashed var(--border)', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.84rem', lineHeight: 1.5 }}>
+              {ui.noWinnersYet}
+            </div>
+          ) : (
+            <div className="table-wrapper" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{d.period}</th>
+                    <th>{d.winner}</th>
+                    <th>{d.prize}</th>
+                    <th>{d.dividend}</th>
+                    <th>{ui.payoutCol}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wonAuctions.map((a: any) => (
+                    <tr key={a.id}>
+                      <td><strong>P{a.periodNumber}</strong></td>
+                      <td>
+                        <Link href={`/chits/${group.id}/auctions/${a.id}`} style={{ fontWeight: 600 }}>
+                          {a.winnerMember?.customer?.name || d.winner}
+                        </Link>
+                        {a.winnerMember?.ticketNo && (
+                          <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>#{a.winnerMember.ticketNo}</span>
+                        )}
+                      </td>
+                      <td><strong>{a.prizeAmount ? formatCurrency(Number(a.prizeAmount), currencySymbol) : '—'}</strong></td>
+                      <td>{a.dividend ? formatCurrency(Number(a.dividend), currencySymbol) : '—'}</td>
+                      <td>
+                        <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`} style={{ fontSize: '.68rem' }}>
+                          {ui.payoutLabels[a.payoutStatus] || a.payoutStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           </div>
         </div>
       </div>
@@ -426,14 +747,15 @@ export default function ChitGroupDetailClient({
         <MemberDividendLedgerPanel
           ledger={dividendLedger}
           currencySymbol={currencySymbol}
+          lang={lang}
           dict={dict}
         />
       )}
 
       {/* ASCA / SHG Revolving Pool Transactions */}
       {engineType === 'ASCA_SHG_REVOLVING' && (
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div className="card-header"><h3>🤝 ASCA / SHG Revolving Pool Ledger</h3></div>
+        <div className="chit-detail-card">
+          <div className="chit-detail-card-head"><h3>🤝 ASCA / SHG Revolving Pool Ledger</h3></div>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -499,11 +821,11 @@ export default function ChitGroupDetailClient({
       )}
 
       {/* Auctions */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <h3 style={{ margin: 0 }}>🔨 {d.auctionHistory}</h3>
+      <div className="chit-detail-card">
+        <div className="chit-detail-card-head">
+          <h3>🔨 {d.auctionHistory || ui.auctionHistoryTitle}</h3>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>PDF Language:</span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{ui.pdfLangLabel}</span>
             <select
               aria-label="Period PDF Language"
               className="form-control"
@@ -518,7 +840,7 @@ export default function ChitGroupDetailClient({
           </div>
         </div>
         {group.auctions.length === 0 ? (
-          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{group.status === 'draft' ? 'Auctions are generated when the group is activated.' : d.noAuctions}</p>
+          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{group.status === 'draft' ? ui.draftAuctionsMsg : d.noAuctions}</p>
         ) : (
           <div className="table-wrapper">
             <table>
@@ -530,14 +852,14 @@ export default function ChitGroupDetailClient({
                   <th>{d.prize}</th>
                   <th>{d.dividend}</th>
                   <th>{d.status}</th>
-                  <th>Payout</th>
+                  <th>{ui.payoutCol}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {group.auctions.map((a: any) => (
                   <tr key={a.id}>
-                    <td>Period {a.periodNumber}</td>
+                    <td>{d.periodLabel} {a.periodNumber}</td>
                     <td>
                       {formatDate(a.auctionDate)}
                       {a.scheduledAt && <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{new Date(a.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
@@ -546,35 +868,30 @@ export default function ChitGroupDetailClient({
                     <td>{a.prizeAmount ? formatCurrency(Number(a.prizeAmount), currencySymbol) : '—'}</td>
                     <td>{a.dividend ? formatCurrency(Number(a.dividend), currencySymbol) : '—'}</td>
                     <td><span className={`badge badge-${['confirmed', 'paid'].includes(a.status) ? 'success' : a.status === 'cancelled' ? 'danger' : a.status === 'in_progress' ? 'info' : 'warning'}`}>{a.status}</span></td>
-                    <td>{a.winnerMemberId ? <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{a.payoutStatus}</span> : '—'}</td>
+                    <td>{a.winnerMemberId ? <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{ui.payoutLabels[a.payoutStatus] || a.payoutStatus}</span> : '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
+                      <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">{ui.manageBtn}</Link>
                       <a
                         href={`/api/chits/${group.id}/auctions/${a.id}/report?lang=${pdfLang}`}
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-secondary btn-sm"
                         style={{ marginLeft: '4px' }}
-                        title={`Download Period ${a.periodNumber} Settlement & Ledger PDF (${pdfLang})`}
+                        title={`PDF (${pdfLang})`}
                       >
                         📄 PDF
                       </a>
                       {group.auctionType === 'open_live' && (
-                        <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-secondary btn-sm" style={{ marginLeft: '4px' }}>Enter room</Link>
+                        <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-secondary btn-sm" style={{ marginLeft: '4px' }}>{ui.enterRoomBtn}</Link>
                       )}
-                      {['pending', 'notice_sent'].includes(a.status) && (
+                      {!['confirmed', 'paid', 'cancelled'].includes(a.status) && !a.winnerMemberId && (
                         <button
                           className="btn btn-ghost btn-sm"
                           style={{ marginLeft: '4px' }}
                           disabled={busy === 'reschedule'}
-                          onClick={() => {
-                            setRescheduleModal(a);
-                            const initial = a.scheduledAt ? new Date(a.scheduledAt) : new Date(a.auctionDate);
-                            const local = new Date(initial.getTime() - initial.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-                            setRescheduleValue(local);
-                          }}
+                          onClick={() => setRescheduleModal(a)}
                         >
-                          Reschedule
+                          {ui.rescheduleBtn}
                         </button>
                       )}
                       {(!isBiddingEnabledForPeriod(group, a.periodNumber)) && !['confirmed', 'paid', 'cancelled'].includes(a.status) && group.status === 'active' && engineType !== 'NEED_BASED_CONSENSUS' && (
@@ -584,7 +901,7 @@ export default function ChitGroupDetailClient({
                           disabled={busy === `draw-${a.id}`}
                           onClick={() => run(`draw-${a.id}`, () => drawAuctionWinner(a.id))}
                         >
-                          {busy === `draw-${a.id}` ? 'Drawing…' : group.auctionType === 'lottery' ? 'Draw' : 'Resolve'}
+                          {busy === `draw-${a.id}` ? ui.drawingBtn : group.auctionType === 'lottery' ? ui.drawBtn : ui.resolveBtn}
                         </button>
                       )}
                     </td>
@@ -596,131 +913,164 @@ export default function ChitGroupDetailClient({
         )}
       </div>
 
-      {/* Members */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <h3 style={{ margin: 0 }}>👥 {d.members} ({group.members.length}/{group.totalMembers})</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {customers.length > 0 && !['completed', 'cancelled'].includes(group.status) && (
-              <div style={{ minWidth: '290px', maxWidth: '380px', flex: '1 1 290px' }}>
-                <InlineAddPicker
-                  compact
-                  disabled={busy === 'add-tickets'}
-                  placeholder={busy === 'add-tickets' ? 'Adding ticket...' : 'Search customer & click + to add ticket...'}
-                  summaryText={`${group.members.length}/${group.totalMembers}`}
-                  allowMultiple
-                  maxTotalReached={group.members.length >= group.totalMembers}
-                  onExceedMax={(cid) => {
-                    const cust = customers.find((c) => c.id === cid);
-                    setDetailLimitWarning(cust ? `${cust.name} (${cust.customerCode})` : 'Customer');
-                  }}
-                  items={customers.map((c) => {
-                    const count = group.members.filter((m: any) => m.customerId === c.id).length;
-                    return {
-                      id: c.id,
-                      label: c.name,
-                      subLabel: c.customerCode,
-                      count,
-                    };
-                  })}
-                  onIncrement={(cid) => run('add-tickets', () => addChitMemberTicketsAction(group.id, cid, 1))}
-                  footerAction={{ label: 'New Customer', href: '/customers/new' }}
-                />
-              </div>
-            )}
-            {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
+      {/* Members: Hidden completely when all seats are filled, signed & verified and the primary ledger table is visible; otherwise collapsible/expandable */}
+      {!(allMembersVerifiedAndFull && hasPrimaryLedgerTable) && (
+        <div className="chit-detail-card">
+          <div className="chit-detail-card-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>👥 {d.members} ({group.members.length}/{group.totalMembers})</h3>
+              {unverifiedMembersCount > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: '.74rem' }}>
+                  {unverifiedMembersCount} {ui.membersNeedReviewBadge}
+                </span>
+              )}
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                disabled={busy === 'verify-all-agreements'}
-                onClick={() =>
-                  run('verify-all-agreements', async () => {
-                    for (const m of group.members) {
-                      if (m.agreementStatus !== 'verified') {
-                        await verifyChitAgreement(m.id);
-                      }
-                    }
-                  })
-                }
+                aria-expanded={membersTableOpen}
+                onClick={() => setMembersTableOpen((v) => !v)}
               >
-                {busy === 'verify-all-agreements' ? 'Verifying…' : '✓ Sign & Verify All Agreements'}
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
+                  {membersTableOpen ? 'expand_less' : 'expand_more'}
+                </span>
+                {membersTableOpen ? ui.membersExpandedBtn : ui.membersCollapsedBtn}
               </button>
+            </div>
+            {membersTableOpen && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {!['completed', 'cancelled'].includes(group.status) && (
+                  <QuickAddAndBulkImportPanel
+                    groupId={group.id}
+                    currentCount={group.members.length}
+                    totalMembers={group.totalMembers}
+                    disabled={!!busy}
+                  />
+                )}
+                {customers.length > 0 && !['completed', 'cancelled'].includes(group.status) && (
+                  <div style={{ minWidth: '290px', maxWidth: '380px', flex: '1 1 290px' }}>
+                    <InlineAddPicker
+                      compact
+                      disabled={busy === 'add-tickets'}
+                      placeholder={busy === 'add-tickets' ? '...' : 'Search customer & click +...'}
+                      summaryText={`${group.members.length}/${group.totalMembers}`}
+                      allowMultiple
+                      maxTotalReached={group.members.length >= group.totalMembers}
+                      onExceedMax={(cid) => {
+                        const cust = customers.find((c) => c.id === cid);
+                        setDetailLimitWarning(cust ? `${cust.name} (${cust.customerCode})` : 'Customer');
+                      }}
+                      items={customers.map((c) => {
+                        const count = group.members.filter((m: any) => m.customerId === c.id).length;
+                        return {
+                          id: c.id,
+                          label: c.name,
+                          subLabel: c.customerCode,
+                          count,
+                        };
+                      })}
+                      onIncrement={(cid) => run('add-tickets', () => addChitMemberTicketsAction(group.id, cid, 1))}
+                      footerAction={{ label: 'New Customer', href: '/customers/new' }}
+                    />
+                  </div>
+                )}
+                {group.members.some((m: any) => m.agreementStatus !== 'verified') && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy === 'verify-all-agreements'}
+                    onClick={() =>
+                      run('verify-all-agreements', async () => {
+                        for (const m of group.members) {
+                          if (m.agreementStatus !== 'verified') {
+                            await verifyChitAgreement(m.id);
+                          }
+                        }
+                      })
+                    }
+                  >
+                    {busy === 'verify-all-agreements' ? ui.verifyingAllBtn : `✓ ${ui.signVerifyAllBtn}`}
+                  </button>
+                )}
+              </div>
             )}
           </div>
+          {membersTableOpen && (
+            group.members.length === 0 ? (
+              <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noMembers}</p>
+            ) : (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{ui.ticketCol}</th>
+                      <th>{d.customer}</th>
+                      <th>{ui.shareCol}</th>
+                      <th>{ui.agreementCol}</th>
+                      <th>{ui.nomineeCol}</th>
+                      <th>{d.status}</th>
+                      <th>{d.won}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.members.map((m: any) => (
+                      <tr key={m.id}>
+                        <td>{m.ticketNo ?? m.memberNumber}{m.fractionNo ? `-${m.fractionNo}` : ''}{m.isForemanTicket ? ' ★' : ''}</td>
+                        <td>
+                          <Link href={`/customers/${m.customer.customerCode}`}>{m.customer.name}</Link>
+                          <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{m.customer.customerCode}</span>
+                        </td>
+                        <td>{Number(m.ticketShare) === 1 ? ui.fullShare : Number(m.ticketShare)}</td>
+                        <td>
+                          {agreementBadge(m.agreementStatus)}
+                          {m.agreementStatus === 'pending' && (
+                            <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => run(`sign-${m.id}`, () => markChitAgreementSigned(m.id))}>{ui.signBtn}</button>
+                          )}
+                          {m.agreementStatus === 'signed' && (
+                            <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => run(`verify-${m.id}`, () => verifyChitAgreement(m.id))}>{ui.verifyBtn}</button>
+                          )}
+                        </td>
+                        <td>{m.nomineeName || <span style={{ color: 'var(--text-light)' }}>—</span>}</td>
+                        <td><span className={`badge badge-${m.subscriberStatus === 'active' ? 'success' : 'secondary'}`}>{m.subscriberStatus}</span></td>
+                        <td>{m.hasWon ? <span className="badge badge-success">{d.won} {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">{d.pending}</span>}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => { setMemberModal(m); setError(''); }}>{ui.editBtn}</button>
+                            {group.members.length < group.totalMembers && !['completed', 'cancelled'].includes(group.status) && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: '.7rem', padding: '2px 6px' }}
+                                disabled={!!busy}
+                                onClick={() => run(`dup-${m.id}`, () => addChitMemberTicketsAction(group.id, m.customerId, 1))}
+                              >
+                                {ui.addOneTicketBtn}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
         </div>
-        {group.members.length === 0 ? (
-          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noMembers}</p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ticket</th>
-                  <th>{d.customer}</th>
-                  <th>Share</th>
-                  <th>Agreement</th>
-                  <th>Nominee</th>
-                  <th>{d.status}</th>
-                  <th>{d.won}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.members.map((m: any) => (
-                  <tr key={m.id}>
-                    <td>{m.ticketNo ?? m.memberNumber}{m.fractionNo ? `-${m.fractionNo}` : ''}{m.isForemanTicket ? ' ★' : ''}</td>
-                    <td>
-                      <Link href={`/customers/${m.customer.customerCode}`}>{m.customer.name}</Link>
-                      <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{m.customer.customerCode}</span>
-                    </td>
-                    <td>{Number(m.ticketShare) === 1 ? 'Full' : Number(m.ticketShare)}</td>
-                    <td>
-                      {agreementBadge(m.agreementStatus)}
-                      {m.agreementStatus === 'pending' && (
-                        <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => run(`sign-${m.id}`, () => markChitAgreementSigned(m.id))}>Sign</button>
-                      )}
-                      {m.agreementStatus === 'signed' && (
-                        <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => run(`verify-${m.id}`, () => verifyChitAgreement(m.id))}>Verify</button>
-                      )}
-                    </td>
-                    <td>{m.nomineeName || <span style={{ color: 'var(--text-light)' }}>—</span>}</td>
-                    <td><span className={`badge badge-${m.subscriberStatus === 'active' ? 'success' : 'secondary'}`}>{m.subscriberStatus}</span></td>
-                    <td>{m.hasWon ? <span className="badge badge-success">{d.won} {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">{d.pending}</span>}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => { setMemberModal(m); setError(''); }}>Edit</button>
-                        {group.members.length < group.totalMembers && !['completed', 'cancelled'].includes(group.status) && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ fontSize: '.7rem', padding: '2px 6px' }}
-                            disabled={!!busy}
-                            title="Add another ticket for this customer"
-                            onClick={() => run(`dup-${m.id}`, () => addChitMemberTicketsAction(group.id, m.customerId, 1))}
-                          >
-                            +1 Ticket
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Doc 19: customer-submitted payment proofs awaiting review, scoped to this group */}
-      <div className="card">
-        <div className="card-header"><h3>🧾 Payment proofs</h3></div>
-        <PaymentIntentsQueue chitGroupId={group.id} currencySymbol={currencySymbol} />
+      <div className="chit-detail-card">
+        <div className="chit-detail-card-head"><h3>🧾 {ui.paymentProofsTitle}</h3></div>
+        <div style={{ padding: '14px 16px' }}>
+          <PaymentIntentsQueue chitGroupId={group.id} currencySymbol={currencySymbol} />
+        </div>
       </div>
 
       {/* Subscription Payments */}
-      <div className="card">
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <h3 style={{ margin: 0 }}>💳 {d.memberPayments}</h3>
+      <div className="chit-detail-card">
+        <div className="chit-detail-card-head">
+          <h3>💳 {d.memberPayments || ui.memberPaymentsTitle}</h3>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {(['current', 'overdue', 'all'] as const).map((tab) => (
               <button
@@ -729,7 +1079,7 @@ export default function ChitGroupDetailClient({
                 className={`btn btn-sm ${subTab === tab ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => setSubTab(tab)}
               >
-                {tab === 'current' ? 'Current' : tab === 'overdue' ? 'Overdue' : 'All'}
+                {tab === 'current' ? ui.tabCurrent : tab === 'overdue' ? ui.tabOverdue : ui.tabAll}
               </button>
             ))}
           </div>
@@ -763,7 +1113,7 @@ export default function ChitGroupDetailClient({
                     color: active ? '#fff' : 'var(--text-secondary)',
                   }}
                 >
-                  Period {p}
+                  {d.periodLabel} {p}
                 </button>
               );
             })}
@@ -782,19 +1132,19 @@ export default function ChitGroupDetailClient({
                 color: selectedPeriod === 'all' ? '#fff' : 'var(--text-secondary)',
               }}
             >
-              All Periods
+              {ui.allPeriodsBtn}
             </button>
             {selectedPeriod !== 'all' && (() => {
               const periodAuction = group.auctions.find((a: any) => Number(a.periodNumber) === selectedPeriod);
               return periodAuction ? (
                 <a
-                  href={`/api/chits/${group.id}/auctions/${periodAuction.id}/report`}
+                  href={`/api/chits/${group.id}/auctions/${periodAuction.id}/report?lang=${pdfLang}`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn-secondary btn-sm"
                   style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
                 >
-                  📄 Period {selectedPeriod} PDF Report
+                  📄 {d.periodLabel} {selectedPeriod} PDF
                 </a>
               ) : null;
             })()}
@@ -807,13 +1157,13 @@ export default function ChitGroupDetailClient({
                 <th>{d.member}</th>
                 <th>{d.period}</th>
                 <th>{d.dueDate}</th>
-                <th>Base</th>
+                <th>{ui.baseCol}</th>
                 <th>{d.dividend}</th>
-                <th>Penalty</th>
-                <th>Net due</th>
+                <th>{ui.penaltyCol}</th>
+                <th>{ui.netDueCol}</th>
                 <th>{d.paid}</th>
-                <th>Outstanding</th>
-                <th>Receipt</th>
+                <th>{ui.outstandingCol}</th>
+                <th>{ui.receiptCol}</th>
                 <th>{d.status}</th>
                 <th></th>
               </tr>
@@ -857,6 +1207,10 @@ export default function ChitGroupDetailClient({
                             setPayMode('cash');
                             setPayRef('');
                             setPayNotes('');
+                            setPayDenomCounts({});
+                            setPayDenomJson(null);
+                            setPayDenomMatched(cashDenominationMode !== 'REQUIRED');
+                            paymentIdempotencyRef.current = '';
                             setError('');
                           }}
                         >
@@ -885,8 +1239,8 @@ export default function ChitGroupDetailClient({
 
       {/* Payment Modal */}
       {paymentModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ width: '400px', padding: '24px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: payMode === 'cash' && cashDenominationMode !== 'DISABLED' ? '560px' : '420px', maxHeight: '90vh', overflowY: 'auto', padding: '24px' }}>
             <h3 style={{ marginBottom: '12px' }}>{d.recordPayment} — Period {paymentModal.periodNumber}
               <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '8px' }}>
                 Outstanding: {formatCurrency(Number(paymentModal.outstanding), currencySymbol)}
@@ -904,7 +1258,7 @@ export default function ChitGroupDetailClient({
             </div>
             <div className="form-group" style={{ marginBottom: '12px' }}>
               <label className="form-label">{d.amountPaid} ({currencySymbol})</label>
-              <input type="number" className="form-control" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />
+              <input type="number" className="form-control" value={payAmount} onChange={(e) => { setPayAmount(Number(e.target.value)); paymentIdempotencyRef.current = ''; }} />
             </div>
             {isGoldWeight && (
               <div className="form-group" style={{ marginBottom: '12px' }}>
@@ -933,6 +1287,22 @@ export default function ChitGroupDetailClient({
                 <option value="cheque">Cheque</option>
               </select>
             </div>
+            {payMode === 'cash' && cashDenominationMode !== 'DISABLED' && (
+              <div style={{ marginBottom: '12px' }}>
+                <CashDenominationCounter
+                  compact
+                  expectedAmount={payAmount}
+                  mode={cashDenominationMode}
+                  value={payDenomCounts}
+                  currencySymbol={currencySymbol}
+                  onChange={(next, meta) => {
+                    setPayDenomCounts(next);
+                    setPayDenomJson(meta.json);
+                    setPayDenomMatched(meta.isMatch);
+                  }}
+                />
+              </div>
+            )}
             {payMode !== 'cash' && (
               <div className="form-group" style={{ marginBottom: '12px' }}>
                 <label className="form-label">Reference no</label>
@@ -945,7 +1315,11 @@ export default function ChitGroupDetailClient({
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setPaymentModal(null)}>{d.cancel}</button>
-              <button className="btn btn-primary btn-sm" onClick={handleRecordPayment} disabled={loading || payAmount <= 0}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleRecordPayment}
+                disabled={loading || payAmount <= 0 || (payMode === 'cash' && cashDenominationMode === 'REQUIRED' && !payDenomMatched)}
+              >
                 {loading ? d.saving : d.recordPayment}
               </button>
             </div>
@@ -953,30 +1327,21 @@ export default function ChitGroupDetailClient({
         </div>
       )}
 
-      {/* Reschedule Modal */}
+      {/* Meet-style Auction Schedule & Early Override Modal */}
       {rescheduleModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <form className="card" style={{ width: '420px', padding: '24px' }} onSubmit={handleReschedule}>
-            <h3 style={{ marginBottom: '12px' }}>Reschedule period {rescheduleModal.periodNumber}</h3>
-            {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
-            <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label className="form-label">New date and time</label>
-              <input
-                type="datetime-local"
-                className="form-control"
-                value={rescheduleValue}
-                onChange={(e) => setRescheduleValue(e.target.value)}
-                required
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRescheduleModal(null)}>Cancel</button>
-              <button type="submit" className="btn btn-primary btn-sm" disabled={busy === 'reschedule'}>
-                {busy === 'reschedule' ? 'Saving...' : 'Save schedule'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <AuctionScheduleModal
+          open
+          onClose={() => setRescheduleModal(null)}
+          auctionId={rescheduleModal.id}
+          groupName={group.name}
+          periodNumber={rescheduleModal.periodNumber}
+          initialScheduledAt={rescheduleModal.scheduledAt ?? rescheduleModal.auctionDate}
+          initialDurationMinutes={engineCfg.meetingSchedule?.defaultDurationMinutes ?? 30}
+          initialAutoStart={Boolean(engineCfg.meetingSchedule?.autoStartAtScheduledTime)}
+          isBiddingRoom={!['lottery', 'fixed_rotation'].includes(group.auctionType)}
+          dict={dict}
+          onCompleted={() => router.refresh()}
+        />
       )}
 
       {/* Member Edit Modal */}
@@ -1153,6 +1518,274 @@ export default function ChitGroupDetailClient({
         </div>
       )}
 
+      {/* Task 7: State-Configurable Statutory Registers (Enterprise) */}
+      <div className="chit-detail-card" data-testid="statutory-registers-card">
+        <div className="chit-detail-card-head">
+          <div>
+            <h3 style={{ margin: 0 }}>🏛️ {ui.statutoryTitle}</h3>
+            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              {ui.statutoryDesc}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              className="form-control"
+              value={statState}
+              onChange={(e) => setStatState(e.target.value as StatutoryStateCode)}
+              style={{ width: '190px', fontWeight: 600 }}
+            >
+              <option value="TN">Tamil Nadu Rules (1984)</option>
+              <option value="DL">Delhi Chit Rules (2007)</option>
+              <option value="GENERIC">Central Act (1982)</option>
+            </select>
+            {!canExportStatutoryRegisters && (
+              <Link href="/subscription" className="btn btn-primary btn-sm">
+                🔒 {ui.upgradeEnterpriseBtn}
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+          {STATUTORY_REGISTER_TYPES.map((regType) => {
+            const meta = resolveStatutoryTemplate(statState, regType);
+            const pdfHref = `/api/chits/${group.id}/statutory?register=${regType}&state=${statState}&format=pdf&lang=${pdfLang}`;
+            const xlsxHref = `/api/chits/${group.id}/statutory?register=${regType}&state=${statState}&format=xlsx`;
+            return (
+              <div
+                key={regType}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  background: 'var(--bg)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '0.84rem' }}>{meta.title}</strong>
+                    <span className="badge badge-info" style={{ fontSize: '0.68rem' }}>{meta.formCode}</span>
+                  </div>
+                  <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {meta.subtitle}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {canExportStatutoryRegisters ? (
+                    <>
+                      <a href={pdfHref} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+                        PDF
+                      </a>
+                      <a href={xlsxHref} className="btn btn-ghost btn-sm">
+                        Excel (.xlsx)
+                      </a>
+                    </>
+                  ) : (
+                    <Link href="/subscription" className="btn btn-secondary btn-sm" style={{ opacity: 0.78 }}>
+                      {ui.enterpriseOnlyBtn}
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Themed Group Cancel / Delete Confirmation Modal */}
+      {confirmGroupAction && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.58)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 1450,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => !busy && setConfirmGroupAction(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              background: 'var(--surface)',
+              border: '1.5px solid var(--border)',
+              borderRadius: '18px',
+              boxShadow: '0 24px 56px -12px rgba(15, 23, 42, 0.38)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                background: confirmGroupAction === 'delete' ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '1.08rem',
+                  fontWeight: 800,
+                  color: confirmGroupAction === 'delete' ? 'var(--danger)' : 'var(--warning)',
+                }}
+              >
+                {confirmGroupAction === 'delete' ? `Delete "${group.name}"?` : `Cancel "${group.name}"?`}
+              </h3>
+            </div>
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                {confirmGroupAction === 'delete'
+                  ? `Deleting removes "${group.name}" from active chit lists. Groups with recorded payments or prize payouts cannot be deleted — cancel them instead to keep accounting history.`
+                  : `Cancelling "${group.name}" halts all upcoming pending auctions while preserving member subscriptions and payment history.`}
+              </p>
+              {groupActionError && (
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: 'var(--danger-bg)',
+                    border: '1px solid var(--danger)',
+                    color: 'var(--danger)',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <span>{groupActionError}</span>
+                  {confirmGroupAction === 'delete' && ['draft', 'active'].includes(group.status) && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ alignSelf: 'flex-start' }}
+                      onClick={() => {
+                        setGroupActionError('');
+                        setConfirmGroupAction('cancel');
+                      }}
+                    >
+                      Switch to Cancel Group Instead
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                padding: '12px 20px',
+                borderTop: '1px solid var(--border)',
+                background: 'var(--bg)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '8px',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={Boolean(busy)}
+                onClick={() => setConfirmGroupAction(null)}
+              >
+                {d.cancel}
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${confirmGroupAction === 'delete' ? 'btn-danger' : 'btn-primary'}`}
+                disabled={Boolean(busy)}
+                onClick={async () => {
+                  const actionName = confirmGroupAction;
+                  setGroupActionError('');
+                  setBusy(actionName);
+                  try {
+                    const res =
+                      actionName === 'delete'
+                        ? await deleteChitGroupAction(group.id)
+                        : await cancelChitGroupAction(group.id);
+                    if (res && !res.ok) {
+                      setGroupActionError(res.error || 'Action failed');
+                      setBusy('');
+                      return;
+                    }
+                    setConfirmGroupAction(null);
+                    setBusy('');
+                    if (actionName === 'delete') {
+                      router.push('/chits');
+                    } else {
+                      router.refresh();
+                    }
+                  } catch (e: unknown) {
+                    setGroupActionError((e as { message?: string })?.message || 'Action failed');
+                    setBusy('');
+                  }
+                }}
+              >
+                {busy === confirmGroupAction
+                  ? 'Processing…'
+                  : confirmGroupAction === 'delete'
+                    ? d.deleteGroupMenuBtn || 'Delete Group'
+                    : ui.cancelGroupBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task 5: Free-Tier 1-Active-Chit Limit Upgrade Modal */}
+      {planLimitModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="chit-plan-limit-modal"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.58)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1250,
+            padding: '16px',
+          }}
+          onClick={() => setPlanLimitModal(null)}
+        >
+          <div
+            className="card"
+            style={{ width: '100%', maxWidth: '460px', padding: 0, overflow: 'hidden', borderRadius: '16px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, var(--primary-dark, #5a195b), var(--primary, #7d287e))', color: '#fff' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>🚀 Running Chit Limit Reached</h3>
+            </div>
+            <div style={{ padding: '18px 20px' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '0.88rem', lineHeight: 1.5 }}>{planLimitModal}</p>
+              <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                The Free plan includes <strong>1 concurrent active chit group with unlimited members</strong>. Upgrade to run multiple simultaneous chit groups, statutory registers, and multi-branch teams.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPlanLimitModal(null)}>
+                  Close
+                </button>
+                <Link href="/subscription" className="btn btn-primary btn-sm">
+                  View Plans &amp; Upgrade →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {detailLimitWarning && (
         <div
           role="dialog"
@@ -1181,16 +1814,15 @@ export default function ChitGroupDetailClient({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ padding: '13px 16px', background: 'linear-gradient(90deg, #B45309 0%, #D97706 100%)', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ padding: '13px 16px', background: 'linear-gradient(90deg, var(--warning), var(--primary-dark))', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '20px' }}>warning_amber</span>
               <h4 style={{ margin: 0, fontSize: '.98rem', fontWeight: 800, color: '#FFFFFF' }}>
-                Member Limit Reached ({group.totalMembers} Members)
+                {d.members} ({group.totalMembers})
               </h4>
             </div>
-            <div style={{ padding: '16px' }}>
-              <p style={{ margin: '0 0 12px', fontSize: '.86rem', color: '#0F172A', lineHeight: 1.5 }}>
-                Cannot add <strong>{detailLimitWarning}</strong> because this group already has{' '}
-                <strong>{group.members.length} / {group.totalMembers}</strong> member tickets filled.
+            <div style={{ padding: '16px', background: 'var(--surface)' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '.86rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                <strong>{detailLimitWarning}</strong> — <strong>{group.members.length} / {group.totalMembers}</strong>
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDetailLimitWarning(null)}>
@@ -1206,6 +1838,6 @@ export default function ChitGroupDetailClient({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

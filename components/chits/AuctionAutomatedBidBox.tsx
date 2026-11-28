@@ -22,6 +22,10 @@ interface AuctionAutomatedBidBoxProps {
   currencySymbol: string;
   busy: boolean;
   isSealed?: boolean;
+  roomOpen?: boolean;
+  onStartLive?: () => void;
+  startLiveBusy?: boolean;
+  variant?: 'default' | 'studio';
   labels?: {
     title?: string;
     member?: string;
@@ -29,6 +33,7 @@ interface AuctionAutomatedBidBoxProps {
     prizeAmount?: string;
     discount?: string;
     placeBid?: string;
+    startLive?: string;
   };
 }
 
@@ -43,8 +48,13 @@ export default function AuctionAutomatedBidBox({
   currencySymbol,
   busy,
   isSealed = false,
+  roomOpen = true,
+  onStartLive,
+  startLiveBusy = false,
+  variant = 'default',
   labels,
 }: AuctionAutomatedBidBoxProps) {
+  const isStudio = variant === 'studio';
   const minAllowedPrize = bounds.minPrize;
   const maxAllowedPrize = bounds.nextValidPrize;
   const effectivePrize = Math.max(minAllowedPrize, Math.min(maxAllowedPrize, Number.isFinite(bidPrize) ? bidPrize : maxAllowedPrize));
@@ -59,13 +69,14 @@ export default function AuctionAutomatedBidBox({
   return (
     <div
       style={{
-        borderRadius: '12px',
-        border: '1px solid var(--border)',
-        background: 'var(--surface)',
-        padding: '18px',
+        borderRadius: '14px',
+        border: isStudio ? '1px solid rgba(148, 163, 184, 0.16)' : '1px solid var(--border)',
+        background: isStudio ? 'rgba(15, 23, 42, 0.65)' : 'var(--surface)',
+        color: isStudio ? '#f8fafc' : 'var(--text)',
+        padding: '16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
+        gap: '14px',
       }}
     >
       {/* Header strip showing automated direction & floor metrics */}
@@ -77,12 +88,12 @@ export default function AuctionAutomatedBidBox({
           flexWrap: 'wrap',
           gap: '10px',
           paddingBottom: '12px',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: isStudio ? '1px solid rgba(148, 163, 184, 0.14)' : '1px solid var(--border)',
         }}
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 700, color: isStudio ? '#f8fafc' : 'var(--text-primary)' }}>
               🔨 {labels?.title || 'Automated Reverse Bidding'}
             </h3>
             <span
@@ -91,16 +102,20 @@ export default function AuctionAutomatedBidBox({
                 fontWeight: 700,
                 padding: '3px 10px',
                 borderRadius: '999px',
-                background: 'var(--primary-light)',
-                color: 'var(--primary-dark)',
+                background: isStudio ? 'rgba(16, 185, 129, 0.18)' : 'var(--primary-light)',
+                color: isStudio ? '#6ee7b7' : 'var(--primary-dark)',
               }}
             >
               {isSealed
                 ? 'Sealed Bid Mode'
-                : 'Auto Reverse ↓ Prize · ↑ Discount'}
+                : bounds.strictBidMultiple && bounds.step > 1
+                  ? `Step ₹${bounds.step.toLocaleString('en-IN')} · Strict Multiples`
+                  : bounds.step === 1
+                    ? '₹1 Narrow Bids Allowed'
+                    : `Auto Reverse · Min Step ₹${bounds.effectiveStep.toLocaleString('en-IN')}`}
             </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.8rem', color: isStudio ? '#94a3b8' : 'var(--text-secondary)', marginTop: '4px' }}>
             Opening Floor: <strong>{formatCurrency(bounds.startingPrize, currencySymbol)}</strong> ({formatCurrency(bounds.startingDiscount, currencySymbol)} disc.)
             {' · '}Next Allowed: <strong>≤ {formatCurrency(maxAllowedPrize, currencySymbol)}</strong>
             {bounds.maxDiscount != null && (
@@ -112,8 +127,22 @@ export default function AuctionAutomatedBidBox({
         {/* Giant Current Best / Next Automated Metric */}
         <div
           style={{
-            background: bounds.currentLowestPrize != null ? '#ECFDF5' : 'var(--primary-light)',
-            border: `1px solid ${bounds.currentLowestPrize != null ? '#A7F3D0' : '#E9D5EC'}`,
+            background: isStudio
+              ? bounds.currentLowestPrize != null
+                ? 'rgba(22, 163, 74, 0.18)'
+                : 'rgba(30, 41, 59, 0.72)'
+              : bounds.currentLowestPrize != null
+                ? '#ECFDF5'
+                : 'var(--primary-light)',
+            border: `1px solid ${
+              isStudio
+                ? bounds.currentLowestPrize != null
+                  ? 'rgba(74, 222, 128, 0.35)'
+                  : 'rgba(148, 163, 184, 0.22)'
+                : bounds.currentLowestPrize != null
+                  ? '#A7F3D0'
+                  : 'var(--primary-border)'
+            }`,
             borderRadius: '10px',
             padding: '10px 16px',
             textAlign: 'right',
@@ -126,7 +155,7 @@ export default function AuctionAutomatedBidBox({
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.6px',
-              color: bounds.currentLowestPrize != null ? '#065F46' : 'var(--primary-dark)',
+              color: isStudio ? '#86efac' : bounds.currentLowestPrize != null ? '#065F46' : 'var(--primary-dark)',
             }}
           >
             {bounds.currentLowestPrize != null ? 'Current Leading Bid' : 'Automated Start Floor'}
@@ -137,13 +166,44 @@ export default function AuctionAutomatedBidBox({
               fontWeight: 800,
               lineHeight: 1.15,
               fontVariantNumeric: 'tabular-nums',
-              color: bounds.currentLowestPrize != null ? '#047857' : 'var(--primary)',
+              color: isStudio ? '#facc15' : bounds.currentLowestPrize != null ? '#047857' : 'var(--primary)',
             }}
           >
             {formatCurrency(bounds.currentLowestPrize ?? bounds.startingPrize, currencySymbol)}
           </div>
         </div>
       </div>
+
+      {!roomOpen && (
+        <div
+          style={{
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: isStudio ? 'rgba(245, 158, 11, 0.14)' : 'var(--warning-bg)',
+            border: '1px solid rgba(245, 158, 11, 0.38)',
+            color: isStudio ? '#fde68a' : 'var(--warning)',
+            fontWeight: 700,
+            fontSize: '0.86rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '10px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>⏸ Bidding is paused until the Foreman presses Start Live Now.</span>
+          {onStartLive && (
+            <button
+              type="button"
+              disabled={startLiveBusy}
+              onClick={onStartLive}
+              className="btn btn-primary btn-sm"
+            >
+              {startLiveBusy ? 'Starting…' : (labels?.startLive || '▶ Start Live Now')}
+            </button>
+          )}
+        </div>
+      )}
 
       {!bounds.canBidFurther ? (
         <div
@@ -288,41 +348,48 @@ export default function AuctionAutomatedBidBox({
               {bounds.templatePrizes.map((tp) => {
                 const selected = effectivePrize === tp.prizeAmount;
                 return (
-                  <button
-                    key={tp.prizeAmount}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      onChangePrize(tp.prizeAmount);
-                      if (bidMemberId) {
-                        onPlaceBid(tp.prizeAmount);
-                      }
-                    }}
-                    style={{
-                      padding: '12px 12px',
-                      borderRadius: '10px',
-                      border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                      background: selected ? 'var(--primary-light)' : 'var(--bg)',
-                      textAlign: 'left',
-                      cursor: busy ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div
+                    <button
+                      key={tp.prizeAmount}
+                      type="button"
+                      disabled={busy || !roomOpen}
+                      onClick={() => {
+                        onChangePrize(tp.prizeAmount);
+                        if (bidMemberId && roomOpen) {
+                          onPlaceBid(tp.prizeAmount);
+                        }
+                      }}
                       style={{
-                        fontSize: '1.22rem',
-                        fontWeight: 800,
-                        fontVariantNumeric: 'tabular-nums',
-                        color: selected ? 'var(--primary-dark)' : 'var(--text-primary)',
-                        lineHeight: 1.2,
+                        padding: '12px 12px',
+                        borderRadius: '10px',
+                        border: selected ? '2px solid var(--primary)' : isStudio ? '1px solid rgba(148,163,184,0.2)' : '1px solid var(--border)',
+                        background: isStudio
+                          ? selected
+                            ? 'rgba(16, 185, 129, 0.18)'
+                            : 'rgba(30, 41, 59, 0.65)'
+                          : selected
+                            ? 'var(--primary-light)'
+                            : 'var(--bg)',
+                        textAlign: 'left',
+                        cursor: busy || !roomOpen ? 'not-allowed' : 'pointer',
+                        opacity: roomOpen ? 1 : 0.6,
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {formatCurrency(tp.prizeAmount, currencySymbol)}
-                    </div>
-                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '3px' }}>
-                      {tp.label} · {tp.discountPct}%
-                    </div>
-                  </button>
+                      <div
+                        style={{
+                          fontSize: '1.22rem',
+                          fontWeight: 800,
+                          fontVariantNumeric: 'tabular-nums',
+                          color: isStudio ? '#f8fafc' : selected ? 'var(--primary-dark)' : 'var(--text-primary)',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {formatCurrency(tp.prizeAmount, currencySymbol)}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 600, color: isStudio ? '#94a3b8' : 'var(--text-secondary)', marginTop: '3px' }}>
+                        {tp.label} · {tp.discountPct}%
+                      </div>
+                    </button>
                 );
               })}
             </div>
@@ -338,7 +405,7 @@ export default function AuctionAutomatedBidBox({
             <button
               type="button"
               className="btn btn-primary"
-              disabled={busy || !bidMemberId}
+              disabled={busy || !bidMemberId || !roomOpen}
               onClick={() => onPlaceBid(effectivePrize)}
               style={{
                 padding: '12px 26px',

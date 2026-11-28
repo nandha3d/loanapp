@@ -150,6 +150,28 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
     }
     if (sawField) parsedPerms = parseStaffPermissions(fromCheckboxes);
   }
+  if (parsedPerms && userRole !== 'superadmin' && userRole !== 'developer') {
+    let prevApprove = false;
+    let prevPayout = false;
+    if (id) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: { staffPermissions: true },
+      });
+      const prev = parseStaffPermissions(existingUser?.staffPermissions);
+      prevApprove = Boolean(prev.canApproveSecurity);
+      prevPayout = Boolean(prev.canReleasePayout);
+    }
+    if (
+      Boolean(parsedPerms.canApproveSecurity) !== prevApprove ||
+      Boolean(parsedPerms.canReleasePayout) !== prevPayout
+    ) {
+      return {
+        success: false,
+        error: 'Only a Superadmin can enable or disable Security Approval or Prize Payout permissions.',
+      };
+    }
+  }
   const staffPermissionsToSave =
     parsedPerms && hasAnyCustomStaffPermission(parsedPerms)
       ? serializeStaffPermissions(parsedPerms)
@@ -250,7 +272,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   });
   const planModules = normalizeEnabledModules(subscription?.enabledModules);
   const requestedModules = userModuleList.length > 0 ? userModuleList : adminModules.length > 0 ? adminModules : normalizeModuleList([appType]);
-  
+
   if (userRole !== 'developer') {
     const invalidPlanModules = requestedModules.filter((module) => !planModules.includes(module));
     if (invalidPlanModules.length > 0) {
@@ -313,10 +335,10 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
         entityId: id,
         newValue: JSON.stringify({ name, username, role, appType, status }),
       },
-    }).catch(() => {});
+    }).catch(() => { });
   } else {
     if (!password) return { success: false, error: 'Password is required for new users' };
-    
+
     // Enforce agent limit if applicable
     if (role === 'agent') {
       try {
@@ -383,7 +405,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
         entityId: savedUser.id,
         newValue: JSON.stringify({ name, username, role, appType, status }),
       },
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   if (savedUserId) {
@@ -783,7 +805,7 @@ export async function toggleUserStatus(userId: string, newStatus: string, actorO
       entityId: userId,
       newValue: JSON.stringify({ status: newStatus }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   revalidatePath('/admin/users');
   return { success: true };
@@ -912,7 +934,7 @@ export async function deleteUser(userId: string, actorOverride?: ActionActor) {
         dependentRecords: history,
       }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   revalidatePath('/admin/users');
   return {
@@ -991,6 +1013,28 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     }
     if (sawField) parsedPerms = parseStaffPermissions(fromCheckboxes);
   }
+  if (parsedPerms && role !== 'superadmin' && role !== 'developer') {
+    let prevApprove = false;
+    let prevPayout = false;
+    if (id) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: { staffPermissions: true },
+      });
+      const prev = parseStaffPermissions(existingUser?.staffPermissions);
+      prevApprove = Boolean(prev.canApproveSecurity);
+      prevPayout = Boolean(prev.canReleasePayout);
+    }
+    if (
+      Boolean(parsedPerms.canApproveSecurity) !== prevApprove ||
+      Boolean(parsedPerms.canReleasePayout) !== prevPayout
+    ) {
+      return {
+        success: false,
+        error: 'Only a Superadmin can enable or disable Security Approval or Prize Payout permissions.',
+      };
+    }
+  }
   const staffPermissionsToSave =
     parsedPerms && hasAnyCustomStaffPermission(parsedPerms)
       ? serializeStaffPermissions(parsedPerms)
@@ -1048,20 +1092,24 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
       select: { id: true },
     });
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
-    const data: any = { name, username, phone, email, status,
+    const data: any = {
+      name, username, phone, email, status,
       aadharNumber, dob, experience, age,
       bypassLoanApproval, bypassCustomerApproval: effectiveBypassCustomer, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory,
       customRoleId,
-      customRoleName: rawCustomRoleName };
+      customRoleName: rawCustomRoleName
+    };
     if (staffPermissionsToSave !== undefined) {
       data.staffPermissions = staffPermissionsToSave;
     }
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
-      data: { tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: id,
-        newValue: JSON.stringify({ name, username, status, customRoleId, customRoleName: rawCustomRoleName, scope: 'branch_agent' }) },
-    }).catch(() => {});
+      data: {
+        tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: id,
+        newValue: JSON.stringify({ name, username, status, customRoleId, customRoleName: rawCustomRoleName, scope: 'branch_agent' })
+      },
+    }).catch(() => { });
   } else {
     if (!password) return { success: false, error: 'Password is required for a new agent.' };
     if (role !== 'developer') {
@@ -1070,20 +1118,24 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     }
     try {
       const created = await prisma.user.create({
-        data: { tenantId, branchId, name, username, phone, email,
+        data: {
+          tenantId, branchId, name, username, phone, email,
           passwordHash: await bcrypt.hash(password, 10),
           role: 'agent', appType, status, canCreateLoan: true,
           aadharNumber, dob, experience, age,
           bypassLoanApproval, bypassCustomerApproval: effectiveBypassCustomer, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory,
           customRoleId,
           customRoleName: rawCustomRoleName,
-          ...(staffPermissionsToSave !== undefined ? { staffPermissions: staffPermissionsToSave } : {}) },
+          ...(staffPermissionsToSave !== undefined ? { staffPermissions: staffPermissionsToSave } : {})
+        },
       });
       savedUserId = created.id;
       await prisma.auditLog.create({
-        data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
-          newValue: JSON.stringify({ name, username, role: 'agent', customRoleId, customRoleName: rawCustomRoleName, appType, status, scope: 'branch_agent' }) },
-      }).catch(() => {});
+        data: {
+          tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
+          newValue: JSON.stringify({ name, username, role: 'agent', customRoleId, customRoleName: rawCustomRoleName, appType, status, scope: 'branch_agent' })
+        },
+      }).catch(() => { });
     } catch (err: any) {
       if (err.code === 'P2002') {
         const t = err.meta?.target;
@@ -1149,9 +1201,11 @@ export async function setBranchAgentStatus(userId: string, newStatus: string, ap
 
   await prisma.user.update({ where: { id: userId }, data: { status } });
   await prisma.auditLog.create({
-    data: { tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: userId,
-      newValue: JSON.stringify({ status, scope: 'branch_agent' }) },
-  }).catch(() => {});
+    data: {
+      tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: userId,
+      newValue: JSON.stringify({ status, scope: 'branch_agent' })
+    },
+  }).catch(() => { });
 
   revalidatePath(`/${appType}/settings`);
   return { success: true };

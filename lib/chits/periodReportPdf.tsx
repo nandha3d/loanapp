@@ -467,6 +467,27 @@ export function ChitPeriodReportPDF({ data, lang }: { data: ChitPeriodReportData
             </Text>
           </View>
 
+          {/* Arrears & Penalty Auto-Deduction Summary (FIFO Settlement) */}
+          {(data.payouts.arrearsDeductedAmount > 0 || data.payouts.penaltyDeductedAmount > 0) && (
+            <>
+              <View style={[styles.tr, { backgroundColor: '#FFFBEB' }]}>
+                <Text style={{ width: C.sl, textAlign: 'center', ...bold }}>NET</Text>
+                <View style={{ width: C.desc }}>
+                  <Text style={{ ...bold }}>{t.arrearsOffsetTitle}</Text>
+                  <Text style={styles.tdSubNote}>
+                    {t.arrearsOffsetNote(
+                      fmt(data.payouts.arrearsDeductedAmount),
+                      fmt(data.payouts.penaltyDeductedAmount),
+                    )}
+                  </Text>
+                </View>
+                <Text style={{ width: C.amt, textAlign: 'right', ...bold, color: '#B45309' }}>
+                  - {fmt(data.payouts.arrearsDeductedAmount + data.payouts.penaltyDeductedAmount)}
+                </Text>
+              </View>
+            </>
+          )}
+
           {/* Target vs Disbursed vs Balance */}
           <View style={[styles.tr, { paddingVertical: 0, paddingHorizontal: 0 }]}>
             <Text style={{ width: C.sl, padding: 5, textAlign: 'center', ...bold }}>BAL</Text>
@@ -479,8 +500,12 @@ export function ChitPeriodReportPDF({ data, lang }: { data: ChitPeriodReportData
                 borderLeftStyle: 'solid',
               }}
             >
-              <Text style={{ fontSize: 7, color: '#6B7280' }}>{t.targetGrossPayout}</Text>
-              <Text style={{ ...bold }}>{fmt(s.prizePayoutTotal)}</Text>
+              <Text style={{ fontSize: 7, color: '#6B7280' }}>
+                {data.payouts.arrearsDeductedAmount > 0 || data.payouts.penaltyDeductedAmount > 0
+                  ? t.netTargetAfterArrears
+                  : t.targetGrossPayout}
+              </Text>
+              <Text style={{ ...bold }}>{fmt(data.payouts.netPayableAmount ?? s.prizePayoutTotal)}</Text>
             </View>
             <View
               style={{

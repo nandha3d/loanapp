@@ -57,6 +57,13 @@ typedef MutationResolver = Future<void> Function(QueuedMutation m);
 /// Pure classification of a sync error: a 4xx/409 is terminal (the server
 /// rejected it — don't retry), anything else is a transient network error
 /// (keep pending, retry later). Extracted so it is unit-testable.
+bool isConflictSyncError(Object error) {
+  final msg = error.toString().toLowerCase();
+  return msg.contains('409') ||
+      msg.contains('already paid') ||
+      msg.contains('conflict');
+}
+
 bool isTerminalSyncError(Object error) {
   final msg = error.toString().toLowerCase();
   if (msg.contains('already') || msg.contains('409') || msg.contains('duplicate')) {
@@ -95,11 +102,27 @@ class OfflineQueue {
     await box.put(m.id, jsonEncode(m.toJson()));
   }
 
+  Future<void> retryItem(String id) async {
+    final box = await _open();
+    final raw = box.get(id);
+    if (raw == null) return;
+    final m = QueuedMutation.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    m.status = 'pending';
+    m.failureReason = null;
+    await box.put(m.id, jsonEncode(m.toJson()));
+  }
+
+  Future<void> remove(String id) async {
+    final box = await _open();
+    await box.delete(id);
+  }
+
   Future<int> pendingCount() async =>
       (await all()).where((m) => m.status == 'pending').length;
 
-  /// Drain pending mutations. Terminal failures are marked 'failed'; the first
-  /// transient (network) failure aborts the run so order is preserved.
+  /// Drain pending mutations. Conflicts (409 / already paid) are marked
+  /// 'conflict', other terminal 4xx are marked 'failed', and transient errors
+  /// abort the run so order is preserved.
   Future<({int synced, int failed})> syncPending() async {
     int synced = 0, failed = 0;
     final pending = (await all()).where((m) => m.status == 'pending');
@@ -109,10 +132,16 @@ class OfflineQueue {
       try {
         await resolver(m);
         m.status = 'synced';
+        m.failureReason = null;
         await _update(m);
         synced++;
       } on Object catch (e) {
-        if (isTerminalSyncError(e)) {
+        if (isConflictSyncError(e)) {
+          m.status = 'conflict';
+          m.failureReason = e.toString();
+          await _update(m);
+          failed++;
+        } else if (isTerminalSyncError(e)) {
           m.status = 'failed';
           m.failureReason = e.toString();
           await _update(m);

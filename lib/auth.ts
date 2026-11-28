@@ -387,6 +387,91 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         }
       },
     }),
+    // ── Firebase Auth provider ───────────────────────────────────────────────
+    // Browser obtains a Firebase ID Token via Firebase Google Sign-In
+    // (signInWithPopup / signInWithRedirect). Verified here via firebase-admin
+    // Auth, then maps to an existing active MySQL user on the resolved tenant.
+    Credentials({
+      id: 'firebase',
+      name: 'firebase',
+      credentials: {
+        idToken: { label: 'Firebase ID Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        try {
+          const idToken = String(credentials?.idToken || '');
+          if (!idToken) return null;
+
+          const { verifyFirebaseIdToken } = await import('./firebase/server');
+          const identity = await verifyFirebaseIdToken(idToken);
+          if (!identity || !identity.email) {
+            console.warn('[FIREBASE_AUTH] Invalid or unverifiable ID token');
+            return null;
+          }
+
+          const prisma = (await import('./db')).default;
+
+          let hostTenantId: string | null = null;
+          try {
+            const h = await (await import('next/headers')).headers();
+            const host = h.get('x-zolofund-host') || h.get('host');
+            hostTenantId = await resolveLoginTenantId(host);
+          } catch { /* fall back to global lookup */ }
+
+          const user = await prisma.user.findFirst({
+            where: {
+              OR: [{ email: identity.email }, { googleId: identity.uid }],
+              deletedAt: null,
+              ...(hostTenantId ? { tenantId: hostTenantId } : {}),
+            },
+            include: { tenant: true, branch: true },
+          });
+
+          if (!user) {
+            console.warn(`[FIREBASE_AUTH] No MySQL user for ${identity.email}`);
+            return null;
+          }
+          if (user.tenant?.status !== 'active') {
+            console.warn(`[FIREBASE_AUTH] Tenant inactive for ${identity.email}`);
+            return null;
+          }
+
+          const patch: Record<string, unknown> = {};
+          if (user.status === 'pending') patch.status = 'active';
+          if (!user.googleId && identity.uid) {
+            patch.googleId = identity.uid;
+          }
+          patch.lastLoginAt = new Date();
+          if (Object.keys(patch).length) {
+            await prisma.user.update({ where: { id: user.id }, data: patch }).catch(
+              (e) => console.error('[FIREBASE_AUTH] activate/link failed:', e),
+            );
+          }
+
+          const effectiveStatus = user.status === 'pending' ? 'active' : user.status;
+          if (effectiveStatus !== 'active') {
+            console.warn(`[FIREBASE_AUTH] Inactive account (${user.status}) for ${identity.email}`);
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email || undefined,
+            role: user.role,
+            appType: user.appType,
+            tenantId: user.tenantId,
+            branchId: user.branchId,
+            phone: user.phone,
+            username: user.username,
+            rememberMe: true,
+          };
+        } catch (e) {
+          console.error('[FIREBASE_AUTH_ERROR]', e);
+          return null;
+        }
+      },
+    }),
   ],
   callbacks: {
     // Multi-domain SaaS: sign-in/sign-out happens on tenant subdomains and

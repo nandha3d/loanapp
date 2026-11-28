@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, failWithData } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitGroupActivation } from '@/lib/chits/validation';
 import { activateChitGroupInTx } from '@/lib/chits/groupService';
+import { assertCanActivateAnotherChitGroup, ChitPlanLimitError } from '@/lib/chits/planEntitlements';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireMobileContext(req);
@@ -18,6 +19,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!group) return fail('Chit group not found', 404);
     if (group.status === 'active') return fail('Chit group is already active', 409);
+
+    try {
+      await assertCanActivateAnotherChitGroup(prisma, ctx.tenantId, group.id);
+    } catch (e: any) {
+      if (e instanceof ChitPlanLimitError) {
+        return failWithData(e.message, 402, {
+          code: e.code,
+          activeCount: e.activeCount,
+          maxActiveChitGroups: e.maxActiveChitGroups,
+        });
+      }
+      throw e;
+    }
 
     const members = await prisma.chitMember.findMany({
       where: { chitGroupId: id },

@@ -4,8 +4,13 @@ import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
-import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
+import { getRedirectResult, signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import {
+  createGoogleProvider,
+  getFirebaseAuth,
+  isFirebaseAuthEnabled,
+} from '@/lib/firebase/browser';
+import { withBasePath } from '@/lib/public-path';
 import { normalizeLocalCallbackUrl } from '@/lib/auth/callback-url';
 import PasswordInput from '@/components/ui/PasswordInput';
 import AppLogo from '@/components/ui/AppLogo';
@@ -182,17 +187,96 @@ function LoginForm() {
     }
   };
 
+  const completeFirebaseSignIn = async (idToken: string) => {
+    const pre = await fetch('/api/auth/firebase-precheck', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+      .then((r) => r.json())
+      .catch(() => null);
+
+    if (!pre?.ok) {
+      setError('Could not verify your Google account with Firebase. Please try again.');
+      setLoading(false);
+      return;
+    }
+
+    if (!pre.exists) {
+      try {
+        window.sessionStorage.setItem('zolofund_firebase_id_token', idToken);
+      } catch {
+        /* ignore */
+      }
+      const qs = new URLSearchParams({
+        google_email: pre.email || '',
+        google_name: pre.name || '',
+        google_provider: 'firebase',
+      });
+      router.push(`/register?${qs.toString()}`);
+      return;
+    }
+
+    if (pre.tenantActive === false) {
+      setError('Your organization account is inactive.');
+      setLoading(false);
+      return;
+    }
+
+    const res: any = await signIn('firebase', { idToken, redirect: false });
+    if (res?.error) {
+      setError('Sign-in could not be completed. Please try again.');
+      setLoading(false);
+      return;
+    }
+
+    const target = callbackUrl === '/' ? '/portal' : callbackUrl;
+    window.location.href = target;
+  };
+
+  useEffect(() => {
+    if (!isFirebaseAuthEnabled()) return;
+    getRedirectResult(getFirebaseAuth())
+      .then(async (cred) => {
+        if (!cred?.user) return;
+        setLoading(true);
+        const idToken = await cred.user.getIdToken();
+        await completeFirebaseSignIn(idToken);
+      })
+      .catch((err: any) => {
+        if (err?.message) setError(err.message);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGoogle = async () => {
     setError('');
+    setLoading(true);
     try {
-      const supabase = getSupabaseBrowser();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=login` },
-      });
-      if (error) setError(error.message || 'Google sign-in failed.');
+      const firebaseAuth = getFirebaseAuth();
+      const provider = createGoogleProvider();
+      const cred = await signInWithPopup(firebaseAuth, provider);
+      const idToken = await cred.user.getIdToken();
+      await completeFirebaseSignIn(idToken);
     } catch (e: any) {
-      setError(e?.message || 'Google sign-in is not configured.');
+      if (e?.code === 'auth/popup-blocked') {
+        try {
+          await signInWithRedirect(getFirebaseAuth(), createGoogleProvider());
+          return;
+        } catch (redirErr: any) {
+          setError(redirErr?.message || 'Google redirect sign-in failed.');
+        }
+      } else if (e?.code === 'auth/unauthorized-domain') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        setError(
+          `Domain "${host}" is not yet added under Firebase Authentication -> Settings -> Authorized domains (project loantrack-74cf6).`,
+        );
+      } else if (e?.code === 'auth/popup-closed-by-user') {
+        setError('Google sign-in popup was closed before completing.');
+      } else {
+        setError(e?.message || 'Google sign-in failed.');
+      }
+      setLoading(false);
     }
   };
 
@@ -430,7 +514,7 @@ function LoginForm() {
           )}
         </form>
 
-        {isSupabaseAuthEnabled() && !standaloneDomain && (<>
+        {isFirebaseAuthEnabled() && !standaloneDomain && (<>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '18px 0' }}>
             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
             <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>OR</span>

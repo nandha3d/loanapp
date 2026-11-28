@@ -129,10 +129,12 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
           tenantId,
           appType,
           status: 'pending',
-          ...(branchId && appType === 'microlending' ? { OR: [
-            { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: branchId } },
-            await precloseApprovalVisibility(tenantId, appType, branchId),
-          ] } : (branchId ? { requestedBy: { branchId: branchId } } : {})),
+          ...(branchId && appType === 'microlending' ? {
+            OR: [
+              { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: branchId } },
+              await precloseApprovalVisibility(tenantId, appType, branchId),
+            ]
+          } : (branchId ? { requestedBy: { branchId: branchId } } : {})),
         },
       }),
       prisma.loan.count({
@@ -383,10 +385,14 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         appType,
         // SCOPE-18: preclose requests follow the loan's branch (same as the queue and v1).
         ...(branchId && appType === 'microlending'
-          ? { AND: [{ OR: [
-              { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId } },
-              await precloseApprovalVisibility(tenantId, appType, branchId),
-            ] }] }
+          ? {
+            AND: [{
+              OR: [
+                { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId } },
+                await precloseApprovalVisibility(tenantId, appType, branchId),
+              ]
+            }]
+          }
           : (branchId ? { requestedBy: { branchId } } : {})),
         OR: [
           { createdAt: { gte: today, lt: tomorrow } },
@@ -425,19 +431,19 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
 
   const allInstalmentsForMetrics = allLoanIdsForMetrics.length > 0
     ? await prisma.instalment.findMany({
-        where: { loanId: { in: allLoanIdsForMetrics } },
-        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-        select: {
-          id: true,
-          loanId: true,
-          dueDate: true,
-          dueAmount: true,
-          receivedAmount: true,
-          status: true,
-          instalmentNo: true,
-          loan: { select: { customerId: true, frequency: true, status: true } },
-        },
-      })
+      where: { loanId: { in: allLoanIdsForMetrics } },
+      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      select: {
+        id: true,
+        loanId: true,
+        dueDate: true,
+        dueAmount: true,
+        receivedAmount: true,
+        status: true,
+        instalmentNo: true,
+        loan: { select: { customerId: true, frequency: true, status: true } },
+      },
+    })
     : [];
 
   const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
@@ -514,9 +520,9 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     prisma.loan.count({ where: { ...loanWhere, status: { in: [...COLLECTIBLE_LOAN_STATUSES] } } }),
     topOverdue.length > 0
       ? prisma.customer.findMany({
-          where: { tenantId, appType, id: { in: topOverdue.map((c) => c.customerId) } },
-          select: { id: true, name: true, customerCode: true, route: { select: { name: true } } },
-        })
+        where: { tenantId, appType, id: { in: topOverdue.map((c) => c.customerId) } },
+        select: { id: true, name: true, customerCode: true, route: { select: { name: true } } },
+      })
       : Promise.resolve([]),
     // Cash book, same basis as the capital / Total Collected KPIs (getDashboardBookTotals).
     Promise.all(
@@ -920,8 +926,8 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   const pendingPenaltyTotal = Math.max(
     0,
     Number(pendingPenalties._sum.grossPenalty || 0) -
-      Number(pendingPenalties._sum.settledAmount || 0) -
-      Number(pendingPenalties._sum.waivedAmount || 0)
+    Number(pendingPenalties._sum.settledAmount || 0) -
+    Number(pendingPenalties._sum.waivedAmount || 0)
   );
 
   const trend = Array.from({ length: 30 }, (_, index) => {
@@ -1404,19 +1410,19 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
 
   const allInstalmentsForAgent = allLoanIdsForAgent.length > 0
     ? await prisma.instalment.findMany({
-        where: { loanId: { in: allLoanIdsForAgent } },
-        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-        select: {
-          id: true,
-          loanId: true,
-          dueDate: true,
-          dueAmount: true,
-          receivedAmount: true,
-          status: true,
-          instalmentNo: true,
-          loan: { select: { customerId: true, frequency: true, status: true } },
-        },
-      })
+      where: { loanId: { in: allLoanIdsForAgent } },
+      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      select: {
+        id: true,
+        loanId: true,
+        dueDate: true,
+        dueAmount: true,
+        receivedAmount: true,
+        status: true,
+        instalmentNo: true,
+        loan: { select: { customerId: true, frequency: true, status: true } },
+      },
+    })
     : [];
 
   const { distributedInstalments: agentDistributedInstalments } = getDistributedInstalmentsAndMetrics(
@@ -1530,7 +1536,7 @@ function BarChart({
 export default async function DashboardPage() {
   const session = await auth();
   const userRole = (session?.user as { role?: string; id?: string })?.role;
-  
+
   if (!session?.user) {
     redirect('/login');
   }
@@ -1739,7 +1745,7 @@ export default async function DashboardPage() {
 
   if (userRole === 'agent' && !(session.user as any)?.staffPermissions?.canViewDashboard) {
     const agentData = await getAgentDashboardData(tenantId, appType, session.user.id as string);
-    const progressPct = agentData.todayExpected > 0 
+    const progressPct = agentData.todayExpected > 0
       ? Math.min(100, Math.round((agentData.todayCollected / agentData.todayExpected) * 100))
       : 100;
 
@@ -1804,9 +1810,9 @@ export default async function DashboardPage() {
                   <span style={{ fontWeight: 700, color: '#1D4ED8', fontSize: '1rem' }}>{progressPct}% Completed</span>
                 </div>
                 <div style={{ width: '100%', height: '12px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                  <div style={{ 
-                    width: `${progressPct}%`, 
-                    height: '100%', 
+                  <div style={{
+                    width: `${progressPct}%`,
+                    height: '100%',
                     background: 'linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%)',
                     borderRadius: '6px',
                     transition: 'width 0.5s ease-in-out'
@@ -1838,11 +1844,11 @@ export default async function DashboardPage() {
                     <tr key={route.id} style={{ borderBottom: '1px solid #f8fafc' }}>
                       <td style={{ padding: '12px 16px', color: '#1e293b', fontWeight: 600 }}>{route.name}</td>
                       <td style={{ textAlign: 'center', padding: '12px 16px', color: '#475569' }}>{route.customers}</td>
-                      <td style={{ 
-                        textAlign: 'right', 
-                        padding: '12px 16px', 
-                        color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', 
-                        fontWeight: 700 
+                      <td style={{
+                        textAlign: 'right',
+                        padding: '12px 16px',
+                        color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)',
+                        fontWeight: 700
                       }}>
                         {formatCurrency(route.overdue, branding.currencySymbol)}
                       </td>
@@ -1891,17 +1897,16 @@ export default async function DashboardPage() {
                         {formatDate(req.createdAt)}
                       </td>
                       <td style={{ textAlign: 'center', padding: '12px 16px' }}>
-                        <span className={`badge ${
-                          req.status === 'approved' ? 'badge-success' : req.status === 'pending' ? 'badge-warning' : 'badge-danger'
-                        }`} style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          background: req.status === 'approved' ? '#def7ec' : req.status === 'pending' ? '#fef3c7' : '#fde8e8',
-                          color: req.status === 'approved' ? '#03543f' : req.status === 'pending' ? '#92400e' : '#9b1c1c'
-                        }}>
+                        <span className={`badge ${req.status === 'approved' ? 'badge-success' : req.status === 'pending' ? 'badge-warning' : 'badge-danger'
+                          }`} style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            background: req.status === 'approved' ? '#def7ec' : req.status === 'pending' ? '#fef3c7' : '#fde8e8',
+                            color: req.status === 'approved' ? '#03543f' : req.status === 'pending' ? '#92400e' : '#9b1c1c'
+                          }}>
                           {req.status}
                         </span>
                       </td>
@@ -1969,11 +1974,11 @@ export default async function DashboardPage() {
   // same population as the bars it scales.
   const totalSplit = Object.values(data.todayByMode).reduce((s: number, a) => s + Number(a || 0), 0);
   const modeConfig: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-    cash:   { label: 'Cash',   icon: 'payments',        color: '#16a34a', bg: '#f0fdf4' },
-    upi:    { label: 'UPI',    icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },
-    online: { label: 'Online', icon: 'language',        color: '#2563eb', bg: '#eff6ff' },
-    cheque: { label: 'Cheque', icon: 'receipt_long',    color: '#b45309', bg: '#fffbeb' },
-    other:  { label: 'Other',  icon: 'more_horiz',      color: '#475569', bg: '#f8fafc' },
+    cash: { label: 'Cash', icon: 'payments', color: '#16a34a', bg: '#f0fdf4' },
+    upi: { label: 'UPI', icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },
+    online: { label: 'Online', icon: 'language', color: '#2563eb', bg: '#eff6ff' },
+    cheque: { label: 'Cheque', icon: 'receipt_long', color: '#b45309', bg: '#fffbeb' },
+    other: { label: 'Other', icon: 'more_horiz', color: '#475569', bg: '#f8fafc' },
   };
   const activeModes = Object.entries(data.todayByMode).filter(([, amt]) => amt > 0);
 
@@ -2173,7 +2178,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
-        
+
         {data.highestBorrower && (
           <div className="card" style={{ padding: '20px', background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: 'white', borderRadius: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -2335,7 +2340,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-        {upiManualVerify && (
+      {upiManualVerify && (
         <div className="card" style={{ marginTop: '20px' }}>
           <div className="card-header">
             <h3>{d.pendingUpiVerifications}</h3>
@@ -2383,7 +2388,7 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
-        )}
+      )}
 
       <RecentActivityCard
         currencySymbol={branding.currencySymbol ?? '₹'}

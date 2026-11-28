@@ -2,12 +2,35 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { formatCurrency } from '@/lib/utils';
+import { PokerTableArena } from '@/components/chits/PokerTableArena';
+import {
+  isBellSoundMuted,
+  playAuctionBellChime,
+  playWinnerConfirmedFanfare,
+  setBellSoundMuted,
+} from '@/lib/chits/bellAudio';
+import {
+  BID_VOICE_LANGUAGES,
+  getCustomerVoiceLanguageOverride,
+  getRoomChatStrings,
+  isBidVoiceEnabled,
+  normalizeVoiceLanguageCode,
+  resolveRoomEffectiveVoiceLang,
+  setBidVoiceEnabled,
+  setCustomerVoiceLanguageOverride,
+  speakBidCallout,
+  speakWinnerCallout,
+  voiceLanguageBcp47,
+  warmUpBidVoiceEngine,
+  type BidVoiceLanguageCode,
+} from '@/lib/chits/bidVoiceAnnouncer';
 
 type Props = {
   groupId: string;
   auctionId: string;
   initialState: any;
   currencySymbol: string;
+  lang?: string;
 };
 
 export default function BorrowerChitRoomClient({
@@ -27,6 +50,11 @@ export default function BorrowerChitRoomClient({
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => isBellSoundMuted());
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => isBidVoiceEnabled());
+  const [customerVoiceOverride, setCustomerVoiceOverride] = useState<BidVoiceLanguageCode | null>(() =>
+    getCustomerVoiceLanguageOverride(),
+  );
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -35,6 +63,13 @@ export default function BorrowerChitRoomClient({
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef('');
   const userEditedRef = useRef(false);
+  const prevBellRef = useRef<number>(Number(initialState?.bell?.bellsRung ?? 0));
+  const prevWinnerRef = useRef<string | null>(initialState?.winner?.ticketNo ?? null);
+  const lastSpokenBidKeyRef = useRef<string | null>(
+    initialState?.currentHighestBid
+      ? `${initialState.currentHighestBid.memberId}:${initialState.currentHighestBid.bidAmount}`
+      : '__none__',
+  );
 
   const bounds = state?.bidBounds;
   const maxPrize = Number(bounds?.nextValidPrize ?? state?.chitValue ?? 0);
@@ -54,6 +89,43 @@ export default function BorrowerChitRoomClient({
       const res = await fetch(`/api/borrower/chits/${groupId}/auctions/${auctionId}`, { cache: 'no-store' });
       const data = await res.json();
       if (data?.state) {
+        const nextRung = Number(data.state?.bell?.bellsRung ?? 0);
+        const totalBells = Number(data.state?.bell?.bellCount ?? 3);
+        if (nextRung > prevBellRef.current && nextRung > 0) {
+          playAuctionBellChime(nextRung, totalBells);
+        }
+        prevBellRef.current = nextRung;
+        const winnerKey = data.state?.winner?.ticketNo ? String(data.state.winner.ticketNo) : null;
+        const nextRoomLang = normalizeVoiceLanguageCode(data.state?.voiceSettings?.language);
+        const nextAllowChange = Boolean(data.state?.voiceSettings?.allowMemberChange);
+        const nextVoiceLang = resolveRoomEffectiveVoiceLang({
+          roomLanguage: nextRoomLang,
+          allowMemberChange: nextAllowChange,
+          customerOverride: customerVoiceOverride,
+        });
+        if (winnerKey && winnerKey !== prevWinnerRef.current) {
+          prevWinnerRef.current = winnerKey;
+          playWinnerConfirmedFanfare();
+          void speakWinnerCallout({
+            prizeAmount: Number(data.state.winner.prizeAmount ?? 0),
+            memberName: data.state.winner.memberName,
+            ticketNo: data.state.winner.ticketNo,
+            lang: nextVoiceLang,
+          });
+        }
+        const best = data.state?.currentHighestBid;
+        if (best) {
+          const bidKey = `${best.memberId}:${best.bidAmount}`;
+          if (bidKey !== lastSpokenBidKeyRef.current) {
+            lastSpokenBidKeyRef.current = bidKey;
+            void speakBidCallout({
+              prizeAmount: Number(best.bidAmount ?? 0),
+              memberName: best.memberName,
+              ticketNo: best.ticketNo,
+              lang: nextVoiceLang,
+            });
+          }
+        }
         setState(data.state);
         if (!userEditedRef.current && data.state?.bidBounds?.nextValidPrize) {
           setPrizeInput(Number(data.state.bidBounds.nextValidPrize));
@@ -191,7 +263,7 @@ export default function BorrowerChitRoomClient({
       if (SpeechRec) {
         try {
           const rec = new SpeechRec();
-          rec.lang = 'en-IN';
+          rec.lang = voiceLanguageBcp47(effectiveVoiceLang);
           rec.continuous = true;
           rec.interimResults = true;
           rec.onresult = (ev: any) => {
@@ -228,6 +300,14 @@ export default function BorrowerChitRoomClient({
     }
   };
 
+  const roomVoiceLang = normalizeVoiceLanguageCode(state?.voiceSettings?.language);
+  const allowMemberVoiceChange = Boolean(state?.voiceSettings?.allowMemberChange);
+  const effectiveVoiceLang = resolveRoomEffectiveVoiceLang({
+    roomLanguage: roomVoiceLang,
+    allowMemberChange: allowMemberVoiceChange,
+    customerOverride: customerVoiceOverride,
+  });
+  const borrowerChatStrings = getRoomChatStrings(effectiveVoiceLang);
   const secsLeft = Number(state?.secondsRemaining ?? 0);
   const currentBest = state?.currentHighestBid;
   const chitValue = Number(state?.chitValue ?? 0);
@@ -239,7 +319,20 @@ export default function BorrowerChitRoomClient({
   }>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div
+      style={
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          '--primary': '#27AE60',
+          '--primary-dark': '#1E8449',
+          '--primary-light': '#EAFAF1',
+          '--primary-border': '#BBF7D0',
+          '--primary-tint': '#DCFCE7',
+        } as React.CSSProperties
+      }
+    >
       {error && (
         <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontWeight: 600 }}>
           {error}
@@ -259,7 +352,7 @@ export default function BorrowerChitRoomClient({
         </div>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px' }}>
           <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>TIME REMAINING</div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: roomOpen ? '#7D287E' : '#64748B', fontFamily: 'monospace' }}>
+          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: roomOpen ? 'var(--primary)' : '#64748B', fontFamily: 'monospace' }}>
             {roomOpen ? `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')}` : state?.roomStatus}
           </div>
         </div>
@@ -270,11 +363,171 @@ export default function BorrowerChitRoomClient({
           </div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px' }}>
-          <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>BELL STATUS</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>BELL STATUS</div>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVoice = !voiceEnabled;
+                  setVoiceEnabled(nextVoice);
+                  setBidVoiceEnabled(nextVoice);
+                  if (nextVoice) void warmUpBidVoiceEngine();
+                }}
+                style={{
+                  border: '1px solid #CBD5E1',
+                  background: voiceEnabled ? 'var(--primary-light)' : '#F8FAFC',
+                  color: voiceEnabled ? 'var(--primary-dark)' : '#64748B',
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {voiceEnabled ? '🗣️ Voice ON' : '🔇 Voice Off'}
+              </button>
+              {voiceEnabled &&
+                (allowMemberVoiceChange ? (
+                  <select
+                    aria-label="Live Voice Language"
+                    value={effectiveVoiceLang}
+                    onChange={(e) => {
+                      const nextCode = e.target.value as BidVoiceLanguageCode;
+                      setCustomerVoiceOverride(nextCode);
+                      setCustomerVoiceLanguageOverride(nextCode);
+                      void warmUpBidVoiceEngine();
+                    }}
+                    style={{
+                      border: '1px solid #CBD5E1',
+                      background: '#F8FAFC',
+                      color: '#0F172A',
+                      borderRadius: '999px',
+                      padding: '2px 6px',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {BID_VOICE_LANGUAGES.map((vl) => (
+                      <option key={vl.code} value={vl.code}>
+                        {vl.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span
+                    title="Voice language fixed by Foreman"
+                    style={{
+                      border: '1px solid var(--primary-border)',
+                      background: 'var(--primary-light)',
+                      color: 'var(--primary-dark)',
+                      borderRadius: '999px',
+                      padding: '2px 7px',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    🔒 {BID_VOICE_LANGUAGES.find((vl) => vl.code === effectiveVoiceLang)?.label ?? 'EN (IN)'}
+                  </span>
+                ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMuted = !soundMuted;
+                  setSoundMuted(nextMuted);
+                  setBellSoundMuted(nextMuted);
+                  if (!nextMuted) playAuctionBellChime(1, 3, { force: true });
+                }}
+                style={{
+                  border: '1px solid #CBD5E1',
+                  background: '#F8FAFC',
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {soundMuted ? '🔇 Muted' : '🔊 Sound ON'}
+              </button>
+            </div>
+          </div>
           <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>
             🔔 {state?.bell?.bellsRung ?? 0} / {state?.bell?.bellCount ?? 3}
           </div>
         </div>
+      </div>
+
+      {state?.winner && (
+        <div
+          style={{
+            padding: '14px 18px',
+            borderRadius: '14px',
+            background: '#F0FDF4',
+            border: '1.5px solid #22C55E',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#15803D', textTransform: 'uppercase' }}>
+              🏆 Period Winner Confirmed &amp; Announced
+            </div>
+            <div style={{ fontSize: '1.12rem', fontWeight: 800, color: '#0F172A' }}>
+              Ticket #{state.winner.ticketNo} · {state.winner.memberName}
+            </div>
+          </div>
+          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#15803D' }}>
+            Prize: {formatCurrency(Number(state.winner.prizeAmount ?? 0), currencySymbol)}
+          </div>
+        </div>
+      )}
+
+      {/* Live Poker Table Arena */}
+      <div style={{ marginBottom: '18px' }}>
+        <PokerTableArena
+          periodNumber={Number(state?.periodNumber ?? 1)}
+          chitValue={chitValue}
+          currencySymbol={currencySymbol}
+          roomStatus={state?.roomStatus}
+          isOpen={roomOpen}
+          secondsRemaining={secsLeft}
+          bell={state?.bell}
+          confirmedWinner={
+            state?.winner
+              ? {
+                  ticketNo: state.winner.ticketNo,
+                  memberName: state.winner.memberName,
+                  prizeAmount: Number(state.winner.prizeAmount ?? 0),
+                }
+              : null
+          }
+          highestBid={
+            currentBest
+              ? {
+                  ticketNo: currentBest.ticketNo,
+                  memberName: currentBest.memberName,
+                  prizeAmount: currentBest.bidAmount,
+                }
+              : null
+          }
+          seats={(state?.seats ?? [])
+            .filter((s: any) => !s.hasWon)
+            .map((s: any) => ({
+            memberId: s.memberId,
+            ticketNo: s.ticketNo,
+            name: s.memberName ?? s.name ?? 'Member',
+            photoUrl: s.profilePhoto ?? null,
+            isOnline: Boolean(!s.passed && (s.latestPrize != null || s.isMe || s.isOnline)),
+            isLeader: Boolean(currentBest && currentBest.memberId === s.memberId),
+            hasWon: Boolean(s.hasWon),
+            isMe: Boolean(s.isMe),
+            latestPrize: s.latestPrize ?? null,
+          }))}
+        />
       </div>
 
       {/* 2 Clean Workflow Containers */}
@@ -288,7 +541,7 @@ export default function BorrowerChitRoomClient({
                 type="button"
                 onClick={handleJoin}
                 disabled={busy === 'join'}
-                style={{ padding: '8px 16px', borderRadius: '8px', background: '#7D287E', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
               >
                 {busy === 'join' ? 'Joining…' : 'Enter Bidding Room'}
               </button>
@@ -302,13 +555,13 @@ export default function BorrowerChitRoomClient({
           )}
 
           {canBid && (
-            <div style={{ background: '#F9F1FA', border: '1px solid #E9D5EC', borderRadius: '12px', padding: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 700, color: '#5A195B', marginBottom: '6px' }}>
+            <div style={{ background: 'var(--primary-light)', border: '1px solid var(--primary-border)', borderRadius: '12px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '6px' }}>
                 <span>REVERSE BIDDING (PRIZE ONLY DECREASES)</span>
                 <span>MAX ALLOWED: {formatCurrency(maxPrize, currencySymbol)}</span>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#5A195B' }}>{currencySymbol}</div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary-dark)' }}>{currencySymbol}</div>
                 <input
                   type="number"
                   min={minPrize}
@@ -324,7 +577,7 @@ export default function BorrowerChitRoomClient({
                     fontWeight: 800,
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '2px solid #7D287E',
+                    border: '2px solid var(--primary)',
                     color: '#0F172A',
                     background: '#fff',
                   }}
@@ -336,7 +589,7 @@ export default function BorrowerChitRoomClient({
                   style={{
                     padding: '12px 22px',
                     borderRadius: '10px',
-                    background: '#7D287E',
+                    background: 'var(--primary)',
                     color: '#fff',
                     border: 'none',
                     fontWeight: 800,
@@ -347,7 +600,7 @@ export default function BorrowerChitRoomClient({
                   {busy === 'bid' ? 'Placing…' : 'Place Bid'}
                 </button>
               </div>
-              <div style={{ fontSize: '0.82rem', color: '#5A195B', fontWeight: 600, marginBottom: '10px' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--primary-dark)', fontWeight: 600, marginBottom: '10px' }}>
                 Discount Offered: {formatCurrency(Math.max(0, chitValue - prizeInput), currencySymbol)} (
                 {chitValue > 0 ? (((chitValue - prizeInput) / chitValue) * 100).toFixed(1) : '0'}%)
               </div>
@@ -362,8 +615,8 @@ export default function BorrowerChitRoomClient({
                       padding: '8px 12px',
                       borderRadius: '10px',
                       background: '#fff',
-                      border: '1px solid #C084FC',
-                      color: '#5A195B',
+                      border: '1px solid var(--primary-border)',
+                      color: 'var(--primary-dark)',
                       fontWeight: 700,
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -438,9 +691,9 @@ export default function BorrowerChitRoomClient({
               style={{
                 padding: '9px 12px',
                 borderRadius: '8px',
-                border: '1px solid ' + (recording ? '#DC2626' : '#7D287E'),
-                background: recording ? '#FEE2E2' : '#F9F1FA',
-                color: recording ? '#991B1B' : '#7D287E',
+                border: '1px solid ' + (recording ? '#DC2626' : 'var(--primary)'),
+                background: recording ? '#FEE2E2' : 'var(--primary-light)',
+                color: recording ? '#991B1B' : 'var(--primary-dark)',
                 fontWeight: 700,
                 fontSize: '0.82rem',
                 cursor: 'pointer',
@@ -450,7 +703,7 @@ export default function BorrowerChitRoomClient({
             </button>
             <input
               type="text"
-              placeholder="Message members or call a bid..."
+              placeholder={borrowerChatStrings.placeholderBidding}
               value={chatText}
               onChange={(e) => setChatText(e.target.value)}
               onKeyDown={(e) => {
@@ -464,13 +717,13 @@ export default function BorrowerChitRoomClient({
               type="button"
               disabled={busy === 'chat' || !chatText.trim()}
               onClick={() => handleSendText()}
-              style={{ padding: '9px 16px', borderRadius: '8px', background: '#7D287E', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+              style={{ padding: '9px 16px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
             >
-              Send
+              {borrowerChatStrings.sendBtn}
             </button>
           </div>
           {recording && liveTranscript && (
-            <div style={{ fontSize: '0.78rem', color: '#5A195B', fontStyle: 'italic' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--primary-dark)', fontStyle: 'italic' }}>
               Transcript preview: &ldquo;{liveTranscript}&rdquo;
             </div>
           )}

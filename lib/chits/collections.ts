@@ -1,6 +1,11 @@
 import { calculateChitPayment } from './calculations';
 import { calculateGoldWeightCredit } from './engineCalculator';
 import { generateChitReceiptNo } from './receipts';
+import {
+  getCashDenominationMode,
+  validateDenominationBreakdown,
+  type CashDenominationMode,
+} from './denominations';
 import type { ChitPaymentMode } from './types';
 
 export async function collectChitSubscriptionPayment(tx: any, input: {
@@ -20,6 +25,8 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
   collectorId: string;
   goldRatePerGram?: number | null;
   isGoldWeightEngine?: boolean;
+  denominationBreakdown?: unknown;
+  denominationMode?: CashDenominationMode;
 }) {
   const calc = calculateChitPayment({
     currentPaidAmount: input.currentPaidAmount,
@@ -28,6 +35,22 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
     mode: input.mode,
   });
   if (calc.receivedDelta <= 0) throw new Error('No new collection amount to post');
+
+  let validatedDenomJson: string | undefined;
+  if ((input.paymentMode || 'cash').toLowerCase() === 'cash') {
+    const denomMode =
+      input.denominationMode ?? (await getCashDenominationMode(tx, input.tenantId));
+    if (input.denominationBreakdown != null || denomMode === 'REQUIRED') {
+      const checked = validateDenominationBreakdown(
+        input.denominationBreakdown,
+        calc.receivedDelta,
+        denomMode,
+      );
+      if (checked.breakdown) {
+        validatedDenomJson = JSON.stringify(checked.breakdown);
+      }
+    }
+  }
 
   let gramsCredited: number | null = null;
   if (input.isGoldWeightEngine) {
@@ -90,6 +113,7 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
       amount: calc.receivedDelta,
       paymentMode: input.paymentMode,
       referenceNo: input.referenceNo || undefined,
+      cashDenominationsJson: validatedDenomJson,
       idempotencyKey: input.idempotencyKey || undefined,
       notes: input.notes || undefined,
       issuedById: input.collectorId,
@@ -131,5 +155,6 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
     receivedDelta: calc.receivedDelta,
     status: calc.status,
     goldGramsCredited: gramsCredited,
+    denominationBreakdown: validatedDenomJson ? JSON.parse(validatedDenomJson) : null,
   };
 }

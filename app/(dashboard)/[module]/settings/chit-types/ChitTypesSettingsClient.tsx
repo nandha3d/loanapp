@@ -1,7 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { saveChitTypesConfigAction } from './actions';
+import { saveChitVoiceSettingsAction, saveCustomerRouteModeAction } from '../actions';
+import type { CashDenominationMode } from '@/lib/chits/denominations';
+import {
+  BID_VOICE_LANGUAGES,
+  BID_VOICE_PROFILES,
+  BID_VOICE_SPEED_PRESETS,
+  clampBidVoiceSpeed,
+  normalizeBidVoiceProfile,
+  previewBidVoiceSample,
+  type BidVoiceLanguageCode,
+  type BidVoiceProfileId,
+} from '@/lib/chits/bidVoiceAnnouncer';
+import type { CustomerRouteMode } from '@/lib/moduleCapabilities';
 import {
   BIDDING_MODES,
   CHIT_ENGINE_CATALOG,
@@ -32,10 +45,27 @@ export default function ChitTypesSettingsClient({
   settings,
   dict,
   currencySymbol = '₹',
+  initialVoiceSpeakingRate = 0.88,
+  initialVoiceProfile = 'MALE_CLASSIC',
+  initialRouteMode = 'ENABLED_OPTIONAL',
+  canModifyApprovalPolicy = false,
+  approvalPolicy = { adminCanApproveSecurity: false, adminCanReleasePayout: false },
+  onSaveApprovalPolicy,
+  onManageStaffApprovals,
 }: {
   settings: ChitTypeSettingsState | null;
   dict: any;
   currencySymbol?: string;
+  initialVoiceSpeakingRate?: number;
+  initialVoiceProfile?: string;
+  initialRouteMode?: CustomerRouteMode;
+  canModifyApprovalPolicy?: boolean;
+  approvalPolicy?: { adminCanApproveSecurity: boolean; adminCanReleasePayout: boolean };
+  onSaveApprovalPolicy?: (next: {
+    adminCanApproveSecurity: boolean;
+    adminCanReleasePayout: boolean;
+  }) => Promise<{ success: boolean; error?: string }>;
+  onManageStaffApprovals?: () => void;
 }) {
   const ds = dict.settings || {};
   const dc = dict.chits || {};
@@ -56,6 +86,52 @@ export default function ChitTypesSettingsClient({
   const [expandedCode, setExpandedCode] = useState<ChitEngineType | null>(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+  const [denomMode, setDenomMode] = useState<CashDenominationMode>('OPTIONAL');
+  const [denomSaving, setDenomSaving] = useState(false);
+
+  const [voiceRate, setVoiceRate] = useState<number>(() => clampBidVoiceSpeed(initialVoiceSpeakingRate));
+  const [voiceProfile, setVoiceProfile] = useState<BidVoiceProfileId>(() =>
+    normalizeBidVoiceProfile(initialVoiceProfile),
+  );
+  const [sampleLang, setSampleLang] = useState<BidVoiceLanguageCode>('en');
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const [voiceTesting, setVoiceTesting] = useState(false);
+  const [chitRouteMode, setChitRouteMode] = useState<CustomerRouteMode>(initialRouteMode);
+  const [routeModeSaving, setRouteModeSaving] = useState(false);
+  const [approvalSaving, setApprovalSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/v1/chits/settings')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res?.ok && res?.data?.cashDenominationMode) {
+          setDenomMode(res.data.cashDenominationMode as CashDenominationMode);
+        }
+      })
+      .catch(() => { });
+  }, []);
+
+  const handleSaveDenomMode = async (nextMode: CashDenominationMode) => {
+    setDenomMode(nextMode);
+    setDenomSaving(true);
+    setFeedback(null);
+    try {
+      const res = await fetch('/api/v1/chits/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cashDenominationMode: nextMode }),
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        setFeedback({ type: 'ok', msg: `Cash denomination tally mode saved as ${nextMode}.` });
+      } else {
+        setFeedback({ type: 'err', msg: json?.error?.message || 'Failed to save cash denomination mode.' });
+      }
+    } catch (e: any) {
+      setFeedback({ type: 'err', msg: e?.message || 'Failed to save cash denomination mode.' });
+    }
+    setDenomSaving(false);
+  };
 
   const categoryTitles: Record<ChitEngineCategory, string> = {
     AUCTION: dc.catAuction || 'Category A: Bidding & Auction Engines',
@@ -171,6 +247,356 @@ export default function ChitTypesSettingsClient({
           <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={handleSave}>
             {saving ? (ds.saving || 'Saving...') : (ds.saveChitTypes || 'Save Chit Types')}
           </button>
+        </div>
+      </div>
+
+      {/* Live Auction Voice-Over Speed & Voice Selection */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '16px',
+          padding: '16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <strong style={{ fontSize: '0.94rem', color: 'var(--text)' }}>
+              🗣️ Live Auction Voice-Over Speed &amp; Voice Selection
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '0.79rem', color: 'var(--text-secondary)' }}>
+              Slow down or speed up live Google voice announcements across all 6 languages and choose your preferred announcer voice.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={voiceTesting || voiceSaving}
+              onClick={async () => {
+                setVoiceTesting(true);
+                setFeedback(null);
+                const ok = await previewBidVoiceSample({
+                  lang: sampleLang,
+                  speakingRate: voiceRate,
+                  voiceProfile,
+                });
+                setVoiceTesting(false);
+                if (!ok) {
+                  setFeedback({
+                    type: 'err',
+                    msg: 'Voice test failed — verify GOOGLE_TTS_API_KEY and audio permission in browser.',
+                  });
+                }
+              }}
+            >
+              {voiceTesting ? '🔊 Speaking…' : '🔊 Test Voice'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={voiceSaving}
+              onClick={async () => {
+                setVoiceSaving(true);
+                setFeedback(null);
+                const res = await saveChitVoiceSettingsAction({
+                  speakingRate: voiceRate,
+                  voiceProfile,
+                });
+                setVoiceSaving(false);
+                if (res?.success) {
+                  setFeedback({
+                    type: 'ok',
+                    msg: `Live voice-over saved (${voiceRate.toFixed(2)}× · ${BID_VOICE_PROFILES.find((p) => p.id === voiceProfile)?.label || voiceProfile}).`,
+                  });
+                } else {
+                  setFeedback({ type: 'err', msg: res?.error || 'Failed to save voice settings.' });
+                }
+              }}
+            >
+              {voiceSaving ? 'Saving…' : 'Save Voice Settings'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', alignItems: 'end' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: '0.78rem' }}>Announcer Voice</label>
+            <select
+              className="form-control"
+              value={voiceProfile}
+              onChange={(e) => setVoiceProfile(e.target.value as BidVoiceProfileId)}
+            >
+              {BID_VOICE_PROFILES.map((vp) => (
+                <option key={vp.id} value={vp.id}>{vp.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: '0.78rem' }}>
+              Voice Speed Preset ({voiceRate.toFixed(2)}×)
+            </label>
+            <select
+              className="form-control"
+              value={String(BID_VOICE_SPEED_PRESETS.find((p) => Math.abs(p.value - voiceRate) < 0.015)?.value ?? 'custom')}
+              onChange={(e) => {
+                if (e.target.value !== 'custom') {
+                  setVoiceRate(clampBidVoiceSpeed(Number(e.target.value)));
+                }
+              }}
+            >
+              {BID_VOICE_SPEED_PRESETS.map((sp) => (
+                <option key={sp.value} value={String(sp.value)}>{sp.label}</option>
+              ))}
+              {!BID_VOICE_SPEED_PRESETS.some((p) => Math.abs(p.value - voiceRate) < 0.015) && (
+                <option value="custom">Custom ({voiceRate.toFixed(2)}×)</option>
+              )}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: '0.78rem' }}>
+              Fine-Tune Pace: <strong>{voiceRate.toFixed(2)}×</strong> (Slower ← → Faster)
+            </label>
+            <input
+              type="range"
+              min={0.70}
+              max={1.15}
+              step={0.02}
+              value={voiceRate}
+              onChange={(e) => setVoiceRate(clampBidVoiceSpeed(Number(e.target.value)))}
+              style={{ width: '100%', accentColor: 'var(--primary)' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: '0.78rem' }}>Test Sample Language</label>
+            <select
+              className="form-control"
+              value={sampleLang}
+              onChange={(e) => setSampleLang(e.target.value as BidVoiceLanguageCode)}
+            >
+              {BID_VOICE_LANGUAGES.map((vl) => (
+                <option key={vl.code} value={vl.code}>{vl.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Route / Line Requirement Toggle (Chit Funds) */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '16px',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <strong style={{ fontSize: '0.92rem' }}>🗺️ Route / Line Field on Chit Customer Registration</strong>
+          <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+            Chit customers do not require collection routes unless your office uses line routes. Enable, make optional, or hide it here.
+          </p>
+        </div>
+        <select
+          className="form-control"
+          aria-label="Chit customer route mode"
+          value={chitRouteMode}
+          disabled={routeModeSaving}
+          style={{ width: '260px', fontWeight: 600 }}
+          onChange={async (e) => {
+            const nextMode = e.target.value as CustomerRouteMode;
+            setChitRouteMode(nextMode);
+            setRouteModeSaving(true);
+            setFeedback(null);
+            const res = await saveCustomerRouteModeAction(nextMode, 'chitfunds');
+            setRouteModeSaving(false);
+            if (res?.success) {
+              setFeedback({ type: 'ok', msg: `Chit customer route option set to ${nextMode}.` });
+            } else {
+              setFeedback({ type: 'err', msg: res?.error || 'Failed to update route option.' });
+            }
+          }}
+        >
+          <option value="ENABLED_OPTIONAL">Enabled — Optional (Default)</option>
+          <option value="DISABLED">Disabled — Hidden on Customer Form</option>
+          <option value="ENABLED_REQUIRED">Enabled — Mandatory (*)</option>
+        </select>
+      </div>
+
+      {/* Winner Security Approval & Payout Access (Superadmin Policy) */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '16px',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <strong style={{ fontSize: '0.92rem' }}>
+              🛡️ Security Approval &amp; Prize Payout Permissions (Superadmin Control)
+            </strong>
+            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              Choose whether branch Admins can directly approve winner collateral documents or release prize payouts. Only Superadmins can change these switches.
+            </p>
+          </div>
+          {onManageStaffApprovals && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onManageStaffApprovals}
+            >
+              Per-Foreman &amp; Staff Permissions →
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: approvalPolicy.adminCanApproveSecurity ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+              backgroundColor: approvalPolicy.adminCanApproveSecurity ? 'var(--primary-tint, rgba(245,166,35,0.06))' : 'var(--bg, #F8FAFC)',
+              cursor: canModifyApprovalPolicy && !approvalSaving ? 'pointer' : 'not-allowed',
+              opacity: canModifyApprovalPolicy ? 1 : 0.7,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
+                Allow Admins to Approve Winner Security
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                Admin can approve/reject collateral &amp; unlock payout
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={approvalPolicy.adminCanApproveSecurity}
+              disabled={!canModifyApprovalPolicy || approvalSaving || !onSaveApprovalPolicy}
+              onChange={async (e) => {
+                if (!onSaveApprovalPolicy) return;
+                setApprovalSaving(true);
+                setFeedback(null);
+                const next = { ...approvalPolicy, adminCanApproveSecurity: e.target.checked };
+                const res = await onSaveApprovalPolicy(next);
+                setApprovalSaving(false);
+                if (res?.success) {
+                  setFeedback({
+                    type: 'ok',
+                    msg: `Branch Admin security approval turned ${next.adminCanApproveSecurity ? 'ON' : 'OFF'}.`,
+                  });
+                } else {
+                  setFeedback({ type: 'err', msg: res?.error || 'Failed to update security approval setting.' });
+                }
+              }}
+              style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+            />
+          </label>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: approvalPolicy.adminCanReleasePayout ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+              backgroundColor: approvalPolicy.adminCanReleasePayout ? 'var(--primary-tint, rgba(245,166,35,0.06))' : 'var(--bg, #F8FAFC)',
+              cursor: canModifyApprovalPolicy && !approvalSaving ? 'pointer' : 'not-allowed',
+              opacity: canModifyApprovalPolicy ? 1 : 0.7,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
+                Allow Admins to Release Prize Payouts
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                Admin can disburse winner prize once security is approved
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={approvalPolicy.adminCanReleasePayout}
+              disabled={!canModifyApprovalPolicy || approvalSaving || !onSaveApprovalPolicy}
+              onChange={async (e) => {
+                if (!onSaveApprovalPolicy) return;
+                setApprovalSaving(true);
+                setFeedback(null);
+                const next = { ...approvalPolicy, adminCanReleasePayout: e.target.checked };
+                const res = await onSaveApprovalPolicy(next);
+                setApprovalSaving(false);
+                if (res?.success) {
+                  setFeedback({
+                    type: 'ok',
+                    msg: `Branch Admin prize payout release turned ${next.adminCanReleasePayout ? 'ON' : 'OFF'}.`,
+                  });
+                } else {
+                  setFeedback({ type: 'err', msg: res?.error || 'Failed to update payout release setting.' });
+                }
+              }}
+              style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Task 3: Cash Denomination Tally Enforcement Policy */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '16px',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <strong style={{ fontSize: '0.92rem' }}>💵 Cash Note Denomination Tally (POS &amp; Payouts)</strong>
+          <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+            Configure whether cash collections &amp; prize payouts require ₹500–₹1 note counts on Web &amp; Mobile.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select
+            className="form-control"
+            value={denomMode}
+            disabled={denomSaving}
+            onChange={(e) => handleSaveDenomMode(e.target.value as CashDenominationMode)}
+            style={{ width: '210px', fontWeight: 600 }}
+          >
+            <option value="DISABLED">DISABLED (Hidden)</option>
+            <option value="OPTIONAL">OPTIONAL (Shown, not forced)</option>
+            <option value="REQUIRED">REQUIRED (Must match amount)</option>
+          </select>
         </div>
       </div>
 

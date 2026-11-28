@@ -3,7 +3,8 @@
 // evaluated from timestamps on every poll/bid, exactly like closeRoomIfExpired
 // (lib/chits/liveAuction.ts) — never setTimeout/cron, since the room has no
 // server-side timer, only client polls.
-import { closeRoomIfExpired, closeAuctionRoom } from './liveAuction';
+import type { Prisma } from '@prisma/client';
+import { closeRoomIfExpired, closeAuctionRoom, openScheduledRoomIfDue } from './liveAuction';
 
 export type BellState = {
   bellsRung: number;
@@ -17,7 +18,7 @@ export type BellState = {
 // Lazy, timestamp-derived bell advancement. Call this (via syncRoom, below)
 // on every poll and before every bid so a client landing shortly after a bell
 // was "due" is the one that actually writes it.
-export async function evaluateBells(tx: any, auctionId: string, now = new Date()) {
+export async function evaluateBells(tx: Prisma.TransactionClient, auctionId: string, now = new Date()) {
   const fresh = await tx.chitAuction.findUnique({
     where: { id: auctionId },
     select: {
@@ -69,7 +70,7 @@ export async function evaluateBells(tx: any, auctionId: string, now = new Date()
 // Manual ring (staff action). Re-anchors so the NEXT automatic bell lands
 // exactly one interval after this manual ring, rather than being skipped or
 // duplicated by the lazy evaluator on the following poll.
-export async function ringBellManually(tx: any, auctionId: string, byUserId: string | null, now = new Date()) {
+export async function ringBellManually(tx: Prisma.TransactionClient, auctionId: string, byUserId: string | null, now = new Date()) {
   const fresh = await tx.chitAuction.findUnique({
     where: { id: auctionId },
     select: {
@@ -106,9 +107,10 @@ export async function ringBellManually(tx: any, auctionId: string, byUserId: str
 }
 
 // Single call site replacing every bare closeRoomIfExpired(tx, auctionId) —
-// evaluates bells first (which may itself close the room via bellAutoClose),
-// then applies the existing deadline-based auto-close on top.
-export async function syncRoom(tx: any, auctionId: string, now = new Date()) {
+// evaluates scheduled auto-open first, then bells (which may itself close the room
+// via bellAutoClose), then applies the existing deadline-based auto-close on top.
+export async function syncRoom(tx: Prisma.TransactionClient, auctionId: string, now = new Date()) {
+  await openScheduledRoomIfDue(tx, auctionId, now);
   await evaluateBells(tx, auctionId, now);
   return closeRoomIfExpired(tx, auctionId, now);
 }

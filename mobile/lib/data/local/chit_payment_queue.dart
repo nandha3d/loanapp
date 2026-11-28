@@ -31,6 +31,10 @@ QueuedMutation queuedChitPayment({
   String mode = 'ADD_PAYMENT',
   String? referenceNo,
   String? note,
+  String? memberName,
+  Map<String, dynamic>? denominationBreakdown,
+  String? collectedAtLocal,
+  String? agentId,
 }) {
   return QueuedMutation(
     id: idempotencyKey,
@@ -43,9 +47,17 @@ QueuedMutation queuedChitPayment({
       'amount': amount,
       'paymentMode': paymentMode,
       'mode': mode,
+      if (memberName != null && memberName.trim().isNotEmpty)
+        'memberName': memberName.trim(),
       if (referenceNo != null && referenceNo.trim().isNotEmpty)
         'referenceNo': referenceNo.trim(),
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      if (denominationBreakdown != null)
+        'denominationBreakdown': denominationBreakdown,
+      'collectedAtLocal':
+          collectedAtLocal ?? DateTime.now().toIso8601String(),
+      if (agentId != null && agentId.trim().isNotEmpty)
+        'agentId': agentId.trim(),
     },
   );
 }
@@ -57,6 +69,10 @@ final chitPaymentQueueProvider = Provider<OfflineQueue>((ref) {
     resolvers: {
       _mutationType: (mutation) async {
         final payload = mutation.payload;
+        final rawDenoms = payload['denominationBreakdown'];
+        final denomMap = rawDenoms is Map
+            ? rawDenoms.cast<String, dynamic>()
+            : null;
         await service.collectContribution(
           payload['groupId'] as String,
           memberId: payload['memberId'] as String,
@@ -69,6 +85,7 @@ final chitPaymentQueueProvider = Provider<OfflineQueue>((ref) {
           idempotencyKey: mutation.id,
           referenceNo: payload['referenceNo'] as String?,
           note: payload['note'] as String?,
+          denominationBreakdown: denomMap,
         );
       },
     },
@@ -94,6 +111,7 @@ class ChitPaymentSyncController extends StateNotifier<ChitPaymentSyncState> {
     state = state.copyWith(
       pending: all.where((m) => m.status == 'pending').length,
       failed: all.where((m) => m.status == 'failed').length,
+      conflict: all.where((m) => m.status == 'conflict').length,
       synced: all.where((m) => m.status == 'synced').length,
     );
   }
@@ -117,6 +135,7 @@ class ChitPaymentSyncState {
     required this.pending,
     this.synced = 0,
     this.failed = 0,
+    this.conflict = 0,
     this.lastSyncedCount = 0,
   });
 
@@ -124,6 +143,7 @@ class ChitPaymentSyncState {
   final int pending;
   final int synced;
   final int failed;
+  final int conflict;
   final int lastSyncedCount;
 
   ChitPaymentSyncState copyWith({
@@ -131,6 +151,7 @@ class ChitPaymentSyncState {
     int? pending,
     int? synced,
     int? failed,
+    int? conflict,
     int? lastSyncedCount,
   }) {
     return ChitPaymentSyncState(
@@ -138,6 +159,7 @@ class ChitPaymentSyncState {
       pending: pending ?? this.pending,
       synced: synced ?? this.synced,
       failed: failed ?? this.failed,
+      conflict: conflict ?? this.conflict,
       lastSyncedCount: lastSyncedCount ?? this.lastSyncedCount,
     );
   }

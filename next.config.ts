@@ -35,6 +35,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
       // OpenStreetMap tiles + Leaflet marker sprites for the live map
       `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com https://*.razorpay.com${cspApiUrl}`,
+      "media-src 'self' blob: data:",
       "font-src 'self' https://fonts.gstatic.com",
       `connect-src 'self'${cspApiUrl}${cspSupabase} https://lumberjack.razorpay.com https://api.razorpay.com`,
       "frame-ancestors 'none'",

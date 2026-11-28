@@ -24,6 +24,7 @@ import 'package:zolofund/features/auth/totp_screen.dart';
 import 'package:zolofund/features/chits/chits_screen.dart';
 import 'package:zolofund/features/chits/chit_detail_screen.dart';
 import 'package:zolofund/features/chits/chit_form_screen.dart';
+import 'package:zolofund/features/chits/chit_offline_queue_screen.dart';
 import 'package:zolofund/features/borrower/borrower_login_screen.dart';
 import 'package:zolofund/features/borrower/borrower_dashboard_screen.dart';
 import 'package:zolofund/features/borrower/borrower_pay_screen.dart';
@@ -387,6 +388,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'new',
             builder: (_, __) => const ChitGroupFormScreen(),
+          ),
+          GoRoute(
+            path: 'offline-queue',
+            builder: (_, __) => const ChitOfflineQueueScreen(),
           ),
           GoRoute(
             path: ':id',

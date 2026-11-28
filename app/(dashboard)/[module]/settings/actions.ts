@@ -948,8 +948,10 @@ export async function saveCustomRole(formData: FormData) {
 
   const {
     ALL_STAFF_PERMISSION_KEYS,
+    parseStaffPermissions,
     serializeStaffPermissions,
   } = await import('@/lib/staffPermissions');
+  const { canModifyChitApprovalPermissions } = await import('@/lib/chits/access');
 
   const id = ((formData.get('id') as string | null) ?? '').trim() || null;
   const name = ((formData.get('name') as string | null) ?? '').trim();
@@ -971,6 +973,7 @@ export async function saveCustomRole(formData: FormData) {
     }
     permissionsJson = serializeStaffPermissions(obj);
   }
+  const requestedPerms = parseStaffPermissions(permissionsJson);
 
   const branchId = await getActiveBranchId();
 
@@ -990,9 +993,21 @@ export async function saveCustomRole(formData: FormData) {
   if (id) {
     const existing = await prisma.customRole.findFirst({
       where: { id, tenantId: actor.tenantId },
-      select: { id: true },
+      select: { id: true, permissionsJson: true },
     });
     if (!existing) return { success: false, error: 'Custom role not found.' };
+    if (!canModifyChitApprovalPermissions(actor.role)) {
+      const prevPerms = parseStaffPermissions(existing.permissionsJson);
+      if (
+        Boolean(requestedPerms.canApproveSecurity) !== Boolean(prevPerms.canApproveSecurity) ||
+        Boolean(requestedPerms.canReleasePayout) !== Boolean(prevPerms.canReleasePayout)
+      ) {
+        return {
+          success: false,
+          error: 'Only a Superadmin can grant or revoke Security Approval or Prize Payout privileges.',
+        };
+      }
+    }
 
     await prisma.customRole.update({
       where: { id },
@@ -1009,6 +1024,15 @@ export async function saveCustomRole(formData: FormData) {
       },
     }).catch(() => {});
   } else {
+    if (
+      !canModifyChitApprovalPermissions(actor.role) &&
+      (requestedPerms.canApproveSecurity || requestedPerms.canReleasePayout)
+    ) {
+      return {
+        success: false,
+        error: 'Only a Superadmin can create a role with Security Approval or Prize Payout privileges.',
+      };
+    }
     const created = await prisma.customRole.create({
       data: {
         tenantId: actor.tenantId,
@@ -1035,6 +1059,232 @@ export async function saveCustomRole(formData: FormData) {
 
   revalidatePath(`/${appType}/settings`);
   return { success: true };
+}
+
+export async function saveChitApprovalPolicyAction(input: {
+  adminCanApproveSecurity: boolean;
+  adminCanReleasePayout: boolean;
+}) {
+  const actor = await settingsManagerActor();
+  const {
+    canModifyChitApprovalPermissions,
+    CHIT_ADMIN_APPROVE_SECURITY_KEY,
+    CHIT_ADMIN_RELEASE_PAYOUT_KEY,
+  } = await import('@/lib/chits/access');
+  if (!actor || !canModifyChitApprovalPermissions(actor.role)) {
+    return {
+      success: false,
+      error: 'Only a Superadmin or Developer can configure Admin security approval and payout release settings.',
+    };
+  }
+
+  const adminCanApproveSecurity = Boolean(input.adminCanApproveSecurity);
+  const adminCanReleasePayout = Boolean(input.adminCanReleasePayout);
+
+  await Promise.all([
+    setSetting(actor.tenantId, CHIT_ADMIN_APPROVE_SECURITY_KEY, adminCanApproveSecurity ? '1' : '0', 'chitfunds'),
+    setSetting(actor.tenantId, CHIT_ADMIN_RELEASE_PAYOUT_KEY, adminCanReleasePayout ? '1' : '0', 'chitfunds'),
+  ]);
+
+  await prisma.auditLog
+    .create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'app_setting',
+        entityId: 'chit_approval_policy',
+        newValue: JSON.stringify({ adminCanApproveSecurity, adminCanReleasePayout }),
+      },
+    })
+    .catch(() => {});
+
+  revalidatePath('/chitfunds/settings');
+  revalidatePath('/chitfunds/chits', 'layout');
+  return { success: true, adminCanApproveSecurity, adminCanReleasePayout };
+}
+
+export async function toggleUserChitApprovalAction(input: {
+  userId: string;
+  permissionKey: 'canApproveSecurity' | 'canReleasePayout';
+  enabled: boolean;
+}) {
+  const actor = await settingsManagerActor();
+  const { canModifyChitApprovalPermissions } = await import('@/lib/chits/access');
+  if (!actor || !canModifyChitApprovalPermissions(actor.role)) {
+    return {
+      success: false,
+      error: 'Only a Superadmin or Developer can enable or disable user approval & payout permissions.',
+    };
+  }
+
+  if (input.permissionKey !== 'canApproveSecurity' && input.permissionKey !== 'canReleasePayout') {
+    return { success: false, error: 'Invalid permission key.' };
+  }
+
+  const target = await prisma.user.findFirst({
+    where: {
+      id: input.userId,
+      tenantId: actor.tenantId,
+      role: { in: ['admin', 'agent'] },
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      branchId: true,
+      customRoleId: true,
+      customRoleName: true,
+      staffPermissions: true,
+      customRole: { select: { id: true, name: true, status: true, permissionsJson: true } },
+    },
+  });
+  if (!target) return { success: false, error: 'User not found.' };
+
+  if (actor.role === 'superadmin' && target.branchId) {
+    const ownedBranch = await prisma.branch.findFirst({
+      where: { id: target.branchId, tenantId: actor.tenantId, superadminId: actor.userId },
+      select: { id: true },
+    });
+    if (!ownedBranch) {
+      return { success: false, error: 'Unauthorized: User belongs to a branch you do not own.' };
+    }
+  }
+
+  const {
+    hasAnyCustomStaffPermission,
+    mergeStaffPermissions,
+    parseStaffPermissions,
+    serializeStaffPermissions,
+  } = await import('@/lib/staffPermissions');
+
+  const activeCustomRoleJson =
+    target.customRole?.status === 'active' ? target.customRole.permissionsJson : null;
+  const activeCustomPerms = activeCustomRoleJson ? parseStaffPermissions(activeCustomRoleJson) : null;
+  const effectivePerms = mergeStaffPermissions(activeCustomRoleJson, target.staffPermissions);
+  const nextPerms = parseStaffPermissions({
+    ...effectivePerms,
+    [input.permissionKey]: Boolean(input.enabled),
+  });
+
+  // If disabling a flag inherited from a shared CustomRole, materialize user-level permissions and detach CustomRole ID while keeping title.
+  const detachCustomRole =
+    !input.enabled && Boolean(activeCustomPerms?.[input.permissionKey]);
+
+  const nextStaffPermsJson = hasAnyCustomStaffPermission(nextPerms)
+    ? serializeStaffPermissions(nextPerms)
+    : null;
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: {
+      staffPermissions: nextStaffPermsJson,
+      ...(detachCustomRole
+        ? {
+            customRoleId: null,
+            customRoleName: target.customRoleName || target.customRole?.name || null,
+          }
+        : {}),
+    },
+  });
+
+  await prisma.auditLog
+    .create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'user',
+        entityId: target.id,
+        newValue: JSON.stringify({
+          scope: 'chit_approval_delegation',
+          permissionKey: input.permissionKey,
+          enabled: Boolean(input.enabled),
+          role: target.role,
+          name: target.name,
+        }),
+      },
+    })
+    .catch(() => {});
+
+  revalidatePath('/chitfunds/settings');
+  revalidatePath('/chitfunds/chits', 'layout');
+  return {
+    success: true,
+    userId: target.id,
+    canApproveSecurity: Boolean(nextPerms.canApproveSecurity),
+    canReleasePayout: Boolean(nextPerms.canReleasePayout),
+    customRoleDetached: detachCustomRole,
+  };
+}
+
+export async function saveCustomerRouteModeAction(mode: string, targetAppType?: string) {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+
+  const effApp = targetAppType || actor.appType || 'chitfunds';
+  const validMode =
+    mode === 'DISABLED' || mode === 'ENABLED_OPTIONAL' || mode === 'ENABLED_REQUIRED'
+      ? mode
+      : effApp === 'chitfunds'
+        ? 'ENABLED_OPTIONAL'
+        : 'ENABLED_REQUIRED';
+
+  await setSetting(actor.tenantId, `customer_route_mode_${effApp}`, validMode, 'routes');
+  await prisma.auditLog
+    .create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'app_setting',
+        entityId: `customer_route_mode_${effApp}`,
+        newValue: JSON.stringify({ mode: validMode }),
+      },
+    })
+    .catch(() => {});
+
+  revalidatePath(`/${effApp}/settings`);
+  revalidatePath(`/${effApp}/customers/new`);
+  return { success: true, mode: validMode };
+}
+
+export async function saveChitVoiceSettingsAction(input: {
+  speakingRate: number;
+  voiceProfile: string;
+}) {
+  const actor = await settingsManagerActor();
+  if (!actor) return { success: false, error: 'Unauthorized' };
+
+  const rawRate = Number(input.speakingRate);
+  const cleanRate = Number.isFinite(rawRate) && rawRate > 0
+    ? Math.round(Math.min(1.2, Math.max(0.65, rawRate)) * 100) / 100
+    : 0.88;
+  const rawProfile = String(input.voiceProfile || '').trim().toUpperCase();
+  const validProfile = ['MALE_CLASSIC', 'FEMALE_CLASSIC', 'MALE_WARM', 'FEMALE_NATURAL'].includes(rawProfile)
+    ? rawProfile
+    : 'MALE_CLASSIC';
+
+  await Promise.all([
+    setSetting(actor.tenantId, 'chit_voice_speaking_rate', String(cleanRate), 'chits'),
+    setSetting(actor.tenantId, 'chit_voice_profile', validProfile, 'chits'),
+  ]);
+  await prisma.auditLog
+    .create({
+      data: {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'update',
+        entityType: 'app_setting',
+        entityId: 'chit_voice_settings',
+        newValue: JSON.stringify({ speakingRate: cleanRate, voiceProfile: validProfile }),
+      },
+    })
+    .catch(() => {});
+
+  revalidatePath('/chitfunds/settings');
+  revalidatePath('/chitfunds/chits');
+  return { success: true, speakingRate: cleanRate, voiceProfile: validProfile };
 }
 
 export async function deleteCustomRole(roleId: string, appType = 'chitfunds') {

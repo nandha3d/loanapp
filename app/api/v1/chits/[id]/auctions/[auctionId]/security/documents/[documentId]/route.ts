@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { getChitMobileCapabilities } from '@/lib/chits/access';
 
 function statusFromAction(action: string | undefined) {
   if (action === 'verify') return 'verified';
@@ -17,12 +18,13 @@ export async function PATCH(
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
+  const caps = await getChitMobileCapabilities(ctx);
+  if (!caps.canConductAuction && !caps.canApproveSecurity) return fail('Forbidden', 403);
   const { id, auctionId, documentId } = await params;
   const body = await req.json().catch(() => null) as any;
   const status = statusFromAction(typeof body?.action === 'string' ? body.action : undefined);
   if (!status) return fail('Invalid document review action', 400);
-  if ((status === 'approved' || status === 'rejected') && !['superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
+  if ((status === 'approved' || status === 'rejected') && !caps.canApproveSecurity) return fail('Forbidden', 403);
 
   try {
     const auction = await prisma.chitAuction.findFirst({

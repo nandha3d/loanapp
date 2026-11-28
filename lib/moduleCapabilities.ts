@@ -45,3 +45,19 @@ export function normalizeSettingsTab(
   if (!requestedTab) return 'routes';
   return getSettingsTabsForAppType(appType, subscription).includes(requestedTab) ? requestedTab : 'routes';
 }
+
+export type CustomerRouteMode = 'ENABLED_OPTIONAL' | 'ENABLED_REQUIRED' | 'DISABLED';
+
+export function customerRouteSettingKey(appType: string): string {
+  return `customer_route_mode_${appType || 'microlending'}`;
+}
+
+export function resolveCustomerRouteMode(
+  appType: string,
+  rawValue?: string | null,
+): CustomerRouteMode {
+  if (rawValue === 'DISABLED' || rawValue === 'ENABLED_OPTIONAL' || rawValue === 'ENABLED_REQUIRED') {
+    return rawValue;
+  }
+  return appType === 'chitfunds' ? 'ENABLED_OPTIONAL' : 'ENABLED_REQUIRED';
+}

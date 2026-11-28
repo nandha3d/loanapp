@@ -1,0 +1,540 @@
+/* ===== Chit Group Guided Creation Wizard & Resume Banner ===== */
+
+.chit-resume-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px 20px;
+  border-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    var(--primary-light) 0%,
+    var(--surface) 100%
+  );
+  border: 1.5px solid var(--primary-border);
+  box-shadow: 0 6px 18px -6px var(--primary-glow);
+}
+
+.chit-resume-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chit-resume-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.chit-resume-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.chit-resume-meta {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.chit-resume-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Modal Backdrop & Shell */
+.chit-wiz-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.chit-wiz-dialog {
+  width: 100%;
+  max-width: 1240px;
+  max-height: 94vh;
+  background: var(--surface);
+  border-radius: 22px;
+  border: 1.5px solid var(--border);
+  box-shadow: 0 28px 60px -12px rgba(15, 23, 42, 0.36);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeUp 0.2s ease;
+}
+
+/* Header */
+.chit-wiz-header {
+  padding: 20px 26px 18px;
+  background: linear-gradient(
+    125deg,
+    var(--primary-dark) 0%,
+    var(--primary) 100%
+  );
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.chit-wiz-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chit-wiz-title {
+  margin: 0;
+  font-size: 1.48rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.chit-wiz-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.96rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.chit-wiz-header-pills {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.chit-wiz-pill {
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.chit-wiz-fresh-btn {
+  padding: 6px 13px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chit-wiz-fresh-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.chit-wiz-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.chit-wiz-close-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Streamlined 4-Step Stepper */
+.chit-wiz-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chit-wiz-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  transition: all 0.16s ease;
+}
+
+.chit-wiz-step-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.chit-wiz-step-btn--active {
+  background: var(--surface);
+  color: var(--primary-dark);
+  border-color: var(--surface);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.chit-wiz-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.chit-wiz-step-btn--active .chit-wiz-step-num {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.chit-wiz-step-btn--done .chit-wiz-step-num {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.chit-wiz-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Body & Accessible Non-Technical Typography */
+.chit-wiz-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 26px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.chit-wiz-body .form-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.chit-wiz-body .form-control {
+  font-size: 1rem;
+  min-height: 44px;
+  padding: 9px 13px;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.chit-wiz-body .checkbox-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Uniform Rounded Callout Strip — zero thick left-side border stripes */
+.chit-wiz-guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--primary-light) 0%, var(--surface) 100%);
+  border: 1.5px solid var(--primary-border);
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+.chit-wiz-section-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 14px -4px rgba(15, 23, 42, 0.06);
+}
+
+.chit-wiz-section-card--padded {
+  padding: 18px 20px;
+}
+
+.chit-wiz-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: linear-gradient(90deg, var(--primary-light) 0%, var(--surface) 100%);
+  border-bottom: 1px solid var(--primary-border);
+  flex-wrap: wrap;
+}
+
+.chit-wiz-section-inner {
+  padding: 18px 20px;
+}
+
+.chit-wiz-section-title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chit-wiz-section-desc {
+  margin: 3px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.chit-wiz-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chit-wiz-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chit-wiz-step3-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+/* Horizontal Scrolling Template Carousel */
+.chit-wiz-rail-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chit-wiz-rail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chit-wiz-rail-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chit-wiz-rail-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  transition: all 0.15s ease;
+}
+
+.chit-wiz-rail-arrow:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.chit-wiz-tpl-rail {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 6px 4px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) var(--border);
+}
+
+.chit-wiz-tpl-rail::-webkit-scrollbar {
+  height: 9px;
+}
+
+.chit-wiz-tpl-rail::-webkit-scrollbar-track {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.chit-wiz-tpl-rail::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.chit-wiz-tpl-card {
+  flex: 0 0 330px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 18px;
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.06);
+}
+
+.chit-wiz-tpl-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px -6px var(--primary-glow);
+}
+
+.chit-wiz-tpl-card--selected {
+  border: 2px solid var(--primary);
+  background: linear-gradient(180deg, var(--primary-light) 0%, var(--surface) 100%);
+  box-shadow: 0 0 0 3px var(--primary-glow), 0 10px 22px -6px var(--primary-glow);
+}
+
+.chit-wiz-tpl-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.chit-wiz-tpl-summary {
+  margin: 0;
+  font-size: 0.93rem;
+  color: var(--text-secondary);
+  line-height: 1.48;
+}
+
+.chit-wiz-tpl-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.chit-wiz-reg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.chit-wiz-reg-card--selected {
+  border: 2px solid var(--primary);
+  background: var(--primary-light);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+/* Footer */
+.chit-wiz-footer {
+  padding: 15px 26px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chit-wiz-saved-note {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 980px) {
+  .chit-wiz-step3-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .chit-wiz-stepper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chit-wiz-grid-2,
+  .chit-wiz-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .chit-wiz-tpl-card {
+    flex: 0 0 84vw;
+  }
+}

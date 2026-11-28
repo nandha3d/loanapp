@@ -3,19 +3,28 @@
 import { Fragment, useState } from 'react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { ChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
+import {
+  explainDividendDistribution,
+  explainDividendPolicy,
+  getLedgerUi,
+} from '@/lib/chits/chitConfigExplainI18n';
 import DividendBreakdown from './DividendBreakdown';
 
 export default function MemberDividendLedgerPanel({
   ledger,
   currencySymbol,
+  lang,
   dict,
 }: {
   ledger: ChitGroupDividendLedger;
   currencySymbol: string;
-  dict?: any;
+  lang?: string;
+  dict?: { chits?: Record<string, unknown> };
 }) {
-  const dc = dict?.chits || {};
+  const dc = (dict?.chits || {}) as Record<string, string> & { engineNames?: Record<string, string> };
+  const lu = getLedgerUi(lang);
   const gs = ledger.groupSummary;
+  const localizedEngineName = dc.engineNames?.[gs.chitEngineType] || gs.engineName;
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [expandedPeriod, setExpandedPeriod] = useState<number | null>(null);
 
@@ -52,8 +61,8 @@ export default function MemberDividendLedgerPanel({
                 : dc.liveDividendLedgerTitle || 'Detailed Chit & Member Dividend Ledger'}
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: '.8rem', color: 'var(--text-secondary)' }}>
-              {gs.engineName} · {gs.completedPeriodsCount}/{gs.totalPeriods} {dc.periodsCompleted || 'periods completed'} ·{' '}
-              {gs.dividendPolicy} / {gs.dividendDistribution}
+              {localizedEngineName} · {gs.completedPeriodsCount}/{gs.totalPeriods} {dc.periodsCompleted || 'periods completed'} ·{' '}
+              {explainDividendPolicy(gs.dividendPolicy, lang)} — {explainDividendDistribution(gs.dividendDistribution, lang)}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -133,20 +142,20 @@ export default function MemberDividendLedgerPanel({
           <table>
             <thead>
               <tr>
-                <th>Ticket</th>
-                <th>{dc.member || 'Member'}</th>
-                <th>Share</th>
-                <th>Won</th>
-                <th>{dc.prize || 'Prize'}</th>
-                <th>Gross Due</th>
-                <th>{dc.totalDividendEarned || 'Dividend Earned'}</th>
-                <th>Deferred / Forfeited</th>
-                <th>Prem. / Int.</th>
-                <th>Net Payable</th>
-                <th>{dc.paid || 'Paid'}</th>
-                <th>Outstanding</th>
-                <th>Net Outcome</th>
-                <th>Savings %</th>
+                <th>{lu.ticket}</th>
+                <th>{dc.member || lu.member}</th>
+                <th>{lu.share}</th>
+                <th>{lu.won}</th>
+                <th>{dc.prize || lu.prize}</th>
+                <th>{lu.grossDue}</th>
+                <th>{dc.totalDividendEarned || lu.dividendEarned}</th>
+                <th>{lu.deferredForfeited}</th>
+                <th>{lu.premInt}</th>
+                <th>{lu.netPayable}</th>
+                <th>{dc.paid || lu.paid}</th>
+                <th>{lu.outstanding}</th>
+                <th>{dc.netFinancialOutcome || lu.netOutcome}</th>
+                <th>{lu.savingsPct}</th>
                 <th></th>
               </tr>
             </thead>
@@ -172,7 +181,7 @@ export default function MemberDividendLedgerPanel({
                         {m.totalDeferredDividend > 0 ? `+${formatCurrency(m.totalDeferredDividend, currencySymbol)}` : '—'}
                         {m.totalForfeitedDividend > 0 ? (
                           <span style={{ color: 'var(--danger)', display: 'block' }}>
-                            -{formatCurrency(m.totalForfeitedDividend, currencySymbol)} forfeited
+                            -{formatCurrency(m.totalForfeitedDividend, currencySymbol)} {lu.forfeited}
                           </span>
                         ) : null}
                       </td>
@@ -197,30 +206,30 @@ export default function MemberDividendLedgerPanel({
                           className="btn btn-ghost btn-sm"
                           onClick={() => setExpandedMemberId(isOpen ? null : m.memberId)}
                         >
-                          {isOpen ? (dc.hidePeriods || 'Hide') : (dc.viewPeriods || 'Periods')}
+                          {isOpen ? (dc.hidePeriods || lu.hidePeriods) : (dc.viewPeriods || lu.viewPeriods)}
                         </button>
                       </td>
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={15} style={{ background: 'var(--bg-alt, #f8fafc)', padding: '12px' }}>
+                        <td colSpan={15} style={{ background: 'var(--bg)', padding: '12px' }}>
                           <div className="table-wrapper">
                             <table>
                               <thead>
                                 <tr>
-                                  <th>Period</th>
-                                  <th>Due Date</th>
-                                  <th>Base</th>
-                                  <th>Dividend</th>
-                                  <th>Deferred</th>
-                                  <th>Premium</th>
-                                  <th>Interest</th>
-                                  <th>Penalty</th>
-                                  <th>Net Due</th>
-                                  <th>Paid</th>
-                                  <th>Outstanding</th>
+                                  <th>{lu.period}</th>
+                                  <th>{lu.dueDate}</th>
+                                  <th>{lu.grossDue}</th>
+                                  <th>{lu.dividendEarned}</th>
+                                  <th>{lu.deferredCol}</th>
+                                  <th>{lu.premiumCol}</th>
+                                  <th>{lu.interestCol}</th>
+                                  <th>{lu.penaltyCol}</th>
+                                  <th>{lu.netPayable}</th>
+                                  <th>{lu.paid}</th>
+                                  <th>{lu.outstanding}</th>
                                   {m.goldTotalGrams > 0 && <th>Gold (g)</th>}
-                                  <th>Status</th>
+                                  <th>{lu.statusCol}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -234,7 +243,7 @@ export default function MemberDividendLedgerPanel({
                                     <td>{formatCurrency(p.baseDue, currencySymbol)}</td>
                                     <td style={{ color: p.dividendForfeited ? 'var(--danger)' : 'var(--success)' }}>
                                       {p.dividendForfeited
-                                        ? 'Forfeited'
+                                        ? lu.forfeited
                                         : formatCurrency(p.dividendEarned, currencySymbol)}
                                     </td>
                                     <td>{p.deferredDividend > 0 ? formatCurrency(p.deferredDividend, currencySymbol) : '—'}</td>
@@ -266,22 +275,22 @@ export default function MemberDividendLedgerPanel({
       {ledger.periodSummaries.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h3>🧮 {dc.periodCalculationsTitle || 'Cycle-by-Cycle Calculation & Dividend Register'}</h3>
+            <h3>🧮 {dc.periodCalculationsTitle || lu.cycleRegisterTitle}</h3>
           </div>
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Period</th>
-                  <th>Date</th>
-                  <th>Winner(s)</th>
-                  <th>Prize</th>
-                  <th>Discount</th>
-                  <th>Commission</th>
-                  <th>Distributable</th>
-                  <th>Dividend / Ticket</th>
-                  <th>Net Instalment</th>
-                  <th>Rounding</th>
+                  <th>{lu.period}</th>
+                  <th>{lu.dateCol}</th>
+                  <th>{lu.winnersCol}</th>
+                  <th>{lu.prize}</th>
+                  <th>{lu.discountCol}</th>
+                  <th>{lu.commissionCol}</th>
+                  <th>{lu.distributableCol}</th>
+                  <th>{lu.dividendTicketCol}</th>
+                  <th>{lu.netInstalmentCol}</th>
+                  <th>{lu.roundingCol}</th>
                   <th></th>
                 </tr>
               </thead>

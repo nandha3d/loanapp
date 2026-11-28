@@ -12,6 +12,7 @@ import {
 import { finalizeAuctionInTx } from './finalize';
 import { nextPeriodDate, parseFrequency } from './frequency';
 import { drawLotteryWinner, formatDrawEvidence } from './lottery';
+import { startingDiscountAmount } from './validation';
 
 type ServiceScope = { tenantId: string; appType: string; userId?: string | null };
 
@@ -200,10 +201,19 @@ export async function resolveNonAuctionPeriodInTx(
     throw new Error('Auction is locked');
   }
 
-  // Bidding engines only allow draw when in a reserved cycle OR reserve-price fallback with 0 valid bids
+  // Bidding engines allow fallback draw only when in a non-bidding cycle OR when zero valid bids were recorded
   const biddingActive = isBiddingEnabledForPeriod(group, auction.periodNumber);
-  if (biddingActive && engineType !== 'AUCTION_RESERVE_PRICE') {
-    throw new Error('Draw is only available for non-auction cycles or reserve-floor fallback');
+  if (biddingActive) {
+    const validBidCount = await tx.chitBid.count({
+      where: { auctionId: auction.id, status: 'valid' },
+    });
+    if (validBidCount > 0) {
+      throw new Error(
+        engineType === 'AUCTION_RESERVE_PRICE'
+          ? 'Valid bids exist above the reserve floor — use Confirm Auction instead of fallback lottery'
+          : 'Valid bids exist — use Confirm Auction instead of zero-bid fallback draw',
+      );
+    }
   }
 
   const eligible = await tx.chitMember.findMany({
@@ -216,16 +226,6 @@ export async function resolveNonAuctionPeriodInTx(
     include: { customer: true },
   });
   if (!eligible.length) throw new Error('No eligible tickets for this period');
-
-  // If AUCTION_RESERVE_PRICE has valid bids >= floor, require confirm instead of fallback draw
-  if (engineType === 'AUCTION_RESERVE_PRICE') {
-    const validBidCount = await tx.chitBid.count({
-      where: { auctionId: auction.id, status: 'valid' },
-    });
-    if (validBidCount > 0) {
-      throw new Error('Valid bids exist above the reserve floor — use Confirm Auction instead of fallback lottery');
-    }
-  }
 
   let winnerMember: (typeof eligible)[number] | undefined;
   let drawEvidence = '';
@@ -313,6 +313,25 @@ export async function resolveNonAuctionPeriodInTx(
     const estDiscount = roundMoney(fixedDiv * group.totalMembers + estComm);
     bidDiscount = Math.min(chitValue - 1, Math.max(0, estDiscount));
     prizeAmount = roundMoney(chitValue - bidDiscount);
+  } else if (biddingActive) {
+    const floorDiscount = startingDiscountAmount(chitValue, {
+      minDiscountPct: group.minDiscountPct != null ? Number(group.minDiscountPct) : null,
+      bidStartAtCommission: group.bidStartAtCommission,
+      commissionPct: group.commissionPct != null ? Number(group.commissionPct) : null,
+      reserveFloorPct: null,
+    });
+    if (floorDiscount > 0) {
+      bidDiscount = Math.min(chitValue - 1, Math.max(0, roundMoney(floorDiscount)));
+      prizeAmount = Math.max(1, roundMoney(chitValue - bidDiscount));
+    } else {
+      const fixed = calculateFixedDiscountPrize({
+        chitValue,
+        fixedDiscountPct: group.fixedDiscountPct ? Number(group.fixedDiscountPct) : 0,
+      });
+      prizeAmount = fixed.prizeAmount;
+      bidDiscount = fixed.bidDiscount;
+    }
+    drawEvidence = `Zero-bid fallback draw at floor discount ${bidDiscount}. ${drawEvidence}`;
   } else {
     const fixed = calculateFixedDiscountPrize({
       chitValue,

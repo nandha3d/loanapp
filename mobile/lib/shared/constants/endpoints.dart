@@ -112,6 +112,8 @@ class Endpoints {
   static const String chits = '/chits';
   static String chit(String id) => '/chits/$id';
   static String chitMembers(String id) => '/chits/$id/members';
+  static String chitMembersQuickAdd(String id) => '/chits/$id/members/quick-add';
+  static const String chitsSettings = '/chits/settings';
   static String chitAuctions(String id) => '/chits/$id/auctions';
   static String chitPayments(String id) => '/chits/$id/payments';
   static String chitActivate(String id) => '/chits/$id/activate';

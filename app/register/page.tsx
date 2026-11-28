@@ -46,9 +46,7 @@ function RegisterForm() {
   const googleEmail = searchParams.get('google_email') || '';
   const googleName = searchParams.get('google_name') || '';
   const googleId = searchParams.get('google_id') || '';
-  // Supabase-brokered Google onboarding lands here with google_email (no Google
-  // `sub`); legacy NextAuth Google flow lands with google_id. Either means the
-  // owner identity is already email-verified and password-less.
+  const googleProvider = searchParams.get('google_provider') || '';
   const isGoogleRegister = !!googleId || !!googleEmail;
 
   // Form state
@@ -398,14 +396,19 @@ function RegisterForm() {
 
     setLoading(true);
 
-    // For Supabase-brokered Google onboarding, capture the live session token so
-    // the server can verify the email and the client can bridge into the session.
+    let firebaseIdToken: string | null = null;
     let supabaseAccessToken: string | null = null;
-    if (isGoogleRegister && isSupabaseAuthEnabled()) {
-      try {
-        const { data } = await getSupabaseBrowser().auth.getSession();
-        supabaseAccessToken = data.session?.access_token ?? null;
-      } catch { /* fall back to legacy googleId path */ }
+    if (isGoogleRegister) {
+      if (googleProvider === 'firebase' || (typeof window !== 'undefined' && window.sessionStorage.getItem('zolofund_firebase_id_token'))) {
+        try {
+          firebaseIdToken = window.sessionStorage.getItem('zolofund_firebase_id_token');
+        } catch { /* ignore */ }
+      } else if (isSupabaseAuthEnabled()) {
+        try {
+          const { data } = await getSupabaseBrowser().auth.getSession();
+          supabaseAccessToken = data.session?.access_token ?? null;
+        } catch { /* fall back to legacy googleId path */ }
+      }
     }
 
     try {
@@ -413,6 +416,7 @@ function RegisterForm() {
       const payload = isGoogleRegister
         ? {
             googleId,
+            firebaseIdToken,
             supabaseAccessToken,
             ownerEmail: googleEmail,
             ownerName,
@@ -481,9 +485,12 @@ function RegisterForm() {
       }
 
       if (isGoogleRegister) {
-        // Bridge the existing Supabase (Google) session straight into the app
-        // session. Fall back to the legacy NextAuth Google provider if needed.
-        if (supabaseAccessToken) {
+        if (firebaseIdToken) {
+          try {
+            window.sessionStorage.removeItem('zolofund_firebase_id_token');
+          } catch { /* ignore */ }
+          await signIn('firebase', { idToken: firebaseIdToken, redirect: true, callbackUrl: '/portal' });
+        } else if (supabaseAccessToken) {
           await signIn('supabase', { access_token: supabaseAccessToken, redirect: true, callbackUrl: '/portal' });
         } else {
           await signIn('google', { callbackUrl: '/portal' });

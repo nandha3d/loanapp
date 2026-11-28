@@ -119,7 +119,7 @@ export async function saveCustomer(formData: FormData) {
       phone,
       address,
       aadharNumber: aadharNumberField || undefined,
-      routeId: routeId || undefined,
+      routeId: routeId ? routeId : editId ? null : undefined,
       agentId: agentId || undefined,
       email,
       pan,
@@ -169,11 +169,15 @@ export async function saveCustomer(formData: FormData) {
 
     const savedCustomer = res.data;
 
+    revalidatePath(modulePath(appType, '/customers'));
+    if (appType === 'chitfunds') {
+      revalidatePath(modulePath(appType, '/chits'), 'layout');
+    }
+
     if (isPopup) {
       return { success: true, customer: savedCustomer };
     }
 
-    revalidatePath(modulePath(appType, '/customers'));
     redirect(modulePath(appType, `/customers/${savedCustomer.customerCode}`));
   } catch (e: any) {
     if (e.message && e.message.includes('NEXT_REDIRECT')) {

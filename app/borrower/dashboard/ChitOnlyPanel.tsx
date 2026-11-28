@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import TopbarLiveAuctionBar from '@/components/chits/TopbarLiveAuctionBar';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { getMyChitMemberships } from '@/lib/chits/customerPortal';
 
@@ -25,13 +26,16 @@ export default function ChitOnlyPanel({
 
   return (
     <div style={{ maxWidth: '860px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-          {dc.portalMyChits || 'My Chits'}
-        </h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '4px' }}>
-          {dc.portalMyChitsDesc || 'Your chit fund memberships, dividend earnings, contributions, and receipts.'}
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            {dc.portalMyChits || 'My Chits'}
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '4px', marginBottom: 0 }}>
+            {dc.portalMyChitsDesc || 'Your chit fund memberships, dividend earnings, contributions, and receipts.'}
+          </p>
+        </div>
+        <TopbarLiveAuctionBar mode="borrower" dict={dict} />
       </div>
 
       {memberships.length === 0 ? (

@@ -1,12 +1,13 @@
 import prisma from '@/lib/db';
 import { getSetting } from '@/lib/tenant';
 import { notFound } from 'next/navigation';
-import Link from '@/components/layout/DashboardLink';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
 import { getCurrentLanguage, getDictionary } from '@/lib/i18n';
 import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
 import { buildChitGroupDividendLedger } from '@/lib/chits/memberDividendLedger';
+import { getCashDenominationMode } from '@/lib/chits/denominations';
 import { resolveEngineTypeFromGroup } from '@/lib/chits/engineTypes';
+import { getChitPlanEntitlements } from '@/lib/chits/planEntitlements';
 
 export default async function ChitGroupDetailPage({ params }: { params: Promise<{ id: string; module: string }> }) {
   const { id } = await params;
@@ -56,7 +57,7 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
 
   if (!group) notFound();
 
-  const [dividendLedger, poolTransactions, staffUsers, branchCustomers] = await Promise.all([
+  const [dividendLedger, poolTransactions, staffUsers, branchCustomers, cashDenominationMode, chitEntitlements] = await Promise.all([
     buildChitGroupDividendLedger(group.id, scope),
     resolveEngineTypeFromGroup(group) === 'ASCA_SHG_REVOLVING'
       ? prisma.chitPoolTransaction.findMany({
@@ -95,30 +96,22 @@ export default async function ChitGroupDetailPage({ params }: { params: Promise<
       select: { id: true, name: true, customerCode: true },
       orderBy: { name: 'asc' },
     }),
+    getCashDenominationMode(prisma, tenantId),
+    getChitPlanEntitlements(prisma, tenantId),
   ]);
 
   return (
-    <div>
-      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/chits" className="btn btn-ghost btn-sm">
-          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
-          Back to Chit Groups
-        </Link>
-        <div>
-          <h2 style={{ margin: 0 }}>{group.name}</h2>
-          <span className={`badge badge-${group.status === 'active' ? 'success' : 'secondary'}`} style={{ marginLeft: '8px' }}>{group.status}</span>
-        </div>
-      </div>
-      <ChitGroupDetailClient
-        group={JSON.parse(JSON.stringify(group))}
-        dividendLedger={dividendLedger}
-        poolTransactions={JSON.parse(JSON.stringify(poolTransactions))}
-        staffUsers={JSON.parse(JSON.stringify(staffUsers))}
-        customers={JSON.parse(JSON.stringify(branchCustomers))}
-        currencySymbol={currencySymbol}
-        lang={lang}
-        dict={dict}
-      />
-    </div>
+    <ChitGroupDetailClient
+      group={JSON.parse(JSON.stringify(group))}
+      dividendLedger={dividendLedger}
+      poolTransactions={JSON.parse(JSON.stringify(poolTransactions))}
+      staffUsers={JSON.parse(JSON.stringify(staffUsers))}
+      customers={JSON.parse(JSON.stringify(branchCustomers))}
+      cashDenominationMode={cashDenominationMode}
+      canExportStatutoryRegisters={chitEntitlements.canExportStatutoryRegisters}
+      currencySymbol={currencySymbol}
+      lang={lang}
+      dict={dict}
+    />
   );
 }
