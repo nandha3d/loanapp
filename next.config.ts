@@ -15,6 +15,10 @@ const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 // its origin must be allowed in connect-src or the CSP blocks every call.
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
 const cspSupabase = SUPABASE_URL ? ` ${SUPABASE_URL} wss://${SUPABASE_URL.replace(/^https?:\/\//, '')}` : '';
+const FIREBASE_AUTH_DOMAIN = (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '').trim();
+const cspFirebaseFrame = FIREBASE_AUTH_DOMAIN && !FIREBASE_AUTH_DOMAIN.endsWith('.firebaseapp.com')
+  ? ` https://${FIREBASE_AUTH_DOMAIN}`
+  : '';
 
 const securityHeaders = [
   // HSTS (ignored by browsers over plain http, so harmless in local dev). No
@@ -30,14 +34,15 @@ const securityHeaders = [
       "default-src 'self'",
       // unpkg.com: Leaflet (route-tracker live map) is loaded from CDN at runtime
       // checkout.razorpay.com: Razorpay Standard Checkout (/subscribe, NACH authorisation)
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://checkout.razorpay.com",
-      "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
+      // apis.google.com: Firebase Google Auth popup/redirect helper scripts
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://checkout.razorpay.com https://apis.google.com",
+      `frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.firebaseapp.com${cspFirebaseFrame}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
       // OpenStreetMap tiles + Leaflet marker sprites for the live map
       `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com https://*.razorpay.com${cspApiUrl}`,
       "media-src 'self' blob: data:",
       "font-src 'self' https://fonts.gstatic.com",
-      `connect-src 'self'${cspApiUrl}${cspSupabase} https://lumberjack.razorpay.com https://api.razorpay.com`,
+      `connect-src 'self'${cspApiUrl}${cspSupabase} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://lumberjack.razorpay.com https://api.razorpay.com`,
       "frame-ancestors 'none'",
     ].join('; '),
   },
@@ -62,10 +67,10 @@ const nextConfig: NextConfig = {
     '*.zolofunds.test',
   ],
   typescript: {
-    // Type errors now fail the build (tsc --noEmit is clean). Keeps the type
-    // safety net on for production deploys. (This Next version runs ESLint
-    // separately via `next lint`, so no eslint config key here.)
-    ignoreBuildErrors: false,
+    // Type errors fail the build cleanly in tsc/CI (`npx tsc --noEmit`). When
+    // deploying onto a memory-constrained 4GB VPS after CI already passed `tsc`,
+    // `SKIP_NEXT_TYPECHECK=1` prevents duplicate TypeScript heap OOM (exit 137).
+    ignoreBuildErrors: process.env.SKIP_NEXT_TYPECHECK === '1',
   },
   turbopack: {
     root: process.cwd(),
